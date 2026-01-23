@@ -701,32 +701,41 @@ public final class WidgetDataManager {
         var totalBytesIn: UInt64 = 0
         var totalBytesOut: UInt64 = 0
 
-        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, AF_INET, NET_RT_IFLIST2]
+        // mib array: CTL_NET, PF_ROUTE, 0 (protocol), 0 (address family - all), NET_RT_IFLIST2, 0 (interface index - all)
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
         var len: Int = 0
 
-        sysctl(&mib, UInt32(mib.count), nil, &len, nil, 0)
+        // First call to get required buffer size
+        if sysctl(&mib, UInt32(mib.count), nil, &len, nil, 0) != 0 {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        var buffer = [Int8](repeating: 0, count: len)
-        sysctl(&mib, UInt32(mib.count), &buffer, &len, nil, 0)
+        guard len > 0 else {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        let pointer = buffer.withUnsafeBytes { $0.baseAddress?.assumingMemoryBound(to: if_msghdr2.self) }
+        var buffer = [UInt8](repeating: 0, count: len)
+        if sysctl(&mib, UInt32(mib.count), &buffer, &len, nil, 0) != 0 {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        var offset = 0
-        while offset < len {
-            guard let ifm = pointer?.advanced(by: offset).pointee else { break }
+        // Process the buffer inside withUnsafeBytes to avoid dangling pointer
+        buffer.withUnsafeBytes { rawBuffer in
+            var offset = 0
+            while offset + MemoryLayout<if_msghdr2>.size <= len {
+                let msgPtr = rawBuffer.baseAddress!.advanced(by: offset)
+                let ifm = msgPtr.assumingMemoryBound(to: if_msghdr2.self).pointee
 
-            if ifm.ifm_type == RTM_IFINFO2 {
-                let ifData = pointer?.advanced(by: offset + MemoryLayout<if_msghdr2>.stride).withMemoryRebound(to: if_data64.self, capacity: 1) {
-                    $0.pointee
+                guard ifm.ifm_msglen > 0 else { break }
+
+                if Int32(ifm.ifm_type) == RTM_IFINFO2 {
+                    // The if_data64 is embedded in if_msghdr2 as ifm_data
+                    totalBytesIn += ifm.ifm_data.ifi_ibytes
+                    totalBytesOut += ifm.ifm_data.ifi_obytes
                 }
 
-                if let data = ifData {
-                    totalBytesIn += data.ifi_ibytes
-                    totalBytesOut += data.ifi_obytes
-                }
+                offset += Int(ifm.ifm_msglen)
             }
-
-            offset += Int(ifm.ifm_msglen)
         }
 
         return NetworkStats(bytesIn: totalBytesIn, bytesOut: totalBytesOut)

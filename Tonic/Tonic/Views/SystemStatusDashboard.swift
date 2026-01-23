@@ -107,6 +107,19 @@ class SystemMonitor: ObservableObject {
         startMonitoring()
     }
 
+    deinit {
+        // Clean up resources
+        stopMonitoring()
+        // Deallocate CPU info if it exists
+        if let prevInfo = previousCPUInfo, previousNumCpuInfo > 0 {
+            vm_deallocate(
+                mach_task_self(),
+                vm_address_t(UInt(bitPattern: prevInfo)),
+                vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<Int>.size)
+            )
+        }
+    }
+
     func startMonitoring() {
         guard !isMonitoring else { return }
         isMonitoring = true
@@ -187,26 +200,20 @@ class SystemMonitor: ObservableObject {
             cpuLock.unlock()
         }
 
-        let inUse: Int
-        if let info = cpuInfo {
-            inUse = Int(info[Int(CPU_STATE_MAX)])
-        } else {
-            inUse = 0
-        }
-        let total = numTotalCpu
-
         var usage = 0.0
 
-        if let prevInfo = previousCPUInfo, previousNumCPUs > 0 {
+        // Only calculate usage if we have previous data AND valid current data
+        if let prevInfo = previousCPUInfo, previousNumCPUs > 0,
+           let currentInfo = cpuInfo, numCpuInfo > 0 {
             let prevUser = prevInfo[Int(CPU_STATE_USER)]
             let prevSystem = prevInfo[Int(CPU_STATE_SYSTEM)]
             let prevIdle = prevInfo[Int(CPU_STATE_IDLE)]
             let prevNice = prevInfo[Int(CPU_STATE_NICE)]
 
-            let currentUser = cpuInfo?[Int(CPU_STATE_USER)] ?? 0
-            let currentSystem = cpuInfo?[Int(CPU_STATE_SYSTEM)] ?? 0
-            let currentIdle = cpuInfo?[Int(CPU_STATE_IDLE)] ?? 0
-            let currentNice = cpuInfo?[Int(CPU_STATE_NICE)] ?? 0
+            let currentUser = currentInfo[Int(CPU_STATE_USER)]
+            let currentSystem = currentInfo[Int(CPU_STATE_SYSTEM)]
+            let currentIdle = currentInfo[Int(CPU_STATE_IDLE)]
+            let currentNice = currentInfo[Int(CPU_STATE_NICE)]
 
             let prevTotal = prevUser + prevSystem + prevIdle + prevNice
             let currentTotal = currentUser + currentSystem + currentIdle + currentNice
@@ -219,9 +226,16 @@ class SystemMonitor: ObservableObject {
             }
         }
 
-        // Store current for next iteration
-        vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: previousCPUInfo)), vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<Int>.size))
+        // Deallocate previous CPU info if it exists
+        if let prevInfo = previousCPUInfo, previousNumCpuInfo > 0 {
+            vm_deallocate(
+                mach_task_self(),
+                vm_address_t(UInt(bitPattern: prevInfo)),
+                vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<Int>.size)
+            )
+        }
 
+        // Store current for next iteration (cpuInfo is already vm_allocated by host_processor_info)
         previousCPUInfo = cpuInfo
         previousNumCpuInfo = numCpuInfo
         previousNumCPUs = numTotalCpu
