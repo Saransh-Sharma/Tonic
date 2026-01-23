@@ -7,6 +7,7 @@
 
 import SwiftUI
 import IOKit.ps
+import Darwin.Mach
 
 // MARK: - System Status Models
 
@@ -108,8 +109,8 @@ class SystemMonitor: ObservableObject {
     }
 
     deinit {
-        // Clean up resources
-        stopMonitoring()
+        // Directly clean up timer without calling MainActor-isolated method
+        timer?.invalidate()
         // Deallocate CPU info if it exists
         if let prevInfo = previousCPUInfo, previousNumCpuInfo > 0 {
             vm_deallocate(
