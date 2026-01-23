@@ -1,0 +1,26 @@
+{
+  "assignee": "saransh1337@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-23T06:38:04.412745Z",
+  "created_at": "2026-01-23T06:32:28.221205Z",
+  "depends_on": [],
+  "epic": "fn-1",
+  "evidence": {
+    "all_files_committed": true,
+    "all_files_pushed": true,
+    "branch": "bootstrapTonic",
+    "commit_range": "6b283e7..0c44345",
+    "remote_verified": true,
+    "total_commits": 21,
+    "untracked_remaining": [
+      ".flow/",
+      "Tonic/.flow/"
+    ]
+  },
+  "id": "fn-1.7",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-1.7.md",
+  "status": "done",
+  "title": "Verify all files are committed and pushed",
+  "updated_at": "2026-01-23T06:38:27.442623Z"
+}

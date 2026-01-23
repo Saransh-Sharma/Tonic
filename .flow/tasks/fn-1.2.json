@@ -1,0 +1,22 @@
+{
+  "assignee": "saransh1337@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-23T06:33:17.851573Z",
+  "created_at": "2026-01-23T06:32:27.838633Z",
+  "depends_on": [],
+  "epic": "fn-1",
+  "evidence": {
+    "claude_md_created": true,
+    "file_path": "CLAUDE.md",
+    "includes_build_commands": true,
+    "includes_design_system": true,
+    "includes_key_services": true,
+    "includes_project_overview": true
+  },
+  "id": "fn-1.2",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-1.2.md",
+  "status": "done",
+  "title": "Create CLAUDE.md documentation file",
+  "updated_at": "2026-01-23T06:33:51.976476Z"
+}

@@ -153,8 +153,6 @@ docs/
 npm-debug.log
 yarn-error.log
 
-# Flow-next
-.flow/memory/
 
 # Local Tonic app data
 Tonic/AppData/

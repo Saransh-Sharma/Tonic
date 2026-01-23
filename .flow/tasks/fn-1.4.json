@@ -1,0 +1,32 @@
+{
+  "assignee": "saransh1337@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-23T06:34:52.364637Z",
+  "created_at": "2026-01-23T06:32:27.991052Z",
+  "depends_on": [],
+  "epic": "fn-1",
+  "evidence": {
+    "branch": "bootstrapTonic",
+    "commit_range": "abcaa3d..042ff7d",
+    "commits_count": 17,
+    "directories_covered": [
+      "Models",
+      "Design",
+      "Views",
+      "Services",
+      "Utilities",
+      "MenuBar",
+      "MenuBarWidgets",
+      "Assets",
+      "Frameworks"
+    ],
+    "source_committed": true,
+    "source_pushed": true
+  },
+  "id": "fn-1.4",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-1.4.md",
+  "status": "done",
+  "title": "Commit and push Tonic source code files",
+  "updated_at": "2026-01-23T06:37:02.759955Z"
+}
