@@ -2,7 +2,7 @@
 //  NetworkWidgetView.swift
 //  Tonic
 //
-//  Network monitoring widget views
+//  Network monitoring widget views (redesigned with enhanced diagnostics)
 //  Task ID: fn-2.8
 //
 
@@ -345,7 +345,8 @@ public final class NetworkStatusItem: WidgetStatusItem {
     // Uses base WidgetStatusItem.createCompactView() which respects configuration
 
     public override func createDetailView() -> AnyView {
-        AnyView(NetworkDetailView())
+        // Use the redesigned detail view with enhanced diagnostics
+        AnyView(NetworkDetailViewRedesigned())
     }
 }
 
