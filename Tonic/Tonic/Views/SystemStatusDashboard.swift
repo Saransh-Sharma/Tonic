@@ -3,6 +3,7 @@
 //  Tonic
 //
 //  Real-time system status dashboard with CPU, memory, disk, network, battery, and uptime
+//  Redesigned with modern visualizations and delightful UX
 //
 
 import SwiftUI
@@ -95,8 +96,13 @@ class SystemMonitor: ObservableObject {
     @Published var isMonitoring = false
     @Published var updateInterval: TimeInterval = 2.0
 
+    // History for sparklines
+    @Published var networkDownloadHistory: [Double] = Array(repeating: 0, count: 30)
+    @Published var networkUploadHistory: [Double] = Array(repeating: 0, count: 30)
+
     private var timer: Timer?
     private var previousNetStats: NetworkStats?
+    private var lastNetworkUpdate: Date?
 
     // CPU usage tracking
     private var previousCPUInfo: processor_info_array_t?
@@ -109,12 +115,10 @@ class SystemMonitor: ObservableObject {
     }
 
     deinit {
-        // Directly clean up timer without calling MainActor-isolated method
         timer?.invalidate()
-        // Deallocate CPU info if it exists
         if let prevInfo = previousCPUInfo, previousNumCpuInfo > 0 {
             vm_deallocate(
-                mach_task_self(),
+                mach_task_self_,
                 vm_address_t(UInt(bitPattern: prevInfo)),
                 vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<Int>.size)
             )
@@ -151,11 +155,31 @@ class SystemMonitor: ObservableObject {
         let (usedMem, totalMem) = getMemoryUsage()
         let pressure = getMemoryPressure()
         let volumes = getDiskUsage()
-        let netIn = previousNetStats?.bytesIn ?? 0
-        let netOut = previousNetStats?.bytesOut ?? 0
         let battery = getBatteryInfo()
         let uptime = getSystemUptime()
         let activeProcs = getActiveProcessCount()
+
+        // Calculate network rates
+        let currentNetStats = getNetworkStats()
+        var downloadRate: Double = 0
+        var uploadRate: Double = 0
+
+        if let prev = previousNetStats, let lastUpdate = lastNetworkUpdate {
+            let timeDelta = Date().timeIntervalSince(lastUpdate)
+            if timeDelta > 0 {
+                downloadRate = Double(currentNetStats.bytesIn - prev.bytesIn) / timeDelta
+                uploadRate = Double(currentNetStats.bytesOut - prev.bytesOut) / timeDelta
+            }
+        }
+
+        previousNetStats = currentNetStats
+        lastNetworkUpdate = Date()
+
+        // Update history for sparklines
+        networkDownloadHistory.append(downloadRate / 1024) // KB/s
+        networkDownloadHistory.removeFirst()
+        networkUploadHistory.append(uploadRate / 1024) // KB/s
+        networkUploadHistory.removeFirst()
 
         currentStatus = SystemStatus(
             timestamp: Date(),
@@ -166,14 +190,11 @@ class SystemMonitor: ObservableObject {
             totalMemory: totalMem,
             memoryPressure: pressure,
             diskUsage: volumes,
-            networkBytesIn: netIn,
-            networkBytesOut: netOut,
+            networkBytesIn: currentNetStats.bytesIn,
+            networkBytesOut: currentNetStats.bytesOut,
             batteryInfo: battery,
             systemUptime: uptime
         )
-
-        // Update network stats for next delta calculation
-        previousNetStats = getNetworkStats()
     }
 
     // MARK: - CPU Monitoring
@@ -203,7 +224,6 @@ class SystemMonitor: ObservableObject {
 
         var usage = 0.0
 
-        // Only calculate usage if we have previous data AND valid current data
         if let prevInfo = previousCPUInfo, previousNumCPUs > 0,
            let currentInfo = cpuInfo, numCpuInfo > 0 {
             let prevUser = prevInfo[Int(CPU_STATE_USER)]
@@ -227,16 +247,14 @@ class SystemMonitor: ObservableObject {
             }
         }
 
-        // Deallocate previous CPU info if it exists
         if let prevInfo = previousCPUInfo, previousNumCpuInfo > 0 {
             vm_deallocate(
-                mach_task_self(),
+                mach_task_self_,
                 vm_address_t(UInt(bitPattern: prevInfo)),
                 vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<Int>.size)
             )
         }
 
-        // Store current for next iteration (cpuInfo is already vm_allocated by host_processor_info)
         previousCPUInfo = cpuInfo
         previousNumCpuInfo = numCpuInfo
         previousNumCPUs = numTotalCpu
@@ -265,7 +283,6 @@ class SystemMonitor: ObservableObject {
             }
         }
 
-        // Use proc list for actual process count
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
         var mibLen: Int = mib.count
         var size = MemoryLayout<kinfo_proc>.stride
@@ -305,12 +322,8 @@ class SystemMonitor: ObservableObject {
         }
 
         let pageSize = UInt64(vm_kernel_page_size)
-
-        // Used memory = active + wired
         let used = (UInt64(stats.active_count) + UInt64(stats.wire_count)) * pageSize
-        let total = UInt64(stats.wire_count + stats.active_count + stats.inactive_count + stats.free_count) * pageSize
 
-        // Get physical memory
         var memSize: Int = 0
         var memSizeLen = MemoryLayout<Int>.size
         sysctlbyname("hw.memsize", &memSize, &memSizeLen, nil, 0)
@@ -354,8 +367,6 @@ class SystemMonitor: ObservableObject {
         let keys: [URLResourceKey] = [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeIsRootFileSystemKey]
 
         if let volumesURLs = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys) {
-            let bootPath = FileManager.default.urls(for: .userDirectory, in: .localDomainMask).first?.deletingLastPathComponent().path ?? "/"
-
             for url in volumesURLs {
                 guard let resourceValues = try? url.resourceValues(forKeys: Set(keys)),
                       let name = resourceValues.volumeName,
@@ -382,7 +393,7 @@ class SystemMonitor: ObservableObject {
 
     // MARK: - Network Monitoring
 
-    private struct NetworkStats {
+    struct NetworkStats {
         let bytesIn: UInt64
         let bytesOut: UInt64
     }
@@ -391,34 +402,37 @@ class SystemMonitor: ObservableObject {
         var totalBytesIn: UInt64 = 0
         var totalBytesOut: UInt64 = 0
 
-        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, AF_INET, NET_RT_IFLIST2]
-        var mibLen = UInt32(mib.count)
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
         var len: Int = 0
 
-        // Get buffer size needed
-        sysctl(&mib, mibLen, nil, &len, nil, 0)
+        if sysctl(&mib, UInt32(mib.count), nil, &len, nil, 0) != 0 {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        var buffer = [Int8](repeating: 0, count: len)
-        sysctl(&mib, mibLen, &buffer, &len, nil, 0)
+        guard len > 0 else {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        let pointer = buffer.withUnsafeBytes { $0.baseAddress?.assumingMemoryBound(to: if_msghdr2.self) }
+        var buffer = [UInt8](repeating: 0, count: len)
+        if sysctl(&mib, UInt32(mib.count), &buffer, &len, nil, 0) != 0 {
+            return NetworkStats(bytesIn: 0, bytesOut: 0)
+        }
 
-        var offset = 0
-        while offset < len {
-            guard let ifm = pointer?.advanced(by: offset).pointee else { break }
+        buffer.withUnsafeBytes { rawBuffer in
+            var offset = 0
+            while offset + MemoryLayout<if_msghdr2>.size <= len {
+                let msgPtr = rawBuffer.baseAddress!.advanced(by: offset)
+                let ifm = msgPtr.assumingMemoryBound(to: if_msghdr2.self).pointee
 
-            if ifm.ifm_type == RTM_IFINFO2 {
-                let ifData = pointer?.advanced(by: offset + MemoryLayout<if_msghdr2>.stride).withMemoryRebound(to: if_data64.self, capacity: 1) {
-                    $0.pointee
+                guard ifm.ifm_msglen > 0 else { break }
+
+                if Int32(ifm.ifm_type) == RTM_IFINFO2 {
+                    totalBytesIn += ifm.ifm_data.ifi_ibytes
+                    totalBytesOut += ifm.ifm_data.ifi_obytes
                 }
 
-                if let data = ifData {
-                    totalBytesIn += data.ifi_ibytes
-                    totalBytesOut += data.ifi_obytes
-                }
+                offset += Int(ifm.ifm_msglen)
             }
-
-            offset += Int(ifm.ifm_msglen)
         }
 
         return NetworkStats(bytesIn: totalBytesIn, bytesOut: totalBytesOut)
@@ -453,7 +467,6 @@ class SystemMonitor: ObservableObject {
             let timeToEmpty = info[kIOPSTimeToEmptyKey] as? Int
             let estimatedMinutes = timeToEmpty ?? nil
 
-            // Battery health estimation
             let designCapacity = info[kIOPSDesignCapacityKey] as? Int
             let health: BatteryHealth
             if let design = designCapacity, design > 0 {
@@ -500,7 +513,761 @@ class SystemMonitor: ObservableObject {
     }
 }
 
-// MARK: - System Status Dashboard View
+// MARK: - Circular Gauge Component
+
+struct CircularGauge: View {
+    let value: Double // 0-100
+    let icon: String
+    let label: String
+    let subtitle: String?
+    var size: CGFloat = 140
+
+    @State private var animatedValue: Double = 0
+    @State private var isHovered = false
+
+    private var gaugeColor: Color {
+        switch value {
+        case 0..<50: return DesignTokens.Colors.progressLow
+        case 50..<80: return DesignTokens.Colors.progressMedium
+        default: return DesignTokens.Colors.progressHigh
+        }
+    }
+
+    private var backgroundColor: Color {
+        gaugeColor.opacity(0.15)
+    }
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(
+                        backgroundColor,
+                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                    )
+
+                // Progress ring
+                Circle()
+                    .trim(from: 0, to: animatedValue / 100)
+                    .stroke(
+                        gaugeColor,
+                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: gaugeColor.opacity(0.5), radius: isHovered ? 8 : 4)
+
+                // Center content
+                VStack(spacing: DesignTokens.Spacing.xxs) {
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(gaugeColor)
+
+                    Text("\(Int(animatedValue))%")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignTokens.Colors.text)
+                        .contentTransition(.numericText())
+                }
+            }
+            .frame(width: size, height: size)
+
+            // Label
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(DesignTokens.Typography.headlineSmall)
+                    .foregroundColor(DesignTokens.Colors.text)
+
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(DesignTokens.Typography.captionMedium)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
+                .fill(isHovered ? DesignTokens.Colors.surfaceHovered : DesignTokens.Colors.surface)
+        )
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+                animatedValue = value
+            }
+        }
+        .onChange(of: value) { _, newValue in
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                animatedValue = newValue
+            }
+        }
+    }
+}
+
+// MARK: - Metric Card Component
+
+struct MetricCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let subtitle: String?
+    var color: Color = DesignTokens.Colors.accent
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            // Icon badge
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 40, height: 40)
+
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(color)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundColor(DesignTokens.Colors.text)
+
+                Text(title)
+                    .font(DesignTokens.Typography.captionMedium)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(DesignTokens.Typography.captionSmall)
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(DesignTokens.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
+                .fill(isHovered ? DesignTokens.Colors.surfaceHovered : DesignTokens.Colors.surface)
+        )
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Sparkline Chart Component
+
+struct SparklineChart: View {
+    let data: [Double]
+    let color: Color
+    var height: CGFloat = 40
+    var showGradient: Bool = true
+
+    private var normalizedData: [Double] {
+        let maxVal = max(data.max() ?? 1, 1)
+        return data.map { $0 / maxVal }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = geometry.size.height
+            let stepX = width / CGFloat(max(data.count - 1, 1))
+
+            ZStack {
+                // Gradient fill
+                if showGradient {
+                    Path { path in
+                        guard !normalizedData.isEmpty else { return }
+
+                        path.move(to: CGPoint(x: 0, y: height))
+
+                        for (index, value) in normalizedData.enumerated() {
+                            let x = CGFloat(index) * stepX
+                            let y = height - (CGFloat(value) * height * 0.9)
+
+                            if index == 0 {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+
+                        path.addLine(to: CGPoint(x: width, y: height))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.3), color.opacity(0.05)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                }
+
+                // Line
+                Path { path in
+                    guard !normalizedData.isEmpty else { return }
+
+                    for (index, value) in normalizedData.enumerated() {
+                        let x = CGFloat(index) * stepX
+                        let y = height - (CGFloat(value) * height * 0.9)
+
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+                .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .frame(height: height)
+    }
+}
+
+// MARK: - Storage Section
+
+struct StorageSection: View {
+    let volumes: [DiskVolume]
+    @State private var showOtherVolumes = false
+
+    private var bootVolume: DiskVolume? {
+        volumes.first(where: { $0.isBootVolume })
+    }
+
+    private var otherVolumes: [DiskVolume] {
+        volumes.filter { !$0.isBootVolume }
+    }
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                // Header
+                HStack {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Image(systemName: "internaldrive.fill")
+                            .font(.title3)
+                            .foregroundColor(DesignTokens.Colors.accent)
+                        Text("Storage")
+                            .font(DesignTokens.Typography.headlineMedium)
+                    }
+
+                    Spacer()
+
+                    if let boot = bootVolume {
+                        StatusDot(level: storageStatus(for: boot.usagePercentage))
+                    }
+                }
+
+                // Boot volume (always visible)
+                if let boot = bootVolume {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        HStack {
+                            Text(boot.name)
+                                .font(DesignTokens.Typography.bodyMedium)
+                                .fontWeight(.medium)
+
+                            Badge(text: "Boot", color: DesignTokens.Colors.accent, size: .small)
+
+                            Spacer()
+
+                            Text("\(Int(boot.usagePercentage))% used")
+                                .font(DesignTokens.Typography.bodySmall)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+
+                        // Gradient progress bar
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(DesignTokens.Colors.backgroundSecondary)
+
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: storageGradient(for: boot.usagePercentage),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geometry.size.width * CGFloat(boot.usagePercentage / 100))
+                            }
+                        }
+                        .frame(height: 8)
+
+                        // Stats row
+                        HStack(spacing: DesignTokens.Spacing.md) {
+                            Text("\(formatBytes(boot.usedBytes)) used")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                            Text("•")
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                            Text("\(formatBytes(boot.freeBytes)) free")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.progressLow)
+
+                            Text("•")
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                            Text("\(formatBytes(boot.totalBytes)) total")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+                        }
+                    }
+                    .padding(DesignTokens.Spacing.md)
+                    .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
+                    .cornerRadius(DesignTokens.CornerRadius.medium)
+                }
+
+                // Other volumes (collapsible)
+                if !otherVolumes.isEmpty {
+                    Button {
+                        withAnimation(DesignTokens.Animation.normal) {
+                            showOtherVolumes.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: showOtherVolumes ? "chevron.down" : "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                            Text("Other Volumes (\(otherVolumes.count))")
+                                .font(DesignTokens.Typography.bodySmall)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    if showOtherVolumes {
+                        VStack(spacing: DesignTokens.Spacing.sm) {
+                            ForEach(otherVolumes) { volume in
+                                CompactVolumeRow(volume: volume)
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+            }
+        }
+    }
+
+    private func storageStatus(for percentage: Double) -> StatusLevel {
+        switch percentage {
+        case 0..<70: return .healthy
+        case 70..<90: return .warning
+        default: return .critical
+        }
+    }
+
+    private func storageGradient(for percentage: Double) -> [Color] {
+        switch percentage {
+        case 0..<70:
+            return [DesignTokens.Colors.progressLow, DesignTokens.Colors.progressLow.opacity(0.8)]
+        case 70..<90:
+            return [DesignTokens.Colors.progressMedium, DesignTokens.Colors.progressMedium.opacity(0.8)]
+        default:
+            return [DesignTokens.Colors.progressHigh, DesignTokens.Colors.progressHigh.opacity(0.8)]
+        }
+    }
+
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1024 {
+            return String(format: "%.1f TB", gb / 1024)
+        }
+        return String(format: "%.1f GB", gb)
+    }
+}
+
+struct CompactVolumeRow: View {
+    let volume: DiskVolume
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "externaldrive.fill")
+                .font(.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Text(volume.name)
+                .font(DesignTokens.Typography.bodySmall)
+                .lineLimit(1)
+
+            Spacer()
+
+            Text("\(Int(volume.usagePercentage))%")
+                .font(DesignTokens.Typography.captionMedium)
+                .foregroundColor(volumeColor)
+
+            // Mini progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(DesignTokens.Colors.backgroundSecondary)
+
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(volumeColor)
+                        .frame(width: geometry.size.width * CGFloat(volume.usagePercentage / 100))
+                }
+            }
+            .frame(width: 60, height: 4)
+        }
+        .padding(.vertical, DesignTokens.Spacing.xs)
+    }
+
+    private var volumeColor: Color {
+        switch volume.usagePercentage {
+        case 0..<70: return DesignTokens.Colors.progressLow
+        case 70..<90: return DesignTokens.Colors.progressMedium
+        default: return DesignTokens.Colors.progressHigh
+        }
+    }
+}
+
+struct StatusDot: View {
+    let level: StatusLevel
+
+    var body: some View {
+        Circle()
+            .fill(level.color)
+            .frame(width: 8, height: 8)
+    }
+}
+
+// MARK: - Network Section
+
+struct NetworkActivitySection: View {
+    let bytesIn: UInt64
+    let bytesOut: UInt64
+    let downloadHistory: [Double]
+    let uploadHistory: [Double]
+
+    private var currentDownloadRate: Double {
+        downloadHistory.last ?? 0
+    }
+
+    private var currentUploadRate: Double {
+        uploadHistory.last ?? 0
+    }
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                // Header
+                HStack {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Image(systemName: "network")
+                            .font(.title3)
+                            .foregroundColor(DesignTokens.Colors.accent)
+                        Text("Network")
+                            .font(DesignTokens.Typography.headlineMedium)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        Circle()
+                            .fill(DesignTokens.Colors.progressLow)
+                            .frame(width: 8, height: 8)
+                        Text("Online")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+
+                // Download and Upload cards
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    // Download
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(DesignTokens.Colors.progressLow)
+                            Text("Download")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+
+                        Text(formatRate(currentDownloadRate))
+                            .font(.system(size: 20, weight: .bold, design: .monospaced))
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        SparklineChart(data: downloadHistory, color: DesignTokens.Colors.progressLow, height: 35)
+
+                        Text("Total: \(formatBytes(bytesIn))")
+                            .font(DesignTokens.Typography.captionSmall)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(DesignTokens.Spacing.md)
+                    .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
+                    .cornerRadius(DesignTokens.CornerRadius.medium)
+
+                    // Upload
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundColor(.blue)
+                            Text("Upload")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+
+                        Text(formatRate(currentUploadRate))
+                            .font(.system(size: 20, weight: .bold, design: .monospaced))
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        SparklineChart(data: uploadHistory, color: .blue, height: 35)
+
+                        Text("Total: \(formatBytes(bytesOut))")
+                            .font(DesignTokens.Typography.captionSmall)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(DesignTokens.Spacing.md)
+                    .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
+                    .cornerRadius(DesignTokens.CornerRadius.medium)
+                }
+            }
+        }
+    }
+
+    private func formatRate(_ kbps: Double) -> String {
+        if kbps >= 1024 {
+            return String(format: "%.1f MB/s", kbps / 1024)
+        } else if kbps >= 1 {
+            return String(format: "%.1f KB/s", kbps)
+        } else {
+            return "0 B/s"
+        }
+    }
+
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1024 {
+            return String(format: "%.2f TB", gb / 1024)
+        } else if gb >= 1 {
+            return String(format: "%.2f GB", gb)
+        } else {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
+        }
+    }
+}
+
+// MARK: - Battery Section
+
+struct BatteryStatusSection: View {
+    let battery: BatteryInfo
+    @State private var pulseAnimation = false
+
+    private var batteryGradient: LinearGradient {
+        let colors: [Color]
+        switch battery.chargePercentage {
+        case 0..<20:
+            colors = [DesignTokens.Colors.progressHigh, DesignTokens.Colors.progressHigh.opacity(0.7)]
+        case 20..<50:
+            colors = [DesignTokens.Colors.progressMedium, DesignTokens.Colors.progressMedium.opacity(0.7)]
+        default:
+            colors = [DesignTokens.Colors.progressLow, DesignTokens.Colors.progressLow.opacity(0.7)]
+        }
+        return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+    }
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                // Header
+                HStack {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                            .font(.title3)
+                            .foregroundColor(battery.color)
+                            .symbolEffect(.pulse, isActive: battery.isCharging)
+
+                        Text("\(Int(battery.chargePercentage))%")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                    }
+
+                    Spacer()
+
+                    if let minutes = battery.estimatedMinutesRemaining, minutes > 0 {
+                        Text("\(minutes / 60)h \(minutes % 60)m remaining")
+                            .font(DesignTokens.Typography.bodySmall)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+
+                // Battery bar
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(DesignTokens.Colors.backgroundSecondary)
+
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(batteryGradient)
+                            .frame(width: geometry.size.width * CGFloat(battery.chargePercentage / 100))
+                            .shadow(color: battery.color.opacity(battery.isCharging ? 0.5 : 0), radius: pulseAnimation ? 8 : 4)
+                    }
+                }
+                .frame(height: 12)
+
+                // Status row
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        Image(systemName: battery.isCharging ? "bolt.fill" : "bolt.slash")
+                            .font(.caption)
+                            .foregroundColor(battery.isCharging ? DesignTokens.Colors.progressMedium : DesignTokens.Colors.textTertiary)
+
+                        Text(battery.isCharging ? "Charging" : "On Battery")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Text("•")
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        Image(systemName: "heart.fill")
+                            .font(.caption)
+                            .foregroundColor(healthColor)
+
+                        Text("Health: \(battery.batteryHealth.rawValue)")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+            }
+        }
+        .onAppear {
+            if battery.isCharging {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                    pulseAnimation = true
+                }
+            }
+        }
+    }
+
+    private var healthColor: Color {
+        switch battery.batteryHealth {
+        case .good: return DesignTokens.Colors.progressLow
+        case .fair: return DesignTokens.Colors.progressMedium
+        case .poor: return DesignTokens.Colors.progressHigh
+        case .unknown: return DesignTokens.Colors.textTertiary
+        }
+    }
+}
+
+// MARK: - Skeleton Loading State
+
+struct SkeletonLoadingView: View {
+    @State private var shimmerOffset: CGFloat = -1
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.lg) {
+            // Hero section skeleton
+            HStack(spacing: DesignTokens.Spacing.lg) {
+                SkeletonCircle(size: 140)
+                SkeletonCircle(size: 140)
+
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    SkeletonRect(height: 60)
+                    SkeletonRect(height: 60)
+                    SkeletonRect(height: 60)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // Cards skeleton
+            SkeletonRect(height: 150)
+            SkeletonRect(height: 180)
+            SkeletonRect(height: 100)
+        }
+        .padding(DesignTokens.Spacing.lg)
+    }
+}
+
+struct SkeletonCircle: View {
+    let size: CGFloat
+    @State private var isAnimating = false
+
+    var body: some View {
+        Circle()
+            .fill(DesignTokens.Colors.surface)
+            .frame(width: size, height: size)
+            .overlay(
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color.white.opacity(0.1),
+                                Color.clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .offset(x: isAnimating ? size : -size)
+            )
+            .clipShape(Circle())
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
+    }
+}
+
+struct SkeletonRect: View {
+    var width: CGFloat? = nil
+    let height: CGFloat
+    @State private var isAnimating = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
+            .fill(DesignTokens.Colors.surface)
+            .frame(width: width, height: height)
+            .frame(maxWidth: width == nil ? .infinity : nil)
+            .overlay(
+                GeometryReader { geometry in
+                    RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.clear,
+                                    Color.white.opacity(0.08),
+                                    Color.clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .offset(x: isAnimating ? geometry.size.width : -geometry.size.width)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium))
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
+    }
+}
+
+// MARK: - Main Dashboard View
 
 struct SystemStatusDashboard: View {
     @StateObject private var monitor = SystemMonitor()
@@ -517,137 +1284,119 @@ struct SystemStatusDashboard: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             // Header
             HStack {
-                SectionHeader(title: "System Status")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Live Monitoring")
+                        .font(DesignTokens.Typography.headlineLarge)
+                    Text("Real-time system performance")
+                        .font(DesignTokens.Typography.bodySmall)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
 
                 Spacer()
 
-                Picker("Update", selection: $selectedUpdateInterval) {
-                    ForEach(updateIntervals, id: \.value) { interval in
-                        Text(interval.label).tag(interval.value)
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    Text("Update")
+                        .font(DesignTokens.Typography.captionMedium)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                    Picker("", selection: $selectedUpdateInterval) {
+                        ForEach(updateIntervals, id: \.value) { interval in
+                            Text(interval.label).tag(interval.value)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 180)
-                .onChange(of: selectedUpdateInterval) { _, newValue in
-                    monitor.setUpdateInterval(newValue)
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                    .onChange(of: selectedUpdateInterval) { _, newValue in
+                        monitor.setUpdateInterval(newValue)
+                    }
                 }
             }
 
             if let status = monitor.currentStatus {
-                // Quick Stats Row
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    CPUQuickStat(usage: status.cpuUsage)
-                    MemoryQuickStat(usage: status.memoryUsagePercentage, pressure: status.memoryPressure)
-                    UptimeQuickStat(uptime: status.systemUptime)
-                }
-                .padding(.bottom, DesignTokens.Spacing.sm)
+                // Hero Section: Gauges + Stats
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.lg) {
+                    // CPU Gauge
+                    CircularGauge(
+                        value: status.cpuUsage,
+                        icon: "cpu",
+                        label: "CPU",
+                        subtitle: pressureLabel(for: status.cpuUsage)
+                    )
 
-                // Detailed Stats
+                    // Memory Gauge
+                    CircularGauge(
+                        value: status.memoryUsagePercentage,
+                        icon: "memorychip",
+                        label: "Memory",
+                        subtitle: status.memoryPressure.rawValue
+                    )
+
+                    // Stats Column
+                    VStack(spacing: DesignTokens.Spacing.sm) {
+                        MetricCard(
+                            icon: "gearshape.2.fill",
+                            title: "Processes",
+                            value: "\(status.activeProcesses)",
+                            subtitle: "Active",
+                            color: DesignTokens.Colors.accent
+                        )
+
+                        MetricCard(
+                            icon: "bolt.horizontal.fill",
+                            title: "Threads",
+                            value: "\(status.totalThreads)",
+                            subtitle: "Running",
+                            color: .purple
+                        )
+
+                        MetricCard(
+                            icon: "clock.fill",
+                            title: "Uptime",
+                            value: formatUptime(status.systemUptime),
+                            subtitle: "Since boot",
+                            color: .blue
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
+                // Scrollable detail sections
                 ScrollView {
                     VStack(spacing: DesignTokens.Spacing.lg) {
-                        // CPU Section
-                        CPUSection(status: status)
+                        // Storage
+                        StorageSection(volumes: status.diskUsage)
 
-                        // Memory Section
-                        MemorySection(status: status)
+                        // Network
+                        NetworkActivitySection(
+                            bytesIn: status.networkBytesIn,
+                            bytesOut: status.networkBytesOut,
+                            downloadHistory: monitor.networkDownloadHistory,
+                            uploadHistory: monitor.networkUploadHistory
+                        )
 
-                        // Disk Section
-                        DiskSection(volumes: status.diskUsage)
-
-                        // Network Section
-                        NetworkSection(bytesIn: status.networkBytesIn, bytesOut: status.networkBytesOut)
-
-                        // Battery Section
+                        // Battery
                         if let battery = status.batteryInfo {
-                            BatterySection(battery: battery)
+                            BatteryStatusSection(battery: battery)
                         }
                     }
                     .padding(.bottom, DesignTokens.Spacing.lg)
                 }
             } else {
-                LoadingState()
+                SkeletonLoadingView()
             }
         }
-    }
-}
-
-// MARK: - Quick Stat Components
-
-struct CPUQuickStat: View {
-    let usage: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Image(systemName: "cpu")
-                    .foregroundColor(statusColor)
-                Text("CPU")
-                    .font(DesignTokens.Typography.captionLarge)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-            Text("\(Int(usage))%")
-                .font(DesignTokens.Typography.displaySmall)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
+        .padding(DesignTokens.Spacing.lg)
     }
 
-    private var statusColor: Color {
+    private func pressureLabel(for usage: Double) -> String {
         switch usage {
-        case 0..<50: return DesignTokens.Colors.progressLow
-        case 50..<80: return DesignTokens.Colors.progressMedium
-        default: return DesignTokens.Colors.progressHigh
+        case 0..<50: return "Normal"
+        case 50..<80: return "Moderate"
+        default: return "High"
         }
     }
-}
 
-struct MemoryQuickStat: View {
-    let usage: Double
-    let pressure: MemoryPressure
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Image(systemName: "memorychip")
-                    .foregroundColor(pressure.color)
-                Text("Memory")
-                    .font(DesignTokens.Typography.captionLarge)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-            Text("\(Int(usage))%")
-                .font(DesignTokens.Typography.displaySmall)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
-    }
-}
-
-struct UptimeQuickStat: View {
-    let uptime: TimeInterval
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Image(systemName: "clock")
-                    .foregroundColor(DesignTokens.Colors.accent)
-                Text("Uptime")
-                    .font(DesignTokens.Typography.captionLarge)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-            Text(formattedUptime)
-                .font(DesignTokens.Typography.headlineMedium)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
-    }
-
-    private var formattedUptime: String {
+    private func formatUptime(_ uptime: TimeInterval) -> String {
         let days = Int(uptime) / 86400
         let hours = Int(uptime) % 86400 / 3600
         let minutes = Int(uptime) % 3600 / 60
@@ -662,243 +1411,9 @@ struct UptimeQuickStat: View {
     }
 }
 
-// MARK: - Section Components
-
-struct CPUSection: View {
-    let status: SystemStatus
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                SectionHeader(title: "CPU Usage")
-
-                ProgressBar(value: status.cpuUsage, total: 100, color: cpuColor)
-
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    InfoRow(label: "Active Processes", value: "\(status.activeProcesses)")
-                    InfoRow(label: "Threads", value: "\(status.totalThreads)")
-                }
-            }
-        }
-    }
-
-    private var cpuColor: Color {
-        switch status.cpuUsage {
-        case 0..<50: return DesignTokens.Colors.progressLow
-        case 50..<80: return DesignTokens.Colors.progressMedium
-        default: return DesignTokens.Colors.progressHigh
-        }
-    }
-}
-
-struct MemorySection: View {
-    let status: SystemStatus
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                SectionHeader(title: "Memory")
-
-                ProgressBar(value: status.memoryUsagePercentage, total: 100, color: status.memoryPressure.color)
-
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    InfoRow(label: "Used", value: formatBytes(status.usedMemory))
-                    InfoRow(label: "Total", value: formatBytes(status.totalMemory))
-                }
-
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(status.memoryPressure.color)
-                    Text("Pressure: \(status.memoryPressure.rawValue)")
-                        .font(DesignTokens.Typography.bodyMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                }
-            }
-        }
-    }
-
-    private func formatBytes(_ bytes: UInt64) -> String {
-        let gb = Double(bytes) / 1_073_741_824
-        return String(format: "%.1f GB", gb)
-    }
-}
-
-struct DiskSection: View {
-    let volumes: [DiskVolume]
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                SectionHeader(title: "Disk Usage")
-
-                ForEach(volumes) { volume in
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                        HStack {
-                            Text(volume.name)
-                                .font(DesignTokens.Typography.bodyMedium)
-                                .fontWeight(.medium)
-
-                            if volume.isBootVolume {
-                                Badge(text: "Boot", color: DesignTokens.Colors.accent, size: .small)
-                            }
-
-                            Spacer()
-
-                            Text("\(Int(volume.usagePercentage))%")
-                                .font(DesignTokens.Typography.bodySmall)
-                                .foregroundColor(DesignTokens.Colors.textSecondary)
-                        }
-
-                        ProgressBar(value: volume.usagePercentage, total: 100, height: 6)
-
-                        HStack(spacing: DesignTokens.Spacing.md) {
-                            InfoRow(label: "Free", value: formatBytes(volume.freeBytes))
-                            InfoRow(label: "Total", value: formatBytes(volume.totalBytes))
-                        }
-                    }
-
-                    if volume != volumes.last {
-                        Divider()
-                            .padding(.vertical, DesignTokens.Spacing.xs)
-                    }
-                }
-            }
-        }
-    }
-
-    private func formatBytes(_ bytes: UInt64) -> String {
-        let gb = Double(bytes) / 1_073_741_824
-        if gb >= 1024 {
-            return String(format: "%.1f TB", gb / 1024)
-        }
-        return String(format: "%.1f GB", gb)
-    }
-}
-
-struct NetworkSection: View {
-    let bytesIn: UInt64
-    let bytesOut: UInt64
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                SectionHeader(title: "Network Activity")
-
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                        HStack {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(DesignTokens.Colors.progressLow)
-                            Text("Download")
-                                .font(DesignTokens.Typography.bodySmall)
-                                .foregroundColor(DesignTokens.Colors.textSecondary)
-                        }
-                        Text(formatBytes(bytesIn))
-                            .font(DesignTokens.Typography.headlineMedium)
-                    }
-
-                    Divider()
-                        .frame(height: 40)
-
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                        HStack {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .foregroundColor(DesignTokens.Colors.progressMedium)
-                            Text("Upload")
-                                .font(DesignTokens.Typography.bodySmall)
-                                .foregroundColor(DesignTokens.Colors.textSecondary)
-                        }
-                        Text(formatBytes(bytesOut))
-                            .font(DesignTokens.Typography.headlineMedium)
-                    }
-                }
-            }
-        }
-    }
-
-    private func formatBytes(_ bytes: UInt64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1024 {
-            return String(format: "%.2f GB", mb / 1024)
-        }
-        return String(format: "%.1f MB", mb)
-    }
-}
-
-struct BatterySection: View {
-    let battery: BatteryInfo
-
-    var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                SectionHeader(title: "Battery")
-
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    // Battery icon
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(DesignTokens.Colors.border, lineWidth: 2)
-                            .frame(width: 60, height: 28)
-
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(battery.color)
-                            .frame(width: CGFloat(battery.chargePercentage / 100) * 52, height: 20)
-                            .padding(.leading, 4)
-
-                        Rectangle()
-                            .fill(DesignTokens.Colors.border)
-                            .frame(width: 4, height: 12)
-                            .offset(x: 30)
-                    }
-
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                        Text("\(Int(battery.chargePercentage))%")
-                            .font(DesignTokens.Typography.headlineMedium)
-
-                        HStack(spacing: DesignTokens.Spacing.xs) {
-                            Image(systemName: battery.isCharging ? "bolt.fill" : "bolt.slash.fill")
-                                .font(.caption)
-                            Text(battery.isCharging ? "Charging" : "On Battery")
-                                .font(DesignTokens.Typography.bodySmall)
-                                .foregroundColor(DesignTokens.Colors.textSecondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xxs) {
-                        Text("Health: \(battery.batteryHealth.rawValue)")
-                            .font(DesignTokens.Typography.captionMedium)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                        if let minutes = battery.estimatedMinutesRemaining {
-                            Text("\(minutes / 60)h \(minutes % 60)m remaining")
-                                .font(DesignTokens.Typography.captionMedium)
-                                .foregroundColor(DesignTokens.Colors.textTertiary)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct LoadingState: View {
-    var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            LoadingIndicator()
-            Text("Loading system status...")
-                .font(DesignTokens.Typography.bodySmall)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DesignTokens.Spacing.xxl)
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     SystemStatusDashboard()
-        .frame(width: 800, height: 600)
+        .frame(width: 900, height: 700)
 }
