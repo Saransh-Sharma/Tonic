@@ -43,20 +43,14 @@ import SwiftUI
 // - Uses CoreWLAN for Wi-Fi metrics (no additional permissions needed)
 // - Uses Network framework for ping testing
 
-// MARK: - Re-exports
-
-// Data models
-@_exported import struct NetworkMetricsModels.WiFiMetricsData
-@_exported import struct NetworkMetricsModels.WiFiBand
-@_exported import struct NetworkMetricsModels.WiFiSecurity
-@_exported import struct NetworkMetricsModels.NetworkQualityData
-@_exported import struct NetworkMetricsModels.QualityLevel
-@_exported import struct NetworkMetricsModels.QualityColor
-@_exported import struct NetworkMetricsModels.DNSData
-@_exported import struct NetworkMetricsModels.DNSSource
-@_exported import struct NetworkMetricsModels.SpeedTestData
-@_exported import struct NetworkMetricsModels.NetworkMetricHistory
-
+// MARK: - Component Access
+//
+// All network widget types are available directly in the Tonic module:
+// - WiFiMetricsData, WiFiBand, WiFiSecurity
+// - NetworkQualityData, QualityLevel, QualityColor
+// - DNSData, DNSSource
+// - SpeedTestData, NetworkMetricHistory
+//
 // Services are accessed via their singletons:
 // - WiFiMetricsService.shared
 // - NetworkQualityService.shared

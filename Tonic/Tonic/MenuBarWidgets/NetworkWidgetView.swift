@@ -10,6 +10,17 @@ import SwiftUI
 import Charts
 import Network
 
+// MARK: - Network Widget Prefetcher
+
+/// Call this to prefetch network data before showing the popover
+/// Non-blocking and safe to call multiple times (has internal debouncing)
+public func prefetchNetworkWidgetData() {
+    // Use lower priority to avoid blocking UI
+    Task.detached(priority: .utility) {
+        await NetworkDataFetcher.shared.prefetchData()
+    }
+}
+
 // MARK: - Network Compact View
 
 /// Compact menu bar view for Network widget
@@ -39,6 +50,10 @@ public struct NetworkCompactView: View {
         }
         .padding(.horizontal, 4)
         .frame(height: 22)
+        .onAppear {
+            // Start background prefetch when widget appears in menu bar
+            prefetchNetworkWidgetData()
+        }
     }
 
     private var connectionIcon: String {
@@ -65,7 +80,7 @@ public struct NetworkCompactView: View {
 // MARK: - Network Detail View
 
 /// Detailed popover view for Network widget
-public struct NetworkDetailView: View {
+public struct NetworkDetailViewLegacy: View {
 
     @State private var dataManager = WidgetDataManager.shared
 
@@ -345,14 +360,20 @@ public final class NetworkStatusItem: WidgetStatusItem {
     // Uses base WidgetStatusItem.createCompactView() which respects configuration
 
     public override func createDetailView() -> AnyView {
-        // Use the redesigned detail view with enhanced diagnostics
+        // Use the redesigned WhyFi-style detail view
         AnyView(NetworkDetailViewRedesigned())
     }
 }
 
 // MARK: - Preview
 
-#Preview("Network Detail") {
-    NetworkDetailView()
+#Preview("Network Detail (Redesigned)") {
+    NetworkDetailViewRedesigned()
+        .frame(width: 380, height: 560)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Network Detail (Legacy)") {
+    NetworkDetailViewLegacy()
         .frame(width: 320, height: 400)
 }
