@@ -279,6 +279,16 @@ public enum QualityLevel: Sendable, Codable {
         case .unknown: return "questionmark.circle"
         }
     }
+
+    public var label: String {
+        switch self {
+        case .excellent: return "Excellent"
+        case .good: return "Good"
+        case .fair: return "Fair"
+        case .poor: return "Poor"
+        case .unknown: return "Unknown"
+        }
+    }
 }
 
 /// Quality color for UI theming

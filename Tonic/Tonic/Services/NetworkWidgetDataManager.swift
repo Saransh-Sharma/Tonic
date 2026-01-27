@@ -10,6 +10,15 @@ import Foundation
 import SwiftUI
 import os
 
+// MARK: - Network Quality History Store
+
+/// Singleton to hold network quality history data (workaround for extensions not allowing stored properties)
+public final class NetworkQualityHistoryStore: @unchecked Sendable {
+    public static let shared = NetworkQualityHistoryStore()
+    public var history = NetworkMetricHistory()
+    private init() {}
+}
+
 // MARK: - Widget DataManager Extension
 
 /// Extension to WidgetDataManager that provides enhanced network metrics
@@ -18,45 +27,34 @@ extension WidgetDataManager {
     // MARK: - Enhanced Network Properties
 
     /// Wi-Fi specific metrics (signal, noise, link rate, etc.)
-    public private(set) var wiFiMetrics: WiFiMetricsData? {
-        get {
-            WiFiMetricsService.shared.currentMetrics
-        }
-        set {
-            // Read-only from service
-        }
+    public var wiFiMetrics: WiFiMetricsData? {
+        WiFiMetricsService.shared.currentMetrics
     }
 
     /// Router network quality (ping, jitter, packet loss to gateway)
-    public private(set) var routerQuality: NetworkQualityData? {
-        get {
-            NetworkQualityService.shared.routerQuality
-        }
+    public var routerQuality: NetworkQualityData? {
+        NetworkQualityService.shared.routerQuality
     }
 
     /// Internet network quality (ping, jitter, packet loss to external server)
-    public private(set) var internetQuality: NetworkQualityData? {
-        get {
-            NetworkQualityService.shared.internetQuality
-        }
+    public var internetQuality: NetworkQualityData? {
+        NetworkQualityService.shared.internetQuality
     }
 
     /// DNS configuration and performance
-    public private(set) var dnsData: DNSData? {
-        get {
-            DNSService.shared.currentDNS
-        }
+    public var dnsData: DNSData? {
+        DNSService.shared.currentDNS
     }
 
     /// Speed test results
-    public private(set) var speedTestData: SpeedTestData {
-        get {
-            SpeedTestService.shared.testData
-        }
+    public var speedTestData: SpeedTestData {
+        SpeedTestService.shared.testData
     }
 
     /// History data for network quality metrics
-    public private(set) var networkQualityHistory: NetworkMetricHistory = NetworkMetricHistory()
+    public var networkQualityHistory: NetworkMetricHistory {
+        NetworkQualityHistoryStore.shared.history
+    }
 
     // MARK: - Service Starters
 
@@ -112,39 +110,39 @@ extension WidgetDataManager {
     /// Add router quality data point to history
     private func addToHistory(routerQuality: NetworkQualityData) {
         if let ping = routerQuality.ping {
-            networkQualityHistory.add(to: \.routerPing, value: ping * 1000)
+            NetworkQualityHistoryStore.shared.history.add(to: \.routerPing, value: ping * 1000)
         }
         if let jitter = routerQuality.jitter {
-            networkQualityHistory.add(to: \.routerJitter, value: jitter * 1000)
+            NetworkQualityHistoryStore.shared.history.add(to: \.routerJitter, value: jitter * 1000)
         }
     }
 
     /// Add internet quality data point to history
     private func addToHistory(internetQuality: NetworkQualityData) {
         if let ping = internetQuality.ping {
-            networkQualityHistory.add(to: \.internetPing, value: ping * 1000)
+            NetworkQualityHistoryStore.shared.history.add(to: \.internetPing, value: ping * 1000)
         }
         if let jitter = internetQuality.jitter {
-            networkQualityHistory.add(to: \.internetJitter, value: jitter * 1000)
+            NetworkQualityHistoryStore.shared.history.add(to: \.internetJitter, value: jitter * 1000)
         }
     }
 
     /// Add Wi-Fi metrics data point to history
     public func addToHistory(wiFiMetrics: WiFiMetricsData) {
         if let linkRate = wiFiMetrics.linkRate {
-            networkQualityHistory.add(to: \.linkRate, value: linkRate)
+            NetworkQualityHistoryStore.shared.history.add(to: \.linkRate, value: linkRate)
         }
         if let signal = wiFiMetrics.signalStrength {
-            networkQualityHistory.add(to: \.signalStrength, value: signal)
+            NetworkQualityHistoryStore.shared.history.add(to: \.signalStrength, value: signal)
         }
         if let noise = wiFiMetrics.noise {
-            networkQualityHistory.add(to: \.noise, value: noise)
+            NetworkQualityHistoryStore.shared.history.add(to: \.noise, value: noise)
         }
     }
 
     /// Add DNS lookup time to history
     public func addToHistory(dnsLookup: TimeInterval) {
-        networkQualityHistory.add(to: \.dnsLookup, value: dnsLookup * 1000)
+        NetworkQualityHistoryStore.shared.history.add(to: \.dnsLookup, value: dnsLookup * 1000)
     }
 
     // MARK: - Computed Properties
