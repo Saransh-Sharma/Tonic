@@ -47,6 +47,7 @@ public enum TonicPermission: String, CaseIterable, Sendable {
 }
 
 /// Permission manager
+@MainActor
 @Observable
 public final class PermissionManager: @unchecked Sendable {
 
