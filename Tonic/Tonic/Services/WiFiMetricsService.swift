@@ -4,6 +4,7 @@
 //
 //  Service for fetching detailed Wi-Fi metrics using CoreWLAN
 //  Task ID: fn-2.8.2
+//  Performance optimized: Added aggressive caching
 //
 
 import Foundation
@@ -14,6 +15,7 @@ import SwiftUI
 // MARK: - WiFi Metrics Service
 
 /// Service for collecting detailed Wi-Fi network metrics using CoreWLAN
+/// Optimized with aggressive caching to minimize CoreWLAN calls
 @MainActor
 @Observable
 public final class WiFiMetricsService {
@@ -29,6 +31,16 @@ public final class WiFiMetricsService {
     public private(set) var isMonitoring = false
     public private(set) var lastError: Error?
 
+    // Aggressive caching to minimize expensive CoreWLAN calls
+    private struct CachedMetrics {
+        let data: WiFiMetricsData
+        let timestamp: Date
+    }
+
+    private var metricsCache: CachedMetrics?
+    private let cacheValidity: TimeInterval = 10.0  // 10 second cache
+    private var lastCacheInvalidation: Date = .distantPast
+
     private init() {
         initializeWiFiClient()
     }
@@ -36,13 +48,8 @@ public final class WiFiMetricsService {
     // MARK: - Initialization
 
     private func initializeWiFiClient() {
-        do {
-            wifiClient = CWWiFiClient.shared()
-            logger.info("CoreWLAN client initialized successfully")
-        } catch {
-            logger.error("Failed to initialize CoreWLAN client: \(error.localizedDescription)")
-            lastError = error
-        }
+        wifiClient = CWWiFiClient.shared()
+        logger.info("CoreWLAN client initialized successfully")
     }
 
     // MARK: - Public Methods
@@ -60,8 +67,15 @@ public final class WiFiMetricsService {
         logger.info("Wi-Fi metrics monitoring stopped")
     }
 
-    /// Fetch current Wi-Fi metrics
+    /// Fetch current Wi-Fi metrics (with caching)
     public func fetchMetrics() -> WiFiMetricsData? {
+        // Check cache first
+        if let cached = metricsCache,
+           Date().timeIntervalSince(cached.timestamp) < cacheValidity {
+            logger.debug("Using cached Wi-Fi metrics")
+            return cached.data
+        }
+
         guard let interface = getCurrentInterface() else {
             logger.debug("No Wi-Fi interface available")
             return nil
@@ -78,8 +92,19 @@ public final class WiFiMetricsService {
         }
 
         let metrics = collectMetrics(from: interface)
+
+        // Update cache
+        metricsCache = CachedMetrics(data: metrics, timestamp: Date())
         currentMetrics = metrics
+
         return metrics
+    }
+
+    /// Invalidate cache (call when network state changes)
+    public func invalidateCache() {
+        metricsCache = nil
+        lastCacheInvalidation = Date()
+        logger.debug("Wi-Fi metrics cache invalidated")
     }
 
     /// Get the current SSID
@@ -106,8 +131,10 @@ public final class WiFiMetricsService {
     // MARK: - Private Methods
 
     private func getCurrentInterface() -> CWInterface? {
-        // Cache the interface for performance
-        if let cached = wifiInterface, cached.interfaceName != nil {
+        // Aggressive caching - only refresh if interface is nil or cache is old
+        let cacheAge = Date().timeIntervalSince(lastCacheInvalidation)
+
+        if let cached = wifiInterface, cached.interfaceName != nil, cacheAge < 5.0 {
             return cached
         }
 
@@ -125,26 +152,25 @@ public final class WiFiMetricsService {
         // Link rate (transmit rate in Mbps)
         let linkRate = interface.transmitRate() as Double
 
-        // Signal strength (RSSI in dBm) - using rawValue as NSNumber
-        let signalStrength: Double?
-        if let rssi = interface.rssi() {
-            signalStrength = Double(truncating: rssi)
-        } else {
-            signalStrength = nil
-        }
+        // Signal strength (RSSI in dBm)
+        let signalStrength: Double? = Double(interface.rssiValue())
 
         // Noise floor in dBm
-        let noise: Double?
-        if let noiseValue = interface.noise() {
-            noise = Double(truncating: noiseValue)
-        } else {
-            noise = nil
-        }
+        let noise: Double? = Double(interface.noiseMeasurement())
 
         // Channel information
         let channel = interface.wlanChannel()
         let channelNumber = channel?.channelNumber
-        let channelWidth = channel?.channelWidth
+        let channelWidthValue: Int? = {
+            guard let width = channel?.channelWidth else { return nil }
+            switch width {
+            case .width20MHz: return 20
+            case .width40MHz: return 40
+            case .width80MHz: return 80
+            case .width160MHz: return 160
+            default: return nil
+            }
+        }()
 
         // Determine band from channel number
         let band = determineBand(from: channelNumber)
@@ -163,7 +189,7 @@ public final class WiFiMetricsService {
             signalStrength: signalStrength,
             noise: noise,
             channel: channelNumber,
-            channelWidth: channelWidth as Int?,
+            channelWidth: channelWidthValue,
             band: band,
             security: security,
             bssid: bssid,
@@ -212,11 +238,11 @@ public final class WiFiMetricsService {
         switch securityType {
         case .none:
             return .none
-        case .wep:
+        case .WEP, .dynamicWEP:
             return .wep
-        case .wpaPersonal:
+        case .wpaPersonal, .wpaPersonalMixed:
             return .wpa
-        case .wpaEnterprise:
+        case .wpaEnterprise, .wpaEnterpriseMixed:
             return .wpa
         case .wpa2Personal:
             return .wpa2
@@ -268,34 +294,51 @@ public final class WiFiMetricsService {
         return channels.compactMap { $0.channelNumber }
     }
 
-    // MARK: - Network Scan
+    // MARK: - Network Scan (Async)
 
-    /// Scan for available Wi-Fi networks
-    public func scanForNetworks() -> [WiFiNetworkInfo] {
-        guard let interface = getCurrentInterface() else {
+    /// Scan for available Wi-Fi networks (runs off main thread)
+    public func scanForNetworks() async -> [WiFiNetworkInfo] {
+        await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let networks = await self.performScan()
+                continuation.resume(returning: networks)
+            }
+        }
+    }
+
+    private func performScan() async -> [WiFiNetworkInfo] {
+        let interface = await MainActor.run {
+            getCurrentInterface()
+        }
+
+        guard let interface = interface else {
             return []
         }
 
         do {
             let networks = try interface.scanForNetworks(withSSID: nil)
-            return networks.compactMap { network in
-                // CWNetwork has properties, not methods
-                let ssid = network.ssid
-                let bssid = network.bssid
-                let rssi: Double? = network.rssi != nil ? Double(truncating: network.rssi!) : nil
-                let channel = network.wlanChannel?.channelNumber
+            return await MainActor.run {
+                networks.compactMap { network in
+                    // CWNetwork has properties
+                    let ssid = network.ssid
+                    let bssid = network.bssid
+                    let rssi = Double(network.rssiValue)
+                    let channel = network.wlanChannel?.channelNumber
 
-                return WiFiNetworkInfo(
-                    ssid: ssid,
-                    bssid: bssid,
-                    signalStrength: rssi,
-                    channel: channel,
-                    band: determineBand(from: channel)
-                )
+                    return WiFiNetworkInfo(
+                        ssid: ssid,
+                        bssid: bssid,
+                        signalStrength: rssi,
+                        channel: channel,
+                        band: determineBand(from: channel)
+                    )
+                }
             }
         } catch {
-            logger.error("Failed to scan for networks: \(error.localizedDescription)")
-            lastError = error
+            await MainActor.run {
+                logger.error("Failed to scan for networks: \(error.localizedDescription)")
+                lastError = error
+            }
             return []
         }
     }
@@ -310,9 +353,9 @@ public struct WiFiNetworkInfo: Sendable, Identifiable {
     public let bssid: String?
     public let signalStrength: Double?
     public let channel: Int?
-    public let band: NetworkMetricsModels.WiFiBand?
+    public let band: WiFiBand?
 
-    public var signalQuality: NetworkMetricsModels.SignalQuality {
+    public var signalQuality: SignalQuality {
         guard let signal = signalStrength else { return .unknown }
         switch signal {
         case -50...0: return .excellent

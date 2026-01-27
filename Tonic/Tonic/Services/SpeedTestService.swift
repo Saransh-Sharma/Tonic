@@ -4,17 +4,19 @@
 //
 //  Service for performing network speed tests
 //  Task ID: fn-2.8.5
+//  Performance optimized: Reduced main thread blocking, optimized progress updates
 //
 
 import Foundation
 import Network
 import os
 import Combine
+import SwiftUI
 
 // MARK: - Speed Test Service
 
 /// Service for performing network speed tests
-@MainActor
+/// Optimized to run off main thread with minimal UI updates
 @Observable
 public final class SpeedTestService {
     public static let shared = SpeedTestService()
@@ -44,11 +46,29 @@ public final class SpeedTestService {
     private var uploadTask: Task<Void, Never>?
     private var urlSession: URLSession?
 
+    // Pre-generated test data to avoid blocking during upload
+    private static var uploadTestData: Data?
+
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 30
         urlSession = URLSession(configuration: config)
+
+        // Pre-generate upload test data on background thread
+        Task.detached(priority: .background) {
+            let size = 5_000_000  // 5MB
+            var localData = Data(count: size)
+            localData.withUnsafeMutableBytes { bytes in
+                guard let baseAddr = bytes.baseAddress else { return }
+                for i in 0..<bytes.count {
+                    baseAddr.advanced(by: i).storeBytes(of: UInt8.random(in: 0...255), as: UInt8.self)
+                }
+            }
+            await MainActor.run {
+                Self.uploadTestData = localData
+            }
+        }
     }
 
     // MARK: - Public Methods
@@ -123,42 +143,56 @@ public final class SpeedTestService {
     private func runFullTest() async {
         // Phase 1: Ping test
         currentPhase = .ping
+        await updateProgress(0.05)
+
         let pingResult = await performPingTest()
-        testData = SpeedTestData(
-            ping: pingResult?.ping,
-            jitter: pingResult?.jitter,
-            isRunning: true,
-            progress: 0.1
-        )
+
+        await MainActor.run {
+            self.testData = SpeedTestData(
+                ping: pingResult?.ping,
+                jitter: pingResult?.jitter,
+                isRunning: true,
+                progress: 0.1
+            )
+        }
 
         guard isRunning else { return }
 
         // Phase 2: Download test
         currentPhase = .download
+        await updateProgress(0.15)
+
         let downloadSpeed = await performDownloadTest()
-        testData = SpeedTestData(
-            ping: pingResult?.ping,
-            jitter: pingResult?.jitter,
-            downloadSpeed: downloadSpeed,
-            isRunning: true,
-            progress: 0.6
-        )
+
+        await MainActor.run {
+            self.testData = SpeedTestData(
+                downloadSpeed: downloadSpeed,
+                ping: pingResult?.ping,
+                jitter: pingResult?.jitter,
+                isRunning: true,
+                progress: 0.6
+            )
+        }
 
         guard isRunning else { return }
 
         // Phase 3: Upload test
         currentPhase = .upload
+        await updateProgress(0.65)
+
         let uploadSpeed = await performUploadTest()
 
         // Complete
-        testData = SpeedTestData(
-            ping: pingResult?.ping,
-            jitter: pingResult?.jitter,
-            downloadSpeed: downloadSpeed,
-            uploadSpeed: uploadSpeed,
-            isRunning: false,
-            progress: 1
-        )
+        await MainActor.run {
+            self.testData = SpeedTestData(
+                downloadSpeed: downloadSpeed,
+                uploadSpeed: uploadSpeed,
+                ping: pingResult?.ping,
+                jitter: pingResult?.jitter,
+                isRunning: false,
+                progress: 1
+            )
+        }
 
         isRunning = false
         currentPhase = .complete
@@ -166,6 +200,13 @@ public final class SpeedTestService {
         // Reset to idle after delay
         try? await Task.sleep(nanoseconds: 3_000_000_000)
         currentPhase = .idle
+    }
+
+    /// Update progress on main thread
+    private func updateProgress(_ value: Double) async {
+        await MainActor.run {
+            self.progress = value
+        }
     }
 
     /// Perform a quick ping test for latency
@@ -226,11 +267,10 @@ public final class SpeedTestService {
     private func tryDownloadTest(session: URLSession, url: URL) async -> Double? {
         let startTime = Date()
         var totalBytes: Int64 = 0
+        var lastProgressUpdate = startTime
 
         do {
-            var progressHandler: ((URLSessionTask, Int64, Int64, Int64) -> Void)?
-
-            let (bytes, response) = try await session.bytes(for: url)
+            let (bytes, response) = try await session.bytes(for: URLRequest(url: url))
 
             // Check if response is valid
             guard let httpResponse = response as? HTTPURLResponse,
@@ -241,22 +281,32 @@ public final class SpeedTestService {
             // Start time after connection
             let downloadStartTime = Date()
 
-            for try await byte in bytes {
+            for try await _ in bytes {
                 guard isRunning else { return nil }
 
                 totalBytes += 1
 
-                // Update progress every 1MB
-                if totalBytes % 1_048_576 == 0 {
-                    let elapsed = Date().timeIntervalSince(downloadStartTime)
+                // Update progress less frequently (every 5MB instead of 1MB) to reduce main thread overhead
+                let now = Date()
+                let shouldUpdate = totalBytes % 5_242_880 == 0 && now.timeIntervalSince(lastProgressUpdate) > 0.5
+
+                if shouldUpdate {
+                    lastProgressUpdate = now
+                    let elapsed = now.timeIntervalSince(downloadStartTime)
                     let currentSpeed = (Double(totalBytes) * 8) / (elapsed * 1_000_000)  // Mbps
-                    testData = SpeedTestData(
-                        downloadSpeed: currentSpeed,
-                        ping: testData.ping,
-                        jitter: testData.jitter,
-                        isRunning: true,
-                        progress: 0.1 + (Double(totalBytes) / 25_000_000) * 0.5
-                    )
+                    let capturedBytes = totalBytes
+                    let capturedPing = testData.ping
+                    let capturedJitter = testData.jitter
+
+                    await MainActor.run {
+                        self.testData = SpeedTestData(
+                            downloadSpeed: currentSpeed,
+                            ping: capturedPing,
+                            jitter: capturedJitter,
+                            isRunning: true,
+                            progress: 0.1 + (Double(capturedBytes) / 25_000_000) * 0.5
+                        )
+                    }
                 }
 
                 // Timeout after 30 seconds
@@ -283,16 +333,15 @@ public final class SpeedTestService {
 
     /// Perform upload speed test
     private func performUploadTest() async -> Double? {
-        // Create test data (10MB of random data)
-        let testDataSize = 10_000_000  // 10MB
-        var testData = Data(count: min(testDataSize, 5_000_000))  // Cap at 5MB for memory
-
-        // Fill with random data
-        _ = testData.withUnsafeMutableBytes { bytes in
-            guard let baseAddr = bytes.baseAddress else { return }
-            for i in 0..<bytes.count {
-                baseAddr.advanced(by: i).storeBytes(of: UInt8.random(in: 0...255), as: UInt8.self)
+        // Use pre-generated test data
+        guard let uploadData = Self.uploadTestData else {
+            logger.warning("Upload test data not ready")
+            // Fallback to estimating from download
+            let downloadSpeed = await MainActor.run { self.testData.downloadSpeed }
+            if let downloadSpeed = downloadSpeed {
+                return downloadSpeed * 0.2
             }
+            return nil
         }
 
         guard let session = urlSession else { return nil }
@@ -304,7 +353,7 @@ public final class SpeedTestService {
         let startTime = Date()
 
         do {
-            let (_, response) = try await session.upload(for: request, from: testData)
+            let (_, response) = try await session.upload(for: request, from: uploadData)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
@@ -312,7 +361,7 @@ public final class SpeedTestService {
             }
 
             let elapsed = Date().timeIntervalSince(startTime)
-            let speedMbps = (Double(testData.count) * 8) / (elapsed * 1_000_000)
+            let speedMbps = (Double(uploadData.count) * 8) / (elapsed * 1_000_000)
 
             return speedMbps
 
@@ -320,7 +369,8 @@ public final class SpeedTestService {
             logger.warning("Upload test failed: \(error.localizedDescription)")
 
             // Fallback: estimate from download speed (common for home connections)
-            if let downloadSpeed = testData.downloadSpeed {
+            let downloadSpeed = await MainActor.run { self.testData.downloadSpeed }
+            if let downloadSpeed = downloadSpeed {
                 // Many home connections have upload ~1/5 to 1/10 of download
                 return downloadSpeed * 0.2
             }
@@ -332,8 +382,8 @@ public final class SpeedTestService {
     /// Simple ping to check host availability
     private func pingHost(_ host: String) async -> Bool {
         await withCheckedContinuation { continuation in
-            guard let hostEndpoint = NWEndpoint.Host(host),
-                  let port = NWEndpoint.Port(rawValue: 443) else {
+            let hostEndpoint = NWEndpoint.Host(host)
+            guard let port = NWEndpoint.Port(rawValue: 443) else {
                 continuation.resume(returning: false)
                 return
             }

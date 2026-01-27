@@ -4,6 +4,7 @@
 //
 //  Service for measuring network quality using ICMP ping
 //  Task ID: fn-2.8.3
+//  Fixed: Using system ping command for actual ICMP measurements
 //
 
 import Foundation
@@ -14,28 +15,38 @@ import SystemConfiguration
 // MARK: - Network Quality Service
 
 /// Service for measuring network quality (ping, jitter, packet loss)
-@MainActor
+/// Uses system ICMP ping for accurate latency measurements
 @Observable
 public final class NetworkQualityService {
     public static let shared = NetworkQualityService()
 
     private let logger = Logger(subsystem: "com.tonic.app", category: "NetworkQualityService")
 
-    // Current quality data
+    // Current quality data - @Observable for SwiftUI
     public private(set) var routerQuality: NetworkQualityData?
     public private(set) var internetQuality: NetworkQualityData?
 
     // Configuration
     public var pingInterval: TimeInterval = 30.0  // seconds
-    public var pingTimeout: TimeInterval = 5.0    // seconds
-    public var pingCount: Int = 5                 // pings per measurement
+    public var pingTimeout: TimeInterval = 1.0    // seconds for each ping
+    public var pingCount: Int = 3                 // pings per measurement
 
     private var pingTimer: DispatchSourceTimer?
     private var isMonitoring = false
     private let queue = DispatchQueue(label: "com.tonic.network-quality", qos: .userInitiated)
 
+    // Result caching
+    private struct CachedResult {
+        let data: NetworkQualityData
+        let timestamp: Date
+    }
+
+    private var cachedRouterResult: CachedResult?
+    private var cachedInternetResult: CachedResult?
+    private let cacheValidity: TimeInterval = 15.0  // 15 second cache
+
     // Default test hosts
-    private let routerHost = "192.168.1.1"  // Will be updated to actual gateway
+    private var routerHost = "192.168.1.1"
     private let internetHosts = [
         "1.1.1.1",       // Cloudflare DNS
         "8.8.8.8",       // Google DNS
@@ -43,8 +54,8 @@ public final class NetworkQualityService {
     ]
 
     private init() {
-        // Update router host to actual gateway
-        if let gateway = getDefaultGateway() {
+        // Update router host to actual gateway synchronously
+        if let gateway = Self.getDefaultGatewaySync() {
             routerHost = gateway
         }
     }
@@ -57,13 +68,17 @@ public final class NetworkQualityService {
         isMonitoring = true
 
         // Initial measurement
-        updateAllMeasurements()
+        Task.detached(priority: .userInitiated) {
+            await Self.shared.updateAllMeasurements()
+        }
 
         // Setup recurring measurements
         pingTimer = DispatchSource.makeTimerSource(queue: queue)
         pingTimer?.schedule(deadline: .now() + pingInterval, repeating: pingInterval)
         pingTimer?.setEventHandler { [weak self] in
-            self?.updateAllMeasurements()
+            Task.detached(priority: .userInitiated) {
+                await self?.updateAllMeasurements()
+            }
         }
         pingTimer?.resume()
 
@@ -78,78 +93,163 @@ public final class NetworkQualityService {
         logger.info("Network quality monitoring stopped")
     }
 
-    /// Perform a single router quality test
+    /// Perform a single router quality test (with caching)
     public func testRouterQuality() async -> NetworkQualityData {
-        let gateway = getDefaultGateway() ?? routerHost
-        return await pingHost(gateway, targetName: "Router")
+        // Check cache first
+        if let cached = cachedRouterResult,
+           Date().timeIntervalSince(cached.timestamp) < cacheValidity {
+            logger.debug("Using cached router quality result")
+            return cached.data
+        }
+
+        // Try to detect gateway if we haven't found a better one
+        if routerHost == "192.168.1.1" || routerHost == "192.168.0.1" {
+            if let gateway = await detectDefaultGatewayAsync() {
+                routerHost = gateway
+            }
+        }
+
+        let result = await pingHost(routerHost, targetName: "Router")
+
+        // Log results for debugging
+        if let ping = result.ping {
+            logger.debug("Router ping: \(String(format: "%.1f", ping * 1000))ms, jitter: \(result.jitter != nil ? String(format: "%.1f", result.jitter! * 1000) : "N/A")ms, loss: \(result.packetLoss != nil ? String(format: "%.0f", result.packetLoss!) : "N/A")%")
+        } else {
+            logger.warning("Router ping failed - all pings timed out for host: \(self.routerHost)")
+        }
+
+        // Update cache
+        await MainActor.run {
+            self.cachedRouterResult = CachedResult(data: result, timestamp: Date())
+            self.routerQuality = result
+        }
+
+        return result
     }
 
-    /// Perform a single internet quality test
+    /// Perform a single internet quality test (with caching)
     public func testInternetQuality() async -> NetworkQualityData {
-        // Test all internet hosts and return the best result
-        var bestResult: NetworkQualityData?
+        // Check cache first
+        if let cached = cachedInternetResult,
+           Date().timeIntervalSince(cached.timestamp) < cacheValidity {
+            logger.debug("Using cached internet quality result")
+            return cached.data
+        }
 
-        for host in internetHosts {
-            let result = await pingHost(host, targetName: "Internet")
-            if bestResult == nil || (result.ping ?? 999) < (bestResult?.ping ?? 999) {
-                bestResult = result
+        let primaryHost = internetHosts[0]
+        let result = await pingHost(primaryHost, targetName: "Internet")
+
+        // Log results
+        if let ping = result.ping {
+            logger.debug("Internet ping: \(String(format: "%.1f", ping * 1000))ms, jitter: \(result.jitter != nil ? String(format: "%.1f", result.jitter! * 1000) : "N/A")ms")
+        }
+
+        // Update cache
+        await MainActor.run {
+            self.cachedInternetResult = CachedResult(data: result, timestamp: Date())
+            self.internetQuality = result
+        }
+
+        return result
+    }
+
+    /// Invalidate cache (call after network changes)
+    public func invalidateCache() {
+        cachedRouterResult = nil
+        cachedInternetResult = nil
+        logger.debug("Network quality cache invalidated")
+    }
+
+    /// Update all quality measurements (background)
+    private func updateAllMeasurements() async {
+        let routerResult = await testRouterQuality()
+        let internetResult = await testInternetQuality()
+
+        await MainActor.run {
+            self.routerQuality = routerResult
+            self.internetQuality = internetResult
+        }
+    }
+
+    // MARK: - Gateway Detection
+
+    /// Synchronous gateway detection using system command
+    private static func getDefaultGatewaySync() -> String? {
+        // Use netstat to get default gateway
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/netstat")
+        process.arguments = ["-nr", "-f", "inet"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return nil }
+
+            // Parse netstat output: "default 192.168.1.1 UGSc 0 0 en0"
+            let lines = output.components(separatedBy: "\n")
+            for line in lines {
+                if line.contains("default") {
+                    let components = line.split(separator: " ", omittingEmptySubsequences: true)
+                    if components.count >= 2 {
+                        return String(components[1])
+                    }
+                }
+            }
+        } catch {
+            // Silently fall back to default
+        }
+
+        return nil
+    }
+
+    /// Async gateway detection by trying common IPs
+    private func detectDefaultGatewayAsync() async -> String? {
+        let commonGateways = [
+            "192.168.1.1", "192.168.0.1", "192.168.2.1",
+            "192.168.1.254", "192.168.0.254",
+            "10.0.0.1", "10.0.1.1",
+            "192.168.10.1", "192.168.50.1"
+        ]
+
+        for gw in commonGateways {
+            // Quick check - if we can ping it, it's the gateway
+            if await quickPingCheck(gw) {
+                logger.debug("Detected gateway: \(gw)")
+                return gw
             }
         }
 
-        return bestResult ?? NetworkQualityData(targetName: "Internet")
+        return nil
     }
 
-    /// Update all quality measurements
-    private func updateAllMeasurements() {
-        Task {
-            let routerResult = await testRouterQuality()
-            let internetResult = await testInternetQuality()
-
-            await MainActor.run {
-                self.routerQuality = routerResult
-                self.internetQuality = internetResult
-            }
-
-            self.logger.debug("Quality - Router: \(routerResult.ping ?? 0)ms, Internet: \(internetResult.ping ?? 0)ms")
-        }
+    /// Quick ping check to see if host is reachable
+    private func quickPingCheck(_ host: String) async -> Bool {
+        let result = await singleSystemPing(host: host, timeout: 0.5)
+        return !result.isEmpty
     }
 
-    // MARK: - Ping Implementation
+    // MARK: - ICMP Ping Implementation
 
-    /// Ping a host and return quality metrics
+    /// Ping a host using system ICMP ping and return quality metrics
     private func pingHost(_ host: String, targetName: String) async -> NetworkQualityData {
-        var pingTimes: [TimeInterval] = []
-        var successCount = 0
+        let pingResults = await runSystemPing(host: host, count: pingCount)
 
-        for _ in 0..<pingCount {
-            let startTime = Date()
-
-            let result = await performPing(host: host, timeout: pingTimeout)
-
-            let endTime = Date()
-            let duration = endTime.timeIntervalSince(startTime)
-
-            if result {
-                successCount += 1
-                pingTimes.append(duration)
-            }
-
-            // Small delay between pings
-            try? await Task.sleep(nanoseconds: UInt64(100_000_000)) // 100ms
-        }
-
-        // Calculate metrics
+        // Calculate metrics from real ping times
         let avgPing: TimeInterval?
-        if !pingTimes.isEmpty {
-            avgPing = pingTimes.reduce(0, +) / Double(pingTimes.count)
+        if !pingResults.isEmpty {
+            avgPing = pingResults.reduce(0, +) / Double(pingResults.count)
         } else {
             avgPing = nil
         }
 
         let jitter: TimeInterval?
-        if pingTimes.count >= 2, let avg = avgPing {
-            // Calculate standard deviation
-            let variance = pingTimes.map { pow($0 - avg, 2) }.reduce(0, +) / Double(pingTimes.count)
+        if pingResults.count >= 2, let avg = avgPing {
+            let variance = pingResults.map { pow($0 - avg, 2) }.reduce(0, +) / Double(pingResults.count)
             jitter = sqrt(variance)
         } else {
             jitter = nil
@@ -157,7 +257,7 @@ public final class NetworkQualityService {
 
         let packetLoss: Double?
         if pingCount > 0 {
-            packetLoss = (Double(pingCount - successCount) / Double(pingCount)) * 100
+            packetLoss = (Double(pingCount - pingResults.count) / Double(pingCount)) * 100
         } else {
             packetLoss = nil
         }
@@ -171,129 +271,74 @@ public final class NetworkQualityService {
         )
     }
 
-    /// Perform a single ICMP ping using NWConnection
-    private func performPing(host: String, timeout: TimeInterval) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            // Use NWConnection for IPv4
-            guard let hostEndpoint = NWEndpoint.Host(host) else {
-                continuation.resume(returning: false)
-                return
-            }
+    /// Run multiple system ping commands in parallel
+    private func runSystemPing(host: String, count: Int) async -> [TimeInterval] {
+        await withTaskGroup(of: TimeInterval?.self) { group in
+            var results: [TimeInterval] = []
 
-            let port = NWEndpoint.Port(rawValue: 80)!  // Use port 80 for TCP ping (more reliable)
-
-            let connection = NWConnection(
-                host: hostEndpoint,
-                port: port,
-                using: .tcp
-            )
-
-            var hasResumed = false
-            let resumeOnce = { (result: Bool) in
-                guard !hasResumed else { return }
-                hasResumed = true
-                connection.cancel()
-                continuation.resume(returning: result)
-            }
-
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    // Connection successful - host is reachable
-                    resumeOnce(true)
-                case .failed(let error):
-                    logger.debug("Ping to \(host) failed: \(error.localizedDescription)")
-                    resumeOnce(false)
-                case .waiting(let error):
-                    logger.debug("Ping to \(host) waiting: \(error.localizedDescription)")
-                    resumeOnce(false)
-                default:
-                    break
+            for _ in 0..<count {
+                group.addTask {
+                    await self.singleSystemPing(host: host, timeout: self.pingTimeout)
+                        .first
                 }
             }
 
-            connection.start(queue: .global())
-
-            // Set timeout
-            Task {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                resumeOnce(false)
+            for await result in group {
+                if let result = result {
+                    results.append(result)
+                }
             }
+
+            return results
         }
     }
 
-    // MARK: - Gateway Detection
+    /// Single ICMP ping using system ping command
+    private func singleSystemPing(host: String, timeout: TimeInterval) async -> [TimeInterval] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/sbin/ping")
 
-    /// Get the default gateway IP address
-    private func getDefaultGateway() -> String? {
-        // Try to get gateway from system configuration
-        var address: String?
-        var netmask: String?
-        var gateway: String?
+        // -c 1: send 1 ping
+        // -W <seconds>: timeout in seconds
+        let timeoutMs = Int(timeout * 1000)
+        process.arguments = ["-c", "1", "-W", String(timeoutMs), host]
 
-        // Test with common gateway IPs
-        let commonGateways = [
-            "192.168.1.1",
-            "192.168.0.1",
-            "192.168.2.1",
-            "10.0.0.1",
-            "10.0.1.1",
-            "172.16.0.1"
-        ]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
 
-        // Quick check: Try to ping common gateways
-        for gw in commonGateways {
-            if isHostReachable(gw) {
-                logger.debug("Found gateway: \(gw)")
-                return gw
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                return []
+            }
+
+            return parsePingOutput(output)
+        } catch {
+            logger.debug("Ping command failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Parse ping output to extract time values
+    /// Format: "64 bytes from 192.168.1.1: icmp_seq=0 ttl=64 time=2.5 ms"
+    private func parsePingOutput(_ output: String) -> [TimeInterval] {
+        var times: [TimeInterval] = []
+
+        // Match pattern: time=<number> ms (handles both integers and decimals)
+        let timePattern = /time=(\d+\.?\d*)\s*ms/
+
+        for match in output.matches(of: timePattern) {
+            let timeValue = String(match.output.1)
+            if let time = Double(timeValue) {
+                // Convert milliseconds to seconds
+                times.append(time / 1000.0)
             }
         }
 
-        return nil
-    }
-
-    /// Quick check if a host is reachable
-    private func isHostReachable(_ host: String) -> Bool {
-        var result = false
-
-        let semaphore = DispatchSemaphore(value: 0)
-
-        guard let hostEndpoint = NWEndpoint.Host(host) else {
-            return false
-        }
-
-        let port = NWEndpoint.Port(rawValue: 80)!
-        let connection = NWConnection(host: hostEndpoint, port: port, using: .tcp)
-
-        connection.stateUpdateHandler = { state in
-            switch state {
-            case .ready:
-                result = true
-                connection.cancel()
-                semaphore.signal()
-            case .failed, .waiting:
-                connection.cancel()
-                semaphore.signal()
-            default:
-                break
-            }
-        }
-
-        connection.start(queue: .global())
-        connection.cancel(after: .now() + 0.5)
-
-        _ = semaphore.wait(timeout: .now() + 1)
-
-        return result
-    }
-}
-
-// MARK: - NWConnection Extension
-
-private extension NWConnection {
-    func cancel(after deadline: DispatchTime) {
-        DispatchQueue.global().asyncAfter(deadline: deadline) {
-            self.cancel()
-        }
+        return times
     }
 }
