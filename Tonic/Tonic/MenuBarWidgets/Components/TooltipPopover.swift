@@ -22,7 +22,7 @@ public struct TooltipPopover: View {
 
     // MARK: - Initialization
 
-    public init(text: String, color: QualityColor = .unknown) {
+    public init(text: String, color: QualityColor = .gray) {
         self.text = text
         self.color = color
     }
@@ -73,7 +73,7 @@ public struct CompactTooltip: View {
     let color: QualityColor
     @Binding var isExpanded: Bool
 
-    public init(text: String, color: QualityColor = .unknown, isExpanded: Binding<Bool>) {
+    public init(text: String, color: QualityColor = .gray, isExpanded: Binding<Bool>) {
         self.text = text
         self.color = color
         self._isExpanded = isExpanded
@@ -128,7 +128,7 @@ public struct InfoButton: View {
     let color: QualityColor
     @State private var showTooltip = false
 
-    public init(tooltip: String, color: QualityColor = .unknown) {
+    public init(tooltip: String, color: QualityColor = .gray) {
         self.tooltip = tooltip
         self.color = color
     }
@@ -165,7 +165,7 @@ public struct MetricLabelWithTooltip: View {
     let tooltip: String
     let color: QualityColor
 
-    public init(label: String, tooltip: String, color: QualityColor = .unknown) {
+    public init(label: String, tooltip: String, color: QualityColor = .gray) {
         self.label = label
         self.tooltip = tooltip
         self.color = color

@@ -4,15 +4,28 @@
 //
 //  Mini line chart component for network metrics
 //  Task ID: fn-2.8.7
+//  Performance optimized: Simplified rendering, removed heavy Charts dependency
 //
 
 import SwiftUI
-import Charts
+
+// MARK: - Cached Sparkline Path
+
+/// Cached path data for efficient sparkline rendering
+struct CachedSparklinePath: Equatable {
+    let points: [CGPoint]
+    let dataHash: Int
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.dataHash == rhs.dataHash
+    }
+}
 
 // MARK: - Sparkline Chart
 
 /// Mini line chart for displaying metric history
-public struct SparklineChart: View {
+/// Optimized to avoid recalculating paths on every render
+public struct NetworkSparklineChart: View {
 
     // MARK: - Properties
 
@@ -21,6 +34,10 @@ public struct SparklineChart: View {
     let height: CGFloat
     let showArea: Bool
     let lineWidth: CGFloat
+
+    // MARK: - State
+
+    @State private var cachedPath: CachedSparklinePath?
 
     // MARK: - Initialization
 
@@ -41,140 +58,152 @@ public struct SparklineChart: View {
     // MARK: - Body
 
     public var body: some View {
-        if data.isEmpty || data.allSatisfy({ $0 == 0 }) {
-            // Empty state placeholder
-            GeometryReader { geometry in
-                Path { path in
-                    path.move(to: CGPoint(x: 0, y: height / 2))
-                    path.addLine(to: CGPoint(x: geometry.size.width, y: height / 2))
-                }
-                .stroke(
-                    color.opacity(0.2),
-                    style: StrokeStyle(lineWidth: lineWidth, dash: [4, 4])
-                )
+        Group {
+            if data.isEmpty || data.allSatisfy({ $0 == 0 }) {
+                emptyPlaceholder
+            } else {
+                optimizedSparkline
             }
-            .frame(height: height)
-        } else {
-            Chart {
-                if showArea {
-                    AreaMark(
-                        x: .value("Index", 0),
-                        yStart: .value("Min", normalizedMin),
-                        yEnd: .value("Max", normalizedMax)
-                    )
-                    .foregroundStyle(
+        }
+        .frame(height: height)
+        .onChange(of: data.hashValue) { _, _ in
+            updateCachedPath()
+        }
+    }
+
+    // MARK: - Views
+
+    private var emptyPlaceholder: some View {
+        GeometryReader { geometry in
+            Path { path in
+                let y = height / 2
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: geometry.size.width, y: y))
+            }
+            .stroke(
+                color.opacity(0.2),
+                style: StrokeStyle(lineWidth: lineWidth, dash: [4, 4])
+            )
+        }
+    }
+
+    private var optimizedSparkline: some View {
+        GeometryReader { geometry in
+            let effectiveWidth = geometry.size.width
+            let effectiveHeight = geometry.size.height
+
+            // Generate or retrieve cached path
+            let pathPoints = generatePoints(for: effectiveWidth, height: effectiveHeight)
+
+            // Line path
+            linePath(from: pathPoints)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+
+            // Optional area fill
+            if showArea {
+                areaPath(from: pathPoints, height: effectiveHeight)
+                    .fill(
                         LinearGradient(
                             colors: [color.opacity(0.15), color.opacity(0.02)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
-                }
-
-                LineMark(
-                    x: .value("Index", 0),
-                    y: .value("Value", 0)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [color, color.opacity(0.6)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .lineStyle(StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.catmullRom)
-            }
-            .chartXAxis(.hidden)
-            .chartYAxis(.hidden)
-            .chartPlotStyle { plotArea in
-                plotArea
-                    .background(Color.clear)
-            }
-            .frame(height: height)
-            .chartYScale(domain: normalizedMin...normalizedMax)
-            .chartBackground { _ in
-                // Draw the actual data points as a path for better control
-                sparklinePath
-            }
-            .overlay {
-                sparklinePath
             }
         }
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Path Generation
 
-    private var normalizedMin: Double {
+    private func generatePoints(for width: CGFloat, height: CGFloat) -> [CGPoint] {
+        // Check if we can use cached data
+        let dataHash = data.hashValue
+        if let cached = cachedPath, cached.dataHash == dataHash {
+            // Scale cached points to current width/height if needed
+            return scalePoints(cached.points, to: width, height: height)
+        }
+
+        // Calculate fresh points
         let validValues = data.filter { $0 != 0 }
-        guard let min = validValues.min(), let max = validValues.max(), max != min else {
-            return 0
+        guard !validValues.isEmpty,
+              let minVal = validValues.min(),
+              let maxVal = validValues.max(),
+              maxVal != minVal else {
+            // Flat line
+            return [CGPoint(x: 0, y: height / 2), CGPoint(x: width, y: height / 2)]
         }
-        return min - (max - min) * 0.1
+
+        let range = maxVal - minVal
+        let padding = range * 0.1
+        let effectiveMin = minVal - padding
+        let effectiveRange = (maxVal + padding) - effectiveMin
+
+        let stepX = width / max(1, CGFloat(data.count - 1))
+
+        var points: [CGPoint] = []
+        for (index, value) in data.enumerated() {
+            let x = CGFloat(index) * stepX
+            let normalizedY: Double
+            if value == 0 {
+                normalizedY = 0.5
+            } else {
+                normalizedY = 1 - ((value - effectiveMin) / effectiveRange)
+            }
+            let y = normalizedY * height
+            points.append(CGPoint(x: x, y: y))
+        }
+
+        // Cache for next render
+        cachedPath = CachedSparklinePath(points: points, dataHash: dataHash)
+
+        return points
     }
 
-    private var normalizedMax: Double {
-        let validValues = data.filter { $0 != 0 }
-        guard let min = validValues.min(), let max = validValues.max(), max != min else {
-            return 1
+    private func scalePoints(_ points: [CGPoint], to width: CGFloat, height: CGFloat) -> [CGPoint] {
+        guard !points.isEmpty else { return [] }
+
+        // If first point is at x=0 and last at some width, we need to scale
+        let maxX = points.last?.x ?? 1
+        let maxY = points.map(\.y).max() ?? 1
+        let scaleX = maxX > 0 ? width / maxX : 1
+        let scaleY = maxY > 0 ? height / maxY : 1
+
+        return points.map { point in
+            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
         }
-        return max + (max - min) * 0.1
     }
 
-    private var sparklinePath: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
+    private func linePath(from points: [CGPoint]) -> Path {
+        var path = Path()
+        guard let first = points.first else { return path }
 
-            let validValues = data.filter { $0 != 0 }
-            guard !validValues.isEmpty,
-                  let minVal = validValues.min(),
-                  let maxVal = validValues.max(),
-                  maxVal != minVal else {
-                // Fallback to flat line
-                return AnyView(
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: height / 2))
-                        path.addLine(to: CGPoint(x: width, y: height / 2))
-                    }
-                    .stroke(color.opacity(0.3), style: StrokeStyle(lineWidth: lineWidth, dash: [4, 4]))
-                )
-            }
-
-            let range = maxVal - minVal
-            let padding = range * 0.1
-            let effectiveMin = minVal - padding
-            let effectiveMax = maxVal + padding
-            let effectiveRange = effectiveMax - effectiveMin
-
-            var points: [CGPoint] = []
-            let stepX = width / max(1, Double(data.count - 1))
-
-            for (index, value) in data.enumerated() {
-                let x = Double(index) * stepX
-                let normalizedY: Double
-                if value == 0 {
-                    // Use previous value or center
-                    normalizedY = 0.5
-                } else {
-                    normalizedY = 1 - ((value - effectiveMin) / effectiveRange)
-                }
-                let y = normalizedY * height
-                points.append(CGPoint(x: x, y: y))
-            }
-
-            return AnyView(
-                Path { path in
-                    guard let first = points.first else { return }
-                    path.move(to: first)
-
-                    for point in points.dropFirst() {
-                        path.addLine(to: point)
-                    }
-                }
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-            )
+        path.move(to: first)
+        for point in points.dropFirst() {
+            path.addLine(to: point)
         }
+        return path
+    }
+
+    private func areaPath(from points: [CGPoint], height: CGFloat) -> Path {
+        var path = Path()
+        guard let first = points.first,
+              let last = points.last else { return path }
+
+        path.move(to: CGPoint(x: first.x, y: height))
+        path.addLine(to: first)
+
+        for point in points {
+            path.addLine(to: point)
+        }
+
+        path.addLine(to: CGPoint(x: last.x, y: height))
+        path.closeSubpath()
+
+        return path
+    }
+
+    private func updateCachedPath() {
+        cachedPath = nil
     }
 }
 
@@ -186,7 +215,7 @@ public struct SparklineChart: View {
             Text("Download Speed")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            SparklineChart(
+            NetworkSparklineChart(
                 data: [0, 10, 25, 20, 35, 30, 45, 40, 50, 45, 60, 55],
                 color: .green
             )
@@ -196,7 +225,7 @@ public struct SparklineChart: View {
             Text("Ping")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            SparklineChart(
+            NetworkSparklineChart(
                 data: [20, 25, 18, 22, 30, 28, 35, 25, 20, 18, 22, 20],
                 color: .yellow
             )
@@ -206,7 +235,7 @@ public struct SparklineChart: View {
             Text("Packet Loss")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            SparklineChart(
+            NetworkSparklineChart(
                 data: [0, 0, 1, 0, 0, 2, 0, 0, 0, 1, 0, 0],
                 color: .red
             )
@@ -216,7 +245,7 @@ public struct SparklineChart: View {
             Text("Signal Strength")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            SparklineChart(
+            NetworkSparklineChart(
                 data: [-55, -54, -56, -53, -55, -57, -56, -55, -54, -55, -56, -55],
                 color: .blue
             )

@@ -54,7 +54,7 @@ public struct NetworkSectionCard<Content: View>: View {
                 content()
             }
         }
-        .padding(14)
+        .padding(12)
         .background(cardBackground)
         .overlay(cardBorder)
     }
@@ -123,7 +123,84 @@ public struct NetworkSectionCard<Content: View>: View {
     }
 }
 
-// MARK: - Connection Status Card
+// MARK: - Compact Connection Status (WhyFi-style)
+
+/// Compact inline connection status display: [dot] Network Name [frequency badge]
+public struct CompactConnectionStatus: View {
+    let isConnected: Bool
+    let networkName: String?
+    let band: WiFiBand?
+    let ipAddress: String?
+
+    public init(
+        isConnected: Bool,
+        networkName: String? = nil,
+        band: WiFiBand? = nil,
+        ipAddress: String? = nil
+    ) {
+        self.isConnected = isConnected
+        self.networkName = networkName
+        self.band = band
+        self.ipAddress = ipAddress
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Main row: dot + network name + frequency badge
+            HStack(spacing: 8) {
+                // Status indicator dot
+                Circle()
+                    .fill(isConnected ? TonicColors.success : TonicColors.error)
+                    .frame(width: 8, height: 8)
+
+                if isConnected {
+                    // Network name
+                    Text(networkName ?? "Connected")
+                        .font(DesignTokens.Typography.headlineSmall)
+                        .fontWeight(.semibold)
+                        .foregroundColor(DesignTokens.Colors.text)
+
+                    // Frequency badge
+                    if let band = band {
+                        Text(band.rawValue)
+                            .font(DesignTokens.Typography.captionMedium)
+                            .fontWeight(.medium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(DesignTokens.Colors.backgroundSecondary.opacity(0.8))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                            )
+                    }
+                } else {
+                    Text("Disconnected")
+                        .font(DesignTokens.Typography.headlineSmall)
+                        .fontWeight(.semibold)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
+
+                Spacer()
+            }
+
+            // Secondary row: IP address (if connected)
+            if isConnected, let ip = ipAddress {
+                Text(ip)
+                    .font(DesignTokens.Typography.captionMedium)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .padding(.leading, 16) // Align with network name
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Connection Status Card (Legacy - kept for compatibility)
 
 /// Specialized card for displaying connection status
 public struct ConnectionStatusCard: View {
@@ -214,7 +291,19 @@ public struct ConnectionStatusCard: View {
 // MARK: - Preview
 
 #Preview("Network Section Cards") {
-    VStack(spacing: 16) {
+    VStack(spacing: 12) {
+        // New compact connection status (WhyFi-style)
+        CompactConnectionStatus(
+            isConnected: true,
+            networkName: "Babadan Starlink",
+            band: .ghz5,
+            ipAddress: "192.168.1.42"
+        )
+
+        Divider()
+            .background(DesignTokens.Colors.border.opacity(0.3))
+
+        // Legacy connection status card (for comparison)
         ConnectionStatusCard(
             isConnected: true,
             networkName: "Babadan Starlink",

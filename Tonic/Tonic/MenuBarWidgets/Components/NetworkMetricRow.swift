@@ -20,101 +20,166 @@ public struct NetworkMetricRow: View {
     let color: QualityColor
     let history: [Double]
     let tooltip: String?
+    let contextualTip: String?  // WhyFi-style inline tip for warning/poor metrics
     @State private var isExpanded = false
+    @State private var showContextualTip: Bool
 
     // MARK: - Initialization
 
     public init(
         label: String,
         value: String,
-        color: QualityColor = .unknown,
+        color: QualityColor = .gray,
         history: [Double] = [],
-        tooltip: String? = nil
+        tooltip: String? = nil,
+        contextualTip: String? = nil
     ) {
         self.label = label
         self.value = value
         self.color = color
         self.history = history
         self.tooltip = tooltip
+        self.contextualTip = contextualTip
+        // Show contextual tip by default for warning/poor metrics
+        self._showContextualTip = State(initialValue: contextualTip != nil && (color == .yellow || color == .red))
     }
 
     // MARK: - Body
 
     public var body: some View {
-        HStack(spacing: 12) {
-            // Label
-            Text(label)
-                .font(DesignTokens.Typography.captionMedium)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-                .frame(width: 60, alignment: .leading)
+        VStack(spacing: 0) {
+            // Main metric row
+            HStack(spacing: 12) {
+                // Label
+                Text(label)
+                    .font(DesignTokens.Typography.captionMedium)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: 60, alignment: .leading)
 
-            // Value with color indicator
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(color.swiftUIColor)
-                    .frame(width: 6, height: 6)
+                // Value with color indicator
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(color.swiftUIColor)
+                        .frame(width: 6, height: 6)
 
-                Text(value)
-                    .font(DesignTokens.Typography.monoMedium)
-                    .fontWeight(.semibold)
-                    .foregroundColor(color.swiftUIColor)
+                    Text(value)
+                        .font(DesignTokens.Typography.monoMedium)
+                        .fontWeight(.semibold)
+                        .foregroundColor(color.swiftUIColor)
+                }
+                .frame(width: 70, alignment: .leading)
+
+                // Sparkline chart
+                if !history.isEmpty {
+                    NetworkSparklineChart(
+                        data: history,
+                        color: color.swiftUIColor,
+                        height: 28
+                    )
+                } else {
+                    Spacer()
+                        .frame(height: 28)
+                }
+
+                // Info button if tooltip available
+                if let tooltip = tooltip {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .frame(width: 70, alignment: .leading)
-
-            // Sparkline chart
-            if !history.isEmpty {
-                SparklineChart(
-                    data: history,
-                    color: color.swiftUIColor,
-                    height: 28
-                )
-            } else {
-                Spacer()
-                    .frame(height: 28)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: showContextualTip ? 8 : 8)
+                    .fill(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(color.swiftUIColor.opacity(0.2), lineWidth: 1)
+            )
+            .overlay(alignment: .top) {
+                if isExpanded, let tooltip = tooltip {
+                    TooltipPopover(text: tooltip, color: color)
+                        .offset(y: 4)
+                        .transition(.asymmetric(
+                            insertion: .scale.combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                        .zIndex(1)
+                }
             }
-
-            // Info button if tooltip available
-            if let tooltip = tooltip {
-                Button {
+            .onTapGesture {
+                if tooltip != nil {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         isExpanded.toggle()
                     }
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.caption)
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
-                .buttonStyle(.plain)
+            }
+
+            // Contextual tip (WhyFi-style inline warning)
+            if showContextualTip, let tip = contextualTip {
+                ContextualTipView(
+                    text: tip,
+                    color: color,
+                    onDismiss: {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showContextualTip = false
+                        }
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity
+                ))
             }
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 12)
+    }
+}
+
+// MARK: - Contextual Tip View (WhyFi-style inline warning)
+
+/// Inline tip component that appears below a metric row with actionable advice
+public struct ContextualTipView: View {
+    let text: String
+    let color: QualityColor
+    let onDismiss: () -> Void
+
+    public var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(text)
+                .font(DesignTokens.Typography.captionSmall)
+                .foregroundColor(DesignTokens.Colors.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
+                .fill(color.swiftUIColor.opacity(0.15))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(color.swiftUIColor.opacity(0.2), lineWidth: 1)
+                .stroke(color.swiftUIColor.opacity(0.25), lineWidth: 1)
         )
-        .overlay(alignment: .top) {
-            if isExpanded, let tooltip = tooltip {
-                TooltipPopover(text: tooltip, color: color)
-                    .offset(y: 4)
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity),
-                        removal: .opacity
-                    ))
-                    .zIndex(1)
-            }
-        }
-        .onTapGesture {
-            if tooltip != nil {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isExpanded.toggle()
-                }
-            }
-        }
+        .padding(.top, 4)
     }
 }
 
@@ -160,13 +225,20 @@ extension NetworkMetricRow {
     ) -> NetworkMetricRow {
         let displayValue: String
         let color: QualityColor
+        var contextualTip: String? = nil
 
         if let ms = value {
-            displayValue = String(format: "%.1f ms", ms * 1000)
-            switch ms * 1000 {
-            case 0..<20: color = .green
-            case 20..<50: color = .yellow
-            default: color = .red
+            let jitterMs = ms * 1000
+            displayValue = String(format: "%.1f ms", jitterMs)
+            switch jitterMs {
+            case 0..<20:
+                color = .green
+            case 20..<50:
+                color = .yellow
+                contextualTip = "Jitter above 20ms can affect video calls and gaming. This may be caused by network congestion or interference."
+            default:
+                color = .red
+                contextualTip = "High jitter causes choppy audio/video and gaming lag. Check for network congestion, try a wired connection, or reduce devices on your network."
             }
         } else {
             displayValue = "--"
@@ -178,7 +250,8 @@ extension NetworkMetricRow {
             value: displayValue,
             color: color,
             history: history,
-            tooltip: tooltip ? jitterTooltip(value) : nil
+            tooltip: tooltip ? jitterTooltip(value) : nil,
+            contextualTip: contextualTip
         )
     }
 
@@ -190,13 +263,19 @@ extension NetworkMetricRow {
     ) -> NetworkMetricRow {
         let displayValue: String
         let color: QualityColor
+        var contextualTip: String? = nil
 
         if let loss = value {
             displayValue = String(format: "%.0f%%", loss)
             switch loss {
-            case 0..<2: color = .green
-            case 2..<5: color = .yellow
-            default: color = .red
+            case 0..<2:
+                color = .green
+            case 2..<5:
+                color = .yellow
+                contextualTip = "Packet loss above 2% causes data retransmission. Check for Wi-Fi interference or network congestion."
+            default:
+                color = .red
+                contextualTip = "Significant packet loss affecting your connection. This causes slow loading and connection drops. Try restarting your router or using a wired connection."
             }
         } else {
             displayValue = "--"
@@ -208,7 +287,8 @@ extension NetworkMetricRow {
             value: displayValue,
             color: color,
             history: history,
-            tooltip: tooltip ? lossTooltip(value) : nil
+            tooltip: tooltip ? lossTooltip(value) : nil,
+            contextualTip: contextualTip
         )
     }
 
@@ -220,13 +300,24 @@ extension NetworkMetricRow {
     ) -> NetworkMetricRow {
         let displayValue: String
         let color: QualityColor
+        var contextualTip: String? = nil
 
         if let rate = value {
             displayValue = String(format: "%.0f Mbps", rate)
             switch rate {
-            case 400...: color = .green
-            case 150..<400: color = .yellow
-            default: color = .red
+            case 400...:
+                color = .green
+            case 150..<400:
+                color = .yellow
+                // Check if likely on 2.4 GHz or older standard
+                if rate < 200 {
+                    contextualTip = "Using an older Wi-Fi standard (Wi-Fi 4) — try moving to 5 GHz for better speeds."
+                } else {
+                    contextualTip = "Link rate is moderate. Moving closer to your router or switching to 5 GHz band may improve speeds."
+                }
+            default:
+                color = .red
+                contextualTip = "Low link rate indicates poor connection. Try moving closer to the router, switching to 5 GHz, or checking for interference."
             }
         } else {
             displayValue = "--"
@@ -238,7 +329,8 @@ extension NetworkMetricRow {
             value: displayValue,
             color: color,
             history: history,
-            tooltip: tooltip ? linkRateTooltip(value) : nil
+            tooltip: tooltip ? linkRateTooltip(value) : nil,
+            contextualTip: contextualTip
         )
     }
 
@@ -250,15 +342,24 @@ extension NetworkMetricRow {
     ) -> NetworkMetricRow {
         let displayValue: String
         let color: QualityColor
+        var contextualTip: String? = nil
 
         if let signal = value {
             displayValue = String(format: "%.0f dBm", signal)
             switch signal {
-            case -50...0: color = .green
-            case -60..<(-50): color = .green
-            case -70..<(-60): color = .yellow
-            case -80..<(-70): color = .red
-            default: color = .red
+            case -50...0:
+                color = .green
+            case -60..<(-50):
+                color = .green
+            case -70..<(-60):
+                color = .yellow
+                contextualTip = "Between -60 and -75 dBm — functional but not ideal. Drywall costs ~3-6 dB per wall, concrete/brick ~10-15 dB. Moving closer or adjusting AP antenna orientation can help."
+            case -80..<(-70):
+                color = .red
+                contextualTip = "Signal below -70 dBm is weak. Consider moving closer to your router, reducing obstacles between you and the AP, or adding a Wi-Fi extender."
+            default:
+                color = .red
+                contextualTip = "Very weak signal. Your connection will be unreliable. Move much closer to the router or use a wired connection."
             }
         } else {
             displayValue = "--"
@@ -270,7 +371,8 @@ extension NetworkMetricRow {
             value: displayValue,
             color: color,
             history: history,
-            tooltip: tooltip ? signalTooltip(value) : nil
+            tooltip: tooltip ? signalTooltip(value) : nil,
+            contextualTip: contextualTip
         )
     }
 
@@ -444,22 +546,40 @@ extension NetworkMetricRow {
 // MARK: - Preview
 
 #Preview("Network Metric Rows") {
-    VStack(spacing: 12) {
-        NetworkMetricRow.ping(0.042, history: [40, 45, 38, 42, 50, 44, 48, 42])
+    ScrollView {
+        VStack(spacing: 12) {
+            Text("Good Metrics")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-        NetworkMetricRow.jitter(0.031, history: [25, 30, 28, 35, 32, 29, 31, 30])
+            NetworkMetricRow.ping(0.015, history: [15, 18, 14, 16, 15, 17, 14, 15])
 
-        NetworkMetricRow.packetLoss(0.0, history: [0, 0, 0, 1, 0, 0, 0, 0])
+            NetworkMetricRow.signalStrength(-52, history: [-50, -51, -52, -51, -52, -51, -52, -52])
 
-        NetworkMetricRow.linkRate(866, history: [800, 850, 820, 866, 860, 855, 870, 866])
+            Divider()
 
-        NetworkMetricRow.signalStrength(-61, history: [-60, -59, -62, -60, -61, -63, -61, -60])
+            Text("Warning Metrics (with contextual tips)")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-        NetworkMetricRow.noise(-90, history: [-90, -89, -91, -90, -90, -89, -90, -90])
+            NetworkMetricRow.jitter(0.035, history: [25, 30, 35, 40, 32, 38, 35, 35])
 
-        NetworkMetricRow.dnsLookup(0.012, history: [10, 15, 12, 10, 14, 11, 12, 12])
+            NetworkMetricRow.signalStrength(-65, history: [-62, -64, -66, -65, -67, -65, -64, -65])
+
+            NetworkMetricRow.linkRate(144, history: [150, 144, 140, 144, 148, 144, 142, 144])
+
+            Divider()
+
+            Text("Poor Metrics (with contextual tips)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            NetworkMetricRow.packetLoss(8.0, history: [5, 6, 8, 10, 7, 8, 9, 8])
+
+            NetworkMetricRow.signalStrength(-78, history: [-75, -77, -79, -78, -80, -78, -76, -78])
+        }
+        .padding()
     }
-    .padding()
-    .frame(width: 320)
+    .frame(width: 360, height: 600)
     .background(Color.black)
 }
