@@ -461,6 +461,90 @@ struct GeneralSettingsContent: View {
                 }
             }
             .fadeInSlideUp(delay: 0.15)
+
+            // Danger Zone Card
+            DangerZoneCard()
+                .fadeInSlideUp(delay: 0.2)
+        }
+    }
+}
+
+// MARK: - Danger Zone Card
+
+private struct DangerZoneCard: View {
+    @State private var showResetSheet = false
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            // Section header with error accent
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(TonicColors.error)
+
+                Text("Danger Zone")
+                    .font(DesignTokens.Typography.headlineSmall)
+                    .foregroundColor(DesignTokens.Colors.text)
+            }
+
+            // Reset app row
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(TonicColors.error.opacity(0.15))
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: "arrow.counterclockwise.circle.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(TonicColors.error)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Reset App & Start Fresh")
+                        .font(DesignTokens.Typography.bodyMedium)
+                        .foregroundColor(DesignTokens.Colors.text)
+
+                    Text("Clear all data, remove helper, and restart setup")
+                        .font(DesignTokens.Typography.captionMedium)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Button {
+                    showResetSheet = true
+                } label: {
+                    Text("Reset App...")
+                        .font(DesignTokens.Typography.bodySmall)
+                        .fontWeight(.medium)
+                }
+                .buttonStyle(.bordered)
+                .tint(TonicColors.error)
+                .controlSize(.small)
+            }
+            .padding(DesignTokens.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
+                    .fill(isHovered ? TonicColors.error.opacity(0.05) : Color.clear)
+            )
+            .onHover { hovering in
+                withAnimation(DesignTokens.Animation.fast) {
+                    isHovered = hovering
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignTokens.Colors.surface)
+        .cornerRadius(DesignTokens.CornerRadius.large)
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
+                .stroke(TonicColors.error.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        .sheet(isPresented: $showResetSheet) {
+            ResetConfirmationSheet(isPresented: $showResetSheet)
         }
     }
 }
