@@ -58,6 +58,11 @@ struct ContentView: View {
             // Open preferences to Widgets tab
             selectedDestination = .settings
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
+            // App was reset — re-read onboarding flag and trigger onboarding
+            hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
+            showOnboarding = true
+        }
         .onAppear {
             checkFirstLaunch()
         }
