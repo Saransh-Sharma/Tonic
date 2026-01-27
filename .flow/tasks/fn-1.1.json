@@ -1,0 +1,21 @@
+{
+  "assignee": "saransh1337@gmail.com",
+  "claim_note": "",
+  "claimed_at": "2026-01-23T06:32:37.920847Z",
+  "created_at": "2026-01-23T06:32:27.758175Z",
+  "depends_on": [],
+  "epic": "fn-1",
+  "evidence": {
+    "file_path": ".gitignore",
+    "gitignore_created": true,
+    "includes_macos_patterns": true,
+    "includes_spm_patterns": true,
+    "includes_xcode_patterns": true
+  },
+  "id": "fn-1.1",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-1.1.md",
+  "status": "done",
+  "title": "Create .gitignore for macOS Swift/Xcode project",
+  "updated_at": "2026-01-23T06:33:15.071278Z"
+}
