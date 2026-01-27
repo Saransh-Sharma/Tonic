@@ -9,9 +9,12 @@
 /* Begin PBXBuildFile section */
 		0E042871FFC1C684EAF93568 /* AppInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F780DECED89A3E9762E52BF /* AppInventoryView.swift */; };
 		1592F32E48B36663CDBBE43E /* Whitelist.swift in Sources */ = {isa = PBXBuildFile; fileRef = D607EC2EC13F8B4AA0D47E92 /* Whitelist.swift */; };
+		18799FE1CFD6BBD23E2BEFAD /* InterferenceScanResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */; };
+		28C2997F771B1F82F743126B /* AppResetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0560D938238124CEE7B43CE /* AppResetService.swift */; };
 		2FA425C842ECB7EA6ADAA013 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403765C5F7EA0EBB647FA096 /* ScanResult.swift */; };
 		3120C8460975F3F4DCDB88D1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D36AE4175FE0E33DCA8E15B /* ContentView.swift */; };
 		3899455DE5ECCB46379F5020 /* DesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45718B5A4D93C70D9E7AFAE /* DesignComponents.swift */; };
+		39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */; };
 		39F60D956BB32885CF3A611F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD96844B37981E628F20497 /* SidebarView.swift */; };
 		6A7A780E9DF26434C8E8F7EA /* DiskAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41F4E935929B3AC2ACDA2B2 /* DiskAnalysisView.swift */; };
 		6C89B19E3FA0CA427EED0A25 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58269188377B485FBDE88264 /* PreferencesView.swift */; };
@@ -47,11 +50,26 @@
 		E1A44D8219526CA8B9B8FA55 /* ProtectedApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DA89823AC42CE866E1FEFC /* ProtectedApps.swift */; };
 		E3F4A5B6C7D8E9F0A1B2C3D4 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A5B6C7D8E9F0A1B2C3D4E5 /* FileOperations.swift */; };
 		E92A727F6F7AF2C71660D6B3 /* DiskScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451AB06BBB0DDDD2249DE75A /* DiskScanner.swift */; };
+		ECA94BA743B0F618D3FE85C4 /* WiFiInterferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B79DAEEC90D042AF57536B /* WiFiInterferenceService.swift */; };
 		EEBF2DCD2F552F065A9D1E8B /* DesignAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */; };
 		F09F6EC961B1FEF37D163FD1 /* NavigationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F6121BA6532032529AD6E9 /* NavigationModels.swift */; };
 		F1A2B3C4D5E6F7A8B9C0D1E2 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* DashboardView.swift */; };
 		F7249337013509A8B7DB4F5D /* SystemStatusDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */; };
 		F8CAE468426B3E61E2B2990C /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60203727B4DCE325D1534B06 /* SparkleUpdater.swift */; };
+		NET001B1 /* WiFiMetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET001F1 /* WiFiMetricsService.swift */; };
+		NET002B2 /* NetworkQualityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET002F2 /* NetworkQualityService.swift */; };
+		NET003B3 /* DNSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET003F3 /* DNSService.swift */; };
+		NET004B4 /* SpeedTestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET004F4 /* SpeedTestService.swift */; };
+		NET005B5 /* NetworkWidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET005F5 /* NetworkWidgetDataManager.swift */; };
+		NET006B6 /* NetworkMetricsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET006F6 /* NetworkMetricsModels.swift */; };
+		NET007B7 /* NetworkDetailViewRedesigned.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET007F7 /* NetworkDetailViewRedesigned.swift */; };
+		NET008B8 /* NetworkWidgetIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET008F8 /* NetworkWidgetIndex.swift */; };
+		NET009B9 /* NetworkMetricRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET009F9 /* NetworkMetricRow.swift */; };
+		NET010B0 /* NetworkSectionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET010F0 /* NetworkSectionCard.swift */; };
+		NET011B1 /* SparklineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET011F1 /* SparklineChart.swift */; };
+		NET012B2 /* TooltipPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET012F2 /* TooltipPopover.swift */; };
+		NET013B3 /* NetworkAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET013F3 /* NetworkAnimations.swift */; };
+		NET014B4 /* SpeedTestButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = NET014F4 /* SpeedTestButton.swift */; };
 		SS001A1B2C3D4E5F6A7B8C9D0 /* SmartScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS001FILE1A2B3C4D4E5F6A7B8C /* SmartScanView.swift */; };
 		SS002A2B3C4D5E6F6B7C8D9E0F /* DiskMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS002FILE1B2C3D4E5F6A7B8C9D /* DiskMapView.swift */; };
 		SS003A3B4C5D6E7F08C9D0E1F2 /* SmartScanEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS003FILE1C2D3E4F607B8C9D0E /* SmartScanEngine.swift */; };
@@ -75,6 +93,8 @@
 
 /* Begin PBXFileReference section */
 		031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignAnimations.swift; sourceTree = "<group>"; };
+		12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResetConfirmationSheet.swift; sourceTree = "<group>"; };
+		36B79DAEEC90D042AF57536B /* WiFiInterferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WiFiInterferenceService.swift; sourceTree = "<group>"; };
 		403765C5F7EA0EBB647FA096 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		451AB06BBB0DDDD2249DE75A /* DiskScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskScanner.swift; sourceTree = "<group>"; };
 		4F780DECED89A3E9762E52BF /* AppInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInventoryView.swift; sourceTree = "<group>"; };
@@ -104,12 +124,14 @@
 		75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCustomizationView.swift; sourceTree = "<group>"; };
 		75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
 		8D36AE4175FE0E33DCA8E15B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterferenceScanResultsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A41F4E935929B3AC2ACDA2B2 /* DiskAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisView.swift; sourceTree = "<group>"; };
 		AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusDashboard.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		C4B75FAB9C82CB697999304C /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		C6D7E8F9A0B1C2D3E4F5A6B7 /* PrivilegedHelperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedHelperManager.swift; sourceTree = "<group>"; };
+		D0560D938238124CEE7B43CE /* AppResetService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppResetService.swift; sourceTree = "<group>"; };
 		D1BA01ABB925AB24C44FE468 /* TonicColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicColors.swift; sourceTree = "<group>"; };
 		D1E2F3A4B5C6D7E8F9A0B1C2 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		D2A57DC1D883FD21FB995169 /* Tonic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tonic.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -120,6 +142,20 @@
 		ED7E1822B028682FF8090AC5 /* DiskAnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisModels.swift; sourceTree = "<group>"; };
 		F0DA89823AC42CE866E1FEFC /* ProtectedApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedApps.swift; sourceTree = "<group>"; };
 		F4A5B6C7D8E9F0A1B2C3D4E5 /* FileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
+		NET001F1 /* WiFiMetricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiMetricsService.swift; sourceTree = "<group>"; };
+		NET002F2 /* NetworkQualityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkQualityService.swift; sourceTree = "<group>"; };
+		NET003F3 /* DNSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSService.swift; sourceTree = "<group>"; };
+		NET004F4 /* SpeedTestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestService.swift; sourceTree = "<group>"; };
+		NET005F5 /* NetworkWidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetDataManager.swift; sourceTree = "<group>"; };
+		NET006F6 /* NetworkMetricsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMetricsModels.swift; sourceTree = "<group>"; };
+		NET007F7 /* NetworkDetailViewRedesigned.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDetailViewRedesigned.swift; sourceTree = "<group>"; };
+		NET008F8 /* NetworkWidgetIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetIndex.swift; sourceTree = "<group>"; };
+		NET009F9 /* NetworkMetricRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMetricRow.swift; sourceTree = "<group>"; };
+		NET010F0 /* NetworkSectionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSectionCard.swift; sourceTree = "<group>"; };
+		NET011F1 /* SparklineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineChart.swift; sourceTree = "<group>"; };
+		NET012F2 /* TooltipPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TooltipPopover.swift; sourceTree = "<group>"; };
+		NET013F3 /* NetworkAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkAnimations.swift; sourceTree = "<group>"; };
+		NET014F4 /* SpeedTestButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestButton.swift; sourceTree = "<group>"; };
 		SS001FILE1A2B3C4D4E5F6A7B8C /* SmartScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanView.swift; sourceTree = "<group>"; };
 		SS002FILE1B2C3D4E5F6A7B8C9D /* DiskMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskMapView.swift; sourceTree = "<group>"; };
 		SS003FILE1C2D3E4F607B8C9D0E /* SmartScanEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanEngine.swift; sourceTree = "<group>"; };
@@ -152,6 +188,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0B8EAD5AE23666C39AD1EC11 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */,
+				NET009F9 /* NetworkMetricRow.swift */,
+				NET010F0 /* NetworkSectionCard.swift */,
+				NET011F1 /* SparklineChart.swift */,
+				NET012F2 /* TooltipPopover.swift */,
+				NET013F3 /* NetworkAnimations.swift */,
+				NET014F4 /* SpeedTestButton.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		2B3583E6E17721C54496BD04 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
@@ -208,6 +258,7 @@
 				75EFDFD42F224CCA00B990DA /* NotificationRulesView.swift */,
 				75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */,
 				75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */,
+				12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -223,6 +274,9 @@
 				75EFDFB82F224BE200B990DA /* NetworkWidgetView.swift */,
 				75EFDFB92F224BE200B990DA /* WeatherWidgetView.swift */,
 				75EFDFBA2F224BE200B990DA /* WidgetStatusItem.swift */,
+				NET007F7 /* NetworkDetailViewRedesigned.swift */,
+				NET008F8 /* NetworkWidgetIndex.swift */,
+				0B8EAD5AE23666C39AD1EC11 /* Components */,
 			);
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
@@ -256,6 +310,7 @@
 				75EFDFC52F224C1200B990DA /* SystemEnums.swift */,
 				75EFDFC62F224C1200B990DA /* WeatherData.swift */,
 				75EFDFC72F224C1200B990DA /* WidgetConfiguration.swift */,
+				NET006F6 /* NetworkMetricsModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -291,6 +346,13 @@
 				75EFDFCD2F224C7400B990DA /* WeatherService.swift */,
 				75EFDFCE2F224C7400B990DA /* WidgetDataManager.swift */,
 				75EFDFCF2F224C7400B990DA /* WidgetHistoryStore.swift */,
+				36B79DAEEC90D042AF57536B /* WiFiInterferenceService.swift */,
+				NET001F1 /* WiFiMetricsService.swift */,
+				NET002F2 /* NetworkQualityService.swift */,
+				NET003F3 /* DNSService.swift */,
+				NET004F4 /* SpeedTestService.swift */,
+				NET005F5 /* NetworkWidgetDataManager.swift */,
+				D0560D938238124CEE7B43CE /* AppResetService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -432,6 +494,24 @@
 				SS017B1B7C7E8E8F32A3B4C5D /* PermissionManager.swift in Sources */,
 				SS018B2B7C7E8E8F33B4C5D6E /* ProjectArtifactPurge.swift in Sources */,
 				SS019B3B7C7E8E8F34C5D6E7F /* SystemOptimization.swift in Sources */,
+				ECA94BA743B0F618D3FE85C4 /* WiFiInterferenceService.swift in Sources */,
+				18799FE1CFD6BBD23E2BEFAD /* InterferenceScanResultsView.swift in Sources */,
+				NET001B1 /* WiFiMetricsService.swift in Sources */,
+				NET002B2 /* NetworkQualityService.swift in Sources */,
+				NET003B3 /* DNSService.swift in Sources */,
+				NET004B4 /* SpeedTestService.swift in Sources */,
+				NET005B5 /* NetworkWidgetDataManager.swift in Sources */,
+				NET006B6 /* NetworkMetricsModels.swift in Sources */,
+				NET007B7 /* NetworkDetailViewRedesigned.swift in Sources */,
+				NET008B8 /* NetworkWidgetIndex.swift in Sources */,
+				NET009B9 /* NetworkMetricRow.swift in Sources */,
+				NET010B0 /* NetworkSectionCard.swift in Sources */,
+				NET011B1 /* SparklineChart.swift in Sources */,
+				NET012B2 /* TooltipPopover.swift in Sources */,
+				NET013B3 /* NetworkAnimations.swift in Sources */,
+				NET014B4 /* SpeedTestButton.swift in Sources */,
+				28C2997F771B1F82F743126B /* AppResetService.swift in Sources */,
+				39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
