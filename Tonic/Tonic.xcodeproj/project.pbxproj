@@ -89,6 +89,10 @@
 		SS017B1B7C7E8E8F32A3B4C5D /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS017FILE302F3F3A7F7A2B2C2 /* PermissionManager.swift */; };
 		SS018B2B7C7E8E8F33B4C5D6E /* ProjectArtifactPurge.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS018FILE312F4F4B8A8B3C3D3 /* ProjectArtifactPurge.swift */; };
 		SS019B3B7C7E8E8F34C5D6E7F /* SystemOptimization.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS019FILE322F5F5C9B9C4D4E4 /* SystemOptimization.swift */; };
+		LO001B1 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO001F1 /* LoginItem.swift */; };
+		LO002B2 /* BackgroundActivityItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO002F2 /* BackgroundActivityItem.swift */; };
+		LO003B3 /* LoginItemsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO003F3 /* LoginItemsManager.swift */; };
+		LO004B4 /* BackgroundActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO004F4 /* BackgroundActivityManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -175,6 +179,10 @@
 		SS017FILE302F3F3A7F7A2B2C2 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
 		SS018FILE312F4F4B8A8B3C3D3 /* ProjectArtifactPurge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectArtifactPurge.swift; sourceTree = "<group>"; };
 		SS019FILE322F5F5C9B9C4D4E4 /* SystemOptimization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemOptimization.swift; sourceTree = "<group>"; };
+		LO001F1 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItem.swift; sourceTree = "<group>"; };
+		LO002F2 /* BackgroundActivityItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityItem.swift; sourceTree = "<group>"; };
+		LO003F3 /* LoginItemsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemsManager.swift; sourceTree = "<group>"; };
+		LO004F4 /* BackgroundActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -311,6 +319,8 @@
 				75EFDFC62F224C1200B990DA /* WeatherData.swift */,
 				75EFDFC72F224C1200B990DA /* WidgetConfiguration.swift */,
 				NET006F6 /* NetworkMetricsModels.swift */,
+				LO001F1 /* LoginItem.swift */,
+				LO002F2 /* BackgroundActivityItem.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -353,6 +363,8 @@
 				NET004F4 /* SpeedTestService.swift */,
 				NET005F5 /* NetworkWidgetDataManager.swift */,
 				D0560D938238124CEE7B43CE /* AppResetService.swift */,
+				LO003F3 /* LoginItemsManager.swift */,
+				LO004F4 /* BackgroundActivityManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -512,6 +524,10 @@
 				NET014B4 /* SpeedTestButton.swift in Sources */,
 				28C2997F771B1F82F743126B /* AppResetService.swift in Sources */,
 				39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */,
+				LO001B1 /* LoginItem.swift in Sources */,
+				LO002B2 /* BackgroundActivityItem.swift in Sources */,
+				LO003B3 /* LoginItemsManager.swift in Sources */,
+				LO004B4 /* BackgroundActivityManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
