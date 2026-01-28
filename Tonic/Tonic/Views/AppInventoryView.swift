@@ -194,7 +194,116 @@ final class BackgroundAppScanner: @unchecked Sendable {
             }
         }
 
+        // Scan for app extensions inside .app bundles
+        let extensions = await scanAppExtensions(in: appDirectories, seenPaths: &seenPaths)
+        apps.append(contentsOf: extensions)
+
         return apps
+    }
+
+    /// Scan for app extensions (.appex) inside application bundles
+    private func scanAppExtensions(in directories: [String], seenPaths: inout Set<String>) async -> [FastAppData] {
+        var extensions: [FastAppData] = []
+
+        for directory in directories {
+            if Task.isCancelled { break }
+            guard fileManager.fileExists(atPath: directory) else { continue }
+
+            // First, find all .app bundles (non-recursively to avoid deep nesting)
+            guard let appContents = try? fileManager.contentsOfDirectory(atPath: directory) else { continue }
+
+            for item in appContents {
+                if Task.isCancelled { break }
+                guard item.hasSuffix(".app") else { continue }
+
+                let appURL = URL(fileURLWithPath: directory).appendingPathComponent(item)
+
+                // Skip if we've already seen this app
+                let appPath = appURL.path
+                if seenPaths.contains(appPath) { continue }
+
+                // Look inside the app bundle for extensions in known locations
+                let extensionDirs = [
+                    appURL.appendingPathComponent("Contents/PlugIns"),
+                    appURL.appendingPathComponent("Contents/Extensions"),
+                    appURL.appendingPathComponent("Contents/Library/Spotlight"),
+                    appURL.appendingPathComponent("Contents/Library/QuickLook")
+                ]
+
+                for extDirURL in extensionDirs {
+                    if Task.isCancelled { break }
+                    guard fileManager.fileExists(atPath: extDirURL.path) else { continue }
+
+                    // Get immediate contents only (non-recursive)
+                    if let extContents = try? fileManager.contentsOfDirectory(atPath: extDirURL.path) {
+                        for extItem in extContents {
+                            if Task.isCancelled { break }
+
+                            let extURL = extDirURL.appendingPathComponent(extItem)
+                            let extPath = extURL.path
+
+                            // Skip if already seen
+                            if seenPaths.contains(extPath) { continue }
+                            seenPaths.insert(extPath)
+
+                            // Only process .appex bundles
+                            guard extURL.pathExtension == "appex" else { continue }
+
+                            // Try to read metadata, fall back to basic info if Bundle fails
+                            if let extData = await readAppExtensionMetadata(extURL) {
+                                extensions.append(extData)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return extensions
+    }
+
+    /// Read metadata for an .appex bundle with fallback for when Bundle() fails
+    private func readAppExtensionMetadata(_ url: URL) async -> FastAppData? {
+        // Try using Bundle first
+        if let bundle = Bundle(url: url),
+           let info = bundle.infoDictionary {
+            let name = info["CFBundleName"] as? String
+                ?? info["CFBundleDisplayName"] as? String
+                ?? url.deletingPathExtension().lastPathComponent
+
+            let bundleID = bundle.bundleIdentifier ?? ""
+            let version = info["CFBundleVersion"] as? String
+                ?? info["CFBundleShortVersionString"] as? String
+
+            let installDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
+
+            let categoryRaw = info["LSApplicationCategoryType"] as? String ?? "other"
+            let category = appCategory(from: categoryRaw)
+
+            return FastAppData(
+                name: name,
+                path: url.path,
+                bundleIdentifier: bundleID.isEmpty ? url.lastPathComponent : bundleID,
+                version: version ?? "Unknown",
+                installDate: installDate ?? Date(),
+                category: category,
+                totalSize: 0,
+                itemType: .appExtensions
+            )
+        }
+
+        // Fallback: Use the filename if Bundle fails
+        let name = url.deletingPathExtension().lastPathComponent
+        return FastAppData(
+            name: name,
+            path: url.path,
+            bundleIdentifier: name,
+            version: "Unknown",
+            installDate: (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date(),
+            category: .other,
+            totalSize: 0,
+            itemType: .appExtensions
+        )
     }
 
     /// Scan a directory for items with specific extensions
@@ -558,6 +667,23 @@ enum QuickFilterCategory: String, CaseIterable, Identifiable {
     }
 }
 
+/// Quick filter specifically for login items
+enum LoginItemFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case launchAgents = "Launch Agents"
+    case daemons = "Daemons"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .all: return "square.grid.2x2"
+        case .launchAgents: return "gear.circle.fill"
+        case .daemons: return "gearshape.2.fill"
+        }
+    }
+}
+
 /// Fast app data without size
 struct FastAppData: Sendable {
     let name: String
@@ -582,6 +708,7 @@ class AppInventoryService: ObservableObject {
     @Published var sortOption: SortOption = .sizeDescending
     @Published var selectedTab: ItemType = .apps
     @Published var quickFilterCategory: QuickFilterCategory = .all
+    @Published var loginItemFilter: LoginItemFilter = .all
     @Published var selectedAppIDs: Set<UUID> = []
     @Published var isSelecting = false
     @Published var isUninstalling = false
@@ -592,10 +719,17 @@ class AppInventoryService: ObservableObject {
     @Published var errorMessage: String?
     @Published var lastScanDate: Date?
 
+    // New: Login items and background activities
+    @Published var loginItems: [LoginItem] = []
+    @Published var launchServices: [LaunchService] = []
+    @Published var backgroundActivities: [BackgroundActivityItem] = []
+
     private let updater = AppUpdater.shared
     let cache = AppCache.shared
     private let scanner = BackgroundAppScanner()
     let fileOps = FileOperations.shared
+    private let loginItemsManager = LoginItemsManager.shared
+    private let backgroundActivityManager = BackgroundActivityManager.shared
 
     private var scanTask: Task<Void, Never>?
     private(set) var hasScannedThisSession = false  // Track if we've scanned in this session
@@ -789,8 +923,42 @@ class AppInventoryService: ObservableObject {
         // Save to cache
         cache.saveApps(apps)
 
+        // Phase 3: Fetch login items and background activities
+        await fetchLoginItemsAndBackgroundActivities()
+
         // Check for updates
         await checkForUpdates()
+    }
+
+    // Fetch login items and background activities
+    private func fetchLoginItemsAndBackgroundActivities() async {
+        // Fetch login items
+        await loginItemsManager.fetchLoginItems()
+        await loginItemsManager.fetchLaunchServices()
+
+        // Fetch background activities
+        await backgroundActivityManager.fetchBackgroundActivities()
+
+        // Update published properties
+        loginItems = loginItemsManager.loginItems
+        launchServices = loginItemsManager.launchServices
+        backgroundActivities = backgroundActivityManager.backgroundActivities
+    }
+
+    // Separate methods to refresh specific sections
+    func refreshLoginItems() async {
+        await loginItemsManager.fetchLoginItems()
+        loginItems = loginItemsManager.loginItems
+    }
+
+    func refreshLaunchServices() async {
+        await loginItemsManager.fetchLaunchServices()
+        launchServices = loginItemsManager.launchServices
+    }
+
+    func refreshBackgroundActivities() async {
+        await backgroundActivityManager.fetchBackgroundActivities()
+        backgroundActivities = backgroundActivityManager.backgroundActivities
     }
 
     // MARK: - Update Checking
@@ -1163,30 +1331,12 @@ struct AppInventoryView: View {
                 SidebarTabButton(
                     tab: tab,
                     isSelected: inventory.selectedTab == tab,
-                    itemCount: inventory.apps.filter { app in
-                        switch tab {
-                        case .apps:
-                            return (app.itemType == "app" || app.itemType.isEmpty) && app.totalSize >= 100 * 1024
-                        case .appExtensions:
-                            return app.itemType == "extension" || app.itemType.contains("extension")
-                        case .preferencePanes:
-                            return app.itemType == "prefPane" || app.itemType.contains("pref")
-                        case .quickLookPlugins:
-                            return app.itemType == "quicklook" || app.itemType.contains("quick")
-                        case .spotlightImporters:
-                            return app.itemType == "spotlight" || app.itemType.contains("spot")
-                        case .frameworks:
-                            return app.itemType == "framework" || app.itemType.contains("runtime")
-                        case .systemUtilities:
-                            return app.itemType == "system" || app.itemType.contains("utility")
-                        case .loginItems:
-                            return app.itemType == "login" || app.itemType.contains("login")
-                        }
-                    }.count
+                    itemCount: itemCountForTab(tab)
                 ) {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         inventory.selectedTab = tab
                         inventory.quickFilterCategory = .all
+                        inventory.loginItemFilter = .all
                     }
                 }
             }
@@ -1195,6 +1345,46 @@ struct AppInventoryView: View {
         }
         .padding(.bottom, 8)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    // Helper function to get item count for each tab
+    private func itemCountForTab(_ tab: ItemType) -> Int {
+        switch tab {
+        case .apps:
+            return inventory.apps.filter { app in
+                (app.itemType == "app" || app.itemType.isEmpty) && app.totalSize >= 100 * 1024
+            }.count
+        case .appExtensions:
+            return inventory.apps.filter { app in
+                app.itemType == "extension" || app.itemType.contains("extension")
+            }.count
+        case .preferencePanes:
+            return inventory.apps.filter { app in
+                app.itemType == "prefPane" || app.itemType.contains("pref")
+            }.count
+        case .quickLookPlugins:
+            return inventory.apps.filter { app in
+                app.itemType == "quicklook" || app.itemType.contains("quick")
+            }.count
+        case .spotlightImporters:
+            return inventory.apps.filter { app in
+                app.itemType == "spotlight" || app.itemType.contains("spot")
+            }.count
+        case .frameworks:
+            return inventory.apps.filter { app in
+                app.itemType == "framework" || app.itemType.contains("runtime")
+            }.count
+        case .systemUtilities:
+            return inventory.apps.filter { app in
+                app.itemType == "system" || app.itemType.contains("utility")
+            }.count
+        case .loginItems:
+            // Combine launch agents from apps array with actual login items and services
+            let launchAgents = inventory.apps.filter { app in
+                app.itemType == "login" || app.itemType.contains("login")
+            }.count
+            return launchAgents + inventory.loginItems.count + inventory.launchServices.count
+        }
     }
 
     struct SidebarTabButton: View {
@@ -1458,16 +1648,31 @@ struct AppInventoryView: View {
 
     private var toolbar: some View {
         HStack(spacing: 16) {
-            // Quick filter pills
+            // Quick filter pills - different based on selected tab
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(inventory.availableQuickFilters) { filter in
-                        QuickFilterPill(
-                            filter: filter,
-                            isSelected: inventory.quickFilterCategory == filter
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                inventory.quickFilterCategory = filter
+                    if inventory.selectedTab == .loginItems {
+                        // Show login item specific filters
+                        ForEach(LoginItemFilter.allCases) { filter in
+                            LoginItemFilterPill(
+                                filter: filter,
+                                isSelected: inventory.loginItemFilter == filter
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    inventory.loginItemFilter = filter
+                                }
+                            }
+                        }
+                    } else {
+                        // Show standard category filters
+                        ForEach(inventory.availableQuickFilters) { filter in
+                            QuickFilterPill(
+                                filter: filter,
+                                isSelected: inventory.quickFilterCategory == filter
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    inventory.quickFilterCategory = filter
+                                }
                             }
                         }
                     }
@@ -1509,17 +1714,168 @@ struct AppInventoryView: View {
         }
     }
 
+    // MARK: - Login Item Filter Pill
+
+    struct LoginItemFilterPill: View {
+        let filter: LoginItemFilter
+        let isSelected: Bool
+        let action: () -> Void
+
+        var body: some View {
+            Button(action: action) {
+                HStack(spacing: 4) {
+                    Image(systemName: filter.icon)
+                        .font(.system(size: 11))
+                    Text(filter.rawValue)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.15))
+                )
+                .foregroundColor(isSelected ? .white : .primary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Content View
 
     private var contentView: some View {
         Group {
-            if inventory.filteredApps.isEmpty {
+            if inventory.selectedTab == .loginItems {
+                // Show login items view (combines filtered apps + loginItems + launchServices)
+                loginItemsContentView()
+            } else if inventory.filteredApps.isEmpty {
                 emptyView
             } else {
                 appGridView
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // Specialized view for login items that combines all sources
+    private func loginItemsContentView() -> AnyView {
+        // Get all items first
+        let allItems = inventory.filteredApps + loginItemsAsApps
+
+        // Apply login item specific filter
+        let filteredItems: [AppMetadata]
+        switch inventory.loginItemFilter {
+        case .all:
+            filteredItems = allItems
+        case .launchAgents:
+            // Show only launch agents (items with itemType containing "LaunchAgent" or "login")
+            filteredItems = allItems.filter { item in
+                item.itemType.contains("LaunchAgent") || item.itemType.contains("login")
+            }
+        case .daemons:
+            // Show only daemons (items with itemType containing "LaunchDaemon" or "Daemon")
+            filteredItems = allItems.filter { item in
+                item.itemType.contains("LaunchDaemon") || item.itemType.contains("Daemon")
+            }
+        }
+
+        if filteredItems.isEmpty {
+            return AnyView(emptyLoginItemsView)
+        } else {
+            return AnyView(
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.adaptive(minimum: 280, maximum: 350), spacing: DesignTokens.Spacing.md)
+                    ], spacing: DesignTokens.Spacing.md) {
+                        ForEach(filteredItems) { item in
+                            LoginItemCard(
+                                item: item,
+                                onTap: {
+                                    // Could show detail sheet here
+                                }
+                            )
+                        }
+                    }
+                    .padding(DesignTokens.Spacing.lg)
+                }
+            )
+        }
+    }
+
+    // Convert LoginItem and LaunchService to displayable format
+    private var loginItemsAsApps: [AppMetadata] {
+        var result: [AppMetadata] = []
+
+        // Add login items
+        for item in inventory.loginItems {
+            let app = AppMetadata(
+                bundleIdentifier: item.bundleIdentifier,
+                appName: item.name,
+                path: item.path,
+                version: nil,
+                totalSize: 0,
+                installDate: nil,
+                category: .other,
+                itemType: "loginItem"
+            )
+            result.append(app)
+        }
+
+        // Add launch services
+        for service in inventory.launchServices {
+            let app = AppMetadata(
+                bundleIdentifier: service.bundleIdentifier,
+                appName: service.name,
+                path: service.path,
+                version: nil,
+                totalSize: 0,
+                installDate: nil,
+                category: .other,
+                itemType: service.serviceType.rawValue
+            )
+            result.append(app)
+        }
+
+        return result
+    }
+
+    private var emptyLoginItemsView: some View {
+        VStack(spacing: DesignTokens.Spacing.lg) {
+            Spacer()
+
+            Image(systemName: "person.2")
+                .font(.system(size: 64))
+                .foregroundColor(DesignTokens.Colors.textSecondary.opacity(0.5))
+
+            if inventory.isLoading {
+                Text("Scanning for login items...")
+                    .font(DesignTokens.Typography.headlineSmall)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                ProgressView()
+                    .scaleEffect(1.2)
+            } else {
+                Text("No login items found")
+                    .font(DesignTokens.Typography.headlineSmall)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                Text("Login items are applications and services that launch automatically when you log in.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+
+                Button("Scan Again") {
+                    Task {
+                        await inventory.scanApps()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+            }
+
+            Spacer()
+        }
     }
 
     private var emptyView: some View {
@@ -2528,6 +2884,157 @@ struct UninstallAppRow: View {
     }
 
     private func loadIconSafely(for path: URL) -> NSImage? {
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: NSImage?
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let icon = NSWorkspace.shared.icon(forFile: path.path)
+            if icon.isValid && icon.representations.count > 0 {
+                result = icon
+            }
+            semaphore.signal()
+        }
+
+        _ = semaphore.wait(timeout: .now() + 0.5)
+        return result
+    }
+}
+
+// MARK: - Login Item Card
+
+/// Specialized card for login items with type badge
+struct LoginItemCard: View {
+    let item: AppMetadata
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    private var itemTypeDisplay: String {
+        switch item.itemType {
+        case "loginItem":
+            return "Login Item"
+        case "LaunchAgent":
+            return "Launch Agent"
+        case "LaunchDaemon":
+            return "Launch Daemon"
+        default:
+            return "Login Item"
+        }
+    }
+
+    private var itemIcon: String {
+        switch item.itemType {
+        case "LaunchAgent", "LaunchDaemon":
+            return "gear.circle.fill"
+        default:
+            return "person.circle.fill"
+        }
+    }
+
+    private var itemColor: Color {
+        switch item.itemType {
+        case "LaunchAgent":
+            return .blue
+        case "LaunchDaemon":
+            return .purple
+        default:
+            return .green
+        }
+    }
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                // Icon with type badge
+                ZStack(alignment: .bottomTrailing) {
+                    itemIconView
+
+                    // Type badge
+                    Image(systemName: itemIcon)
+                        .font(.system(size: 10))
+                        .foregroundColor(.white)
+                        .padding(4)
+                        .background(itemColor)
+                        .clipShape(Circle())
+                }
+
+                // Info
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                    Text(item.name)
+                        .font(DesignTokens.Typography.bodyMedium)
+                        .fontWeight(.medium)
+                        .foregroundColor(DesignTokens.Colors.text)
+                        .lineLimit(1)
+
+                    Text(item.bundleIdentifier)
+                        .font(DesignTokens.Typography.captionMedium)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                        .lineLimit(1)
+
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        Text(itemTypeDisplay)
+                            .font(DesignTokens.Typography.captionSmall)
+                            .foregroundColor(itemColor)
+
+                        if item.itemType.contains("Launch") {
+                            Text("•")
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                            Text("System")
+                                .font(DesignTokens.Typography.captionSmall)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Status indicator
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            }
+            .padding(DesignTokens.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
+                    .stroke(itemColor.opacity(0.3), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                isHovered = hovering
+            }
+            .scaleEffect(isHovered ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var itemIconView: some View {
+        Group {
+            if let icon = getAppIconSafely(for: item.path) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "app")
+                    .font(.title2)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+        }
+        .frame(width: 44, height: 44)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(DesignTokens.Colors.backgroundSecondary)
+        )
+    }
+
+    private func getAppIconSafely(for path: URL) -> NSImage? {
         let semaphore = DispatchSemaphore(value: 0)
         var result: NSImage?
 
