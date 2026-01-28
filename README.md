@@ -4,22 +4,14 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/tw93/Tonic/stargazers"><img src="https://img.shields.io/github/stars/tw93/Tonic?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/tw93/Tonic/releases"><img src="https://img.shields.io/github/v/tag/tw93/Tonic?label=version&style=flat-square" alt="Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://github.com/tw93/Tonic/commits"><img src="https://img.shields.io/github/commit-activity/m/Tonic?style=flat-square" alt="Commits"></a>
-  <a href="https://twitter.com/HiTw93"><img src="https://img.shields.io/badge/follow-Tw93-red?style=flat-square&logo=Twitter" alt="Twitter"></a>
-</p>
-
-<p align="center">
-  <img src="https://via.placeholder.com/1000x600?text=Tonic+Dashboard+Screenshot" alt="Tonic Dashboard" width="1000" />
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/2c288d48-308c-407b-96a1-751ec2eddc29/Screenshot%202026-01-28%20at%204.02.01%20PM.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1769598162&Signature=0xb9W3p5QHjVKJ17emyzuE+rAPY=" alt="Tonic App Manager - Login Items" width="1000" />
 </p>
 
 ## Overview
 
 Tonic is a beautiful, native macOS application for system management and optimization. It combines disk cleanup, performance monitoring, and app management into a single, polished interface built entirely with SwiftUI.
 
-Unlike CLI tools or web-based utilities, Tonic provides a true native Mac experience with:
+Tonic provides a true native Mac experience with:
 - **Real-time system monitoring** with live menu bar widgets
 - **One-click smart scanning** that identifies junk and reclaimable space
 - **Deep cleaning** across 10 categories of system clutter
@@ -89,6 +81,7 @@ Each widget supports three display modes:
 
 ### App Management
 - **App Inventory** - Categorized view of all apps and extensions
+- **Login Items** - View and manage launch agents, daemons, and startup items
 - **Smart Filtering** - By category, size, last used, install date
 - **Batch Operations** - Select multiple apps for actions
 - **Complete Uninstall** - Removes app bundle + all associated files
