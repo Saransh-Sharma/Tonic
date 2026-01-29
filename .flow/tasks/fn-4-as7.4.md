@@ -24,9 +24,8 @@ Create an outline view component for directory browsing with disclosure triangle
 
 
 ## Done summary
-TBD
-
+Created OutlineView component for hierarchical directory browsing with disclosure triangles, three sortable columns (Name, Size, % of parent), lazy-loaded children, and full accessibility support.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 9fedeeb4edba359e014127f806024cd3fc58291d
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
