@@ -51,9 +51,8 @@ Update DesignTokens.swift to follow the 8-point grid system and unify color usag
 
 
 ## Done summary
-TBD
-
+Updated DesignTokens.swift with 8-point grid spacing system and semantic colors using NSColor sources for light/dark mode parity. Added WCAG AA compliant custom colors (success, warning, info) via Asset Catalog, updated typography scale to match spec (h1=32, h2=24, body=16, subhead=14, caption=12), and included backward-compatible deprecated aliases for existing code.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 3e5b99e4ac25dd9cbdaf963dd75a747ceb7a30c2
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
