@@ -702,3 +702,524 @@ struct MetricRow_Previews: PreviewProvider {
     }
 }
 #endif
+
+// MARK: - PreferenceList Component
+
+/// A grouped list component for settings screens with Label + Control rows.
+/// Supports grouped sections with headers, consistent padding, and various control types.
+///
+/// Usage:
+/// ```swift
+/// PreferenceList {
+///     PreferenceSection(header: "General") {
+///         PreferenceRow(title: "Launch at Login") {
+///             Toggle("", isOn: $launchAtLogin)
+///         }
+///         PreferenceRow(title: "Theme", subtitle: "Choose appearance") {
+///             Picker("", selection: $theme) { ... }
+///         }
+///     }
+///     PreferenceSection(header: "Advanced") {
+///         PreferenceRow(title: "Clear Cache") {
+///             Button("Clear") { ... }
+///         }
+///     }
+/// }
+/// ```
+struct PreferenceList<Content: View>: View {
+    let content: Content
+
+    /// Initialize a PreferenceList with grouped sections
+    /// - Parameter content: The sections to display (use PreferenceSection)
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            content
+        }
+    }
+}
+
+// MARK: - PreferenceSection Component
+
+/// A section within a PreferenceList with an optional header.
+/// Groups related preference rows together with consistent styling.
+struct PreferenceSection<Content: View>: View {
+    let header: String?
+    let footer: String?
+    let content: Content
+
+    /// Initialize a preference section
+    /// - Parameters:
+    ///   - header: Optional section header text (displayed in caption style)
+    ///   - footer: Optional footer text for additional context
+    ///   - content: The rows in this section (use PreferenceRow)
+    init(
+        header: String? = nil,
+        footer: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.header = header
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+            // Section header
+            if let header = header {
+                Text(header.uppercased())
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                    .padding(.bottom, DesignTokens.Spacing.xxxs)
+            }
+
+            // Section content with background
+            VStack(spacing: 0) {
+                content
+            }
+            .background(DesignTokens.Colors.backgroundSecondary)
+            .cornerRadius(DesignTokens.CornerRadius.medium)
+
+            // Section footer
+            if let footer = footer {
+                Text(footer)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                    .padding(.top, DesignTokens.Spacing.xxxs)
+            }
+        }
+    }
+}
+
+// MARK: - PreferenceRow Component
+
+/// A single row in a PreferenceSection with label on the left and control on the right.
+/// Consistent padding: sm vertical, md horizontal.
+struct PreferenceRow<Control: View>: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let iconColor: Color
+    let control: Control
+    let showDivider: Bool
+
+    @State private var isHovered = false
+
+    /// Initialize a preference row
+    /// - Parameters:
+    ///   - title: The main label text
+    ///   - subtitle: Optional secondary description text
+    ///   - icon: Optional SF Symbol name for an icon
+    ///   - iconColor: Color for the icon (defaults to accent)
+    ///   - showDivider: Whether to show a divider below this row (defaults to true)
+    ///   - control: The control view (Toggle, Picker, Button, etc.)
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        iconColor: Color = DesignTokens.Colors.accent,
+        showDivider: Bool = true,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self.control = control()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                // Optional icon
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(iconColor)
+                        .frame(width: 24, alignment: .center)
+                }
+
+                // Label stack
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                    Text(title)
+                        .font(DesignTokens.Typography.body)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+
+                Spacer()
+
+                // Control
+                control
+            }
+            .padding(.vertical, DesignTokens.Spacing.sm)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .background(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5) : Color.clear)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                withAnimation(DesignTokens.Animation.fast) {
+                    isHovered = hovering
+                }
+            }
+
+            // Divider
+            if showDivider {
+                Divider()
+                    .padding(.leading, icon != nil ? DesignTokens.Spacing.md + 24 + DesignTokens.Spacing.sm : DesignTokens.Spacing.md)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(subtitle != nil ? "\(title), \(subtitle!)" : title)
+    }
+}
+
+// MARK: - PreferenceToggleRow
+
+/// A convenience wrapper for PreferenceRow with a Toggle control.
+struct PreferenceToggleRow: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let iconColor: Color
+    let showDivider: Bool
+    @Binding var isOn: Bool
+
+    /// Initialize a toggle preference row
+    /// - Parameters:
+    ///   - title: The main label text
+    ///   - subtitle: Optional secondary description text
+    ///   - icon: Optional SF Symbol name for an icon
+    ///   - iconColor: Color for the icon (defaults to accent)
+    ///   - showDivider: Whether to show a divider below this row
+    ///   - isOn: Binding to the toggle state
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        iconColor: Color = DesignTokens.Colors.accent,
+        showDivider: Bool = true,
+        isOn: Binding<Bool>
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self._isOn = isOn
+    }
+
+    var body: some View {
+        PreferenceRow(
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            iconColor: iconColor,
+            showDivider: showDivider
+        ) {
+            Toggle("", isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+        }
+    }
+}
+
+// MARK: - PreferencePickerRow
+
+/// A convenience wrapper for PreferenceRow with a Picker control.
+struct PreferencePickerRow<SelectionValue: Hashable, PickerContent: View>: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let iconColor: Color
+    let showDivider: Bool
+    @Binding var selection: SelectionValue
+    let pickerContent: PickerContent
+
+    /// Initialize a picker preference row
+    /// - Parameters:
+    ///   - title: The main label text
+    ///   - subtitle: Optional secondary description text
+    ///   - icon: Optional SF Symbol name for an icon
+    ///   - iconColor: Color for the icon (defaults to accent)
+    ///   - showDivider: Whether to show a divider below this row
+    ///   - selection: Binding to the selected value
+    ///   - content: The picker options
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        iconColor: Color = DesignTokens.Colors.accent,
+        showDivider: Bool = true,
+        selection: Binding<SelectionValue>,
+        @ViewBuilder content: () -> PickerContent
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self._selection = selection
+        self.pickerContent = content()
+    }
+
+    var body: some View {
+        PreferenceRow(
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            iconColor: iconColor,
+            showDivider: showDivider
+        ) {
+            Picker("", selection: $selection) {
+                pickerContent
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
+    }
+}
+
+// MARK: - PreferenceButtonRow
+
+/// A convenience wrapper for PreferenceRow with a Button control.
+struct PreferenceButtonRow: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let iconColor: Color
+    let showDivider: Bool
+    let buttonTitle: String
+    let buttonStyle: PreferenceButtonStyle
+    let action: () -> Void
+
+    /// Button style options for PreferenceButtonRow
+    enum PreferenceButtonStyle {
+        case primary
+        case secondary
+        case destructive
+
+        var tint: Color? {
+            switch self {
+            case .primary: return nil
+            case .secondary: return nil
+            case .destructive: return DesignTokens.Colors.destructive
+            }
+        }
+    }
+
+    /// Initialize a button preference row
+    /// - Parameters:
+    ///   - title: The main label text
+    ///   - subtitle: Optional secondary description text
+    ///   - icon: Optional SF Symbol name for an icon
+    ///   - iconColor: Color for the icon (defaults to accent)
+    ///   - showDivider: Whether to show a divider below this row
+    ///   - buttonTitle: The button text
+    ///   - buttonStyle: The button style (primary, secondary, destructive)
+    ///   - action: The button action
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        iconColor: Color = DesignTokens.Colors.accent,
+        showDivider: Bool = true,
+        buttonTitle: String,
+        buttonStyle: PreferenceButtonStyle = .secondary,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self.buttonTitle = buttonTitle
+        self.buttonStyle = buttonStyle
+        self.action = action
+    }
+
+    var body: some View {
+        PreferenceRow(
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            iconColor: iconColor,
+            showDivider: showDivider
+        ) {
+            Group {
+                switch buttonStyle {
+                case .primary:
+                    Button(buttonTitle, action: action)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                case .secondary:
+                    Button(buttonTitle, action: action)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                case .destructive:
+                    Button(buttonTitle, action: action)
+                        .buttonStyle(.bordered)
+                        .tint(DesignTokens.Colors.destructive)
+                        .controlSize(.small)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - PreferenceStatusRow
+
+/// A convenience wrapper for PreferenceRow with a Status indicator control.
+struct PreferenceStatusRow: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let iconColor: Color
+    let showDivider: Bool
+    let status: StatusLevel
+    let statusText: String?
+
+    /// Initialize a status preference row
+    /// - Parameters:
+    ///   - title: The main label text
+    ///   - subtitle: Optional secondary description text
+    ///   - icon: Optional SF Symbol name for an icon
+    ///   - iconColor: Color for the icon (defaults to accent)
+    ///   - showDivider: Whether to show a divider below this row
+    ///   - status: The status level (healthy, warning, critical, unknown)
+    ///   - statusText: Optional custom status text (defaults to status label)
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        iconColor: Color = DesignTokens.Colors.accent,
+        showDivider: Bool = true,
+        status: StatusLevel,
+        statusText: String? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self.status = status
+        self.statusText = statusText
+    }
+
+    var body: some View {
+        PreferenceRow(
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            iconColor: iconColor,
+            showDivider: showDivider
+        ) {
+            HStack(spacing: DesignTokens.Spacing.xxs) {
+                Circle()
+                    .fill(status.color)
+                    .frame(width: 8, height: 8)
+
+                Text(statusText ?? status.label)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(status.color)
+            }
+        }
+    }
+}
+
+// MARK: - PreferenceList Previews
+
+#if DEBUG
+struct PreferenceList_Previews: PreviewProvider {
+    static var previews: some View {
+        PreferenceListPreviewWrapper()
+            .padding()
+            .background(DesignTokens.Colors.background)
+            .previewLayout(.sizeThatFits)
+            .previewDisplayName("PreferenceList Examples")
+    }
+}
+
+private struct PreferenceListPreviewWrapper: View {
+    @State private var launchAtLogin = true
+    @State private var automaticUpdates = false
+    @State private var selectedTheme = "System"
+
+    var body: some View {
+        PreferenceList {
+            PreferenceSection(header: "General", footer: "These settings control app behavior at startup.") {
+                PreferenceToggleRow(
+                    title: "Launch at Login",
+                    subtitle: "Start Tonic when you log in",
+                    icon: "power",
+                    isOn: $launchAtLogin
+                )
+                PreferenceToggleRow(
+                    title: "Automatic Updates",
+                    subtitle: "Check for updates automatically",
+                    icon: "arrow.triangle.2.circlepath",
+                    showDivider: false,
+                    isOn: $automaticUpdates
+                )
+            }
+
+            PreferenceSection(header: "Appearance") {
+                PreferencePickerRow(
+                    title: "Theme",
+                    subtitle: "Choose your preferred appearance",
+                    icon: "paintbrush",
+                    selection: $selectedTheme
+                ) {
+                    Text("System").tag("System")
+                    Text("Light").tag("Light")
+                    Text("Dark").tag("Dark")
+                }
+                PreferenceStatusRow(
+                    title: "Full Disk Access",
+                    subtitle: "Required for complete scanning",
+                    icon: "externaldrive",
+                    iconColor: DesignTokens.Colors.success,
+                    showDivider: false,
+                    status: .healthy,
+                    statusText: "Granted"
+                )
+            }
+
+            PreferenceSection(header: "Data") {
+                PreferenceButtonRow(
+                    title: "Clear Cache",
+                    subtitle: "Remove temporary files",
+                    icon: "trash",
+                    iconColor: DesignTokens.Colors.warning,
+                    buttonTitle: "Clear",
+                    buttonStyle: .secondary
+                ) {
+                    print("Clear cache tapped")
+                }
+                PreferenceButtonRow(
+                    title: "Reset All Settings",
+                    subtitle: "Restore default configuration",
+                    icon: "arrow.counterclockwise",
+                    iconColor: DesignTokens.Colors.destructive,
+                    showDivider: false,
+                    buttonTitle: "Reset",
+                    buttonStyle: .destructive
+                ) {
+                    print("Reset tapped")
+                }
+            }
+        }
+        .frame(width: 400)
+    }
+}
+#endif

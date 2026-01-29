@@ -24,9 +24,8 @@ Create a reusable MetricRow component for displaying metrics with icon, title, v
 
 
 ## Done summary
-TBD
-
+Added MetricRow shared component to DesignComponents.swift with HStack layout (Icon | Title+Value VStack | optional Sparkline), fixed 44pt height, monospaced number alignment using Typography.monoBody, and SwiftUI Previews for visual testing.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 96833935b9667566d55b130e34dbe836bfe40a04
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
