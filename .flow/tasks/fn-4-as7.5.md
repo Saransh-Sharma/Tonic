@@ -24,9 +24,8 @@ Create a table component supporting multi-select, batch actions, and keyboard na
 
 
 ## Done summary
-TBD
-
+Created ActionTable component with multi-select support (Shift/Cmd modifiers), batch action bar, keyboard navigation (arrow keys, Space, Enter), and context menu support for right-click.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 2fc206c0a25a8271dd1c5b3c78a2daedb79288a5
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
