@@ -23,9 +23,8 @@ Create a grouped list component for settings screens with Label + Control rows.
 
 
 ## Done summary
-TBD
-
+Created PreferenceList container, PreferenceSection, PreferenceRow and convenience wrappers (Toggle, Picker, Button, Status rows)
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 1957c3d
+- Tests: xcodebuild build
 - PRs:
