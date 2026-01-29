@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T19:24:21.668570Z",
+  "depends_on": [
+    "fn-4-as7.2",
+    "fn-4-as7.3",
+    "fn-4-as7.18"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.21",
+  "priority": 21,
+  "spec_path": ".flow/tasks/fn-4-as7.21.md",
+  "status": "todo",
+  "title": "Create Design Sandbox screen",
+  "updated_at": "2026-01-29T19:24:21.668779Z"
+}

@@ -1,0 +1,16 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T19:24:21.376949Z",
+  "depends_on": [
+    "fn-4-as7.1"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.18",
+  "priority": 18,
+  "spec_path": ".flow/tasks/fn-4-as7.18.md",
+  "status": "todo",
+  "title": "Improve Card component with 3 variants",
+  "updated_at": "2026-01-29T19:24:21.377140Z"
+}

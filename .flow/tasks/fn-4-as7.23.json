@@ -1,0 +1,19 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T19:24:21.863420Z",
+  "depends_on": [
+    "fn-4-as7.1",
+    "fn-4-as7.2",
+    "fn-4-as7.3",
+    "fn-4-as7.18"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.23",
+  "priority": 23,
+  "spec_path": ".flow/tasks/fn-4-as7.23.md",
+  "status": "todo",
+  "title": "Create Design.md documentation",
+  "updated_at": "2026-01-29T19:24:21.863610Z"
+}
