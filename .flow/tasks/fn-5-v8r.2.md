@@ -38,8 +38,11 @@ Key design:
 - [ ] No CPU wakeups when all widgets inactive
 
 ## Done summary
-Implemented unified refresh scheduler using Swift Concurrency Task pattern. Eliminates per-widget timer CPU overhead.
-
+- Task completed
+## Evidence
+- Commits:
+- Tests:
+- PRs:
 ## References
 - Stats Master: `stats-master/Kit/plugins/Repeater.swift:25-72`
 - Tonic current: `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift:74-82`
