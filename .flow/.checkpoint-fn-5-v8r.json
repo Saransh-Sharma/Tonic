@@ -1,0 +1,403 @@
+{
+  "created_at": "2026-01-30T20:15:14.906776Z",
+  "epic": {
+    "data": {
+      "branch_name": "fn-5-v8r",
+      "created_at": "2026-01-30T20:11:15.371177Z",
+      "depends_on_epics": [],
+      "id": "fn-5-v8r",
+      "next_task": 1,
+      "plan_review_status": "unknown",
+      "plan_reviewed_at": null,
+      "spec_path": ".flow/specs/fn-5-v8r.md",
+      "status": "open",
+      "title": "Stats Master\u2013Parity Menu Bar Widgets Dashboard",
+      "updated_at": "2026-01-30T20:11:15.371315Z"
+    },
+    "spec": "# fn-5-v8r Stats Master\u2013Parity Menu Bar Widgets Dashboard\n\n## Overview\n\nReplicate 100% of Stats Master's widget functionality within Tonic's Menu Bar Widgets Dashboard. The implementation must be functionally indistinguishable from Stats Master (\"Stats Master's brain, Tonic's visual language\").\n\n**Key insight**: Stats Master has 14 widget types vs Tonic's current 7. Stats Master also provides sophisticated configuration options (color schemes, chart scaling, history buffers, display modes) that do not exist in Tonic today.\n\n## Scope\n\n### In Scope (Feature Parity)\n\n**Widget Types from Stats Master to implement**:\n\n| Stats Master Widget | Description | Tonic Equivalent | Gap |\n|---------------------|-------------|------------------|-----|\n| Mini | Simple value display with label | Basic widget modes | Color schemes, alignment |\n| Line Chart | Real-time graph with history (30-120 points) | None | Full implementation needed |\n| Bar Chart | Vertical bar visualization | None | Full implementation needed |\n| Pie Chart | Circular progress indicator | None | Full implementation needed |\n| Network Chart | Dual-direction I/O visualization | Network widget | Enhanced version needed |\n| Speed | Network speed with I/O indicators | Network widget | Display modes needed |\n| Battery | Battery level and status | Battery widget | Icon styles needed |\n| Battery Details | Extended battery info | None | Full implementation needed |\n| Stack (Sensors) | Multiple sensors in one widget | None | Full implementation needed |\n| Memory | Memory with pressure zones | Memory widget | Zone indicators needed |\n| Label | Custom text display | None | Full implementation needed |\n| Tachometer | Circular gauge | None | Full implementation needed |\n| State | Status indicator | None | Full implementation needed |\n| Text | Dynamic text with templates | None | Full implementation needed |\n\n**Business Logic Replacement**:\n- Replace entire Menu Bar Widgets Dashboard implementation\n- Widget lifecycle: creation, activation, ordering, refresh, destruction\n- Configuration system: persistence, validation, defaults\n- Refresh model: time-based intervals, event-driven triggers, throttling\n\n**Active Widgets Section Refactor**:\n- Convert from vertical list to horizontal layout\n- Preserve ordering semantics\n- Maintain widget preview/review visibility\n\n### Out of Scope\n\n- Menu bar status item implementation (Tonic's dashboard is in-app only)\n- Remote/sharing features from Stats Master\n- Stats Master's NSView-based drawing (use SwiftUI)\n- Non-Apple Silicon GPU monitoring\n\n## Approach\n\n### Phase 1: Foundation & Architecture (Tasks 1-3)\n\n**Goal**: Build Stats Master\u2013equivalent architecture with proper separation of concerns.\n\n**New Architecture Pattern** (based on Stats Master analysis):\n\n```\nWidgetEngine (singleton)\n\u251c\u2500\u2500 WidgetCoordinator (activation, ordering)\n\u251c\u2500\u2500 WidgetReaderManager (data collection with deduplication)\n\u2502   \u251c\u2500\u2500 CPUReader, MemoryReader, NetworkReader, etc.\n\u251c\u2500\u2500 WidgetRefreshScheduler (unified timer, not per-widget)\n\u2514\u2500\u2500 WidgetStore (config persistence, migration)\n```\n\n**Key Design Decisions**:\n\n1. **Unified Refresh Scheduler** (NOT per-widget timers):\n   - Single `Task`-based scheduler with configurable intervals (1, 2, 3, 5, 10, 15, 30, 60s)\n   - Each reader declares its preferred interval\n   - Scheduler coalesces updates to minimize CPU wakeups\n   - Reference: Stats Master's `Repeater` class but consolidated\n\n2. **Reader Pattern** (from Stats Master):\n   ```swift\n   protocol WidgetReader {\n       associatedtype Output\n       var preferredInterval: TimeInterval { get }\n       func read() async throws -> Output\n   }\n   ```\n   - Each reader is independent, testable, background-aware\n   - Results cached with TTL per Stats Master's pattern (30s min write throttle)\n\n3. **@Observable State Management**:\n   - All widget view models use `@Observable` (macOS 14+)\n   - `@MainActor` for UI properties\n   - `[weak self]` in all async tasks to prevent retain cycles\n\n4. **Configuration Schema**:\n   ```swift\n   struct WidgetConfig: Codable {\n       id: UUID\n       type: WidgetType\n       isEnabled: Bool\n       position: Int\n       displayMode: DisplayMode\n       colorScheme: ColorScheme        // NEW: 20+ colors from Stats Master\n       historyBufferSize: Int          // NEW: 30-120 for charts\n       valueFormat: ValueFormat\n       showLabel: Bool\n       alignment: Alignment             // NEW: left/center/right\n   }\n   ```\n\n**Risks Addressed**:\n- **CPU overuse**: Unified scheduler replaces per-widget timers\n- **Memory leaks**: `[weak self]` and explicit cleanup methods\n- **State sync**: `@Observable` with `@MainActor` ensures UI consistency\n\n### Phase 2: Widget Readers & Data Layer (Tasks 4-6)\n\n**Goal**: Implement Stats Master\u2013equivalent data collection with proper throttling.\n\n**Implementation Pattern** (follow existing `WidgetDataManager.swift` patterns):\n\n```swift\n@Observable\n@MainActor\nfinal class WidgetReaderManager {\n    private var readers: [any WidgetReader] = []\n    private var cache: [String: (value: Any, timestamp: Date)] = [:]\n\n    func refreshReaders() async {\n        // Group readers by interval, execute in parallel\n        // Update cache, notify observers\n    }\n}\n```\n\n**Key Reference Files**:\n- `Tonic/Tonic/Services/WidgetDataManager.swift:235-1151` \u2014 existing IOKit patterns\n- `stats-master/Kit/module/reader.swift:123-149` \u2014 Stats Master's reader base class\n\n**Data Source Mapping**:\n\n| Widget Type | Data Source | Reference (Stats Master) |\n|-------------|-------------|--------------------------|\n| CPU | host_processor_info, host_statistics | Modules/CPU/readers.swift:15-150 |\n| Memory | vm_statistics64, pressure monitor | Kit/Widgets/Memory.swift |\n| Disk | IOKit block storage drivers | Modules/Disk/readers.swift |\n| Network | NET_RT_IFLIST2, CoreWLAN | Modules/Net/readers.swift:106-200 |\n| Battery | IOPowerSources API | Kit/Widgets/Battery.swift |\n| GPU | IOAccelerator (Apple Silicon) | SMC/smc.swift |\n\n### Phase 3: Widget Types Implementation (Tasks 7-12)\n\n**Goal**: Implement missing widget types from Stats Master.\n\n**Widget Implementation Priority**:\n\n1. **Line Chart** (high value, not in Tonic)\n   - History buffer: 30-120 points (configurable)\n   - Scaling modes: linear, square, cube, log\n   - Color options: line, fill, background\n   - Reference: `stats-master/Kit/Widgets/LineChart.swift`\n\n2. **Bar Chart** (high value, not in Tonic)\n   - Vertical bars for multi-value data\n   - Configurable bar width, colors\n   - Ideal for: CPU cores, memory zones\n\n3. **Pie Chart** (medium value, not in Tonic)\n   - Circular progress for single-value percentages\n   - Battery level, disk usage\n\n4. **Stack/Sensors** (medium value, not in Tonic)\n   - Multiple related values in one widget\n   - Temperature sensors, fan speeds\n\n5. **Tachometer** (nice-to-have)\n   - Circular gauge for RPM/percentage\n\n6. **Enhanced Network** (existing, needs upgrade)\n   - Add dual-direction chart mode\n   - Connection type, SSID display\n\n**Design Integration**:\n- Use `DesignTokens` for colors, spacing, typography\n- Use `DesignComponents` for card layouts\n- Reference: `Tonic/Tonic/Design/DesignTokens.swift`\n\n### Phase 4: Widget Configuration UI (Tasks 13-14)\n\n**Goal**: Build Stats Master\u2013equivalent configuration surface.\n\n**UI Structure** (follow Stats Master's `settings.swift` pattern):\n\n```\nWidgetsPanelView\n\u251c\u2500\u2500 AvailableWidgetsSection (list, drag to add)\n\u251c\u2500\u2500 ActiveWidgetsSection (horizontal, drag to reorder)\n\u2514\u2500\u2500 WidgetConfigurationSheet (per-widget settings)\n    \u251c\u2500\u2500 Display Mode picker\n    \u251c\u2500\u2500 Color Scheme picker (20+ colors)\n    \u251c\u2500\u2500 Show Label toggle\n    \u251c\u2500\u2500 Alignment (left/center/right)\n    \u251c\u2500\u2500 History Buffer Size (for charts)\n    \u2514\u2500\u2500 Refresh Interval selector\n```\n\n**Key Reference**:\n- Stats Master: `Kit/module/settings.swift:196-242`\n- Tonic: `Tonic/Tonic/Models/WidgetConfiguration.swift:175-221`\n\n### Phase 5: Horizontal Layout & Polish (Tasks 15-16)\n\n**Goal**: Refactor Active Widgets to horizontal layout with drag-reorder.\n\n**Layout Pattern** (Stats Master uses horizontal scroll):\n```swift\nScrollView(.horizontal) {\n    LazyHStack(spacing: DesignTokens.Spacing.sm) {\n        ForEach(activeWidgets) { widget in\n            WidgetPreviewCard(widget: widget)\n                .frame(width: 120, height: 80)\n                .draggable(widget.id)\n        }\n    }\n}\n```\n\n**Drag/Reorder**: Use SwiftUI's `.draggable()` and `.dropDestination()` modifiers\n\n### Phase 6: Performance Validation (Task 17)\n\n**Goal**: Verify CPU/memory usage within \u00b15% of Stats Master.\n\n**Instrumentation**:\n- Use Instruments Time Profiler for CPU\n- Use Allocations for memory leak detection\n- Compare idle and active scenarios\n\n**Success Criteria**:\n- No per-widget timers (consolidated scheduler)\n- No memory leaks across refresh cycles\n- Idle CPU \u2248 0% when widgets inactive\n\n## Quick commands\n\n```bash\n# Generate Xcode project after any file changes\nxcodegen generate\n\n# Build debug\nxcodebuild -scheme Tonic -configuration Debug build\n\n# Run tests (when implemented)\nxcodebuild test -scheme Tonic -destination 'platform=macOS'\n\n# Open in Xcode\nopen Tonic/Tonic.xcodeproj\n```\n\n## Acceptance\n\n### Functional Parity (Hard Gate)\n- [ ] Every widget from Stats Master exists in Tonic Menu Bar Widgets Dashboard\n- [ ] Widget behavior, data semantics, and output values are equivalent for same inputs\n- [ ] No widget is missing, partially implemented, or stubbed\n\n### Widget Lifecycle & State\n- [ ] Widget creation flow matches Stats Master (defaults, initial state, first refresh)\n- [ ] Activation/deactivation semantics are identical\n- [ ] Order persistence matches Stats Master across app/system restart\n- [ ] Deletion fully cleans up: config, cache, background tasks\n\n### Refresh & Update Model\n- [ ] Time-based refresh cadence matches Stats Master (1-60s intervals)\n- [ ] Event-driven refreshes trigger at same moments\n- [ ] Background refresh respects throttling rules\n- [ ] Failure handling matches Stats Master (backoff, suppression, fallback)\n\n### Data Correctness & Consistency\n- [ ] For identical system state: widget values match within refresh window\n- [ ] Formatting (units, rounding, truncation) matches exactly\n- [ ] Empty, loading, error, partial-data states match visually\n\n### Widget Configuration Parity\n- [ ] All configuration options present in Stats Master are available\n- [ ] Configuration defaults are identical\n- [ ] Validation rules match exactly\n- [ ] Changes apply at same time (immediate vs lazy)\n- [ ] Configuration persists across: restart, reorder, enable/disable\n\n### UI & Interaction Model\n- [ ] Widget layout, spacing, density match Stats Master behaviorally\n- [ ] Tonic styling applied without altering semantics\n- [ ] Hover, click, context menu behaviors match\n- [ ] Animations respect Stats Master timing\n\n### Menu Bar Widgets Dashboard Integration\n- [ ] Dashboard fully replaces prior widget implementation\n- [ ] No legacy widget code paths execute\n- [ ] All Stats Master widget interactions supported\n\n### Active Widgets Section (Layout Refactor)\n- [ ] Active Widgets converted from vertical \u2192 horizontal layout\n- [ ] Widget order unchanged logically\n- [ ] Drag/reorder behavior matches Stats Master\n- [ ] Widget preview remains visible and functional\n- [ ] Horizontal layout supports overflow, scrolling, resizing\n\n### Performance & Resource Usage\n- [ ] CPU, memory, battery within \u00b15% of Stats Master under equivalent load\n- [ ] No unnecessary background work when widgets inactive\n- [ ] Cold start widget readiness time matches Stats Master\n\n### Regression & Safety\n- [ ] No regressions in unrelated Menu Bar functionality\n- [ ] Rollback path defined and tested\n\n## References\n\n### Stats Master Reference Files\n- `stats-master/Kit/module/widget.swift:31-127` \u2014 Widget base class\n- `stats-master/Kit/module/reader.swift:123-149` \u2014 Reader lifecycle\n- `stats-master/Kit/plugins/Repeater.swift:25-72` \u2014 Timer implementation\n- `stats-master/Kit/plugins/Store.swift:14-137` \u2014 Configuration persistence\n- `stats-master/Kit/module/settings.swift:196-242` \u2014 Settings UI pattern\n- `stats-master/Modules/CPU/readers.swift:15-150` \u2014 CPU data collection\n- `stats-master/Modules/Net/readers.swift:106-200` \u2014 Network data collection\n- `stats-master/SMC/smc.swift` \u2014 GPU/temperature via SMC\n\n### Tonic Reference Files\n- `Tonic/Tonic/Services/WidgetDataManager.swift:235-1151` \u2014 Current data collection\n- `Tonic/Tonic/Models/WidgetConfiguration.swift:175-221` \u2014 Current config model\n- `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift:18-304` \u2014 Status item lifecycle\n- `Tonic/Tonic/Design/DesignTokens.swift` \u2014 Design tokens\n- `Tonic/Tonic/Design/DesignComponents.swift` \u2014 Reusable components\n- `Tonic/Tonic/Views/ContentView.swift:167-168` \u2014 Navigation integration\n\n### Design Patterns\n- `@Observable` pattern for macOS 14+ state management\n- `[weak self]` in async tasks for memory safety\n- `@MainActor` for UI properties\n- Single unified scheduler (not per-widget timers)\n\n### Known Risks (from flow-gap-analyst)\n- **Timer per-widget** \u2192 Fixed by unified scheduler\n- **NSStatusItem leaks** \u2192 Fixed by explicit cleanup pattern\n- **Main thread IOKit** \u2192 Move to background with `@MainActor` result dispatch\n- **@MainActor deinit violation** \u2192 Use explicit `cleanup()` method\n- **Memory leaks in NSHostingController** \u2192 Track and release explicitly\n"
+  },
+  "epic_id": "fn-5-v8r",
+  "schema_version": 2,
+  "tasks": [
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:06.061779Z",
+        "depends_on": [],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.1",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.1.md",
+        "status": "todo",
+        "title": "WidgetReader protocol and base architecture",
+        "updated_at": "2026-01-30T20:12:06.061909Z"
+      },
+      "id": "fn-5-v8r.1",
+      "runtime": null,
+      "spec": "# fn-5-v8r.1 WidgetReader protocol and base architecture\n\n## Description\nDefine the `WidgetReader` protocol and create the base architecture for the new widget system. This establishes the foundation for all widget types and replaces the per-widget timer architecture with a unified approach.\n\nStats Master uses a modular reader pattern where each data source is an independent reader with declared preferred refresh interval, async `read()` method, error handling, and background-aware execution. Tonic's current implementation has per-widget timers which cause CPU overuse.\n\n## Implementation\n\n### Protocol Definition\n\nCreate `Tonic/Tonic/Services/WidgetReader/WidgetReader.swift`:\n\n```swift\nprotocol WidgetReader {\n    associatedtype Output: Sendable\n    var preferredInterval: TimeInterval { get }\n    func read() async throws -> Output\n}\n\nenum ReaderError: Error {\n    case unavailable(String)\n    case permissionDenied(String)\n    case timeout\n    case invalidData\n}\n```\n\n### WidgetReaderManager\n\nCreate `Tonic/Tonic/Services/WidgetReader/WidgetReaderManager.swift`:\n\n```swift\n@Observable\n@MainActor\nfinal class WidgetReaderManager {\n    private var readers: [String: any WidgetReader] = [:]\n    private var cache: [String: (value: Any, timestamp: Date)] = [:]\n    private let cacheTTL: TimeInterval = 30.0\n    func register<R: WidgetReader>(_ reader: R, forKey key: String)\n    func getValue<R: WidgetReader>(forKey key: String, type: R.Type) async throws -> R.Output\n    func refreshReaders() async\n}\n```\n\n### New Files\n- `Tonic/Tonic/Services/WidgetReader/WidgetReader.swift`\n- `Tonic/Tonic/Services/WidgetReader/WidgetReaderManager.swift`\n\n## Acceptance\n- [ ] `WidgetReader` protocol defined with required members\n- [ ] `WidgetReaderManager` compiles with `@Observable` and `@MainActor`\n- [ ] Cache implemented with 30s TTL\n- [ ] Unit tests pass for reader registration and retrieval\n- [ ] No regressions in existing code (new code only)\n\n## Done summary\nCreated WidgetReader protocol and WidgetReaderManager following Stats Master's reader pattern. Establishes foundation for unified refresh scheduling.\n\n## Evidence\n- Commits: (to be filled during implementation)\n- Tests: (to be filled during implementation)\n- PRs: (to be filled during implementation)\n\n## References\n- Stats Master: `stats-master/Kit/module/reader.swift:123-149`\n- Tonic existing: `Tonic/Tonic/Services/WidgetDataManager.swift:235-1151`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:13.684748Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.10",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.10.md",
+        "status": "todo",
+        "title": "Label, State and Text widgets implementation",
+        "updated_at": "2026-01-30T20:13:11.719369Z"
+      },
+      "id": "fn-5-v8r.10",
+      "runtime": null,
+      "spec": "# fn-5-v8r.10 Label, State and Text widgets implementation\n\n## Description\nImplement Label, State, and Text widgets. Label shows custom text. State is binary on/off indicator. Text displays dynamic formatted values.\n\n## Implementation\n\nCreate `LabelWidgetView.swift`:\n- User-defined text content\n- Font size and color options\n\nCreate `StateWidgetView.swift`:\n- Binary state (on/off)\n- Configurable colors for each state\n- Optional animation\n\nCreate `TextWidgetView.swift`:\n- Template-based formatting\n- Dynamic data injection\n\n## Acceptance\n- [ ] Label displays custom text\n- [ ] State shows on/off with correct colors\n- [ ] Text renders formatted templates\n\n## Done summary\nImplemented Label, State, and Text widgets.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/Label.swift`, `State.swift`, `Text.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:13.881155Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.11",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.11.md",
+        "status": "todo",
+        "title": "Enhanced Network and Speed widgets",
+        "updated_at": "2026-01-30T20:13:11.971258Z"
+      },
+      "id": "fn-5-v8r.11",
+      "runtime": null,
+      "spec": "# fn-5-v8r.11 Enhanced Network and Speed widgets\n\n## Description\nEnhance existing Network widget to match Stats Master's Speed widget with dual-direction chart, connection type, and SSID display.\n\n## Implementation\n\nModify existing Network widget to add:\n- Network chart mode (dual-direction I/O)\n- Display mode options (one/two row)\n- Connection type indicator\n- SSID for WiFi networks\n\n## Acceptance\n- [ ] Network chart shows upload/download separately\n- [ ] Connection type displays correctly\n- [ ] SSID shows for WiFi\n- [ ] Backward compatible with existing widget\n\n## Done summary\nEnhanced Network widget with Speed widget features from Stats Master.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/Speed.swift`\n- Tonic current: `Tonic/Tonic/MenuBarWidgets/Network*WidgetView.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:14.076447Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.12",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.12.md",
+        "status": "todo",
+        "title": "Battery Details widget implementation",
+        "updated_at": "2026-01-30T20:13:12.226655Z"
+      },
+      "id": "fn-5-v8r.12",
+      "runtime": null,
+      "spec": "# fn-5-v8r.12 Battery Details widget implementation\n\n## Description\nImplement Battery Details widget showing extended battery information beyond basic percentage. Includes health, cycle count, time remaining, charging state.\n\n## Implementation\n\nCreate `BatteryDetailsWidgetView.swift`:\n- Percentage with large display\n- Time remaining estimate\n- Charging state with animation\n- Battery health percentage\n- Cycle count (if available)\n- Power source detail\n\n## Acceptance\n- [ ] All battery metrics display correctly\n- [ ] Charging animation works\n- [ ] Graceful fallback for unavailable data\n- [ ] Tonic design tokens applied\n\n## Done summary\nImplemented Battery Details widget with comprehensive battery information.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/Battery.swift` (details mode)\n- Tonic current: `Tonic/Tonic/MenuBarWidgets/BatteryWidgetView.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:19.806526Z",
+        "depends_on": [
+          "fn-5-v8r.1",
+          "fn-5-v8r.3"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.13",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.13.md",
+        "status": "todo",
+        "title": "WidgetsPanelView main configuration UI",
+        "updated_at": "2026-01-30T20:13:17.519972Z"
+      },
+      "id": "fn-5-v8r.13",
+      "runtime": null,
+      "spec": "# fn-5-v8r.13 WidgetsPanelView main configuration UI\n\n## Description\nCreate main Widgets Panel View following Stats Master's settings pattern. This is the primary UI for widget configuration - where users add, remove, and manage widgets.\n\nCurrent Tonic has placeholder at `WidgetsPanelView` (file doesn't exist).\n\n## Implementation\n\nCreate `Tonic/Tonic/Views/WidgetsPanelView.swift`:\n\n```swift\nstruct WidgetsPanelView: View {\n    @State private var viewModel = WidgetPanelViewModel()\n\n    var body: some View {\n        VStack(spacing: 0) {\n            AvailableWidgetsSection()\n            Divider()\n            ActiveWidgetsSection()  // Horizontal layout\n        }\n    }\n}\n```\n\nComponents:\n1. **AvailableWidgetsSection**: List of all widget types with drag-to-add\n2. **ActiveWidgetsSection**: Horizontal scroll of active widgets (task 15)\n\nUse `DesignComponents.Card` for widget cards.\nUse `DesignTokens.Spacing` for consistent gaps.\n\n## Acceptance\n- [ ] All widget types displayed in available section\n- [ ] Drag-and-drop to add widgets\n- [ ] Active widgets shown in horizontal layout\n- [ ] Tonic design tokens applied throughout\n- [ ] Navigate from ContentView sidebar works\n\n## Done summary\nCreated WidgetsPanelView with available/active widget sections following Stats Master's pattern with Tonic's design language.\n\n## References\n- Stats Master: `stats-master/Kit/module/settings.swift:196-242`\n- Tonic navigation: `Tonic/Tonic/Views/ContentView.swift:167-168`\n- Design: `Tonic/Tonic/Design/DesignComponents.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:20.013650Z",
+        "depends_on": [
+          "fn-5-v8r.1",
+          "fn-5-v8r.3"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.14",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.14.md",
+        "status": "todo",
+        "title": "WidgetConfigurationSheet per-widget settings",
+        "updated_at": "2026-01-30T20:13:17.688249Z"
+      },
+      "id": "fn-5-v8r.14",
+      "runtime": null,
+      "spec": "# fn-5-v8r.14 WidgetConfigurationSheet per-widget settings\n\n## Description\nCreate per-widget configuration sheet following Stats Master's pattern. Exposes all widget-specific options: display mode, colors, labels, alignment, history size, refresh interval.\n\n## Implementation\n\nCreate `Tonic/Tonic/Views/WidgetConfigurationSheet.swift`:\n\n```swift\nstruct WidgetConfigurationSheet: View {\n    @Bindable var config: WidgetConfig\n\n    var body: some View {\n        Form {\n            DisplayModePicker()\n            ColorSchemePicker()  // 20+ colors from Stats Master\n            Toggle(\"Show Label\", isOn: $config.showLabel)\n            AlignmentPicker()\n            if config.supportsHistory {\n                HistorySizePicker()  // 30-120\n            }\n            RefreshIntervalPicker()  // 1-60s\n        }\n    }\n}\n```\n\n## Acceptance\n- [ ] All config options from Stats Master available\n- [ ] Changes save immediately to WidgetStore\n- [ ] Defaults match Stats Master\n- [ ] Tonic design tokens applied\n\n## Done summary\nImplemented per-widget configuration sheet with Stats Master feature parity.\n\n## References\n- Stats Master: `stats-master/Kit/module/settings.swift:196-242`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:20.217650Z",
+        "depends_on": [
+          "fn-5-v8r.13",
+          "fn-5-v8r.14"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.15",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.15.md",
+        "status": "todo",
+        "title": "Active Widgets horizontal layout refactor",
+        "updated_at": "2026-01-30T20:13:17.856912Z"
+      },
+      "id": "fn-5-v8r.15",
+      "runtime": null,
+      "spec": "# fn-5-v8r.15 Active Widgets horizontal layout refactor\n\n## Description\nRefactor Active Widgets section from vertical list to horizontal layout following Stats Master. Preserve widget ordering semantics and maintain preview visibility.\n\n## Implementation\n\nModify ActiveWidgetsSection in WidgetsPanelView:\n\n```swift\nstruct ActiveWidgetsSection: View {\n    var body: some View {\n        ScrollView(.horizontal) {\n            LazyHStack(spacing: DesignTokens.Spacing.sm) {\n                ForEach(activeWidgets) { widget in\n                    WidgetPreviewCard(widget: widget)\n                        .frame(width: 120, height: 80)\n                }\n            }\n        }\n    }\n}\n```\n\n## Acceptance\n- [ ] Active widgets in horizontal scroll\n- [ ] Widget order preserved logically\n- [ ] Widget preview remains visible\n- [ ] Overflow handled correctly\n- [ ] Order persists across restarts\n\n## Done summary\nRefactored Active Widgets section to horizontal layout with preserved ordering.\n\n## References\n- Current: Tonic TBD (vertical list exists)\n- Stats Master: Horizontal widget dock\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:20.421626Z",
+        "depends_on": [
+          "fn-5-v8r.13",
+          "fn-5-v8r.14"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.16",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.16.md",
+        "status": "todo",
+        "title": "Drag-and-drop widget reordering",
+        "updated_at": "2026-01-30T20:13:18.030573Z"
+      },
+      "id": "fn-5-v8r.16",
+      "runtime": null,
+      "spec": "# fn-5-v8r.16 Drag-and-drop widget reordering\n\n## Description\nImplement drag-and-drop reordering for active widgets in horizontal layout. Match Stats Master's reordering behavior with visual feedback.\n\n## Implementation\n\nAdd SwiftUI drag/drop to ActiveWidgetsSection:\n\n```swift\n.draggable(widget.id)\n.dropDestination(for: UUID.self) { dropped, location in\n    // Reorder logic\n}\n```\n\nKey behaviors:\n- Visual feedback during drag\n- Insertion indicator\n- Order saves immediately to WidgetStore\n- Animated repositioning\n\n## Acceptance\n- [ ] Drag gesture initiates reorder\n- [ ] Visual feedback shows drop position\n- [ ] Order persists after restart\n- [ ] Smooth animations\n- [ ] Works with horizontal scroll\n\n## Done summary\nImplemented drag-and-drop reordering with Stats Master behavior.\n\n## References\n- SwiftUI `.draggable()`, `.dropDestination()` documentation\n- Stats Master: Widget dock reordering\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:20.624665Z",
+        "depends_on": [
+          "fn-5-v8r.7",
+          "fn-5-v8r.8",
+          "fn-5-v8r.9",
+          "fn-5-v8r.10",
+          "fn-5-v8r.11",
+          "fn-5-v8r.12",
+          "fn-5-v8r.15",
+          "fn-5-v8r.16"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.17",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.17.md",
+        "status": "todo",
+        "title": "Performance validation and optimization",
+        "updated_at": "2026-01-30T20:13:18.723906Z"
+      },
+      "id": "fn-5-v8r.17",
+      "runtime": null,
+      "spec": "# fn-5-v8r.17 Performance validation and optimization\n\n## Description\nValidate CPU/memory usage within \u00b15% of Stats Master. Profile with Instruments, identify and fix bottlenecks. Ensure no memory leaks across refresh cycles.\n\n## Implementation\n\n1. **Baseline Measurement**:\n   - Profile Stats Master with equivalent widget set\n   - Record idle CPU, active CPU, memory baseline\n\n2. **Tonic Measurement**:\n   - Profile Tonic with same widgets\n   - Compare against baseline\n\n3. **Optimization Targets** (if needed):\n   - Eliminate per-widget timers\n   - Reduce IOKit main-thread blocking\n   - Fix memory leaks in observers/streams\n\n4. **Validation**:\n   - Instruments Time Profiler for CPU\n   - Allocations for leak detection\n   - 30-minute idle test\n   - 1-hour refresh cycle test\n\n## Acceptance\n- [ ] Idle CPU within \u00b15% of Stats Master\n- [ ] Memory stable over 60 refresh cycles\n- [ ] No memory leaks detected\n- - [ ] Single unified scheduler (no per-widget timers)\n- [ ] Cold start widget readiness matches Stats Master\n\n## Done summary\nValidated and optimized performance to match Stats Master baseline.\n\n## References\n- Risk analysis: flow-gap-analyst output\n- Tonic current: `Tonic/Tonic/Services/WidgetDataManager.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:06.266873Z",
+        "depends_on": [],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.2",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.2.md",
+        "status": "todo",
+        "title": "WidgetRefreshScheduler unified timer implementation",
+        "updated_at": "2026-01-30T20:12:06.266994Z"
+      },
+      "id": "fn-5-v8r.2",
+      "runtime": null,
+      "spec": "# fn-5-v8r.2 WidgetRefreshScheduler unified timer implementation\n\n## Description\nImplement unified refresh scheduler to replace Tonic's per-widget timer architecture. Stats Master uses a single `Repeater` class that coalesces updates. This task implements the equivalent using Swift Concurrency.\n\nCurrent Tonic issue: Each `WidgetStatusItem` has its own 1-second timer (7 widgets = 7 timers). This causes unnecessary CPU wakeups.\n\n## Implementation\n\nCreate `Tonic/Tonic/Services/WidgetRefreshScheduler.swift`:\n\n```swift\n@Observable\n@MainActor\nfinal class WidgetRefreshScheduler {\n    private var updateTask: Task<Void, Never>?\n    private var readerManager: WidgetReaderManager\n    private var currentInterval: TimeInterval = 2.0\n\n    func startMonitoring()\n    func stopMonitoring()\n    func updateInterval(_ interval: TimeInterval)\n\n    private func refreshLoop() async\n}\n```\n\nKey design:\n- Single `Task` with `Task.sleep()` for periodic updates\n- Coalesce readers by preferred interval\n- Suspend when app backgrounds (observe `NSWorkspace.didHideNotification`)\n- Resume on `NSWorkspace.didUnhideNotification`\n\n## Acceptance\n- [ ] Single scheduler instance replaces per-widget timers\n- [ ] Configurable intervals (1, 2, 3, 5, 10, 15, 30, 60s)\n- [ ] Background observers suspend/resume correctly\n- [ ] No CPU wakeups when all widgets inactive\n\n## Done summary\nImplemented unified refresh scheduler using Swift Concurrency Task pattern. Eliminates per-widget timer CPU overhead.\n\n## References\n- Stats Master: `stats-master/Kit/plugins/Repeater.swift:25-72`\n- Tonic current: `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift:74-82`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:06.472822Z",
+        "depends_on": [],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.3",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.3.md",
+        "status": "todo",
+        "title": "WidgetStore configuration persistence with migration",
+        "updated_at": "2026-01-30T20:12:06.472959Z"
+      },
+      "id": "fn-5-v8r.3",
+      "runtime": null,
+      "spec": "# fn-5-v8r.3 WidgetStore configuration persistence with migration\n\n## Description\nImplement WidgetStore for configuration persistence following Stats Master's Store pattern. Handles UserDefaults persistence with in-memory cache and legacy migration.\n\n## Implementation\n\nCreate `Tonic/Tonic/Services/WidgetStore.swift`:\n\n```swift\n@Observable\n@MainActor\nfinal class WidgetStore {\n    static let shared = WidgetStore()\n\n    private let defaults = UserDefaults.standard\n    private var cache: [String: Any] = [:]\n\n    func saveConfig(_ config: WidgetConfig)\n    func loadConfig(id: UUID) -> WidgetConfig?\n    func loadAllConfigs() -> [WidgetConfig]\n    func deleteConfig(id: UUID)\n\n    private func migrateLegacyConfig()  // From old WidgetPreferences\n}\n```\n\n## Acceptance\n- [ ] Configs persist to UserDefaults with JSON encoding\n- [ ] Legacy configs migrate from WidgetPreferences\n- [ ] Migration is atomic (fallback on failure)\n- [ ] In-memory cache improves read performance\n\n## Done summary\nImplemented WidgetStore with UserDefaults persistence and legacy migration support.\n\n## References\n- Stats Master: `stats-master/Kit/plugins/Store.swift:14-137`\n- Tonic current: `Tonic/Tonic/Models/WidgetConfiguration.swift:277-500`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:06.666759Z",
+        "depends_on": [
+          "fn-5-v8r.1",
+          "fn-5-v8r.2",
+          "fn-5-v8r.3"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.4",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.4.md",
+        "status": "todo",
+        "title": "CPU and Memory readers with Stats Master parity",
+        "updated_at": "2026-01-30T20:13:05.492252Z"
+      },
+      "id": "fn-5-v8r.4",
+      "runtime": null,
+      "spec": "# fn-5-v8r.4 CPU and Memory readers with Stats Master parity\n\n## Description\nImplement CPUReader and MemoryReader conforming to WidgetReader protocol. Match Stats Master's data collection including per-core CPU, P-core/E-core distinction, and memory pressure zones.\n\n## Implementation\n\nCreate `Tonic/Tonic/Services/WidgetReader/CPUReader.swift`:\n- `host_processor_info()` for total usage\n- Per-core breakdown\n- P-core/E-core for Apple Silicon\n\nCreate `Tonic/Tonic/Services/WidgetReader/MemoryReader.swift`:\n- `vm_statistics64` for usage\n- Memory pressure levels (normal/warning/critical)\n- Compressed/swap memory\n\nBoth follow existing `WidgetDataManager.swift` patterns but conform to `WidgetReader`.\n\n## Acceptance\n- [ ] CPUReader returns total + per-core usage\n- [ ] MemoryReader returns usage + pressure level\n- [ ] Both async with proper error handling\n- [ ] 2s preferred interval\n\n## Done summary\nImplemented CPUReader and MemoryReader with Stats Master feature parity.\n\n## References\n- Stats Master: `stats-master/Modules/CPU/readers.swift:15-150`\n- Tonic current: `Tonic/Tonic/Services/WidgetDataManager.swift:408-564`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:06.859192Z",
+        "depends_on": [
+          "fn-5-v8r.1",
+          "fn-5-v8r.2",
+          "fn-5-v8r.3"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.5",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.5.md",
+        "status": "todo",
+        "title": "Network and Disk readers with Stats Master parity",
+        "updated_at": "2026-01-30T20:13:05.741413Z"
+      },
+      "id": "fn-5-v8r.5",
+      "runtime": null,
+      "spec": "# fn-5-v8r.5 Network and Disk readers with Stats Master parity\n\n## Description\nImplement NetworkReader and DiskReader conforming to WidgetReader protocol. Match Stats Master's functionality including interface-specific stats, WiFi details, and volume information.\n\n## Implementation\n\nCreate `Tonic/Tonic/Services/WidgetReader/NetworkReader.swift`:\n- `NET_RT_IFLIST2` sysctl for interface stats\n- CoreWLAN for WiFi SSID\n- Upload/download bandwidth\n\nCreate `Tonic/Tonic/Services/WidgetReader/DiskReader.swift`:\n- IOKit block storage drivers\n- Per-volume usage statistics\n- Read/write speeds\n\n## Acceptance\n- [ ] NetworkReader returns bandwidth + connection type\n- [ ] DiskReader returns per-volume usage\n- [ ] Both async with proper error handling\n- [ ] 2s preferred interval\n\n## Done summary\nImplemented NetworkReader and DiskReader with Stats Master feature parity.\n\n## References\n- Stats Master: `stats-master/Modules/Net/readers.swift:106-200`, `Modules/Disk/readers.swift`\n- Tonic current: `Tonic/Tonic/Services/WidgetDataManager.swift:617-803`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:07.055195Z",
+        "depends_on": [
+          "fn-5-v8r.1",
+          "fn-5-v8r.2",
+          "fn-5-v8r.3"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.6",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.6.md",
+        "status": "todo",
+        "title": "Battery, GPU and sensors readers with Stats Master parity",
+        "updated_at": "2026-01-30T20:13:06.008064Z"
+      },
+      "id": "fn-5-v8r.6",
+      "runtime": null,
+      "spec": "# fn-5-v8r.6 Battery, GPU and sensors readers with Stats Master parity\n\n## Description\nImplement BatteryReader, GPUReader, and SensorsReader conforming to WidgetReader protocol. Battery needs extended details, GPU is Apple Silicon only, sensors support temperature/fans.\n\n## Implementation\n\nCreate `Tonic/Tonic/Services/WidgetReader/BatteryReader.swift`:\n- IOPowerSources API\n- Percentage, time remaining, charging state\n- Health, cycle count (for details widget)\n\nCreate `Tonic/Tonic/Services/WidgetReader/GPUReader.swift`:\n- IOAccelerator for Apple Silicon GPU\n- Usage, memory pressure\n- `#if arch(arm64)` only\n\nCreate `Tonic/Tonic/Services/WidgetReader/SensorsReader.swift`:\n- SMC communication for temperature\n- Fan speeds via IOKit\n\n## Acceptance\n- [ ] BatteryReader returns status + health info\n- [ ] GPUReader works on Apple Silicon\n- [ ] SensorsReader returns temp/fan data\n- [ ] All async with proper error handling\n\n## Done summary\nImplemented BatteryReader, GPUReader, and SensorsReader with Stats Master feature parity.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/Battery.swift`, `SMC/smc.swift`\n- Tonic current: `Tonic/Tonic/Services/WidgetDataManager.swift:807-1007`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:13.078797Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.7",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.7.md",
+        "status": "todo",
+        "title": "Line Chart widget implementation",
+        "updated_at": "2026-01-30T20:13:10.948908Z"
+      },
+      "id": "fn-5-v8r.7",
+      "runtime": null,
+      "spec": "# fn-5-v8r.7 Line Chart widget implementation\n\n## Description\nImplement Line Chart widget type matching Stats Master's functionality. Line charts display real-time data with configurable history buffer (30-120 points) and scaling modes.\n\nThis is a high-value widget type that doesn't exist in Tonic today.\n\n## Implementation\n\nCreate `Tonic/Tonic/MenuBarWidgets/Views/LineChartWidgetView.swift`:\n\n```swift\nstruct LineChartWidgetView: View {\n    let data: [Double]\n    let config: LineChartConfig\n\n    var body: some View {\n        // SwiftUI Path-based line chart\n        // Configurable: history size, scaling mode, colors\n    }\n}\n\nstruct LineChartConfig {\n    let historySize: Int  // 30-120\n    let scaling: ScalingMode  // linear, square, cube, log\n    let showBackground: Bool\n    let lineColor: Color\n    let fillColor: Color\n}\n\nenum ScalingMode {\n    case linear, square, cube, logarithmic\n}\n```\n\nData buffer: Circular buffer for history (matching Stats Master's pattern).\n\n## Acceptance\n- [ ] Line chart renders data points as connected path\n- [ ] History buffer configurable 30-120 points\n- [ ] All scaling modes work correctly\n- [ ] Colors follow Tonic design tokens\n- [ ] Performance: 60 FPS with full history\n\n## Done summary\nImplemented Line Chart widget with configurable history buffer and scaling modes.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/LineChart.swift`\n- Design tokens: `Tonic/Tonic/Design/DesignTokens.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:13.279824Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.8",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.8.md",
+        "status": "todo",
+        "title": "Bar Chart and Pie Chart widgets implementation",
+        "updated_at": "2026-01-30T20:13:11.209975Z"
+      },
+      "id": "fn-5-v8r.8",
+      "runtime": null,
+      "spec": "# fn-5-v8r.8 Bar Chart and Pie Chart widgets implementation\n\n## Description\nImplement Bar Chart and Pie Chart widget types matching Stats Master. Bar charts show vertical bars for multi-value data (CPU cores, memory zones). Pie charts show circular progress for percentages.\n\n## Implementation\n\nCreate `BarChartWidgetView.swift`:\n- Vertical bars for multi-value data\n- Configurable bar width, colors\n- Ideal for: CPU cores, memory zones\n\nCreate `PieChartWidgetView.swift`:\n- Circular progress using `trim()` modifier\n- Battery level, disk usage\n- Configurable fill percentage, colors\n\n## Acceptance\n- [ ] Bar chart renders multiple values as vertical bars\n- [ ] Pie chart renders circular progress\n- [ ] Colors follow Tonic design tokens\n- [ ] 60 FPS performance\n\n## Done summary\nImplemented Bar Chart and Pie Chart widgets with Tonic styling.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/BarChart.swift`, `PieChart.swift`\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-30T20:12:13.488300Z",
+        "depends_on": [
+          "fn-5-v8r.4",
+          "fn-5-v8r.5",
+          "fn-5-v8r.6"
+        ],
+        "epic": "fn-5-v8r",
+        "id": "fn-5-v8r.9",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-5-v8r.9.md",
+        "status": "todo",
+        "title": "Stack/Sensors and Tachometer widgets implementation",
+        "updated_at": "2026-01-30T20:13:11.464530Z"
+      },
+      "id": "fn-5-v8r.9",
+      "runtime": null,
+      "spec": "# fn-5-v8r.9 Stack/Sensors and Tachometer widgets implementation\n\n## Description\nImplement Stack (Sensors) widget for multiple related values in one widget, and Tachometer for circular gauge display.\n\n## Implementation\n\nCreate `StackWidgetView.swift`:\n- Vertical stack of multiple sensor values\n- Temperature, fan speeds in one widget\n- Configurable sensor selection\n\nCreate `TachometerWidgetView.swift`:\n- Circular gauge with needle\n- Arc-based value indicator\n- RPM or percentage display\n\n## Acceptance\n- [ ] Stack widget displays multiple sensors\n- [ ] Tachometer renders circular gauge correctly\n- [ ] Tonic design tokens applied\n\n## Done summary\nImplemented Stack/Sensors and Tachometer widgets.\n\n## References\n- Stats Master: `stats-master/Kit/Widgets/Stack.swift`, `Tachometer.swift`\n"
+    }
+  ]
+}

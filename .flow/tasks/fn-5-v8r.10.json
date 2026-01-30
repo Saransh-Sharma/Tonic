@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-30T20:12:13.684748Z",
+  "depends_on": [
+    "fn-5-v8r.4",
+    "fn-5-v8r.5",
+    "fn-5-v8r.6"
+  ],
+  "epic": "fn-5-v8r",
+  "id": "fn-5-v8r.10",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-5-v8r.10.md",
+  "status": "todo",
+  "title": "Label, State and Text widgets implementation",
+  "updated_at": "2026-01-30T20:13:11.719369Z"
+}

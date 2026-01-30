@@ -1,5 +1,12 @@
 {
   "memory": {
     "enabled": false
+  },
+  "planSync": {
+    "crossEpic": false,
+    "enabled": true
+  },
+  "review": {
+    "backend": null
   }
 }
