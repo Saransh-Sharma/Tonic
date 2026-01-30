@@ -66,9 +66,8 @@ Redesign AppInventoryView to use a table with category sidebar.
 
 
 ## Done summary
-TBD
-
+Redesigned App Manager to use ActionTable component for a native macOS table experience with multi-select support, batch actions, category sidebar filtering, and improved metadata display.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: bed332593bcfc464047482c46f7ed839eced7a2f
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
