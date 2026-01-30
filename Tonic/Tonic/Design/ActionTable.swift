@@ -224,10 +224,10 @@ struct ActionTable<Item: ActionTableItem, ContextMenu: View>: View {
 
             Divider()
 
-            // Content list
+            // Content list with optimized rendering for large datasets
             ScrollViewReader { scrollProxy in
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(spacing: 0, pinnedViews: []) {
                         ForEach(items) { item in
                             ActionTableRow(
                                 item: item,
