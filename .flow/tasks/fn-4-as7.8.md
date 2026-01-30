@@ -37,8 +37,7 @@ Combine Smart Scan and Deep Clean into a single Maintenance view with tabs.
 
 
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

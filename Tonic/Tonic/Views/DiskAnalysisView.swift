@@ -2,10 +2,32 @@
 //  DiskAnalysisView.swift
 //  Tonic
 //
-//  Disk analysis view with file browser and visualization
+//  Disk analysis view with segmented control for List/Treemap/Hybrid views
+//  Redesigned to use native components and bar chart visualizations
 //
 
 import SwiftUI
+
+// MARK: - View Mode
+
+/// Available view modes for disk analysis
+enum DiskViewMode: String, CaseIterable, Identifiable {
+    case list = "List"
+    case treemap = "Treemap"
+    case hybrid = "Hybrid"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .list: return "list.bullet"
+        case .treemap: return "square.grid.2x2"
+        case .hybrid: return "square.split.1x2"
+        }
+    }
+}
+
+// MARK: - DiskAnalysisView
 
 struct DiskAnalysisView: View {
     @State private var scanner = DiskScanner()
@@ -14,8 +36,9 @@ struct DiskAnalysisView: View {
     @State private var overviewEntries: [DirectoryOverviewEntry] = []
     @State private var isScanning = false
     @State private var errorMessage: String?
-    @State private var showLargeFiles = false
+    @State private var viewMode: DiskViewMode = .list
     @State private var selectedPath: String?
+    @State private var selectedPaths: Set<String> = []
     @State private var scanProgress: DiskScanProgress?
     @State private var navigationPath: [String] = []
     @State private var permissionManager = PermissionManager.shared
@@ -47,7 +70,7 @@ struct DiskAnalysisView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(DesignTokens.Colors.background)
         .task {
             await checkPermissions()
         }
@@ -56,12 +79,13 @@ struct DiskAnalysisView: View {
     // MARK: - Permission Check View
 
     private var permissionCheckView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             ProgressView()
                 .scaleEffect(1.2)
 
             Text("Checking permissions...")
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -70,64 +94,42 @@ struct DiskAnalysisView: View {
 
     private var permissionRequiredView: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: DesignTokens.Spacing.md) {
                 Spacer()
-                    .frame(height: 40)
+                    .frame(height: DesignTokens.Spacing.xl)
 
                 Image(systemName: "lock.shield.fill")
                     .font(.system(size: 56))
-                    .foregroundColor(.orange)
+                    .foregroundColor(DesignTokens.Colors.warning)
 
-                VStack(spacing: 12) {
+                VStack(spacing: DesignTokens.Spacing.xs) {
                     Text("Full Disk Access Required")
-                        .font(.title2)
-                        .fontWeight(.semibold)
+                        .font(DesignTokens.Typography.h3)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     Text("Disk Analysis needs Full Disk Access to scan all folders and files on your Mac")
-                        .foregroundColor(.secondary)
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DesignTokens.Spacing.xl)
 
                 // Benefits section
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Scan your entire home directory")
-                            .font(.body)
-                    }
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Access system folders and applications")
-                            .font(.body)
-                    }
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Find large files anywhere on your disk")
-                            .font(.body)
-                    }
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("No annoying permission pop-ups during scan")
-                            .font(.body)
-                    }
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    permissionBenefit(icon: "checkmark.circle.fill", text: "Scan your entire home directory")
+                    permissionBenefit(icon: "checkmark.circle.fill", text: "Access system folders and applications")
+                    permissionBenefit(icon: "checkmark.circle.fill", text: "Find large files anywhere on your disk")
+                    permissionBenefit(icon: "checkmark.circle.fill", text: "No annoying permission pop-ups during scan")
                 }
-                .padding()
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(12)
+                .padding(DesignTokens.Spacing.sm)
+                .background(DesignTokens.Colors.backgroundSecondary)
+                .cornerRadius(DesignTokens.CornerRadius.large)
 
                 // Step-by-step instructions
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                     Text("How to grant Full Disk Access:")
-                        .font(.headline)
-                        .foregroundColor(.primary)
+                        .font(DesignTokens.Typography.subheadEmphasized)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     permissionStep(number: 1, text: "Click the button below to open System Settings")
                     permissionStep(number: 2, text: "Click the lock icon and enter your Mac password")
@@ -135,26 +137,25 @@ struct DiskAnalysisView: View {
                     permissionStep(number: 4, text: "Toggle the switch next to Tonic to enable it")
                     permissionStep(number: 5, text: "Quit System Settings and click \"I've Granted Access\" below")
                 }
-                .padding()
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(12)
+                .padding(DesignTokens.Spacing.sm)
+                .background(DesignTokens.Colors.warning.opacity(0.1))
+                .cornerRadius(DesignTokens.CornerRadius.large)
 
                 // Action buttons
-                VStack(spacing: 12) {
+                VStack(spacing: DesignTokens.Spacing.xs) {
                     Button {
                         grantFullDiskAccess()
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DesignTokens.Spacing.xxs) {
                             Image(systemName: "gear")
                             Text("Open System Settings")
                         }
-                        .font(.body)
-                        .fontWeight(.semibold)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.accentColor)
-                        .cornerRadius(10)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+                        .background(DesignTokens.Colors.accent)
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
                     }
                     .buttonStyle(.plain)
 
@@ -163,13 +164,13 @@ struct DiskAnalysisView: View {
                             await checkPermissions()
                         }
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignTokens.Spacing.xxxs) {
                             Image(systemName: "checkmark.circle")
                             Text("I've Granted Access")
                                 .fontWeight(.medium)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -179,33 +180,43 @@ struct DiskAnalysisView: View {
                         }
                     } label: {
                         Text("Re-check Permissions")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
                             .underline()
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DesignTokens.Spacing.md)
 
                 Spacer()
-                    .frame(height: 20)
+                    .frame(height: DesignTokens.Spacing.md)
             }
             .padding()
         }
     }
 
+    private func permissionBenefit(icon: String, text: String) -> some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: icon)
+                .foregroundColor(DesignTokens.Colors.success)
+            Text(text)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+        }
+    }
+
     private func permissionStep(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
             Text("\(number)")
-                .font(.caption)
+                .font(DesignTokens.Typography.caption)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .frame(width: 24, height: 24)
-                .background(Circle().fill(Color.orange))
+                .background(Circle().fill(DesignTokens.Colors.warning))
 
             Text(text)
-                .font(.body)
-                .foregroundColor(.primary)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Spacer()
         }
@@ -214,9 +225,9 @@ struct DiskAnalysisView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignTokens.Spacing.xs) {
             // Navigation buttons
-            HStack(spacing: 4) {
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
                 Button {
                     navigateBack()
                 } label: {
@@ -242,52 +253,55 @@ struct DiskAnalysisView: View {
 
             // Current path
             Text(displayPath)
-                .font(.system(.body, design: .monospaced))
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.monoSubhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
                 .lineLimit(1)
 
             Spacer()
 
-            // Toggle views
-            Picker("View", selection: $showLargeFiles) {
-                Text("Directories").tag(false)
-                Text("Large Files").tag(true)
+            // View mode segmented control
+            Picker("View Mode", selection: $viewMode) {
+                ForEach(DiskViewMode.allCases) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
+                }
             }
             .pickerStyle(.segmented)
-            .disabled(isScanning)
-            .frame(width: 180)
+            .disabled(isScanning || scanResult == nil)
+            .frame(width: 220)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(DesignTokens.Colors.backgroundSecondary)
     }
 
     // MARK: - Progress View
 
     private var progressView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Spacer()
 
             ProgressView()
                 .scaleEffect(1.5)
 
             if let progress = scanProgress {
-                VStack(spacing: 8) {
+                VStack(spacing: DesignTokens.Spacing.xxs) {
                     Text("Scanning...")
-                        .font(.headline)
+                        .font(DesignTokens.Typography.bodyEmphasized)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     Text(progress.currentPath)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .font(DesignTokens.Typography.monoCaption)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
                         .lineLimit(1)
                         .frame(maxWidth: 500)
 
-                    HStack(spacing: 20) {
+                    HStack(spacing: DesignTokens.Spacing.md) {
                         Label("\(progress.formattedFilesScanned) items", systemImage: "doc")
                         Label("\(progress.formattedBytesScanned)", systemImage: "externaldrive")
                     }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
             }
 
@@ -306,18 +320,20 @@ struct DiskAnalysisView: View {
     // MARK: - Error View
 
     private func errorView(_ error: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.sm) {
             Spacer()
 
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.orange)
+                .foregroundColor(DesignTokens.Colors.warning)
 
             Text("Scan Error")
-                .font(.headline)
+                .font(DesignTokens.Typography.bodyEmphasized)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Text(error)
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
                 .multilineTextAlignment(.center)
 
             // Check if it's a permission error
@@ -349,42 +365,89 @@ struct DiskAnalysisView: View {
 
             Divider()
 
-            // Entries list
-            if showLargeFiles, let result = scanResult, !result.largeFiles.isEmpty {
-                largeFilesList(result.largeFiles)
-            } else if let result = scanResult {
-                entriesList(result.entries)
+            // Content based on view mode
+            switch viewMode {
+            case .list:
+                listView
+            case .treemap:
+                treemapView
+            case .hybrid:
+                hybridView
             }
         }
     }
 
     private func summaryBar(_ result: DiskScanResult) -> some View {
-        HStack(spacing: 20) {
+        HStack(spacing: DesignTokens.Spacing.md) {
             Label(result.formattedTotalSize, systemImage: "externaldrive.fill")
-                .foregroundColor(.primary)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Label("\(result.formattedFileCount) items", systemImage: "doc.fill")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Spacer()
 
             Text(String(format: "%.1fs", result.scanDuration))
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
         }
-        .font(.subheadline)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xxs)
+        .background(DesignTokens.Colors.backgroundSecondary)
     }
 
-    private func entriesList(_ entries: [DirEntry]) -> some View {
+    // MARK: - List View (Bar Chart Rows)
+
+    private var listView: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(entries) { entry in
-                    EntryRow(entry: entry, isSelected: selectedPath == entry.path) {
-                        selectedPath = entry.path
-                        if entry.isDir {
-                            navigateTo(entry.path)
+                if let result = scanResult {
+                    ForEach(result.entries) { entry in
+                        BarChartRow(
+                            entry: entry,
+                            maxSize: result.entries.first?.size ?? entry.size,
+                            totalSize: result.totalSize,
+                            isSelected: selectedPath == entry.path,
+                            onTap: {
+                                selectedPath = entry.path
+                                if entry.isDir {
+                                    navigateTo(entry.path)
+                                }
+                            },
+                            onReveal: {
+                                revealInFinder(entry.path)
+                            }
+                        )
+                    }
+
+                    // Large files section
+                    if !result.largeFiles.isEmpty {
+                        Section {
+                            ForEach(result.largeFiles) { file in
+                                LargeFileBarRow(
+                                    file: file,
+                                    maxSize: result.largeFiles.first?.size ?? file.size,
+                                    isSelected: selectedPath == file.path,
+                                    onTap: {
+                                        selectedPath = file.path
+                                    },
+                                    onReveal: {
+                                        revealInFinder(file.path)
+                                    }
+                                )
+                            }
+                        } header: {
+                            HStack {
+                                Text("Large Files")
+                                    .font(DesignTokens.Typography.captionEmphasized)
+                                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DesignTokens.Spacing.sm)
+                            .padding(.vertical, DesignTokens.Spacing.xxs)
+                            .background(DesignTokens.Colors.backgroundSecondary)
                         }
                     }
                 }
@@ -392,43 +455,101 @@ struct DiskAnalysisView: View {
         }
     }
 
-    private func largeFilesList(_ files: [LargeFile]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(files) { file in
-                    LargeFileRow(file: file, isSelected: selectedPath == file.path) {
-                        selectedPath = file.path
-                        // Open in Finder
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: file.path)])
+    // MARK: - Treemap View
+
+    private var treemapView: some View {
+        GeometryReader { geometry in
+            if let result = scanResult {
+                TreemapView(
+                    entries: result.entries,
+                    size: geometry.size,
+                    selectedPath: $selectedPath,
+                    onNavigate: { path in
+                        navigateTo(path)
+                    },
+                    onReveal: { path in
+                        revealInFinder(path)
+                    }
+                )
+            }
+        }
+        .padding(DesignTokens.Spacing.sm)
+    }
+
+    // MARK: - Hybrid View (Bar + Treemap)
+
+    private var hybridView: some View {
+        HSplitView {
+            // Left: Bar chart list
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if let result = scanResult {
+                        ForEach(result.entries.prefix(20)) { entry in
+                            BarChartRow(
+                                entry: entry,
+                                maxSize: result.entries.first?.size ?? entry.size,
+                                totalSize: result.totalSize,
+                                isSelected: selectedPath == entry.path,
+                                onTap: {
+                                    selectedPath = entry.path
+                                    if entry.isDir {
+                                        navigateTo(entry.path)
+                                    }
+                                },
+                                onReveal: {
+                                    revealInFinder(entry.path)
+                                }
+                            )
+                        }
                     }
                 }
             }
+            .frame(minWidth: 300)
+
+            // Right: Treemap
+            GeometryReader { geometry in
+                if let result = scanResult {
+                    TreemapView(
+                        entries: result.entries,
+                        size: geometry.size,
+                        selectedPath: $selectedPath,
+                        onNavigate: { path in
+                            navigateTo(path)
+                        },
+                        onReveal: { path in
+                            revealInFinder(path)
+                        }
+                    )
+                }
+            }
+            .frame(minWidth: 300)
         }
     }
 
     // MARK: - Initial View
 
     private var initialView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Spacer()
 
             Image(systemName: "externaldrive.fill")
                 .font(.system(size: 48))
-                .foregroundColor(TonicColors.accent)
+                .foregroundColor(DesignTokens.Colors.accent)
 
             Text("Disk Analysis")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(DesignTokens.Typography.h3)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Text("Analyze disk usage and find large files")
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
 
             if !overviewEntries.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("Quick Scan")
-                        .font(.headline)
-                        .padding(.horizontal)
-                        .padding(.top, 12)
+                        .font(DesignTokens.Typography.subheadEmphasized)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
 
                     ForEach(overviewEntries) { entry in
                         OverviewEntryRow(entry: entry) {
@@ -436,9 +557,9 @@ struct DiskAnalysisView: View {
                         }
                     }
                 }
-                .padding()
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(12)
+                .padding(DesignTokens.Spacing.sm)
+                .background(DesignTokens.Colors.backgroundSecondary)
+                .cornerRadius(DesignTokens.CornerRadius.large)
             }
 
             Button("Scan Current Folder") {
@@ -479,13 +600,16 @@ struct DiskAnalysisView: View {
         Task { await scanCurrentPath() }
     }
 
+    private func revealInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
     // MARK: - Permissions
 
     private func checkPermissions() async {
         isCheckingPermissions = true
         let status = await permissionManager.checkPermission(.fullDiskAccess)
         hasFullDiskAccess = (status == .authorized)
-        // checkPermission already updates the internal permissionStatuses
         isCheckingPermissions = false
     }
 
@@ -494,29 +618,6 @@ struct DiskAnalysisView: View {
     }
 
     // MARK: - Scanning
-
-    private func loadOverview() async {
-        guard hasFullDiskAccess else { return }
-
-        let paths = [
-            homePath,
-            "/Applications",
-            "/Library",
-            FileManager.default.homeDirectoryForCurrentUser.path + "/Library"
-        ]
-
-        do {
-            overviewEntries = try await scanner.getOverviewSizes(for: paths) { path, size in
-                // Update entry size
-                if let index = overviewEntries.firstIndex(where: { $0.path == path }) {
-                    overviewEntries[index].size = size
-                }
-            }
-        } catch {
-            // If overview scan fails, just continue without it
-            overviewEntries = []
-        }
-    }
 
     private func scanCurrentPath() async {
         guard hasFullDiskAccess else {
@@ -551,113 +652,483 @@ struct DiskAnalysisView: View {
     }
 }
 
-// MARK: - Entry Row
+// MARK: - Bar Chart Row
 
-struct EntryRow: View {
+struct BarChartRow: View {
     let entry: DirEntry
+    let maxSize: Int64
+    let totalSize: Int64
     let isSelected: Bool
-    let action: () -> Void
+    let onTap: () -> Void
+    let onReveal: () -> Void
+
+    @State private var isHovered = false
+
+    private var percentage: Double {
+        guard totalSize > 0 else { return 0 }
+        return Double(entry.size) / Double(totalSize) * 100
+    }
+
+    private var barWidth: CGFloat {
+        guard maxSize > 0 else { return 0 }
+        return CGFloat(entry.size) / CGFloat(maxSize)
+    }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
+        Button(action: onTap) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                // Icon
                 Image(systemName: entry.isDir ? "folder.fill" : "doc.fill")
-                    .foregroundColor(iconColor)
+                    .font(.system(size: 16))
+                    .foregroundColor(entry.isDir ? .blue : DesignTokens.Colors.textTertiary)
                     .frame(width: 20)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.name)
-                        .font(.body)
-                        .foregroundColor(.primary)
+                // Name
+                Text(entry.name)
+                    .font(DesignTokens.Typography.subhead)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+                    .lineLimit(1)
+                    .frame(minWidth: 150, alignment: .leading)
 
-                    Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                // Bar chart
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        // Background
+                        Rectangle()
+                            .fill(DesignTokens.Colors.separator.opacity(0.2))
+                            .frame(height: 8)
+                            .cornerRadius(4)
+
+                        // Fill
+                        Rectangle()
+                            .fill(barColor)
+                            .frame(width: geometry.size.width * barWidth, height: 8)
+                            .cornerRadius(4)
+                            .animation(DesignTokens.Animation.fast, value: barWidth)
+                    }
+                    .frame(height: 8)
+                    .frame(maxWidth: .infinity)
                 }
+                .frame(height: 8)
 
-                Spacer()
+                // Size
+                Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
+                    .font(DesignTokens.Typography.monoCaption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: 70, alignment: .trailing)
 
-                // Size bar
-                sizeBar
+                // Percentage
+                Text(String(format: "%.1f%%", percentage))
+                    .font(DesignTokens.Typography.monoCaption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .frame(width: 50, alignment: .trailing)
+
+                // Reveal button
+                Button {
+                    onReveal()
+                } label: {
+                    Image(systemName: "arrow.right.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovered ? 1 : 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .background(rowBackground)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-        .contentShape(Rectangle())
-    }
-
-    private var iconColor: Color {
-        if entry.isDir {
-            return .blue
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
         }
-        return .secondary
-    }
-
-    private var sizeBar: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 2) {
-                ForEach(0..<10) { i in
-                    Rectangle()
-                        .fill(barColor(for: i))
-                        .frame(width: geometry.size.width / 12)
+        .contextMenu {
+            Button("Reveal in Finder") {
+                onReveal()
+            }
+            if entry.isDir {
+                Button("Open Folder") {
+                    onTap()
                 }
             }
-            .frame(height: 4)
         }
-        .frame(width: 60)
     }
 
-    private func barColor(for index: Int) -> Color {
-        let threshold = Double(index) / 10.0
-        let relativeSize = min(1.0, log2(Double(entry.size) + 1) / 50)
-
-        if relativeSize > threshold {
-            return TonicColors.accent
+    private var rowBackground: some View {
+        Group {
+            if isSelected {
+                DesignTokens.Colors.selectedContentBackground
+            } else if isHovered {
+                DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5)
+            } else {
+                Color.clear
+            }
         }
-        return Color.gray.opacity(0.2)
+    }
+
+    private var barColor: Color {
+        if percentage >= 50 {
+            return DesignTokens.Colors.warning
+        } else if percentage >= 25 {
+            return DesignTokens.Colors.info
+        } else {
+            return DesignTokens.Colors.accent
+        }
     }
 }
 
-// MARK: - Large File Row
+// MARK: - Large File Bar Row
 
-struct LargeFileRow: View {
+struct LargeFileBarRow: View {
     let file: LargeFile
+    let maxSize: Int64
     let isSelected: Bool
-    let action: () -> Void
+    let onTap: () -> Void
+    let onReveal: () -> Void
+
+    @State private var isHovered = false
+
+    private var barWidth: CGFloat {
+        guard maxSize > 0 else { return 0 }
+        return CGFloat(file.size) / CGFloat(maxSize)
+    }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
+        Button(action: onTap) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                // Icon
                 Image(systemName: "doc.fill")
-                    .foregroundColor(.orange)
+                    .font(.system(size: 16))
+                    .foregroundColor(DesignTokens.Colors.warning)
                     .frame(width: 20)
 
+                // Name and path
                 VStack(alignment: .leading, spacing: 2) {
                     Text(file.name)
-                        .font(.body)
-                        .foregroundColor(.primary)
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
+                        .lineLimit(1)
 
                     Text((file.path as NSString).deletingLastPathComponent)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
                         .lineLimit(1)
                 }
+                .frame(minWidth: 150, alignment: .leading)
 
                 Spacer()
 
+                // Bar chart
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(DesignTokens.Colors.separator.opacity(0.2))
+                            .frame(height: 8)
+                            .cornerRadius(4)
+
+                        Rectangle()
+                            .fill(DesignTokens.Colors.warning)
+                            .frame(width: geometry.size.width * barWidth, height: 8)
+                            .cornerRadius(4)
+                    }
+                    .frame(height: 8)
+                }
+                .frame(width: 100, height: 8)
+
+                // Size
                 Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(DesignTokens.Typography.monoCaption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: 70, alignment: .trailing)
+
+                // Reveal button
+                Button {
+                    onReveal()
+                } label: {
+                    Image(systemName: "arrow.right.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovered ? 1 : 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .background(rowBackground)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+        .contextMenu {
+            Button("Reveal in Finder") {
+                onReveal()
+            }
+        }
+    }
+
+    private var rowBackground: some View {
+        Group {
+            if isSelected {
+                DesignTokens.Colors.selectedContentBackground
+            } else if isHovered {
+                DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5)
+            } else {
+                Color.clear
+            }
+        }
+    }
+}
+
+// MARK: - Treemap View
+
+struct TreemapView: View {
+    let entries: [DirEntry]
+    let size: CGSize
+    @Binding var selectedPath: String?
+    let onNavigate: (String) -> Void
+    let onReveal: (String) -> Void
+
+    var body: some View {
+        let rects = calculateTreemap(entries: entries, rect: CGRect(origin: .zero, size: size))
+
+        ZStack {
+            ForEach(Array(zip(entries.indices, rects)), id: \.0) { index, rect in
+                let entry = entries[index]
+                TreemapCell(
+                    entry: entry,
+                    rect: rect,
+                    isSelected: selectedPath == entry.path,
+                    onTap: {
+                        selectedPath = entry.path
+                        if entry.isDir {
+                            onNavigate(entry.path)
+                        }
+                    },
+                    onReveal: {
+                        onReveal(entry.path)
+                    }
+                )
+            }
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    /// Calculate treemap rectangles using squarified algorithm
+    private func calculateTreemap(entries: [DirEntry], rect: CGRect) -> [CGRect] {
+        guard !entries.isEmpty else { return [] }
+
+        let totalSize = entries.reduce(0) { $0 + $1.size }
+        guard totalSize > 0 else { return entries.map { _ in CGRect.zero } }
+
+        var rects: [CGRect] = []
+        var remainingEntries = entries.sorted { $0.size > $1.size }
+        var remainingRect = rect
+
+        while !remainingEntries.isEmpty {
+            let (row, rest, rowRect, newRemainingRect) = squarify(
+                entries: remainingEntries,
+                rect: remainingRect,
+                totalSize: totalSize
+            )
+
+            // Layout row
+            let rowRects = layoutRow(entries: row, rect: rowRect, totalSize: totalSize)
+            rects.append(contentsOf: rowRects)
+
+            remainingEntries = rest
+            remainingRect = newRemainingRect
+        }
+
+        return rects
+    }
+
+    /// Squarify algorithm step
+    private func squarify(
+        entries: [DirEntry],
+        rect: CGRect,
+        totalSize: Int64
+    ) -> (row: [DirEntry], rest: [DirEntry], rowRect: CGRect, remainingRect: CGRect) {
+        guard !entries.isEmpty else {
+            return ([], [], .zero, rect)
+        }
+
+        var row: [DirEntry] = []
+        var rest = entries
+        var bestAspectRatio: CGFloat = .infinity
+
+        let isHorizontal = rect.width > rect.height
+
+        while !rest.isEmpty {
+            let candidate = rest[0]
+            let testRow = row + [candidate]
+
+            let rowSize = testRow.reduce(0) { $0 + $1.size }
+            let rowFraction = CGFloat(rowSize) / CGFloat(totalSize)
+
+            let rowDimension: CGFloat
+            let crossDimension: CGFloat
+
+            if isHorizontal {
+                rowDimension = rect.width * rowFraction
+                crossDimension = rect.height
+            } else {
+                rowDimension = rect.height * rowFraction
+                crossDimension = rect.width
+            }
+
+            // Calculate worst aspect ratio in row
+            var worstRatio: CGFloat = 0
+            for entry in testRow {
+                let entryFraction = CGFloat(entry.size) / CGFloat(rowSize)
+                let entryDimension = crossDimension * entryFraction
+                let ratio = max(rowDimension / entryDimension, entryDimension / rowDimension)
+                worstRatio = max(worstRatio, ratio)
+            }
+
+            if worstRatio <= bestAspectRatio || row.isEmpty {
+                row = testRow
+                rest.removeFirst()
+                bestAspectRatio = worstRatio
+            } else {
+                break
+            }
+        }
+
+        // Calculate row rect and remaining rect
+        let rowSize = row.reduce(0) { $0 + $1.size }
+        let rowFraction = CGFloat(rowSize) / CGFloat(totalSize)
+
+        let rowRect: CGRect
+        let remainingRect: CGRect
+
+        if isHorizontal {
+            let rowWidth = rect.width * rowFraction
+            rowRect = CGRect(x: rect.minX, y: rect.minY, width: rowWidth, height: rect.height)
+            remainingRect = CGRect(x: rect.minX + rowWidth, y: rect.minY, width: rect.width - rowWidth, height: rect.height)
+        } else {
+            let rowHeight = rect.height * rowFraction
+            rowRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rowHeight)
+            remainingRect = CGRect(x: rect.minX, y: rect.minY + rowHeight, width: rect.width, height: rect.height - rowHeight)
+        }
+
+        return (row, rest, rowRect, remainingRect)
+    }
+
+    /// Layout entries in a row
+    private func layoutRow(entries: [DirEntry], rect: CGRect, totalSize: Int64) -> [CGRect] {
+        guard !entries.isEmpty else { return [] }
+
+        let rowSize = entries.reduce(0) { $0 + $1.size }
+        guard rowSize > 0 else { return entries.map { _ in CGRect.zero } }
+
+        var rects: [CGRect] = []
+        var offset: CGFloat = 0
+
+        let isHorizontal = rect.width <= rect.height
+
+        for entry in entries {
+            let entryFraction = CGFloat(entry.size) / CGFloat(rowSize)
+
+            let entryRect: CGRect
+            if isHorizontal {
+                let width = rect.width * entryFraction
+                entryRect = CGRect(x: rect.minX + offset, y: rect.minY, width: width, height: rect.height)
+                offset += width
+            } else {
+                let height = rect.height * entryFraction
+                entryRect = CGRect(x: rect.minX, y: rect.minY + offset, width: rect.width, height: height)
+                offset += height
+            }
+
+            rects.append(entryRect)
+        }
+
+        return rects
+    }
+}
+
+// MARK: - Treemap Cell
+
+struct TreemapCell: View {
+    let entry: DirEntry
+    let rect: CGRect
+    let isSelected: Bool
+    let onTap: () -> Void
+    let onReveal: () -> Void
+
+    @State private var isHovered = false
+
+    private var cellColor: Color {
+        if entry.isDir {
+            return Color.blue.opacity(0.6)
+        } else {
+            return DesignTokens.Colors.warning.opacity(0.6)
+        }
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                // Background
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
+                    .fill(cellColor)
+
+                // Border
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
+                    .stroke(
+                        isSelected ? DesignTokens.Colors.accent : Color.white.opacity(0.3),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+
+                // Label (only if cell is large enough)
+                if rect.width > 60 && rect.height > 40 {
+                    VStack(spacing: 2) {
+                        Image(systemName: entry.isDir ? "folder.fill" : "doc.fill")
+                            .font(.system(size: min(16, rect.height * 0.3)))
+                            .foregroundColor(.white)
+
+                        Text(entry.name)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(.horizontal, 4)
+
+                        if rect.height > 60 {
+                            Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
+                                .font(DesignTokens.Typography.monoCaption)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+                }
+            }
+            .frame(width: max(0, rect.width - 2), height: max(0, rect.height - 2))
+            .position(x: rect.midX, y: rect.midY)
+            .scaleEffect(isHovered ? 1.02 : 1.0)
+            .animation(DesignTokens.Animation.fast, value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .contextMenu {
+            Button("Reveal in Finder") {
+                onReveal()
+            }
+            if entry.isDir {
+                Button("Open Folder") {
+                    onTap()
+                }
+            }
+        }
+        .help("\(entry.name)\n\(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))")
     }
 }
 
@@ -669,23 +1140,23 @@ struct OverviewEntryRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
                 Image(systemName: "folder.fill")
                     .foregroundColor(.blue)
                     .frame(width: 20)
 
                 Text(entry.name)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(DesignTokens.Typography.subhead)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Spacer()
 
                 Text(entry.displaySize)
-                    .font(.caption)
-                    .foregroundColor(entry.isScanned ? .secondary : .orange)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(entry.isScanned ? DesignTokens.Colors.textSecondary : DesignTokens.Colors.warning)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxxs)
         }
         .buttonStyle(.plain)
     }
@@ -693,4 +1164,5 @@ struct OverviewEntryRow: View {
 
 #Preview {
     DiskAnalysisView()
+        .frame(width: 900, height: 600)
 }
