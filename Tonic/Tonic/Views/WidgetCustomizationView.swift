@@ -77,6 +77,8 @@ struct WidgetCustomizationView: View {
                             .cornerRadius(DesignTokens.CornerRadius.small)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Reset widgets")
+                    .accessibilityHint("Resets all widget settings to defaults")
 
                     Button(action: {
                         withAnimation(DesignTokens.Animation.fast) {
@@ -92,6 +94,8 @@ struct WidgetCustomizationView: View {
                             .cornerRadius(DesignTokens.CornerRadius.small)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Apply widgets")
+                    .accessibilityHint("Applies widget configuration to menu bar")
                 }
             }
         }

@@ -311,6 +311,8 @@ struct DiskAnalysisView: View {
                 isScanning = false
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Cancel scan")
+            .accessibilityHint("Stops the disk analysis scan")
 
             Spacer()
         }
@@ -342,12 +344,16 @@ struct DiskAnalysisView: View {
                     grantFullDiskAccess()
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Grant full disk access")
+                .accessibilityHint("Opens System Settings to enable full disk access")
             }
 
             Button("Try Again") {
                 Task { await refreshScan() }
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Try again")
+            .accessibilityHint("Retries the disk analysis scan")
 
             Spacer()
         }

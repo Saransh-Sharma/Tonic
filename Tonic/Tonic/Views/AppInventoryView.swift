@@ -1463,6 +1463,8 @@ struct AppInventoryView: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .accessibilityLabel("Cancel app scan")
+                            .accessibilityHint("Stops scanning for applications")
                         }
                     } else {
                         Button {
