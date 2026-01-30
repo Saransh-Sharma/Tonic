@@ -9,25 +9,165 @@ import SwiftUI
 
 // MARK: - Card Component
 
+/// A flexible card component with 3 semantic variants.
+/// Uses semantic colors from DesignTokens for proper light/dark mode support.
+///
+/// Variants:
+/// - **elevated**: Shadow for depth (primary content containers)
+/// - **flat**: No shadow, border only (secondary content)
+/// - **inset**: Inset border for grouped/nested content
+///
+/// Usage:
+/// ```swift
+/// Card(variant: .elevated) {
+///     Text("Primary Content")
+/// }
+/// ```
 struct Card<Content: View>: View {
     let content: Content
+    let variant: CardVariant
     var padding: CGFloat = DesignTokens.Spacing.cardPadding
     var cornerRadius: CGFloat = DesignTokens.CornerRadius.large
 
-    init(padding: CGFloat = DesignTokens.Spacing.cardPadding, cornerRadius: CGFloat = DesignTokens.CornerRadius.large, @ViewBuilder content: () -> Content) {
+    /// Card style variants
+    enum CardVariant {
+        /// Elevated card with shadow - use for primary content containers
+        case elevated
+        /// Flat card with border - use for secondary content
+        case flat
+        /// Inset card with inset border - use for grouped/nested content
+        case inset
+    }
+
+    /// Initialize a Card with optional variant specification
+    /// - Parameters:
+    ///   - variant: Card style variant (defaults to elevated for backward compatibility)
+    ///   - padding: Inner padding (defaults to 16pt)
+    ///   - cornerRadius: Corner radius (defaults to 12pt)
+    ///   - content: The card content
+    init(
+        variant: CardVariant = .elevated,
+        padding: CGFloat = DesignTokens.Spacing.cardPadding,
+        cornerRadius: CGFloat = DesignTokens.CornerRadius.large,
+        @ViewBuilder content: () -> Content
+    ) {
         self.content = content()
+        self.variant = variant
         self.padding = padding
         self.cornerRadius = cornerRadius
     }
 
     var body: some View {
-        content
-            .padding(padding)
-            .background(DesignTokens.Colors.surface)
-            .cornerRadius(cornerRadius)
-            .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 2)
+        Group {
+            switch variant {
+            case .elevated:
+                // Elevated: Shadow for depth
+                content
+                    .padding(padding)
+                    .background(DesignTokens.Colors.backgroundSecondary)
+                    .cornerRadius(cornerRadius)
+                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+
+            case .flat:
+                // Flat: Border only, no shadow
+                content
+                    .padding(padding)
+                    .background(DesignTokens.Colors.backgroundSecondary)
+                    .cornerRadius(cornerRadius)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius)
+                            .stroke(DesignTokens.Colors.separator, lineWidth: 1)
+                    )
+
+            case .inset:
+                // Inset: Inset border for nested content
+                content
+                    .padding(padding)
+                    .background(DesignTokens.Colors.backgroundSecondary)
+                    .cornerRadius(cornerRadius)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius)
+                            .stroke(
+                                DesignTokens.Colors.separator.opacity(0.5),
+                                lineWidth: 0.5
+                            )
+                    )
+            }
+        }
     }
 }
+
+// MARK: - Card Component Previews
+
+#if DEBUG
+struct Card_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: DesignTokens.Spacing.lg) {
+            // Elevated variant
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text("Elevated Card")
+                    .font(DesignTokens.Typography.bodyEmphasized)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Card(variant: .elevated) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("Primary Content")
+                            .font(DesignTokens.Typography.body)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                        Text("Elevated cards use shadow for depth - perfect for main content containers.")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+            }
+
+            // Flat variant
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text("Flat Card")
+                    .font(DesignTokens.Typography.bodyEmphasized)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Card(variant: .flat) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("Secondary Content")
+                            .font(DesignTokens.Typography.body)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                        Text("Flat cards use only a border - for secondary content without emphasis.")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+            }
+
+            // Inset variant
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text("Inset Card")
+                    .font(DesignTokens.Typography.bodyEmphasized)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Card(variant: .inset) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("Nested Content")
+                            .font(DesignTokens.Typography.body)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                        Text("Inset cards use an inset border - ideal for grouped or nested content.")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .background(DesignTokens.Colors.background)
+        .previewDisplayName("Card Variants")
+    }
+}
+#endif
 
 // MARK: - Primary Button
 
