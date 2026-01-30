@@ -37,9 +37,8 @@ Redesign DashboardView to use native macOS layouts instead of cards.
 
 
 ## Done summary
-TBD
-
+Redesigned DashboardView with native macOS layouts: two-column layout with health ring + Smart Scan CTA on left, grouped recommendations with RAG priority and collapsible activity on right. Uses MetricRow for real-time stats, semantic colors, and proper accessibility labels.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 3b70385fb5690b8712a15035816cd6f0642f1761
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

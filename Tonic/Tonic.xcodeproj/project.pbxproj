@@ -93,6 +93,7 @@
 		LO002B2 /* BackgroundActivityItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO002F2 /* BackgroundActivityItem.swift */; };
 		LO003B3 /* LoginItemsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO003F3 /* LoginItemsManager.swift */; };
 		LO004B4 /* BackgroundActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO004F4 /* BackgroundActivityManager.swift */; };
+		MV001B1 /* MaintenanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MV001F1 /* MaintenanceView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -183,6 +184,7 @@
 		LO002F2 /* BackgroundActivityItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityItem.swift; sourceTree = "<group>"; };
 		LO003F3 /* LoginItemsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemsManager.swift; sourceTree = "<group>"; };
 		LO004F4 /* BackgroundActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityManager.swift; sourceTree = "<group>"; };
+		MV001F1 /* MaintenanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -267,6 +269,7 @@
 				75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */,
 				75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */,
 				12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */,
+				MV001F1 /* MaintenanceView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -528,6 +531,7 @@
 				LO002B2 /* BackgroundActivityItem.swift in Sources */,
 				LO003B3 /* LoginItemsManager.swift in Sources */,
 				LO004B4 /* BackgroundActivityManager.swift in Sources */,
+				MV001B1 /* MaintenanceView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

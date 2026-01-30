@@ -115,7 +115,7 @@ extension NavigationDestination {
     var displayName: String {
         switch self {
         case .dashboard: return "Dashboard"
-        case .systemCleanup: return "Smart Scan"
+        case .systemCleanup: return "Maintenance"
         case .appManager: return "Apps"
         case .diskAnalysis: return "Disk"
         case .liveMonitoring: return "Activity"

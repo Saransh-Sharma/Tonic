@@ -110,7 +110,7 @@ struct DetailView: View {
         case .dashboard:
             DashboardView()
         case .systemCleanup:
-            SmartScanView()
+            MaintenanceView()
         case .appManager:
             if permissionManager.hasFullDiskAccess {
                 AppInventoryView()

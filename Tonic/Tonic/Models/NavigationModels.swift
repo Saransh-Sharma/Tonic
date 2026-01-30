@@ -20,7 +20,7 @@ enum NavigationDestination: String, CaseIterable {
     var systemImage: String {
         switch self {
         case .dashboard: return "chart.line.uptrend.xyaxis"
-        case .systemCleanup: return "sparkles"
+        case .systemCleanup: return "wrench.and.screwdriver"
         case .appManager: return "app.badge"
         case .diskAnalysis: return "externaldrive.fill"
         case .liveMonitoring: return "gauge"
