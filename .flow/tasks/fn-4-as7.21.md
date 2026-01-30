@@ -25,9 +25,8 @@ Create a screen to view all design components.
 
 
 ## Done summary
-TBD
-
+Created a comprehensive Design Sandbox screen accessible from Developer Tools that showcases all design system components in an interactive, tabbed interface. The sandbox displays Card variants (elevated, flat, inset), MetricRow components with sparklines, PreferenceList examples with grouped sections, buttons, status indicators, and miscellaneous UI components with sample data.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 3b8b4de8f7d185d7b0d08363953778f514fa83ad
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
