@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var selectedDestination: NavigationDestination = .dashboard
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showOnboarding = false
+    @State private var showFeatureTour = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
     @State private var showWidgetOnboarding = false
@@ -44,6 +45,9 @@ struct ContentView: View {
             .frame(minWidth: 800, minHeight: 500)
             .sheet(isPresented: $showOnboarding) {
                 OnboardingView(isPresented: $showOnboarding)
+            }
+            .sheet(isPresented: $showFeatureTour) {
+                OnboardingTourView(isPresented: $showFeatureTour)
             }
             .sheet(isPresented: $showPermissionPrompt) {
                 PermissionPromptView(
@@ -83,6 +87,15 @@ struct ContentView: View {
     private func checkFirstLaunch() {
         if !hasSeenOnboarding {
             showOnboarding = true
+        } else {
+            // Show feature tour for first app launch after permissions are set up
+            let hasSeenFeatureTour = UserDefaults.standard.bool(forKey: "hasSeenFeatureTour")
+            if !hasSeenFeatureTour {
+                // Delay showing tour to allow UI to render first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showFeatureTour = true
+                }
+            }
         }
 
         // Check permissions on app launch

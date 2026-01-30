@@ -25,9 +25,8 @@ Add a custom high contrast theme option in Settings.
 
 
 ## Done summary
-TBD
-
+Implemented custom high contrast theme for Tonic with WCAG AAA compliance (7:1 contrast ratio). Added toggle in Settings > Appearance > General that applies immediately, with support for bold colors across all semantic color tokens.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 01cb519152af71752e064b8ad1eda8c3ecddd531
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

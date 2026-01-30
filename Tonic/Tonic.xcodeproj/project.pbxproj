@@ -76,6 +76,7 @@
 		SS004A4B5C6D7E8F19D0E1F2A3 /* HiddenSpaceScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS004FILE1D2E3F4F718C9D0E1F /* HiddenSpaceScanner.swift */; };
 		SS005A5B6C7D7E8F20A1B2C3 /* AccessibilityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS005FILE1E2F3F50829B3C4D5 /* AccessibilityView.swift */; };
 		SS006A6B7C7E8E8F21B2C3D4E /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS006FILE1F2F3F5193A4C5D6E7 /* OnboardingView.swift */; };
+		TT001A1B2C3D4E5F60G7H8I9J /* OnboardingTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT001FILE2G3G4H515E7F8G9H /* OnboardingTourView.swift */; };
 		SS007A7B7C7E8E8F22C3D4E5F /* DarkModeThemeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS007FILE202F3F606B5D7E8F8 /* DarkModeThemeView.swift */; };
 		SS008A8B7C7E8E8F23D4E5F6A /* DetailedStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS008FILE212F4F617C6E8F9A9 /* DetailedStatsView.swift */; };
 		SS009A9B7C7E8E8F24E5F6A7B /* DeepCleanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS009FILE222F5F628D7F9A0AB /* DeepCleanView.swift */; };
@@ -169,6 +170,7 @@
 		SS004FILE1D2E3F4F718C9D0E1F /* HiddenSpaceScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenSpaceScanner.swift; sourceTree = "<group>"; };
 		SS005FILE1E2F3F50829B3C4D5 /* AccessibilityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityView.swift; sourceTree = "<group>"; };
 		SS006FILE1F2F3F5193A4C5D6E7 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		TT001FILE2G3G4H515E7F8G9H /* OnboardingTourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTourView.swift; sourceTree = "<group>"; };
 		SS007FILE202F3F606B5D7E8F8 /* DarkModeThemeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkModeThemeView.swift; sourceTree = "<group>"; };
 		SS008FILE212F4F617C6E8F9A9 /* DetailedStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatsView.swift; sourceTree = "<group>"; };
 		SS009FILE222F5F628D7F9A0AB /* DeepCleanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepCleanView.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 				AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */,
 				SS005FILE1E2F3F50829B3C4D5 /* AccessibilityView.swift */,
 				SS006FILE1F2F3F5193A4C5D6E7 /* OnboardingView.swift */,
+				TT001FILE2G3G4H515E7F8G9H /* OnboardingTourView.swift */,
 				SS007FILE202F3F606B5D7E8F8 /* DarkModeThemeView.swift */,
 				SS008FILE212F4F617C6E8F9A9 /* DetailedStatsView.swift */,
 				SS009FILE222F5F628D7F9A0AB /* DeepCleanView.swift */,
@@ -502,6 +505,7 @@
 				D7E8F9A0B1C2D3E4F5A6B7C8 /* PrivilegedHelperProtocol.swift in Sources */,
 				SS005A5B6C7D7E8F20A1B2C3 /* AccessibilityView.swift in Sources */,
 				SS006A6B7C7E8E8F21B2C3D4E /* OnboardingView.swift in Sources */,
+				TT001A1B2C3D4E5F60G7H8I9J /* OnboardingTourView.swift in Sources */,
 				SS007A7B7C7E8E8F22C3D4E5F /* DarkModeThemeView.swift in Sources */,
 				SS008A8B7C7E8E8F23D4E5F6A /* DetailedStatsView.swift in Sources */,
 				SS009A9B7C7E8E8F24E5F6A7B /* DeepCleanView.swift in Sources */,
