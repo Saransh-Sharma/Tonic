@@ -15,6 +15,7 @@ enum NavigationDestination: String, CaseIterable {
     case liveMonitoring = "Live Monitoring"
     case menuBarWidgets = "Menu Bar Widgets"
     case developerTools = "Developer Tools"
+    case designSandbox = "Design Sandbox"
     case settings = "Settings"
 
     var systemImage: String {
@@ -26,7 +27,12 @@ enum NavigationDestination: String, CaseIterable {
         case .liveMonitoring: return "gauge"
         case .menuBarWidgets: return "square.grid.2x2"
         case .developerTools: return "hammer.fill"
+        case .designSandbox: return "paintbrush.fill"
         case .settings: return "gear"
         }
+    }
+
+    var displayName: String {
+        self.rawValue
     }
 }

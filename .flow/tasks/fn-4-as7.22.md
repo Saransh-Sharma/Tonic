@@ -23,9 +23,8 @@ Add ways for users to report issues and automatic crash reporting.
 
 
 ## Done summary
-TBD
-
+Implemented feedback and crash reporting mechanisms for Tonic. Added FeedbackService with support for multiple feedback types (bug, feature request, performance, crash, general), crash reporting integration with uncaught exception handler, GitHub issue integration with pre-filled templates, and a new Settings > Help section with feedback form and support links.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 8fef48a0eb2cf9cd2fc2a50c7f52167f77c94d0e
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

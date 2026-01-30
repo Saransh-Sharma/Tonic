@@ -168,6 +168,8 @@ struct DetailView: View {
             WidgetsPanelView()
         case .developerTools:
             DeveloperToolsView()
+        case .designSandbox:
+            DesignSandboxView()
         case .settings:
             PreferencesView()
         }

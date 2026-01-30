@@ -33,7 +33,7 @@ struct SidebarView: View {
         SidebarSection("Maintenance", items: [.systemCleanup]),
         SidebarSection("Explore", items: [.diskAnalysis, .appManager, .liveMonitoring]),
         SidebarSection("Menu Bar", items: [.menuBarWidgets]),
-        SidebarSection("Advanced", items: [.developerTools]),
+        SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
         SidebarSection(nil, items: [.settings])
     ]
 
@@ -103,7 +103,7 @@ struct SidebarView: View {
     // MARK: - Navigation Row
 
     private func navigationRow(_ destination: NavigationDestination) -> some View {
-        Label(destination.displayName, systemImage: destination.systemImage)
+        Label(destination.sidebarDisplayName, systemImage: destination.systemImage)
             .tag(destination)
     }
 }
@@ -112,7 +112,7 @@ struct SidebarView: View {
 
 extension NavigationDestination {
     /// Display name for sidebar (may differ from rawValue for brevity)
-    var displayName: String {
+    var sidebarDisplayName: String {
         switch self {
         case .dashboard: return "Dashboard"
         case .systemCleanup: return "Maintenance"
@@ -121,6 +121,7 @@ extension NavigationDestination {
         case .liveMonitoring: return "Activity"
         case .menuBarWidgets: return "Widgets"
         case .developerTools: return "Developer Tools"
+        case .designSandbox: return "Design Sandbox"
         case .settings: return "Settings"
         }
     }
