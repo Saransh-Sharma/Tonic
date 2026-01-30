@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var missingPermissionFor: PermissionManager.Feature?
     @State private var showWidgetOnboarding = false
     @Binding var showCommandPalette: Bool
+    @Environment(\.isHighContrast) private var isHighContrast
 
     @State private var permissionManager = PermissionManager.shared
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")

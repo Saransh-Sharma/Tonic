@@ -316,8 +316,21 @@ struct GeneralSettingsContent: View {
                     title: "Launch at Login",
                     subtitle: "Automatically start Tonic when you log in",
                     icon: "power",
-                    showDivider: false,
+                    showDivider: true,
                     isOn: $launchAtLogin
+                )
+
+                PreferenceToggleRow(
+                    title: "High Contrast Mode",
+                    subtitle: "Use bold colors with maximum contrast (WCAG AAA)",
+                    icon: "contrast",
+                    showDivider: false,
+                    isOn: Binding(
+                        get: { preferences.useHighContrast },
+                        set: { newValue in
+                            preferences.setUseHighContrast(newValue)
+                        }
+                    )
                 )
             }
 

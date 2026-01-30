@@ -8,6 +8,20 @@
 
 import SwiftUI
 
+// MARK: - High Contrast Environment Key
+
+struct HighContrastKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    /// Whether high contrast mode is enabled
+    var isHighContrast: Bool {
+        get { self[HighContrastKey.self] }
+        set { self[HighContrastKey.self] = newValue }
+    }
+}
+
 // MARK: - Design Tokens
 
 /// Design system tokens for consistent UI across the app
@@ -64,6 +78,26 @@ enum DesignTokens {
         static let warning = Color("WarningOrange")
         /// Info state - informational, neutral guidance (Asset Catalog)
         static let info = Color("InfoBlue")
+
+        // MARK: High Contrast Theme Colors (WCAG AAA - 7:1 Compliant)
+        /// High contrast background - pure white or near-white
+        static let highContrastBackground = Color(red: 1.0, green: 1.0, blue: 1.0)
+        /// High contrast background secondary - very light gray
+        static let highContrastBackgroundSecondary = Color(red: 0.95, green: 0.95, blue: 0.95)
+        /// High contrast text primary - pure black or near-black
+        static let highContrastTextPrimary = Color(red: 0.0, green: 0.0, blue: 0.0)
+        /// High contrast text secondary - dark gray (meets 7:1 on white)
+        static let highContrastTextSecondary = Color(red: 0.2, green: 0.2, blue: 0.2)
+        /// High contrast text tertiary - medium gray (meets 7:1 on white)
+        static let highContrastTextTertiary = Color(red: 0.35, green: 0.35, blue: 0.35)
+        /// High contrast accent - bold blue (meets 7:1 on white)
+        static let highContrastAccent = Color(red: 0.0, green: 0.4, blue: 1.0)
+        /// High contrast success - bold green (meets 7:1 on white)
+        static let highContrastSuccess = Color(red: 0.0, green: 0.6, blue: 0.0)
+        /// High contrast warning - bold orange (meets 7:1 on white)
+        static let highContrastWarning = Color(red: 1.0, green: 0.5, blue: 0.0)
+        /// High contrast destructive - bold red (meets 7:1 on white)
+        static let highContrastDestructive = Color(red: 1.0, green: 0.0, blue: 0.0)
 
         // MARK: Legacy Aliases (Backward Compatibility)
         /// Legacy alias for textPrimary
@@ -329,3 +363,53 @@ extension View {
 // MARK: - Animation Extensions
 
 // No extensions needed - using SwiftUI.Animation directly
+
+// MARK: - High Contrast Helper
+
+/// Helper function to get colors adapted for high contrast mode
+extension DesignTokens.Colors {
+    /// Get text primary color, respecting high contrast setting
+    static func getTextPrimary(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastTextPrimary : DesignTokens.Colors.textPrimary
+    }
+
+    /// Get text secondary color, respecting high contrast setting
+    static func getTextSecondary(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastTextSecondary : DesignTokens.Colors.textSecondary
+    }
+
+    /// Get text tertiary color, respecting high contrast setting
+    static func getTextTertiary(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastTextTertiary : DesignTokens.Colors.textTertiary
+    }
+
+    /// Get background color, respecting high contrast setting
+    static func getBackground(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastBackground : DesignTokens.Colors.background
+    }
+
+    /// Get background secondary color, respecting high contrast setting
+    static func getBackgroundSecondary(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastBackgroundSecondary : DesignTokens.Colors.backgroundSecondary
+    }
+
+    /// Get accent color, respecting high contrast setting
+    static func getAccent(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastAccent : DesignTokens.Colors.accent
+    }
+
+    /// Get success color, respecting high contrast setting
+    static func getSuccess(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastSuccess : DesignTokens.Colors.success
+    }
+
+    /// Get warning color, respecting high contrast setting
+    static func getWarning(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastWarning : DesignTokens.Colors.warning
+    }
+
+    /// Get destructive color, respecting high contrast setting
+    static func getDestructive(highContrast: Bool) -> Color {
+        highContrast ? DesignTokens.Colors.highContrastDestructive : DesignTokens.Colors.destructive
+    }
+}

@@ -11,10 +11,21 @@ import SwiftUI
 struct TonicApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var showCommandPalette = false
+    @State private var isHighContrast = false
 
     var body: some Scene {
         WindowGroup {
             ContentView(showCommandPalette: $showCommandPalette)
+                .environment(\.isHighContrast, isHighContrast)
+                .onReceive(
+                    NotificationCenter.default.publisher(for: NSNotification.Name("TonicThemeDidChange")),
+                    perform: { _ in
+                        isHighContrast = AppearancePreferences.shared.useHighContrast
+                    }
+                )
+                .onAppear {
+                    isHighContrast = AppearancePreferences.shared.useHighContrast
+                }
         }
         .commands {
             // Command Palette
