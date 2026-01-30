@@ -12,6 +12,55 @@ import UserNotifications
 import Sparkle
 #endif
 
+// MARK: - Feedback Types
+
+enum FeedbackReportType: String {
+    case bug
+    case featureRequest = "feature_request"
+    case performance
+    case crash
+    case general
+}
+
+// MARK: - Minimal Feedback Manager for PreferencesView
+
+class SimpleFeedbackManager {
+    static let shared = SimpleFeedbackManager()
+
+    func getApplicationLogs() -> String? {
+        guard let logsURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
+        let logFile = logsURL.appendingPathComponent("Logs/com.tonic.Tonic/system.log")
+
+        guard FileManager.default.fileExists(atPath: logFile.path) else { return nil }
+
+        do {
+            let logContent = try String(contentsOf: logFile, encoding: .utf8)
+            let logLines = logContent.split(separator: "\n").suffix(100).joined(separator: "\n")
+            return logLines.isEmpty ? nil : logLines
+        } catch {
+            return nil
+        }
+    }
+
+    func submitFeedback(
+        type: FeedbackReportType,
+        title: String,
+        description: String,
+        logs: String? = nil
+    ) throws {
+        let label = type == .bug ? "bug" : (type == .featureRequest ? "enhancement" : "feedback")
+        let encodedTitle = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Issue"
+        let fullDescription = logs.map { "\(description)\n\nLogs:\n\($0)" } ?? description
+        let encodedDescription = fullDescription.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+
+        let gitHubURL = URL(string: "https://github.com/Saransh-Sharma/PreTonic/issues/new?title=\(encodedTitle)&labels=\(label)&body=\(encodedDescription)")!
+
+        DispatchQueue.main.async {
+            NSWorkspace.shared.open(gitHubURL)
+        }
+    }
+}
+
 // MARK: - Settings Navigation
 
 enum SettingsSection: String, CaseIterable, Identifiable {
@@ -19,6 +68,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case permissions = "Permissions"
     case helper = "Helper"
     case updates = "Updates"
+    case help = "Help"
     case about = "About"
 
     var id: String { rawValue }
@@ -29,6 +79,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .permissions: return "hand.raised.fill"
         case .helper: return "wrench.and.screwdriver.fill"
         case .updates: return "arrow.down.circle.fill"
+        case .help: return "bubble.right.fill"
         case .about: return "info.circle.fill"
         }
     }
@@ -39,6 +90,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .permissions: return "System access"
         case .helper: return "Advanced features"
         case .updates: return "Software updates"
+        case .help: return "Feedback and support"
         case .about: return "App information"
         }
     }
@@ -143,6 +195,8 @@ struct PreferencesView: View {
                         HelperSettingsContent()
                     case .updates:
                         UpdatesSettingsContent()
+                    case .help:
+                        HelpSettingsContent()
                     case .about:
                         AboutSettingsContent()
                     }
@@ -248,6 +302,7 @@ struct SettingsSectionHeader: View {
         case .permissions: return "Manage system permissions for full functionality"
         case .helper: return "Enable advanced system operations"
         case .updates: return "Keep Tonic up to date"
+        case .help: return "Get help and send us feedback"
         case .about: return "Learn more about Tonic"
         }
     }
@@ -1083,6 +1138,435 @@ struct ReleaseNoteItem: View {
                     .font(DesignTokens.Typography.captionMedium)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
+        }
+    }
+}
+
+// MARK: - Feedback Sheet View
+
+struct FeedbackSheetView: View {
+    @Environment(\.dismiss) var dismiss
+    @State private var feedbackType: FeedbackReportType = .general
+    @State private var title: String = ""
+    @State private var description: String = ""
+    @State private var includeLogs = false
+    @State private var isSubmitting = false
+    @State private var showSuccess = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: "bubble.right.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(TonicColors.accent)
+
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                        Text("Send Feedback")
+                            .font(DesignTokens.Typography.headlineMedium)
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        Text("Help us improve Tonic by sharing your feedback")
+                            .font(DesignTokens.Typography.bodySmall)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(DesignTokens.Spacing.lg)
+            }
+            .background(DesignTokens.Colors.surface.opacity(0.5))
+
+            Divider()
+
+            // Content
+            ScrollView {
+                VStack(spacing: DesignTokens.Spacing.lg) {
+                    // Feedback Type
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("Feedback Type")
+                            .font(DesignTokens.Typography.captionLarge)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                            .fontWeight(.medium)
+
+                        Picker("Type", selection: $feedbackType) {
+                            Text("General Feedback").tag(FeedbackReportType.general)
+                            Text("Bug Report").tag(FeedbackReportType.bug)
+                            Text("Feature Request").tag(FeedbackReportType.featureRequest)
+                            Text("Performance Issue").tag(FeedbackReportType.performance)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    // Title
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                        Text("Title")
+                            .font(DesignTokens.Typography.captionLarge)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                            .fontWeight(.medium)
+
+                        TextField("Brief summary of your feedback", text: $title)
+                            .font(DesignTokens.Typography.body)
+                            .padding(DesignTokens.Spacing.sm)
+                            .background(DesignTokens.Colors.surface)
+                            .cornerRadius(DesignTokens.CornerRadius.medium)
+                    }
+
+                    // Description
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Text("Description")
+                                .font(DesignTokens.Typography.captionLarge)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                                .fontWeight(.medium)
+
+                            Spacer()
+
+                            Text("\(description.count)/500")
+                                .font(DesignTokens.Typography.captionSmall)
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+                        }
+
+                        TextEditor(text: $description)
+                            .font(DesignTokens.Typography.body)
+                            .scrollContentBackground(.hidden)
+                            .background(DesignTokens.Colors.surface)
+                            .cornerRadius(DesignTokens.CornerRadius.medium)
+                            .frame(height: 120)
+                            .onChange(of: description) { _, newValue in
+                                if newValue.count > 500 {
+                                    description = String(newValue.prefix(500))
+                                }
+                            }
+                    }
+
+                    // Include Logs
+                    Toggle(isOn: $includeLogs) {
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                            Text("Include Application Logs")
+                                .font(DesignTokens.Typography.bodySmall)
+                                .foregroundColor(DesignTokens.Colors.text)
+
+                            Text("Help us diagnose issues faster by including recent logs")
+                                .font(DesignTokens.Typography.captionSmall)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+                    }
+
+                    // System Info
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                        Text("System Information")
+                            .font(DesignTokens.Typography.captionLarge)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                            .fontWeight(.medium)
+
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                            SystemInfoRow(label: "macOS Version", value: systemMacOSVersion)
+                            SystemInfoRow(label: "App Version", value: appVersion)
+                            SystemInfoRow(label: "Architecture", value: systemArchitecture)
+                        }
+                        .padding(DesignTokens.Spacing.sm)
+                        .background(DesignTokens.Colors.surface)
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
+                    }
+
+                    if let error = errorMessage {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundColor(DesignTokens.Colors.error)
+
+                            Text(error)
+                                .font(DesignTokens.Typography.bodySmall)
+                                .foregroundColor(DesignTokens.Colors.error)
+
+                            Spacer()
+                        }
+                        .padding(DesignTokens.Spacing.sm)
+                        .background(DesignTokens.Colors.error.opacity(0.1))
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
+                    }
+                }
+                .padding(DesignTokens.Spacing.lg)
+            }
+
+            Divider()
+
+            // Footer
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button {
+                    submitFeedback()
+                } label: {
+                    HStack(spacing: DesignTokens.Spacing.xs) {
+                        if isSubmitting {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "paperplane.fill")
+                        }
+                        Text(isSubmitting ? "Sending..." : "Send Feedback")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSubmitting || title.trimmingCharacters(in: .whitespaces).isEmpty || description.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(DesignTokens.Spacing.lg)
+        }
+        .frame(width: 500, height: 700)
+        .alert("Success", isPresented: $showSuccess) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            Text("Thank you for your feedback! We appreciate your input.")
+        }
+    }
+
+    private func submitFeedback() {
+        isSubmitting = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let logs = includeLogs ? SimpleFeedbackManager.shared.getApplicationLogs() : nil
+                try SimpleFeedbackManager.shared.submitFeedback(
+                    type: feedbackType,
+                    title: title,
+                    description: description,
+                    logs: logs
+                )
+                await MainActor.run {
+                    isSubmitting = false
+                    showSuccess = true
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+
+    private var systemMacOSVersion: String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+    }
+
+    private var systemArchitecture: String {
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        return String(cString: &sysinfo.machine.0)
+    }
+}
+
+// MARK: - System Info Row
+
+struct SystemInfoRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(label)
+                .font(DesignTokens.Typography.captionSmall)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Spacer()
+
+            Text(value)
+                .font(DesignTokens.Typography.captionSmall)
+                .foregroundColor(DesignTokens.Colors.text)
+                .fontWeight(.medium)
+        }
+    }
+}
+
+// MARK: - Help Settings Content
+
+struct HelpSettingsContent: View {
+    @State private var showFeedbackSheet = false
+
+    var body: some View {
+        PreferenceList {
+            // Feedback Section
+            PreferenceSection(header: "Give Feedback") {
+                VStack(spacing: DesignTokens.Spacing.md) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("We'd love to hear from you!")
+                            .font(DesignTokens.Typography.bodySmall)
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        Text("Share bug reports, feature suggestions, or any feedback to help us improve Tonic.")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Button {
+                        showFeedbackSheet = true
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "bubble.right.fill")
+                            Text("Open Feedback Form")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+            }
+
+            // Support Section
+            PreferenceSection(header: "Support") {
+                VStack(spacing: 0) {
+                    HelpLinkRow(
+                        title: "GitHub Issues",
+                        subtitle: "Report bugs or suggest features on GitHub",
+                        icon: "exclamationmark.bubble.fill",
+                        url: "https://github.com/Saransh-Sharma/PreTonic/issues"
+                    )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
+
+                    HelpLinkRow(
+                        title: "Documentation",
+                        subtitle: "Learn more about Tonic's features",
+                        icon: "book.fill",
+                        url: "https://github.com/Saransh-Sharma/PreTonic/wiki"
+                    )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
+
+                    HelpLinkRow(
+                        title: "Project Website",
+                        subtitle: "Visit the Tonic project on GitHub",
+                        icon: "globe",
+                        url: "https://github.com/Saransh-Sharma/PreTonic"
+                    )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                }
+            }
+
+            // Keyboard Shortcuts Section
+            PreferenceSection(header: "Keyboard Shortcuts") {
+                VStack(spacing: 0) {
+                    ShortcutRow(title: "Open Feedback", shortcut: "⌘?")
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md)
+
+                    ShortcutRow(title: "Open Command Palette", shortcut: "⌘K")
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .sheet(isPresented: $showFeedbackSheet) {
+            FeedbackSheetView()
+        }
+    }
+}
+
+// MARK: - Help Link Row
+
+struct HelpLinkRow: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    let url: String
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(TonicColors.accent.opacity(0.15))
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(TonicColors.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(DesignTokens.Typography.bodySmall)
+                        .fontWeight(.medium)
+                        .foregroundColor(DesignTokens.Colors.text)
+
+                    Text(subtitle)
+                        .font(DesignTokens.Typography.captionSmall)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+            }
+            .padding(DesignTokens.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
+                    .fill(isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Shortcut Row
+
+struct ShortcutRow: View {
+    let title: String
+    let shortcut: String
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.bodySmall)
+                .foregroundColor(DesignTokens.Colors.text)
+
+            Spacer()
+
+            Text(shortcut)
+                .font(DesignTokens.Typography.captionSmall)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(DesignTokens.Colors.surface)
+                .cornerRadius(4)
         }
     }
 }

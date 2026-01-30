@@ -25,9 +25,8 @@ Create a feature walkthrough tour for first-time users.
 
 
 ## Done summary
-TBD
-
+Created a first-launch feature walkthrough tour (OnboardingTourView) that explains redesigned UI elements including navigation, dashboard, components, and maintenance features. The tour shows only on first app launch after permission setup, is dismissible, and doesn't repeat after completion.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 33471883ecfa32251929e16e886c019bf2dd9bb6
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
