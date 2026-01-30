@@ -36,9 +36,8 @@ Redesign WidgetCustomizationView to use a native list with drag-reorder.
 
 
 ## Done summary
-TBD
-
+Redesigned WidgetCustomizationView from custom dark-themed grid layout to native List-based interface using DesignTokens and PreferenceList pattern. The view now uses system semantic colors, native controls, and maintains all functionality (toggle, drag-reorder, inline preview, settings).
 ## Evidence
-- Commits:
+- Commits: 872c7b90ae7e6f726a6aae84adde68f04871624c
 - Tests:
 - PRs:

@@ -253,112 +253,6 @@ struct SettingsSectionHeader: View {
     }
 }
 
-// MARK: - Settings Card Component
-
-struct SettingsCard<Content: View>: View {
-    let title: String?
-    let icon: String?
-    let content: Content
-
-    init(title: String? = nil, icon: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.icon = icon
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            if let title = title {
-                HStack(spacing: DesignTokens.Spacing.xs) {
-                    if let icon = icon {
-                        Image(systemName: icon)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(TonicColors.accent)
-                    }
-
-                    Text(title)
-                        .font(DesignTokens.Typography.headlineSmall)
-                        .foregroundColor(DesignTokens.Colors.text)
-                }
-            }
-
-            content
-        }
-        .padding(DesignTokens.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
-
-// MARK: - Settings Row Component
-
-struct SettingsRow<Accessory: View>: View {
-    let title: String
-    let subtitle: String?
-    let icon: String?
-    let iconColor: Color
-    let accessory: Accessory
-
-    @State private var isHovered = false
-
-    init(
-        title: String,
-        subtitle: String? = nil,
-        icon: String? = nil,
-        iconColor: Color = TonicColors.accent,
-        @ViewBuilder accessory: () -> Accessory
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.icon = icon
-        self.iconColor = iconColor
-        self.accessory = accessory()
-    }
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            if let icon = icon {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(iconColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignTokens.Typography.bodyMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
-
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(DesignTokens.Typography.captionMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                }
-            }
-
-            Spacer()
-
-            accessory
-        }
-        .padding(DesignTokens.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                .fill(isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear)
-        )
-        .onHover { hovering in
-            withAnimation(DesignTokens.Animation.fast) {
-                isHovered = hovering
-            }
-        }
-    }
-}
 
 // MARK: - General Settings Content
 
@@ -367,12 +261,11 @@ struct GeneralSettingsContent: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            // Appearance Card
-            SettingsCard(title: "Appearance", icon: "paintbrush.fill") {
-                VStack(spacing: DesignTokens.Spacing.md) {
-                    // Theme selector
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+        PreferenceList {
+            // Appearance Section
+            PreferenceSection(header: "Appearance") {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                         Text("Theme")
                             .font(DesignTokens.Typography.captionLarge)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
@@ -391,12 +284,13 @@ struct GeneralSettingsContent: View {
                             }
                         }
                     }
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
 
                     Divider()
-                        .padding(.vertical, DesignTokens.Spacing.xxs)
+                        .padding(.leading, DesignTokens.Spacing.md)
 
-                    // Accent color
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                         Text("Accent Color")
                             .font(DesignTokens.Typography.captionLarge)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
@@ -411,143 +305,61 @@ struct GeneralSettingsContent: View {
                             }
                         }
                     }
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
                 }
             }
-            .fadeInSlideUp(delay: 0.05)
 
-            // Startup Card
-            SettingsCard(title: "Startup", icon: "power") {
-                SettingsRow(
+            // General Section
+            PreferenceSection(header: "General") {
+                PreferenceToggleRow(
                     title: "Launch at Login",
                     subtitle: "Automatically start Tonic when you log in",
-                    icon: "arrow.right.circle.fill",
-                    iconColor: TonicColors.success
-                ) {
-                    Toggle("", isOn: $launchAtLogin)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                }
+                    icon: "power",
+                    showDivider: false,
+                    isOn: $launchAtLogin
+                )
             }
-            .fadeInSlideUp(delay: 0.1)
 
-            // Data Management Card
-            SettingsCard(title: "Data", icon: "internaldrive.fill") {
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    SettingsRow(
-                        title: "Clear Cache",
-                        subtitle: "Remove temporary files created by Tonic",
-                        icon: "trash.fill",
-                        iconColor: TonicColors.warning
-                    ) {
-                        Button("Clear") {
-                            // Clear cache action
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
+            // Data Section
+            PreferenceSection(header: "Data") {
+                PreferenceButtonRow(
+                    title: "Clear Cache",
+                    subtitle: "Remove temporary files created by Tonic",
+                    icon: "trash.fill",
+                    showDivider: true,
+                    buttonTitle: "Clear",
+                    action: { /* Clear cache action */ }
+                )
 
-                    SettingsRow(
-                        title: "Reset Settings",
-                        subtitle: "Restore all settings to their defaults",
-                        icon: "arrow.counterclockwise",
-                        iconColor: TonicColors.error
-                    ) {
-                        Button("Reset") {
-                            // Reset settings action
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                }
+                PreferenceButtonRow(
+                    title: "Reset Settings",
+                    subtitle: "Restore all settings to their defaults",
+                    icon: "arrow.counterclockwise",
+                    showDivider: false,
+                    buttonTitle: "Reset",
+                    action: { /* Reset settings action */ }
+                )
             }
-            .fadeInSlideUp(delay: 0.15)
 
-            // Danger Zone Card
-            DangerZoneCard()
-                .fadeInSlideUp(delay: 0.2)
+            // Danger Zone Section
+            PreferenceSection(header: "Danger Zone") {
+                PreferenceButtonRow(
+                    title: "Reset App & Start Fresh",
+                    subtitle: "Clear all data, remove helper, and restart setup",
+                    icon: "arrow.counterclockwise.circle.fill",
+                    iconColor: DesignTokens.Colors.destructive,
+                    showDivider: false,
+                    buttonTitle: "Reset App...",
+                    buttonStyle: .destructive,
+                    action: { /* Reset app action */ }
+                )
+            }
         }
+        .padding(DesignTokens.Spacing.lg)
     }
 }
 
-// MARK: - Danger Zone Card
-
-private struct DangerZoneCard: View {
-    @State private var showResetSheet = false
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            // Section header with error accent
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(TonicColors.error)
-
-                Text("Danger Zone")
-                    .font(DesignTokens.Typography.headlineSmall)
-                    .foregroundColor(DesignTokens.Colors.text)
-            }
-
-            // Reset app row
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(TonicColors.error.opacity(0.15))
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: "arrow.counterclockwise.circle.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(TonicColors.error)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reset App & Start Fresh")
-                        .font(DesignTokens.Typography.bodyMedium)
-                        .foregroundColor(DesignTokens.Colors.text)
-
-                    Text("Clear all data, remove helper, and restart setup")
-                        .font(DesignTokens.Typography.captionMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                }
-
-                Spacer()
-
-                Button {
-                    showResetSheet = true
-                } label: {
-                    Text("Reset App...")
-                        .font(DesignTokens.Typography.bodySmall)
-                        .fontWeight(.medium)
-                }
-                .buttonStyle(.bordered)
-                .tint(TonicColors.error)
-                .controlSize(.small)
-            }
-            .padding(DesignTokens.Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .fill(isHovered ? TonicColors.error.opacity(0.05) : Color.clear)
-            )
-            .onHover { hovering in
-                withAnimation(DesignTokens.Animation.fast) {
-                    isHovered = hovering
-                }
-            }
-        }
-        .padding(DesignTokens.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
-                .stroke(TonicColors.error.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-        .sheet(isPresented: $showResetSheet) {
-            ResetConfirmationSheet(isPresented: $showResetSheet)
-        }
-    }
-}
 
 // MARK: - Theme Selector Button
 
@@ -616,77 +428,64 @@ struct PermissionsSettingsContent: View {
     @State private var isRefreshing = false
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            // Status overview
-            HStack(spacing: DesignTokens.Spacing.md) {
-                PermissionStatusBadge(
-                    count: grantedCount,
-                    total: 3,
-                    label: "Granted"
+        PreferenceList {
+            PreferenceSection(header: "Permissions Status") {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    PermissionStatusBadge(
+                        count: grantedCount,
+                        total: 3,
+                        label: "Granted"
+                    )
+
+                    Spacer()
+
+                    Button {
+                        Task { await refreshPermissions() }
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.xxs) {
+                            if isRefreshing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            Text("Refresh")
+                        }
+                        .font(DesignTokens.Typography.bodySmall)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isRefreshing)
+                }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+            }
+
+            PreferenceSection(header: "System Access") {
+                PermissionStatusRow(
+                    title: "Full Disk Access",
+                    subtitle: "Required to scan all files and folders on your Mac",
+                    icon: "externaldrive.fill",
+                    status: permissionManager.permissionStatuses[.fullDiskAccess] ?? .notDetermined
                 )
 
-                Spacer()
+                PermissionStatusRow(
+                    title: "Accessibility",
+                    subtitle: "Enables enhanced system monitoring and optimization",
+                    icon: "hand.raised.fill",
+                    status: permissionManager.permissionStatuses[.accessibility] ?? .notDetermined
+                )
 
-                Button {
-                    Task { await refreshPermissions() }
-                } label: {
-                    HStack(spacing: DesignTokens.Spacing.xxs) {
-                        if isRefreshing {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        Text("Refresh")
-                    }
-                    .font(DesignTokens.Typography.bodySmall)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isRefreshing)
+                PermissionStatusRow(
+                    title: "Notifications",
+                    subtitle: "Receive alerts about scan results and system warnings",
+                    icon: "bell.fill",
+                    status: permissionManager.permissionStatuses[.notifications] ?? .notDetermined,
+                    showDivider: false
+                )
             }
-            .padding(DesignTokens.Spacing.md)
-            .background(DesignTokens.Colors.surface)
-            .cornerRadius(DesignTokens.CornerRadius.large)
-            .fadeInSlideUp(delay: 0.05)
-
-            // Permission cards
-            PermissionCard(
-                permission: .fullDiskAccess,
-                title: "Full Disk Access",
-                description: "Required to scan all files and folders on your Mac for complete system analysis.",
-                icon: "externaldrive.fill",
-                isCritical: true,
-                status: permissionManager.permissionStatuses[.fullDiskAccess] ?? .notDetermined
-            ) {
-                _ = permissionManager.requestFullDiskAccess()
-            }
-            .fadeInSlideUp(delay: 0.1)
-
-            PermissionCard(
-                permission: .accessibility,
-                title: "Accessibility",
-                description: "Enables enhanced system monitoring and optimization features.",
-                icon: "hand.raised.fill",
-                isCritical: false,
-                status: permissionManager.permissionStatuses[.accessibility] ?? .notDetermined
-            ) {
-                _ = permissionManager.requestAccessibility()
-            }
-            .fadeInSlideUp(delay: 0.15)
-
-            PermissionCard(
-                permission: .notifications,
-                title: "Notifications",
-                description: "Receive alerts about scan results, system warnings, and updates.",
-                icon: "bell.fill",
-                isCritical: false,
-                status: permissionManager.permissionStatuses[.notifications] ?? .notDetermined
-            ) {
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-            }
-            .fadeInSlideUp(delay: 0.2)
         }
+        .padding(DesignTokens.Spacing.lg)
         .task {
             await permissionManager.checkAllPermissions()
         }
@@ -870,23 +669,70 @@ struct HelperSettingsContent: View {
     @State private var showError = false
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            // Status card
-            HelperStatusCard(
-                isInstalled: helperManager.isHelperInstalled,
-                isLoading: isInstalling || isUninstalling
-            )
-            .fadeInSlideUp(delay: 0.05)
+        PreferenceList {
+            // Status Section
+            PreferenceSection(header: "Helper Tool") {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    // Animated status icon
+                    ZStack {
+                        Circle()
+                            .fill(statusColor.opacity(0.15))
+                            .frame(width: 44, height: 44)
 
-            // Features card
-            SettingsCard(title: "What You Can Do", icon: "sparkles") {
-                VStack(spacing: DesignTokens.Spacing.sm) {
+                        if isInstalling || isUninstalling {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                        } else {
+                            Image(systemName: helperManager.isHelperInstalled ? "checkmark.shield.fill" : "xmark.shield.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(statusColor)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                        Text(isInstalling || isUninstalling ? "Processing..." : (helperManager.isHelperInstalled ? "Installed & Ready" : "Not Installed"))
+                            .font(DesignTokens.Typography.bodyMedium)
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        Text(helperManager.isHelperInstalled ? "All advanced features are available" : "Install to unlock advanced system features")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    // Status badge
+                    if !isInstalling && !isUninstalling {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 8, height: 8)
+
+                            Text(helperManager.isHelperInstalled ? "Active" : "Inactive")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .fontWeight(.medium)
+                                .foregroundColor(statusColor)
+                        }
+                    }
+                }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+            }
+
+            // Features Section
+            PreferenceSection(header: "Capabilities") {
+                VStack(spacing: 0) {
                     SettingsHelperFeatureRow(
                         icon: "bolt.fill",
                         title: "System Optimization",
                         description: "Flush DNS cache, clear RAM, and rebuild system services",
                         color: TonicColors.warning
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     SettingsHelperFeatureRow(
                         icon: "trash.fill",
@@ -894,6 +740,11 @@ struct HelperSettingsContent: View {
                         description: "Remove system-level cache and temporary files",
                         color: TonicColors.error
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     SettingsHelperFeatureRow(
                         icon: "eye.fill",
@@ -901,6 +752,11 @@ struct HelperSettingsContent: View {
                         description: "Access and analyze hidden system directories",
                         color: TonicColors.accent
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     SettingsHelperFeatureRow(
                         icon: "shield.fill",
@@ -908,21 +764,76 @@ struct HelperSettingsContent: View {
                         description: "All operations run with minimal required privileges",
                         color: TonicColors.success
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
                 }
             }
-            .fadeInSlideUp(delay: 0.1)
 
-            // Action buttons
-            HelperActionButtons(
-                isInstalled: helperManager.isHelperInstalled,
-                isInstalling: isInstalling,
-                isUninstalling: isUninstalling,
-                onInstall: { Task { await installHelper() } },
-                onReinstall: { Task { await reinstallHelper() } },
-                onUninstall: { Task { await uninstallHelper() } }
-            )
-            .fadeInSlideUp(delay: 0.15)
+            // Action Section
+            PreferenceSection(header: "Actions") {
+                VStack(spacing: DesignTokens.Spacing.xs) {
+                    if !helperManager.isHelperInstalled {
+                        Button {
+                            Task { await installHelper() }
+                        } label: {
+                            HStack(spacing: DesignTokens.Spacing.xs) {
+                                if isInstalling {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "plus.circle.fill")
+                                }
+                                Text(isInstalling ? "Installing..." : "Install Helper Tool")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DesignTokens.Spacing.sm)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isInstalling)
+                    } else {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Button {
+                                Task { await reinstallHelper() }
+                            } label: {
+                                HStack(spacing: DesignTokens.Spacing.xxs) {
+                                    if isInstalling {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                    }
+                                    Text(isInstalling ? "Reinstalling..." : "Reinstall")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isInstalling || isUninstalling)
+
+                            Button {
+                                Task { await uninstallHelper() }
+                            } label: {
+                                HStack(spacing: DesignTokens.Spacing.xxs) {
+                                    if isUninstalling {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    } else {
+                                        Image(systemName: "trash")
+                                    }
+                                    Text(isUninstalling ? "Removing..." : "Uninstall")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(DesignTokens.Colors.destructive)
+                            .disabled(isInstalling || isUninstalling)
+                        }
+                    }
+                }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+            }
         }
+        .padding(DesignTokens.Spacing.lg)
         .task {
             _ = helperManager.checkInstallationStatus()
         }
@@ -933,6 +844,11 @@ struct HelperSettingsContent: View {
                 Text(error)
             }
         }
+    }
+
+    private var statusColor: Color {
+        if isInstalling || isUninstalling { return DesignTokens.Colors.textTertiary }
+        return helperManager.isHelperInstalled ? DesignTokens.Colors.success : DesignTokens.Colors.destructive
     }
 
     private func installHelper() async {
@@ -968,81 +884,6 @@ struct HelperSettingsContent: View {
             showError = true
         }
         isUninstalling = false
-    }
-}
-
-// MARK: - Helper Status Card
-
-struct HelperStatusCard: View {
-    let isInstalled: Bool
-    let isLoading: Bool
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            // Animated status icon
-            ZStack {
-                Circle()
-                    .fill(statusColor.opacity(0.15))
-                    .frame(width: 56, height: 56)
-
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                } else {
-                    Image(systemName: isInstalled ? "checkmark.shield.fill" : "xmark.shield.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(statusColor)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text("Helper Tool Status")
-                    .font(DesignTokens.Typography.captionLarge)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                Text(isLoading ? "Processing..." : (isInstalled ? "Installed & Ready" : "Not Installed"))
-                    .font(DesignTokens.Typography.headlineSmall)
-                    .foregroundColor(DesignTokens.Colors.text)
-
-                Text(isInstalled ? "All advanced features are available" : "Install to unlock advanced system features")
-                    .font(DesignTokens.Typography.captionMedium)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            // Status badge
-            if !isLoading {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 10, height: 10)
-
-                    Text(isInstalled ? "Active" : "Inactive")
-                        .font(DesignTokens.Typography.captionMedium)
-                        .fontWeight(.medium)
-                        .foregroundColor(statusColor)
-                }
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.vertical, DesignTokens.Spacing.xs)
-                .background(statusColor.opacity(0.15))
-                .cornerRadius(DesignTokens.CornerRadius.round)
-            }
-        }
-        .padding(DesignTokens.Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
-                .fill(DesignTokens.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
-                .stroke(statusColor.opacity(0.3), lineWidth: 1)
-        )
-    }
-
-    private var statusColor: Color {
-        if isLoading { return DesignTokens.Colors.textTertiary }
-        return isInstalled ? TonicColors.success : TonicColors.error
     }
 }
 
@@ -1082,75 +923,6 @@ struct SettingsHelperFeatureRow: View {
     }
 }
 
-// MARK: - Helper Action Buttons
-
-struct HelperActionButtons: View {
-    let isInstalled: Bool
-    let isInstalling: Bool
-    let isUninstalling: Bool
-    let onInstall: () -> Void
-    let onReinstall: () -> Void
-    let onUninstall: () -> Void
-
-    var body: some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            if !isInstalled {
-                Button(action: onInstall) {
-                    HStack(spacing: DesignTokens.Spacing.xs) {
-                        if isInstalling {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "plus.circle.fill")
-                        }
-                        Text(isInstalling ? "Installing..." : "Install Helper Tool")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(isInstalling)
-            } else {
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    Button(action: onReinstall) {
-                        HStack(spacing: DesignTokens.Spacing.xxs) {
-                            if isInstalling {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            Text(isInstalling ? "Reinstalling..." : "Reinstall")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isInstalling || isUninstalling)
-
-                    Button(action: onUninstall) {
-                        HStack(spacing: DesignTokens.Spacing.xxs) {
-                            if isUninstalling {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(systemName: "trash")
-                            }
-                            Text(isUninstalling ? "Removing..." : "Uninstall")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(TonicColors.error)
-                    .disabled(isInstalling || isUninstalling)
-                }
-            }
-        }
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
-        .cornerRadius(DesignTokens.CornerRadius.large)
-    }
-}
 
 // MARK: - Updates Settings Content
 
@@ -1161,100 +933,87 @@ struct UpdatesSettingsContent: View {
     @State private var lastChecked: Date? = nil
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            // Current version card
-            HStack(spacing: DesignTokens.Spacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(.linearGradient(
-                            colors: [TonicColors.accent, TonicColors.accent.opacity(0.6)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 56, height: 56)
+        PreferenceList {
+            // Version Status Section
+            PreferenceSection(header: "Version") {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    ZStack {
+                        Circle()
+                            .fill(DesignTokens.Colors.success.opacity(0.15))
+                            .frame(width: 44, height: 44)
 
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.white)
-                }
-
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text("Tonic is Up to Date")
-                        .font(DesignTokens.Typography.headlineSmall)
-                        .foregroundColor(DesignTokens.Colors.text)
-
-                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") (Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
-                        .font(DesignTokens.Typography.bodySmall)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                    if let lastChecked = lastChecked {
-                        Text("Last checked: \(lastChecked, style: .relative) ago")
-                            .font(DesignTokens.Typography.captionSmall)
-                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(DesignTokens.Colors.success)
                     }
-                }
 
-                Spacer()
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                        Text("Tonic is Up to Date")
+                            .font(DesignTokens.Typography.bodyMedium)
+                            .foregroundColor(DesignTokens.Colors.text)
 
-                Button {
-                    checkForUpdates()
-                } label: {
-                    HStack(spacing: DesignTokens.Spacing.xxs) {
-                        if isCheckingForUpdates {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
+                        Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                        if let lastChecked = lastChecked {
+                            Text("Last checked: \(lastChecked, style: .relative) ago")
+                                .font(DesignTokens.Typography.captionSmall)
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
-                        Text(isCheckingForUpdates ? "Checking..." : "Check Now")
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isCheckingForUpdates)
-            }
-            .padding(DesignTokens.Spacing.lg)
-            .background(DesignTokens.Colors.surface)
-            .cornerRadius(DesignTokens.CornerRadius.large)
-            .fadeInSlideUp(delay: 0.05)
 
-            // Update preferences card
-            SettingsCard(title: "Update Preferences", icon: "gearshape.fill") {
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    SettingsRow(
-                        title: "Automatic Updates",
-                        subtitle: "Check for updates automatically in the background",
-                        icon: "arrow.triangle.2.circlepath",
-                        iconColor: TonicColors.accent
-                    ) {
-                        Toggle("", isOn: $automaticallyChecksForUpdates)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                            .onChange(of: automaticallyChecksForUpdates) { _, newValue in
-                                #if canImport(Sparkle)
-                                SparkleUpdater.shared.automaticallyChecksForUpdates = newValue
-                                #endif
+                    Spacer()
+
+                    Button {
+                        checkForUpdates()
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.xxs) {
+                            if isCheckingForUpdates {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
                             }
+                            Text(isCheckingForUpdates ? "Checking..." : "Check Now")
+                        }
+                        .font(DesignTokens.Typography.bodySmall)
                     }
-
-                    Divider()
-                        .padding(.vertical, DesignTokens.Spacing.xxs)
-
-                    SettingsRow(
-                        title: "Beta Updates",
-                        subtitle: "Include pre-release versions (may be unstable)",
-                        icon: "flask.fill",
-                        iconColor: TonicColors.warning
-                    ) {
-                        Toggle("", isOn: $allowBetaUpdates)
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isCheckingForUpdates)
                 }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
             }
-            .fadeInSlideUp(delay: 0.1)
 
-            // Release notes card
-            SettingsCard(title: "What's New", icon: "doc.text.fill") {
+            // Update Preferences Section
+            PreferenceSection(header: "Preferences") {
+                PreferenceToggleRow(
+                    title: "Automatic Updates",
+                    subtitle: "Check for updates automatically in the background",
+                    icon: "arrow.triangle.2.circlepath",
+                    showDivider: true,
+                    isOn: $automaticallyChecksForUpdates
+                )
+                .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                    #if canImport(Sparkle)
+                    SparkleUpdater.shared.automaticallyChecksForUpdates = newValue
+                    #endif
+                }
+
+                PreferenceToggleRow(
+                    title: "Beta Updates",
+                    subtitle: "Include pre-release versions (may be unstable)",
+                    icon: "flask.fill",
+                    iconColor: DesignTokens.Colors.warning,
+                    showDivider: false,
+                    isOn: $allowBetaUpdates
+                )
+            }
+
+            // Release Notes Section
+            PreferenceSection(header: "Release Notes") {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                     ReleaseNoteItem(
                         version: "0.1.0",
@@ -1262,9 +1021,11 @@ struct UpdatesSettingsContent: View {
                         description: "Smart scan, deep clean, system monitoring, and menu bar widgets."
                     )
                 }
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.Spacing.md)
             }
-            .fadeInSlideUp(delay: 0.15)
         }
+        .padding(DesignTokens.Spacing.lg)
         .onAppear {
             #if canImport(Sparkle)
             automaticallyChecksForUpdates = SparkleUpdater.shared.automaticallyChecksForUpdates
@@ -1317,66 +1078,79 @@ struct ReleaseNoteItem: View {
 
 struct AboutSettingsContent: View {
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            // App hero card
-            VStack(spacing: DesignTokens.Spacing.md) {
-                // App icon with gradient
-                ZStack {
-                    Circle()
-                        .fill(.linearGradient(
-                            colors: [TonicColors.accent, TonicColors.pro],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 80, height: 80)
-                        .shadow(color: TonicColors.accent.opacity(0.4), radius: 12, x: 0, y: 4)
+        PreferenceList {
+            // App Info Section
+            PreferenceSection(header: "About") {
+                VStack(spacing: DesignTokens.Spacing.md) {
+                    // App icon with gradient
+                    ZStack {
+                        Circle()
+                            .fill(.linearGradient(
+                                colors: [TonicColors.accent, TonicColors.pro],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 64, height: 64)
 
-                    Image(systemName: "drop.fill")
-                        .font(.system(size: 36, weight: .medium))
-                        .foregroundColor(.white)
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(spacing: DesignTokens.Spacing.xxxs) {
+                        Text("Tonic")
+                            .font(DesignTokens.Typography.headlineLarge)
+                            .foregroundColor(DesignTokens.Colors.text)
+
+                        Text("A modern macOS system management utility")
+                            .font(DesignTokens.Typography.captionMedium)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    // Version info
+                    HStack(spacing: DesignTokens.Spacing.md) {
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                            Text("Version")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
+                                .font(DesignTokens.Typography.bodyMedium)
+                                .foregroundColor(DesignTokens.Colors.text)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                            Text("Build")
+                                .font(DesignTokens.Typography.captionMedium)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")
+                                .font(DesignTokens.Typography.bodyMedium)
+                                .foregroundColor(DesignTokens.Colors.text)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.top, DesignTokens.Spacing.sm)
                 }
-                .scaleIn()
-
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    Text("Tonic")
-                        .font(DesignTokens.Typography.displaySmall)
-                        .foregroundColor(DesignTokens.Colors.text)
-
-                    Text("A modern macOS system management utility")
-                        .font(DesignTokens.Typography.bodyMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                // Version badge
-                HStack(spacing: DesignTokens.Spacing.xs) {
-                    Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
-                        .font(DesignTokens.Typography.captionMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                    Text("•")
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
-
-                    Text("Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")")
-                        .font(DesignTokens.Typography.captionMedium)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                }
+                .padding(.vertical, DesignTokens.Spacing.md)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .frame(maxWidth: .infinity)
             }
-            .padding(DesignTokens.Spacing.xl)
-            .frame(maxWidth: .infinity)
-            .background(DesignTokens.Colors.surface)
-            .cornerRadius(DesignTokens.CornerRadius.large)
-            .fadeInSlideUp(delay: 0.05)
 
-            // Links card
-            SettingsCard(title: "Resources", icon: "link") {
-                VStack(spacing: DesignTokens.Spacing.xs) {
+            // Resources Section
+            PreferenceSection(header: "Resources") {
+                VStack(spacing: 0) {
                     AboutLinkRow(
                         title: "Website",
                         subtitle: "Visit the Tonic homepage",
                         icon: "globe",
                         url: "https://github.com/Saransh-Sharma/PreTonic"
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     AboutLinkRow(
                         title: "Report an Issue",
@@ -1384,6 +1158,11 @@ struct AboutSettingsContent: View {
                         icon: "exclamationmark.bubble.fill",
                         url: "https://github.com/Saransh-Sharma/PreTonic/issues"
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     AboutLinkRow(
                         title: "License",
@@ -1391,28 +1170,31 @@ struct AboutSettingsContent: View {
                         icon: "doc.text.fill",
                         url: "https://github.com/Saransh-Sharma/PreTonic/blob/main/LICENSE"
                     )
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
                 }
             }
-            .fadeInSlideUp(delay: 0.1)
 
-            // Credits card
-            SettingsCard(title: "Made With", icon: "heart.fill") {
+            // Technologies Section
+            PreferenceSection(header: "Built With") {
                 HStack(spacing: DesignTokens.Spacing.lg) {
                     TechBadge(name: "Swift", icon: "swift", color: Color.orange)
                     TechBadge(name: "SwiftUI", icon: "rectangle.stack.fill", color: TonicColors.accent)
                     TechBadge(name: "macOS", icon: "apple.logo", color: DesignTokens.Colors.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignTokens.Spacing.md)
+                .padding(.horizontal, DesignTokens.Spacing.md)
             }
-            .fadeInSlideUp(delay: 0.15)
 
             // Copyright
-            Text("© 2024 Tonic. All rights reserved.")
-                .font(DesignTokens.Typography.captionSmall)
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-                .padding(.top, DesignTokens.Spacing.sm)
-                .fadeIn(delay: 0.2)
+            VStack {
+                Text("© 2024 Tonic. All rights reserved.")
+                    .font(DesignTokens.Typography.captionSmall)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+            }
         }
+        .padding(DesignTokens.Spacing.lg)
     }
 }
 

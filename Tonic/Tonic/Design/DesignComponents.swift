@@ -1137,6 +1137,125 @@ struct PreferenceStatusRow: View {
     }
 }
 
+// MARK: - PermissionStatusRow
+
+/// A preference row for displaying permission status with grant button.
+struct PermissionStatusRow: View {
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let status: PermissionStatus
+    let iconColor: Color?
+    let showDivider: Bool
+    let onGrantTapped: (() -> Void)?
+
+    /// Initialize a permission status row
+    /// - Parameters:
+    ///   - title: The permission name
+    ///   - subtitle: Description of what the permission enables
+    ///   - icon: SF Symbol name for the icon
+    ///   - status: The current permission status
+    ///   - iconColor: Color for the icon (defaults to status color)
+    ///   - showDivider: Whether to show a divider below
+    ///   - onGrantTapped: Optional callback when Grant button is tapped
+    init(
+        title: String,
+        subtitle: String? = nil,
+        icon: String? = nil,
+        status: PermissionStatus,
+        iconColor: Color? = nil,
+        showDivider: Bool = true,
+        onGrantTapped: (() -> Void)? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.icon = icon
+        self.status = status
+        self.iconColor = iconColor
+        self.showDivider = showDivider
+        self.onGrantTapped = onGrantTapped
+    }
+
+    private var computedIconColor: Color {
+        iconColor ?? statusColor
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                // Optional icon
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(computedIconColor)
+                        .frame(width: 24, alignment: .center)
+                }
+
+                // Label stack
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                    Text(title)
+                        .font(DesignTokens.Typography.body)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+                }
+
+                Spacer()
+
+                // Status badge and button
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
+
+                        Text(statusLabel)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(statusColor)
+                    }
+
+                    if status != .authorized {
+                        Button("Grant") {
+                            onGrantTapped?()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(statusColor)
+                    }
+                }
+            }
+            .padding(.vertical, DesignTokens.Spacing.sm)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+
+            // Divider
+            if showDivider {
+                Divider()
+                    .padding(.leading, icon != nil ? DesignTokens.Spacing.md + 24 + DesignTokens.Spacing.sm : DesignTokens.Spacing.md)
+            }
+        }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .authorized: return DesignTokens.Colors.success
+        case .denied: return DesignTokens.Colors.destructive
+        case .notDetermined: return DesignTokens.Colors.textTertiary
+        }
+    }
+
+    private var statusLabel: String {
+        switch status {
+        case .authorized: return "Granted"
+        case .denied: return "Denied"
+        case .notDetermined: return "Not Set"
+        }
+    }
+}
+
 // MARK: - PreferenceList Previews
 
 #if DEBUG
