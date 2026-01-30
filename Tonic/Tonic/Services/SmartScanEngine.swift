@@ -18,6 +18,10 @@ final class SmartScanEngine: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let lock = NSLock()
 
+    private let categoryScanner = ScanCategoryScanner()
+    private let healthScoreCalculator = HealthScoreCalculator()
+    private let recommendationGenerator = RecommendationGenerator()
+
     private var _currentStage: ScanStage = .preparing
     private var _scanData: ScanData = .init()
 
@@ -28,6 +32,10 @@ final class SmartScanEngine: @unchecked Sendable {
 
     private struct ScanData {
         var diskUsage: DiskUsageSummary?
+        var junkFiles: JunkCategory?
+        var performanceIssues: PerformanceCategory?
+        var appIssues: AppIssueCategory?
+        var privacyIssues: PrivacyCategory?
         var recommendations: [ScanRecommendation] = []
         var stageProgress: Double = 0
     }
@@ -88,52 +96,22 @@ final class SmartScanEngine: @unchecked Sendable {
     private func runDiskScanStage() async -> Double {
         logger.info("Running disk scan stage")
 
-        let homePath = fileManager.homeDirectoryForCurrentUser.path
-        var cacheSize: Int64 = 0
-        var logSize: Int64 = 0
-        var tempSize: Int64 = 0
+        // Scan junk files using category scanner
+        let junkFiles = await categoryScanner.scanJunkFiles()
+        lock.locked { _scanData.junkFiles = junkFiles }
 
-        // Scan cache directories
-        let cachePaths = getCacheDirectories()
-        for path in cachePaths {
-            let size = await measureDirectorySize(path)
-            cacheSize += size
-        }
-
-        // Scan log directories
-        let logPaths = getLogDirectories()
-        for path in logPaths {
-            let size = await measureDirectorySize(path)
-            logSize += size
-        }
-
-        // Scan temp directories
-        let tempPaths = getTempDirectories()
-        for path in tempPaths {
-            let size = await measureDirectorySize(path)
-            tempSize += size
-        }
-
-        // Scan home directory
-        let homeSize = await measureDirectorySize(homePath)
-
-        // Update disk usage
+        // Update disk usage with junk file totals
         if var existing = _scanData.diskUsage {
             _scanData.diskUsage = DiskUsageSummary(
                 totalSpace: existing.totalSpace,
                 usedSpace: existing.usedSpace,
                 freeSpace: existing.freeSpace,
-                homeDirectorySize: homeSize,
-                cacheSize: cacheSize,
-                logSize: logSize,
-                tempSize: tempSize
+                homeDirectorySize: 0,
+                cacheSize: junkFiles.cacheFiles.size,
+                logSize: junkFiles.logFiles.size,
+                tempSize: junkFiles.tempFiles.size
             )
         }
-
-        // Add recommendations
-        addRecommendationsForCache(cacheSize)
-        addRecommendationsForLogs(logSize)
-        addRecommendationsForTemp(tempSize)
 
         let baseProgress = ScanStage.preparing.progressWeight
         return baseProgress + ScanStage.scanningDisk.progressWeight
@@ -144,14 +122,9 @@ final class SmartScanEngine: @unchecked Sendable {
     private func runAppCheckStage() async -> Double {
         logger.info("Running app check stage")
 
-        // Check for unused apps
-        await checkUnusedApps()
-
-        // Check for old app versions
-        await checkOldAppVersions()
-
-        // Check for app support debris
-        await checkAppSupportDebris()
+        // Scan app issues using category scanner
+        let appIssues = await categoryScanner.scanAppIssues()
+        lock.locked { _scanData.appIssues = appIssues }
 
         let baseProgress = ScanStage.preparing.progressWeight + ScanStage.scanningDisk.progressWeight
         return baseProgress + ScanStage.checkingApps.progressWeight
@@ -162,17 +135,13 @@ final class SmartScanEngine: @unchecked Sendable {
     private func runSystemAnalysisStage() async -> Double {
         logger.info("Running system analysis stage")
 
-        // Check for hidden space (symlinked directories, etc.)
-        await checkHiddenSpace()
+        // Scan performance issues using category scanner
+        let performanceIssues = await categoryScanner.scanPerformanceIssues()
+        lock.locked { _scanData.performanceIssues = performanceIssues }
 
-        // Check for large files
-        await checkLargeFiles()
-
-        // Check for development artifacts
-        await checkDevelopmentArtifacts()
-
-        // Analyze overall system health
-        calculateSystemHealthScore()
+        // Scan privacy issues using category scanner
+        let privacyIssues = await categoryScanner.scanPrivacyIssues()
+        lock.locked { _scanData.privacyIssues = privacyIssues }
 
         let baseProgress = ScanStage.preparing.progressWeight +
                           ScanStage.scanningDisk.progressWeight +
@@ -185,23 +154,97 @@ final class SmartScanEngine: @unchecked Sendable {
     func finalizeScan() async -> SmartScanResult {
         let startTime = Date()
 
-        let recommendations = lock.locked { _scanData.recommendations }
-        let diskUsage = lock.locked { _scanData.diskUsage }
-
-        let totalSpace = recommendations.reduce(0) { $0 + $1.spaceToReclaim }
-        let healthScore = calculateHealthScore(diskUsage: diskUsage, recommendations: recommendations)
-
+        let scanResult = await generateComprehensiveScanResult()
         let duration = Date().timeIntervalSince(startTime)
 
-        logger.info("Scan completed in \(duration)s with \(recommendations.count) recommendations")
+        logger.info("Scan completed in \(duration)s")
+
+        // Convert to SmartScanResult for backward compatibility
+        let recommendations = recommendationGenerator.generateRecommendations(from: scanResult)
+        let totalSpace = scanResult.totalReclaimableSpace
 
         return SmartScanResult(
             timestamp: Date(),
             scanDuration: duration,
-            diskUsage: diskUsage ?? createDefaultDiskUsage(),
+            diskUsage: lock.locked { _scanData.diskUsage } ?? createDefaultDiskUsage(),
             recommendations: recommendations,
             totalSpaceToReclaim: totalSpace,
-            systemHealthScore: healthScore
+            systemHealthScore: scanResult.healthScore
+        )
+    }
+
+    // Generate comprehensive ScanResult using new category scanner
+    private func generateComprehensiveScanResult() async -> ScanResult {
+        let diskUsage = lock.locked { _scanData.diskUsage } ?? createDefaultDiskUsage()
+
+        // Get scan categories
+        let junkFiles = lock.locked { _scanData.junkFiles } ?? JunkCategory(
+            tempFiles: FileGroup(name: "Temp", description: ""),
+            cacheFiles: FileGroup(name: "Cache", description: ""),
+            logFiles: FileGroup(name: "Logs", description: ""),
+            trashItems: FileGroup(name: "Trash", description: ""),
+            languageFiles: FileGroup(name: "Languages", description: ""),
+            oldFiles: FileGroup(name: "Old", description: "")
+        )
+
+        let performanceIssues = lock.locked { _scanData.performanceIssues } ?? PerformanceCategory(
+            launchAgents: FileGroup(name: "Launch Agents", description: ""),
+            loginItems: FileGroup(name: "Login Items", description: ""),
+            browserCaches: FileGroup(name: "Browser Cache", description: ""),
+            memoryIssues: [],
+            diskFragmentation: nil
+        )
+
+        let appIssues = lock.locked { _scanData.appIssues } ?? AppIssueCategory(
+            unusedApps: [],
+            largeApps: [],
+            duplicateApps: [],
+            orphanedFiles: []
+        )
+
+        let privacyIssues = lock.locked { _scanData.privacyIssues } ?? PrivacyCategory(
+            browserHistory: FileGroup(name: "Browser History", description: ""),
+            downloadHistory: FileGroup(name: "Downloads", description: ""),
+            recentDocuments: FileGroup(name: "Recent", description: ""),
+            clipboardData: FileGroup(name: "Clipboard", description: "")
+        )
+
+        // Calculate health score using new comprehensive calculator
+        let healthScore = healthScoreCalculator.calculateScore(
+            diskUsage: diskUsage,
+            junkFiles: junkFiles,
+            performanceIssues: performanceIssues,
+            appIssues: appIssues,
+            privacyIssues: privacyIssues
+        )
+
+        // Calculate total reclaimable space from all categories
+        let unusedAppsSize = appIssues.unusedApps.reduce(Int64(0)) { $0 + $1.totalSize }
+        let largeAppsSize = appIssues.largeApps.reduce(Int64(0)) { $0 + $1.totalSize }
+        let duplicateAppsSize = appIssues.duplicateApps.reduce(Int64(0)) { $0 + $1.totalSize }
+        let orphanedFilesSize = appIssues.orphanedFiles.reduce(Int64(0)) { $0 + $1.size }
+
+        let totalReclaimableSpace = junkFiles.totalSize +
+                                   performanceIssues.browserCaches.size +
+                                   performanceIssues.launchAgents.size +
+                                   performanceIssues.loginItems.size +
+                                   unusedAppsSize +
+                                   largeAppsSize +
+                                   duplicateAppsSize +
+                                   orphanedFilesSize +
+                                   privacyIssues.browserHistory.size +
+                                   privacyIssues.downloadHistory.size +
+                                   privacyIssues.recentDocuments.size
+
+        return ScanResult(
+            id: UUID(),
+            timestamp: Date(),
+            healthScore: healthScore,
+            junkFiles: junkFiles,
+            performanceIssues: performanceIssues,
+            appIssues: appIssues,
+            privacyIssues: privacyIssues,
+            totalReclaimableSpace: totalReclaimableSpace
         )
     }
 
@@ -254,365 +297,7 @@ final class SmartScanEngine: @unchecked Sendable {
         return (Int64(total), Int64(total - free), Int64(free))
     }
 
-    private func getCacheDirectories() -> [String] {
-        var paths: [String] = []
 
-        let home = fileManager.homeDirectoryForCurrentUser.path
-
-        // User cache
-        paths.append(home + "/Library/Caches")
-
-        // Browser caches
-        paths.append(home + "/Library/Caches/com.apple.Safari")
-        paths.append(home + "/Library/Caches/Google/Chrome")
-        paths.append(home + "/Library/Caches/Mozilla/Firefox")
-
-        // Xcode cache
-        paths.append(home + "/Library/Developer/Xcode/DerivedData")
-
-        // CocoaPods cache
-        paths.append(home + "/Library/Caches/CocoaPods")
-
-        return paths.filter { fileManager.fileExists(atPath: $0) }
-    }
-
-    private func getLogDirectories() -> [String] {
-        var paths: [String] = []
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-
-        // User logs
-        paths.append(home + "/Library/Logs")
-
-        // System logs (may not have access)
-        paths.append("/Library/Logs")
-
-        // Console logs
-        paths.append(home + "/Library/Logs/DiagnosticReports")
-
-        return paths.filter { fileManager.fileExists(atPath: $0) }
-    }
-
-    private func getTempDirectories() -> [String] {
-        var paths: [String] = []
-
-        // System temp
-        if let tempDir = (NSTemporaryDirectory() as NSString).deletingLastPathComponent as String? {
-            paths.append(tempDir)
-        }
-
-        // User temp
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        paths.append(home + "/Library/Caches/temp")
-
-        return paths.filter { fileManager.fileExists(atPath: $0) }
-    }
-
-    private func measureDirectorySize(_ path: String) async -> Int64 {
-        var totalSize: Int64 = 0
-
-        guard let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.fileSizeKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return 0
-        }
-
-        for case let url as URL in enumerator {
-            if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]) {
-                totalSize += Int64(resourceValues.fileSize ?? 0)
-            }
-        }
-
-        return totalSize
-    }
-
-    // MARK: - Recommendation Builders
-
-    private func addRecommendationsForCache(_ size: Int64) {
-        guard size > 50 * 1024 * 1024 else { return } // Only if > 50MB
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let paths = getCacheDirectories()
-
-        let recommendation = ScanRecommendation(
-            type: .cache,
-            title: "Application Cache",
-            description: "Cached data from applications. Safe to clear but may cause apps to rebuild cache.",
-            actionable: true,
-            safeToFix: true,
-            spaceToReclaim: size,
-            affectedPaths: paths
-        )
-
-        lock.locked { _scanData.recommendations.append(recommendation) }
-    }
-
-    private func addRecommendationsForLogs(_ size: Int64) {
-        guard size > 10 * 1024 * 1024 else { return } // Only if > 10MB
-
-        let paths = getLogDirectories()
-
-        let recommendation = ScanRecommendation(
-            type: .logs,
-            title: "System & App Logs",
-            description: "Log files from applications and the system. Old logs can be safely removed.",
-            actionable: true,
-            safeToFix: true,
-            spaceToReclaim: size,
-            affectedPaths: paths
-        )
-
-        lock.locked { _scanData.recommendations.append(recommendation) }
-    }
-
-    private func addRecommendationsForTemp(_ size: Int64) {
-        guard size > 10 * 1024 * 1024 else { return } // Only if > 10MB
-
-        let paths = getTempDirectories()
-
-        let recommendation = ScanRecommendation(
-            type: .tempFiles,
-            title: "Temporary Files",
-            description: "Temporary files created during app usage. Safe to delete.",
-            actionable: true,
-            safeToFix: true,
-            spaceToReclaim: size,
-            affectedPaths: paths
-        )
-
-        lock.locked { _scanData.recommendations.append(recommendation) }
-    }
-
-    // MARK: - App Checks
-
-    private func checkUnusedApps() async {
-        // This would integrate with AppInventoryView data
-        // For now, we'll add a placeholder
-    }
-
-    private func checkOldAppVersions() async {
-        // Check for duplicate app versions
-        let appPaths = [
-            "/Applications",
-            FileManager.default.homeDirectoryForCurrentUser.path + "/Applications"
-        ]
-
-        var foundApps: [String: [URL]] = [:]
-
-        for appPath in appPaths {
-            guard let apps = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: appPath),
-                includingPropertiesForKeys: nil
-            ) else { continue }
-
-            for app in apps where app.pathExtension == "app" {
-                let appName = app.deletingPathExtension().lastPathComponent
-                foundApps[appName, default: []].append(app)
-            }
-        }
-
-        // Find duplicates
-        for (appName, paths) in foundApps where paths.count > 1 {
-            let totalSize = await paths.asyncReduce(0) { total, url in
-                return total + (getFileSize(url.path) ?? 0)
-            }
-
-            let recommendation = ScanRecommendation(
-                type: .oldApps,
-                title: "Duplicate App: \(appName)",
-                description: "Found \(paths.count) copies of this app. Consider removing old versions.",
-                actionable: true,
-                safeToFix: false, // Let user decide
-                spaceToReclaim: totalSize,
-                affectedPaths: paths.map { $0.path }
-            )
-
-            lock.locked { _scanData.recommendations.append(recommendation) }
-        }
-    }
-
-    private func checkAppSupportDebris() async {
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let appSupportPath = home + "/Library/Application Support"
-
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: appSupportPath),
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) else { return }
-
-        var debrisPaths: [String] = []
-        var debrisSize: Int64 = 0
-
-        for item in contents {
-            let path = item.path
-            let appName = (path as NSString).lastPathComponent
-
-            // Check if corresponding app exists
-            let appExists = isAppInstalled(appName)
-
-            if !appExists {
-                if let size = await measureDirectorySize(path) as Int64?, size > 5 * 1024 * 1024 {
-                    debrisPaths.append(path)
-                    debrisSize += size
-                }
-            }
-        }
-
-        if !debrisPaths.isEmpty {
-            let recommendation = ScanRecommendation(
-                type: .oldApps,
-                title: "Orphaned App Support Files",
-                description: "Found \(debrisPaths.count) app support directories for uninstalled apps.",
-                actionable: true,
-                safeToFix: true,
-                spaceToReclaim: debrisSize,
-                affectedPaths: debrisPaths
-            )
-
-            lock.locked { _scanData.recommendations.append(recommendation) }
-        }
-    }
-
-    // MARK: - System Analysis
-
-    private func checkHiddenSpace() async {
-        // Check for common hidden space hogs
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        var hiddenItems: [(path: String, size: Int64)] = []
-
-        let hiddenPathsToCheck = [
-            home + "/.Trash",
-            home + "/npm",
-            home + "/.npm",
-            home + "/.gradle",
-            home + "/.cargo",
-            home + "/.rustup",
-            home + "/.docker"
-        ]
-
-        for path in hiddenPathsToCheck where fileManager.fileExists(atPath: path) {
-            let size = await measureDirectorySize(path)
-            if size > 10 * 1024 * 1024 { // > 10MB
-                hiddenItems.append((path, size))
-            }
-        }
-
-        if !hiddenItems.isEmpty {
-            let totalSize = hiddenItems.reduce(0) { $0 + $1.size }
-            let paths = hiddenItems.map { $0.path }
-
-            let recommendation = ScanRecommendation(
-                type: .hiddenSpace,
-                title: "Hidden Development Caches",
-                description: "Found \(hiddenItems.count) hidden directories taking up space.",
-                actionable: true,
-                safeToFix: false, // Require user review
-                spaceToReclaim: totalSize,
-                affectedPaths: paths
-            )
-
-            lock.locked { _scanData.recommendations.append(recommendation) }
-        }
-    }
-
-    private func checkLargeFiles() async {
-        // This uses the disk scanner's large file detection
-        // Results would be incorporated into recommendations
-    }
-
-    private func checkDevelopmentArtifacts() async {
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        var artifactPaths: [String] = []
-        var artifactSize: Int64 = 0
-
-        // Check for common build directories
-        let buildPatterns = [
-            "build",
-            "dist",
-            ".build",
-            "target",
-            "node_modules",
-            ".venv",
-            "venv"
-        ]
-
-        // Search in home directory
-        if let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: home),
-            includingPropertiesForKeys: [.isDirectoryKey, .nameKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let url as URL in enumerator {
-                let name = url.lastPathComponent
-
-                if buildPatterns.contains(name) {
-                    let size = await measureDirectorySize(url.path)
-                    if size > 50 * 1024 * 1024 { // > 50MB
-                        artifactPaths.append(url.path)
-                        artifactSize += size
-                        enumerator.skipDescendants()
-                    }
-                }
-            }
-        }
-
-        if !artifactPaths.isEmpty {
-            let recommendation = ScanRecommendation(
-                type: .hiddenSpace,
-                title: "Build Artifacts",
-                description: "Found \(artifactPaths.count) build directories that can be cleaned.",
-                actionable: true,
-                safeToFix: false,
-                spaceToReclaim: artifactSize,
-                affectedPaths: artifactPaths
-            )
-
-            lock.locked { _scanData.recommendations.append(recommendation) }
-        }
-    }
-
-    // MARK: - Health Score
-
-    private func calculateSystemHealthScore() {
-        // Score is calculated in finalizeScan
-    }
-
-    private func calculateHealthScore(diskUsage: DiskUsageSummary?, recommendations: [ScanRecommendation]) -> Int {
-        var score = 100
-
-        // Deduct for disk usage
-        if let usage = diskUsage {
-            let usedPercent = usage.usedPercentage
-
-            if usedPercent > 95 {
-                score -= 30
-            } else if usedPercent > 90 {
-                score -= 20
-            } else if usedPercent > 80 {
-                score -= 10
-            }
-        }
-
-        // Deduct for cache size
-        let cacheRecommendations = recommendations.filter { $0.type == .cache }
-        let totalCache = cacheRecommendations.reduce(0) { $0 + $1.spaceToReclaim }
-        if totalCache > 5 * 1024 * 1024 * 1024 { // > 5GB
-            score -= 15
-        } else if totalCache > 1 * 1024 * 1024 * 1024 { // > 1GB
-            score -= 5
-        }
-
-        // Deduct for orphaned files
-        let orphanedCount = recommendations.filter {
-            $0.type == .oldApps || $0.type == .tempFiles
-        }.count
-
-        score -= min(orphanedCount * 2, 10)
-
-        return max(score, 0)
-    }
 
     private func createDefaultDiskUsage() -> DiskUsageSummary {
         return DiskUsageSummary(
