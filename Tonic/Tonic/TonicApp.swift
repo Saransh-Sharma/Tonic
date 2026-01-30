@@ -10,12 +10,21 @@ import SwiftUI
 @main
 struct TonicApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var showCommandPalette = false
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(showCommandPalette: $showCommandPalette)
         }
         .commands {
+            // Command Palette
+            CommandMenu("Tools") {
+                Button("Command Palette") {
+                    showCommandPalette = true
+                }
+                .keyboardShortcut("k", modifiers: .command)
+            }
+
             // Replace default About menu item
             CommandGroup(replacing: .appInfo) {
                 Button("About Tonic") {

@@ -30,9 +30,8 @@ Create 3 Card variants and fix color styling.
 
 
 ## Done summary
-TBD
-
+Successfully improved the Card component with three semantic variants (Elevated, Flat, Inset) and fixed color styling to use DesignTokens for proper light/dark mode support. The component now works correctly in both light and dark modes without any hardcoded colors.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 630e8160155dd9d949c336da263d4dabe69a3633
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
