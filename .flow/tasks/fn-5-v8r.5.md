@@ -16,13 +16,18 @@ Create `Tonic/Tonic/Services/WidgetReader/DiskReader.swift`:
 - Read/write speeds
 
 ## Acceptance
-- [ ] NetworkReader returns bandwidth + connection type
-- [ ] DiskReader returns per-volume usage
-- [ ] Both async with proper error handling
-- [ ] 2s preferred interval
+- [x] NetworkReader returns bandwidth + connection type
+- [x] DiskReader returns per-volume usage
+- [x] Both async with proper error handling
+- [x] 2s preferred interval
 
 ## Done summary
 Implemented NetworkReader and DiskReader with Stats Master feature parity.
+
+## Evidence
+- Commits:
+- Tests:
+- PRs:
 
 ## References
 - Stats Master: `stats-master/Modules/Net/readers.swift:106-200`, `Modules/Disk/readers.swift`

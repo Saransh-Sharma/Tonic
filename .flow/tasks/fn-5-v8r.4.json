@@ -12,7 +12,7 @@
   "id": "fn-5-v8r.4",
   "priority": null,
   "spec_path": ".flow/tasks/fn-5-v8r.4.md",
-  "status": "todo",
+  "status": "done",
   "title": "CPU and Memory readers with Stats Master parity",
   "updated_at": "2026-01-30T20:13:05.492252Z"
 }

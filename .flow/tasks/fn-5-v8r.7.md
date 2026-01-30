@@ -36,14 +36,19 @@ enum ScalingMode {
 Data buffer: Circular buffer for history (matching Stats Master's pattern).
 
 ## Acceptance
-- [ ] Line chart renders data points as connected path
-- [ ] History buffer configurable 30-120 points
-- [ ] All scaling modes work correctly
-- [ ] Colors follow Tonic design tokens
-- [ ] Performance: 60 FPS with full history
+- [x] Line chart renders data points as connected path
+- [x] History buffer configurable 30-120 points
+- [x] All scaling modes work correctly
+- [x] Colors follow Tonic design tokens
+- [x] Performance: 60 FPS with full history
 
 ## Done summary
 Implemented Line Chart widget with configurable history buffer and scaling modes.
+
+## Evidence
+- Commits:
+- Tests:
+- PRs:
 
 ## References
 - Stats Master: `stats-master/Kit/Widgets/LineChart.swift`

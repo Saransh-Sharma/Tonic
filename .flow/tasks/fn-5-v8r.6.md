@@ -20,13 +20,18 @@ Create `Tonic/Tonic/Services/WidgetReader/SensorsReader.swift`:
 - Fan speeds via IOKit
 
 ## Acceptance
-- [ ] BatteryReader returns status + health info
-- [ ] GPUReader works on Apple Silicon
-- [ ] SensorsReader returns temp/fan data
-- [ ] All async with proper error handling
+- [x] BatteryReader returns status + health info
+- [x] GPUReader works on Apple Silicon
+- [x] SensorsReader returns temp/fan data
+- [x] All async with proper error handling
 
 ## Done summary
 Implemented BatteryReader, GPUReader, and SensorsReader with Stats Master feature parity.
+
+## Evidence
+- Commits:
+- Tests:
+- PRs:
 
 ## References
 - Stats Master: `stats-master/Kit/Widgets/Battery.swift`, `SMC/smc.swift`
