@@ -71,13 +71,13 @@ struct ActionTableColumn<Item: ActionTableItem>: Identifiable {
 enum ActionTableColumnWidth {
     case fixed(CGFloat)
     case flexible
-    case flexible(min: CGFloat, max: CGFloat)
+    case flexibleRange(min: CGFloat, max: CGFloat)
 
     var minWidth: CGFloat? {
         switch self {
         case .fixed(let width): return width
         case .flexible: return nil
-        case .flexible(let min, _): return min
+        case .flexibleRange(let min, _): return min
         }
     }
 
@@ -85,7 +85,7 @@ enum ActionTableColumnWidth {
         switch self {
         case .fixed(let width): return width
         case .flexible: return nil
-        case .flexible(_, let max): return max
+        case .flexibleRange(_, let max): return max
         }
     }
 }
@@ -264,9 +264,12 @@ struct ActionTable<Item: ActionTableItem, ContextMenu: View>: View {
                     activateFocused()
                     return .handled
                 }
-                .onKeyPress(keys: [KeyEquivalent("a")], modifiers: .command) { _ in
-                    selectAll()
-                    return .handled
+                .onKeyPress(characters: .alphanumerics, phases: .down) { press in
+                    if press.characters == "a" && press.modifiers.contains(.command) {
+                        selectAll()
+                        return .handled
+                    }
+                    return .ignored
                 }
             }
         }

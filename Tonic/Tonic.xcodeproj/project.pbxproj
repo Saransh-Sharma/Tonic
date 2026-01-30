@@ -94,6 +94,8 @@
 		LO003B3 /* LoginItemsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO003F3 /* LoginItemsManager.swift */; };
 		LO004B4 /* BackgroundActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO004F4 /* BackgroundActivityManager.swift */; };
 		MV001B1 /* MaintenanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MV001F1 /* MaintenanceView.swift */; };
+		AT001B1 /* ActionTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AT001F1 /* ActionTable.swift */; };
+		OV001B1 /* OutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = OV001F1 /* OutlineView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -185,6 +187,8 @@
 		LO003F3 /* LoginItemsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItemsManager.swift; sourceTree = "<group>"; };
 		LO004F4 /* BackgroundActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityManager.swift; sourceTree = "<group>"; };
 		MV001F1 /* MaintenanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceView.swift; sourceTree = "<group>"; };
+		AT001F1 /* ActionTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTable.swift; sourceTree = "<group>"; };
+		OV001F1 /* OutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -225,9 +229,11 @@
 		31C13F47AD87DD7BAA2D558A /* Design */ = {
 			isa = PBXGroup;
 			children = (
+				AT001F1 /* ActionTable.swift */,
 				031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */,
 				E45718B5A4D93C70D9E7AFAE /* DesignComponents.swift */,
 				C4B75FAB9C82CB697999304C /* DesignTokens.swift */,
+				OV001F1 /* OutlineView.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -532,6 +538,8 @@
 				LO003B3 /* LoginItemsManager.swift in Sources */,
 				LO004B4 /* BackgroundActivityManager.swift in Sources */,
 				MV001B1 /* MaintenanceView.swift in Sources */,
+				AT001B1 /* ActionTable.swift in Sources */,
+				OV001B1 /* OutlineView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

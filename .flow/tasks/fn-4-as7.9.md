@@ -69,9 +69,8 @@ Redesign DiskAnalysisView to use native table/outline views with default Large F
 
 
 ## Done summary
-TBD
-
+Redesigned DiskAnalysisView with segmented control for List/Treemap/Hybrid views. List view shows horizontal bar chart rows, Treemap uses squarified algorithm for proportional rectangles, and Hybrid combines both side-by-side. Added Reveal in Finder on all items and updated to DesignTokens styling throughout.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 9a00229cca1d2df3efa5bdccd299200500a38887
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
