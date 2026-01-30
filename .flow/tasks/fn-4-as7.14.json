@@ -1,0 +1,22 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T18:12:07.433232Z",
+  "depends_on": [
+    "fn-4-as7.7",
+    "fn-4-as7.8",
+    "fn-4-as7.9",
+    "fn-4-as7.10",
+    "fn-4-as7.11",
+    "fn-4-as7.12",
+    "fn-4-as7.13"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.14",
+  "priority": 14,
+  "spec_path": ".flow/tasks/fn-4-as7.14.md",
+  "status": "todo",
+  "title": "Accessibility audit and fixes",
+  "updated_at": "2026-01-29T18:12:07.433418Z"
+}

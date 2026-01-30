@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T18:11:39.377909Z",
+  "depends_on": [
+    "fn-4-as7.3",
+    "fn-4-as7.6"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.8",
+  "priority": 8,
+  "spec_path": ".flow/tasks/fn-4-as7.8.md",
+  "status": "todo",
+  "title": "Create unified Maintenance view with tabs",
+  "updated_at": "2026-01-29T18:11:39.378094Z"
+}

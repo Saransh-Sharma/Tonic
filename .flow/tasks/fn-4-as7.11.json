@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T18:11:51.427531Z",
+  "depends_on": [
+    "fn-4-as7.2",
+    "fn-4-as7.6"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.11",
+  "priority": 11,
+  "spec_path": ".flow/tasks/fn-4-as7.11.md",
+  "status": "todo",
+  "title": "Redesign Activity (Live Monitoring) with MetricRow list",
+  "updated_at": "2026-01-29T18:11:51.427714Z"
+}

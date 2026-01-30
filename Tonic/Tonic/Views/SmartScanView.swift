@@ -57,10 +57,16 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
         case cache = "Cache"
         case logs = "Logs"
         case tempFiles = "Temporary Files"
+        case trash = "Trash"
+        case oldFiles = "Old Files"
+        case languageFiles = "Language Files"
         case duplicates = "Duplicates"
         case oldApps = "Unused Apps"
+        case largeApps = "Large Apps"
         case largeFiles = "Large Files"
         case hiddenSpace = "Hidden Space"
+        case launchAgents = "Launch Agents"
+        case privacyData = "Privacy Data"
     }
 
     var formattedSpace: String {
@@ -72,22 +78,31 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
         case .cache: return "archivebox"
         case .logs: return "doc.text"
         case .tempFiles: return "clock"
+        case .trash: return "trash"
+        case .oldFiles: return "calendar"
+        case .languageFiles: return "globe"
         case .duplicates: return "doc.on.doc"
         case .oldApps: return "app.badge"
+        case .largeApps: return "arrow.up.app"
         case .largeFiles: return "arrow.up.doc"
         case .hiddenSpace: return "eye.slash"
+        case .launchAgents: return "play.circle"
+        case .privacyData: return "lock.shield"
         }
     }
 
     var color: Color {
         switch type {
-        case .cache: return .blue
+        case .cache, .tempFiles: return .blue
         case .logs: return .orange
-        case .tempFiles: return .purple
+        case .trash, .oldFiles: return .purple
+        case .languageFiles: return .cyan
         case .duplicates: return .red
-        case .oldApps: return .green
+        case .oldApps, .largeApps: return .green
         case .largeFiles: return .yellow
         case .hiddenSpace: return .gray
+        case .launchAgents: return .indigo
+        case .privacyData: return .pink
         }
     }
 }

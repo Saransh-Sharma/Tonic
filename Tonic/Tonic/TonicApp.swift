@@ -10,12 +10,32 @@ import SwiftUI
 @main
 struct TonicApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @State private var showCommandPalette = false
+    @State private var isHighContrast = false
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(showCommandPalette: $showCommandPalette)
+                .environment(\.isHighContrast, isHighContrast)
+                .onReceive(
+                    NotificationCenter.default.publisher(for: NSNotification.Name("TonicThemeDidChange")),
+                    perform: { _ in
+                        isHighContrast = AppearancePreferences.shared.useHighContrast
+                    }
+                )
+                .onAppear {
+                    isHighContrast = AppearancePreferences.shared.useHighContrast
+                }
         }
         .commands {
+            // Command Palette
+            CommandMenu("Tools") {
+                Button("Command Palette") {
+                    showCommandPalette = true
+                }
+                .keyboardShortcut("k", modifiers: .command)
+            }
+
             // Replace default About menu item
             CommandGroup(replacing: .appInfo) {
                 Button("About Tonic") {

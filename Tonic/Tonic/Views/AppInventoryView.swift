@@ -9,6 +9,10 @@
 import Foundation
 import SwiftUI
 
+// MARK: - AppMetadata ActionTableItem Conformance
+
+extension AppMetadata: ActionTableItem {}
+
 // MARK: - App Cache
 
 /// Persistent cache for app scan results
@@ -1247,50 +1251,46 @@ struct UninstallError: Error, Identifiable {
 
 // MARK: - App Inventory View
 
+/// Redesigned App Manager with table layout, multi-select, and batch actions.
+/// Uses ActionTable component for native macOS table experience.
 struct AppInventoryView: View {
     @StateObject private var inventory = AppInventoryService.shared
-    @State private var selectedApp: AppMetadata?
+    @State private var selection: Set<UUID> = []
     @State private var showingDetail = false
     @State private var showingUninstallFlow = false
     @State private var currentAppForDetail: AppMetadata?
-
-    // Double-click tracking
-    @State private var lastTapTime: Date = Date()
     @State private var lastTappedAppID: UUID?
+    @State private var lastTapTime: Date = Date.distantPast
 
     var body: some View {
         HSplitView {
-            // Left sidebar with item type tabs
-            sidebar
+            // Left sidebar with category tabs
+            categorySidebar
                 .frame(minWidth: 180, maxWidth: 220)
 
-            // Main content area
+            // Main content area with table
             VStack(spacing: 0) {
-                header
+                // Header with title, stats, search
+                tableHeader
 
                 Divider()
 
-                toolbar
+                // Quick filter toolbar
+                quickFilterToolbar
 
                 Divider()
 
-                contentView
-            }
-
-            // Right sidebar with selected apps
-            if inventory.isSelectionActive {
-                selectionSidebar
-                    .frame(minWidth: 220, maxWidth: 280)
+                // Main content: Table or empty state
+                tableContent
             }
         }
-        .frame(minWidth: 800, minHeight: 500)
+        .frame(minWidth: 900, minHeight: 600)
         .sheet(isPresented: $showingDetail) {
             if let app = currentAppForDetail {
                 AppDetailView(
                     app: app,
                     onUninstall: {
-                        // Select this app for uninstall
-                        inventory.selectedAppIDs = [app.id]
+                        selection = [app.id]
                         showingUninstallFlow = true
                     }
                 )
@@ -1302,52 +1302,86 @@ struct AppInventoryView: View {
                 isPresented: $showingUninstallFlow,
                 onComplete: {
                     showingUninstallFlow = false
-                    // Clear selections after uninstall
+                    selection.removeAll()
                     inventory.selectedAppIDs.removeAll()
                 }
             )
         }
+        .onChange(of: selection) { _, newValue in
+            // Sync selection with inventory for uninstall flow
+            inventory.selectedAppIDs = newValue
+        }
         .task {
-            // Only scan if we haven't scanned this session and have no data
             if !inventory.hasScannedThisSession && inventory.apps.isEmpty {
                 await inventory.scanApps()
             }
         }
     }
 
-    // MARK: - Sidebar
+    // MARK: - Category Sidebar
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var categorySidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
             Text("Categories")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
+                .font(DesignTokens.Typography.captionEmphasized)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .padding(.top, DesignTokens.Spacing.md)
+                .padding(.bottom, DesignTokens.Spacing.xxs)
 
+            // Category list
             ForEach(ItemType.allCases) { tab in
-                SidebarTabButton(
+                CategorySidebarRow(
                     tab: tab,
                     isSelected: inventory.selectedTab == tab,
                     itemCount: itemCountForTab(tab)
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(DesignTokens.Animation.fast) {
                         inventory.selectedTab = tab
                         inventory.quickFilterCategory = .all
                         inventory.loginItemFilter = .all
+                        selection.removeAll()
                     }
                 }
             }
 
             Spacer()
+
+            // Stats footer
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Total Apps")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                        Text("\(inventory.apps.count)")
+                            .font(DesignTokens.Typography.subheadEmphasized)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+                    }
+
+                    Spacer()
+
+                    if inventory.availableUpdates > 0 {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Updates")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+                            Text("\(inventory.availableUpdates)")
+                                .font(DesignTokens.Typography.subheadEmphasized)
+                                .foregroundColor(DesignTokens.Colors.success)
+                        }
+                    }
+                }
+                .padding(DesignTokens.Spacing.sm)
+            }
         }
-        .padding(.bottom, 8)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(DesignTokens.Colors.backgroundSecondary)
     }
 
-    // Helper function to get item count for each tab
+    // Helper to get item count for each tab
     private func itemCountForTab(_ tab: ItemType) -> Int {
         switch tab {
         case .apps:
@@ -1355,251 +1389,125 @@ struct AppInventoryView: View {
                 (app.itemType == "app" || app.itemType.isEmpty) && app.totalSize >= 100 * 1024
             }.count
         case .appExtensions:
-            return inventory.apps.filter { app in
-                app.itemType == "extension" || app.itemType.contains("extension")
-            }.count
+            return inventory.apps.filter { $0.itemType == "extension" || $0.itemType.contains("extension") }.count
         case .preferencePanes:
-            return inventory.apps.filter { app in
-                app.itemType == "prefPane" || app.itemType.contains("pref")
-            }.count
+            return inventory.apps.filter { $0.itemType == "prefPane" || $0.itemType.contains("pref") }.count
         case .quickLookPlugins:
-            return inventory.apps.filter { app in
-                app.itemType == "quicklook" || app.itemType.contains("quick")
-            }.count
+            return inventory.apps.filter { $0.itemType == "quicklook" || $0.itemType.contains("quick") }.count
         case .spotlightImporters:
-            return inventory.apps.filter { app in
-                app.itemType == "spotlight" || app.itemType.contains("spot")
-            }.count
+            return inventory.apps.filter { $0.itemType == "spotlight" || $0.itemType.contains("spot") }.count
         case .frameworks:
-            return inventory.apps.filter { app in
-                app.itemType == "framework" || app.itemType.contains("runtime")
-            }.count
+            return inventory.apps.filter { $0.itemType == "framework" || $0.itemType.contains("runtime") }.count
         case .systemUtilities:
-            return inventory.apps.filter { app in
-                app.itemType == "system" || app.itemType.contains("utility")
-            }.count
+            return inventory.apps.filter { $0.itemType == "system" || $0.itemType.contains("utility") }.count
         case .loginItems:
-            // Combine launch agents from apps array with actual login items and services
-            let launchAgents = inventory.apps.filter { app in
-                app.itemType == "login" || app.itemType.contains("login")
-            }.count
+            let launchAgents = inventory.apps.filter { $0.itemType == "login" || $0.itemType.contains("login") }.count
             return launchAgents + inventory.loginItems.count + inventory.launchServices.count
         }
     }
 
-    struct SidebarTabButton: View {
-        let tab: ItemType
-        let isSelected: Bool
-        let itemCount: Int
-        let action: () -> Void
+    // MARK: - Table Header
 
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 10) {
-                    Image(systemName: tab.icon)
-                        .font(.system(size: 14))
-                        .frame(width: 20)
-
-                    Text(tab.rawValue)
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-
-                    Spacer()
-
-                    if itemCount > 0 {
-                        Text("\(itemCount)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color.accentColor : Color.clear)
-                )
-                .foregroundColor(isSelected ? .white : .primary)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
+    private var tableHeader: some View {
         VStack(spacing: 0) {
-            // Main header row
-            HStack(spacing: 20) {
-                // Left: Title and status
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                // Title and status
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                     Text("App Manager")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(DesignTokens.Typography.h2)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                    HStack(spacing: 12) {
-                        if inventory.isSelectionActive {
-                            HStack(spacing: 6) {
+                    // Status line
+                    Group {
+                        if !selection.isEmpty {
+                            HStack(spacing: DesignTokens.Spacing.xxxs) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(DesignTokens.Colors.accent)
                                     .frame(width: 6, height: 6)
-
-                                Text("\(inventory.selectedAppIDs.count) selected · \(formatBytes(inventory.selectedSize))")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
+                                Text("\(selection.count) selected")
+                                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                                Text("·")
+                                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                                Text(formatBytes(selectedSize))
+                                    .foregroundColor(DesignTokens.Colors.textSecondary)
                             }
                         } else if inventory.isRefreshing {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DesignTokens.Spacing.xxxs) {
                                 ProgressView()
                                     .scaleEffect(0.6)
                                 Text("Calculating sizes...")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(DesignTokens.Colors.textSecondary)
                             }
                         } else if let date = inventory.lastScanDate {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DesignTokens.Spacing.xxxs) {
                                 Image(systemName: "clock")
                                     .font(.system(size: 10))
-                                    .foregroundColor(.secondary)
-                                Text("\(date, style: .relative) ago")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
+                                Text("Scanned \(date, style: .relative) ago")
                             }
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
                     }
+                    .font(DesignTokens.Typography.caption)
                 }
 
                 Spacer()
 
-                // Right: Actions and stats
-                HStack(spacing: 12) {
-                    // Apps count
-                    HStack(spacing: 6) {
-                        ZStack {
-                            Circle()
-                                .fill(TonicColors.accent.opacity(0.15))
-                                .frame(width: 28, height: 28)
-
-                            Image(systemName: "app.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(TonicColors.accent)
-                        }
-
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("Apps")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-
-                            Text("\(inventory.filteredApps.count)")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(10)
-
-                    // Updates badge (if any)
-                    if inventory.availableUpdates > 0 {
-                        Button {
-                            Task {
-                                await inventory.checkForUpdates()
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.green.opacity(0.15))
-                                        .frame(width: 28, height: 28)
-
-                                    Image(systemName: "arrow.down.circle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.green)
-                                }
-
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text("Updates")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.secondary)
-
-                                    Text("\(inventory.availableUpdates)")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.green)
-                                }
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(10)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Updates available")
-                    }
-
-                    // Scan button or progress
+                // Actions
+                HStack(spacing: DesignTokens.Spacing.sm) {
                     if inventory.isLoading {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DesignTokens.Spacing.xxs) {
                             ProgressView()
                                 .scaleEffect(0.8)
-
                             Button("Cancel") {
                                 inventory.cancelScan()
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .accessibilityLabel("Cancel app scan")
+                            .accessibilityHint("Stops scanning for applications")
                         }
                     } else {
                         Button {
-                            Task {
-                                await inventory.scanApps()
-                            }
+                            Task { await inventory.scanApps() }
                         } label: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DesignTokens.Spacing.xxxs) {
                                 Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 12))
-                                Text("Scan")
-                                    .font(.system(size: 13, weight: .medium))
+                                Text("Rescan")
                             }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(TonicColors.accent)
-                            .cornerRadius(8)
                         }
-                        .buttonStyle(.plain)
-                        .help("Rescan apps")
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .padding(.vertical, DesignTokens.Spacing.sm)
 
-            // Search bar row (separate for cleaner layout)
-            HStack(spacing: 12) {
-                HStack(spacing: 8) {
+            // Search bar
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                HStack(spacing: DesignTokens.Spacing.xxs) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
                         .font(.system(size: 13))
 
-                    TextField("Search by name or bundle identifier...", text: $inventory.searchText)
+                    TextField("Search apps by name or bundle ID...", text: $inventory.searchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-
-                    Spacer()
+                        .font(DesignTokens.Typography.subhead)
 
                     if !inventory.searchText.isEmpty {
                         Button {
                             inventory.searchText = ""
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 13))
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(8)
+                .padding(.horizontal, DesignTokens.Spacing.xs)
+                .padding(.vertical, DesignTokens.Spacing.xxs)
+                .background(DesignTokens.Colors.backgroundTertiary)
+                .cornerRadius(DesignTokens.CornerRadius.medium)
 
                 Spacer()
 
@@ -1607,7 +1515,7 @@ struct AppInventoryView: View {
                 Menu {
                     ForEach(AppInventoryService.SortOption.allCases, id: \.self) { option in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DesignTokens.Animation.fast) {
                                 inventory.sortOption = option
                             }
                         } label: {
@@ -1620,125 +1528,268 @@ struct AppInventoryView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignTokens.Spacing.xxxs) {
                         Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-
                         Text(inventory.sortOption.rawValue)
-                            .font(.system(size: 12))
                     }
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(6)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .padding(.horizontal, DesignTokens.Spacing.xxs)
+                    .padding(.vertical, DesignTokens.Spacing.xxxs)
+                    .background(DesignTokens.Colors.backgroundSecondary)
+                    .cornerRadius(DesignTokens.CornerRadius.small)
                 }
                 .menuStyle(.borderlessButton)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
-
-            Divider()
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .padding(.bottom, DesignTokens.Spacing.sm)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(DesignTokens.Colors.background)
     }
 
-    // MARK: - Toolbar
+    private var selectedSize: Int64 {
+        inventory.filteredApps
+            .filter { selection.contains($0.id) }
+            .reduce(0) { $0 + $1.totalSize }
+    }
 
-    private var toolbar: some View {
-        HStack(spacing: 16) {
-            // Quick filter pills - different based on selected tab
+    // MARK: - Quick Filter Toolbar
+
+    private var quickFilterToolbar: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            // Quick filter pills
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: DesignTokens.Spacing.xxs) {
                     if inventory.selectedTab == .loginItems {
-                        // Show login item specific filters
                         ForEach(LoginItemFilter.allCases) { filter in
-                            LoginItemFilterPill(
-                                filter: filter,
+                            FilterPill(
+                                title: filter.rawValue,
+                                icon: filter.icon,
                                 isSelected: inventory.loginItemFilter == filter
                             ) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                withAnimation(DesignTokens.Animation.fast) {
                                     inventory.loginItemFilter = filter
                                 }
                             }
                         }
                     } else {
-                        // Show standard category filters
                         ForEach(inventory.availableQuickFilters) { filter in
-                            QuickFilterPill(
-                                filter: filter,
+                            FilterPill(
+                                title: filter.rawValue,
+                                icon: filter.icon,
                                 isSelected: inventory.quickFilterCategory == filter
                             ) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                withAnimation(DesignTokens.Animation.fast) {
                                     inventory.quickFilterCategory = filter
                                 }
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DesignTokens.Spacing.xxxs)
             }
 
             Spacer()
+
+            // Item count
+            Text("\(inventory.filteredApps.count) items")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(DesignTokens.Colors.backgroundSecondary)
     }
 
-    // MARK: - Quick Filter Pill
+    // MARK: - Table Content (ActionTable)
 
-    struct QuickFilterPill: View {
-        let filter: QuickFilterCategory
-        let isSelected: Bool
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 4) {
-                    Image(systemName: filter.icon)
-                        .font(.system(size: 11))
-                    Text(filter.rawValue)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.15))
-                )
-                .foregroundColor(isSelected ? .white : .primary)
+    /// Main table content using ActionTable for multi-select and batch actions
+    private var tableContent: some View {
+        Group {
+            if inventory.selectedTab == .loginItems {
+                loginItemsContentView()
+            } else if inventory.filteredApps.isEmpty {
+                emptyView
+            } else {
+                appTableView
             }
-            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// App table view using ActionTable component
+    private var appTableView: some View {
+        ActionTable(
+            items: inventory.filteredApps,
+            selection: $selection,
+            columns: appTableColumns,
+            batchActions: appTableBatchActions,
+            contextMenu: { app in
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([app.path])
+                } label: {
+                    Label("Reveal in Finder", systemImage: "folder")
+                }
+
+                Divider()
+
+                Button {
+                    currentAppForDetail = app
+                    showingDetail = true
+                } label: {
+                    Label("Show Details", systemImage: "info.circle")
+                }
+
+                Divider()
+
+                if !ProtectedApps.isProtectedFromUninstall(app.bundleIdentifier) {
+                    Button(role: .destructive) {
+                        selection = [app.id]
+                        showingUninstallFlow = true
+                    } label: {
+                        Label("Uninstall", systemImage: "trash")
+                    }
+                } else {
+                    Button {
+                        // Protected app - show disabled
+                    } label: {
+                        Label("Protected App", systemImage: "lock.fill")
+                    }
+                    .disabled(true)
+                }
+            },
+            onDoubleClick: { app in
+                currentAppForDetail = app
+                showingDetail = true
+            },
+            onActivate: { app in
+                currentAppForDetail = app
+                showingDetail = true
+            }
+        )
+    }
+
+    /// Table columns for the ActionTable
+    private var appTableColumns: [ActionTableColumn<AppMetadata>] {
+        [
+            // App name with icon
+            ActionTableColumn(id: "name", title: "Application") { app in
+                HStack(spacing: DesignTokens.Spacing.xxs) {
+                    // App icon
+                    appIconView(for: app)
+                        .frame(width: 28, height: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: DesignTokens.Spacing.xxxs) {
+                            Text(app.name)
+                                .font(DesignTokens.Typography.body)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+                                .lineLimit(1)
+
+                            if ProtectedApps.isProtectedFromUninstall(app.bundleIdentifier) {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                                    .help("Protected app - cannot be uninstalled")
+                            }
+
+                            if inventory.hasUpdate(for: app.bundleIdentifier) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(DesignTokens.Colors.success)
+                                    .help("Update available")
+                            }
+                        }
+
+                        Text(app.bundleIdentifier)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
+            },
+
+            // Size column
+            ActionTableColumn(id: "size", title: "Size", width: .fixed(90), alignment: .trailing, isSortable: true) { app in
+                Text(ByteCountFormatter.string(fromByteCount: app.totalSize, countStyle: .file))
+                    .font(DesignTokens.Typography.monoSubhead)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            },
+
+            // Last used column
+            ActionTableColumn(id: "lastUsed", title: "Last Used", width: .fixed(100), alignment: .trailing) { app in
+                Text(formatLastUsed(app.lastUsed))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+            },
+
+            // Version column
+            ActionTableColumn(id: "version", title: "Version", width: .fixed(80), alignment: .trailing) { app in
+                Text(app.version ?? "N/A")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .lineLimit(1)
+            },
+
+            // Category column
+            ActionTableColumn(id: "category", title: "Category", width: .fixed(100)) { app in
+                Text(app.category.rawValue)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+        ]
+    }
+
+    /// Batch actions for selected items
+    private var appTableBatchActions: [ActionTableAction<AppMetadata>] {
+        [
+            ActionTableAction(
+                id: "reveal",
+                title: "Reveal",
+                icon: "folder",
+                style: .secondary,
+                isEnabled: { !$0.isEmpty }
+            ) { apps in
+                let urls = apps.map { $0.path }
+                NSWorkspace.shared.activateFileViewerSelecting(urls)
+            },
+
+            ActionTableAction(
+                id: "uninstall",
+                title: "Uninstall",
+                icon: "trash",
+                style: .destructive,
+                isEnabled: { apps in
+                    // Only enable if at least one app is not protected
+                    apps.contains { !ProtectedApps.isProtectedFromUninstall($0.bundleIdentifier) }
+                }
+            ) { _ in
+                showingUninstallFlow = true
+            }
+        ]
+    }
+
+    /// Helper to create app icon view
+    @ViewBuilder
+    private func appIconView(for app: AppMetadata) -> some View {
+        if let icon = getAppIconSafely(for: app.path) {
+            Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: "app.fill")
+                .font(.system(size: 14))
+                .foregroundColor(DesignTokens.Colors.textTertiary)
         }
     }
 
-    // MARK: - Login Item Filter Pill
-
-    struct LoginItemFilterPill: View {
-        let filter: LoginItemFilter
-        let isSelected: Bool
-        let action: () -> Void
-
-        var body: some View {
-            Button(action: action) {
-                HStack(spacing: 4) {
-                    Image(systemName: filter.icon)
-                        .font(.system(size: 11))
-                    Text(filter.rawValue)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.accentColor : Color.secondary.opacity(0.15))
-                )
-                .foregroundColor(isSelected ? .white : .primary)
-            }
-            .buttonStyle(.plain)
-        }
+    /// Format last used date
+    private func formatLastUsed(_ date: Date?) -> String {
+        guard let date = date else { return "Never" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     // MARK: - Content View
@@ -3048,6 +3099,104 @@ struct LoginItemCard: View {
 
         _ = semaphore.wait(timeout: .now() + 0.5)
         return result
+    }
+}
+
+// MARK: - Category Sidebar Row
+
+/// Row item for the category sidebar
+struct CategorySidebarRow: View {
+    let tab: ItemType
+    let isSelected: Bool
+    let itemCount: Int
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DesignTokens.Spacing.xxs) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 13))
+                    .foregroundColor(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.textSecondary)
+                    .frame(width: 20)
+
+                Text(tab.rawValue)
+                    .font(DesignTokens.Typography.subhead)
+                    .foregroundColor(isSelected ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("\(itemCount)")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .padding(.horizontal, DesignTokens.Spacing.xxs)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(DesignTokens.Colors.backgroundTertiary)
+                    )
+            }
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .background(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
+                    .fill(isSelected ? DesignTokens.Colors.selectedContentBackground : (isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+        .accessibilityLabel("\(tab.rawValue), \(itemCount) items")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Filter Pill
+
+/// Pill-shaped filter button for quick filters
+struct FilterPill: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+
+                Text(title)
+                    .font(DesignTokens.Typography.caption)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxxs)
+            .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+            .background(
+                Capsule()
+                    .fill(isSelected ? DesignTokens.Colors.accent : (isHovered ? DesignTokens.Colors.backgroundTertiary : DesignTokens.Colors.backgroundSecondary))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.clear : DesignTokens.Colors.separator.opacity(0.5), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DesignTokens.Animation.fast) {
+                isHovered = hovering
+            }
+        }
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

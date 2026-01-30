@@ -1,0 +1,16 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T19:24:21.765774Z",
+  "depends_on": [
+    "fn-4-as7.6"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.22",
+  "priority": 22,
+  "spec_path": ".flow/tasks/fn-4-as7.22.md",
+  "status": "todo",
+  "title": "Implement feedback and crash reporting",
+  "updated_at": "2026-01-29T19:24:21.765972Z"
+}

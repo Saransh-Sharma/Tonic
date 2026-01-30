@@ -13,9 +13,12 @@ struct ContentView: View {
     @State private var selectedDestination: NavigationDestination = .dashboard
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showOnboarding = false
+    @State private var showFeatureTour = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
     @State private var showWidgetOnboarding = false
+    @Binding var showCommandPalette: Bool
+    @Environment(\.isHighContrast) private var isHighContrast
 
     @State private var permissionManager = PermissionManager.shared
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
@@ -26,51 +29,73 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selectedDestination: $selectedDestination)
-        } detail: {
-            DetailView(
-                item: selectedDestination,
-                onPermissionNeeded: { feature in
-                    missingPermissionFor = feature
-                    showPermissionPrompt = true
-                }
-            )
-        }
-        .navigationTitle("Tonic")
-        .frame(minWidth: 800, minHeight: 500)
-        .sheet(isPresented: $showOnboarding) {
-            OnboardingView(isPresented: $showOnboarding)
-        }
-        .sheet(isPresented: $showPermissionPrompt) {
-            PermissionPromptView(
-                feature: missingPermissionFor,
-                isPresented: $showPermissionPrompt
-            )
-        }
-        .sheet(isPresented: $showWidgetOnboarding) {
-            WidgetOnboardingView()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetOnboarding"))) { _ in
-            showWidgetOnboarding = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetCustomization"))) { _ in
-            // Open preferences to Widgets tab
-            selectedDestination = .settings
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
-            // App was reset — re-read onboarding flag and trigger onboarding
-            hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
-            showOnboarding = true
-        }
-        .onAppear {
-            checkFirstLaunch()
+        ZStack {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                SidebarView(selectedDestination: $selectedDestination)
+            } detail: {
+                DetailView(
+                    item: selectedDestination,
+                    onPermissionNeeded: { feature in
+                        missingPermissionFor = feature
+                        showPermissionPrompt = true
+                    }
+                )
+            }
+            .navigationTitle("Tonic")
+            .frame(minWidth: 800, minHeight: 500)
+            .sheet(isPresented: $showOnboarding) {
+                OnboardingView(isPresented: $showOnboarding)
+            }
+            .sheet(isPresented: $showFeatureTour) {
+                OnboardingTourView(isPresented: $showFeatureTour)
+            }
+            .sheet(isPresented: $showPermissionPrompt) {
+                PermissionPromptView(
+                    feature: missingPermissionFor,
+                    isPresented: $showPermissionPrompt
+                )
+            }
+            .sheet(isPresented: $showWidgetOnboarding) {
+                WidgetOnboardingView()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetOnboarding"))) { _ in
+                showWidgetOnboarding = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetCustomization"))) { _ in
+                // Open preferences to Widgets tab
+                selectedDestination = .settings
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
+                // App was reset — re-read onboarding flag and trigger onboarding
+                hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
+                showOnboarding = true
+            }
+            .onAppear {
+                checkFirstLaunch()
+            }
+
+            // Command Palette Overlay
+            if showCommandPalette {
+                CommandPaletteView(
+                    isPresented: $showCommandPalette,
+                    selectedDestination: $selectedDestination
+                )
+            }
         }
     }
 
     private func checkFirstLaunch() {
         if !hasSeenOnboarding {
             showOnboarding = true
+        } else {
+            // Show feature tour for first app launch after permissions are set up
+            let hasSeenFeatureTour = UserDefaults.standard.bool(forKey: "hasSeenFeatureTour")
+            if !hasSeenFeatureTour {
+                // Delay showing tour to allow UI to render first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showFeatureTour = true
+                }
+            }
         }
 
         // Check permissions on app launch
@@ -110,7 +135,7 @@ struct DetailView: View {
         case .dashboard:
             DashboardView()
         case .systemCleanup:
-            SmartScanView()
+            MaintenanceView()
         case .appManager:
             if permissionManager.hasFullDiskAccess {
                 AppInventoryView()
@@ -143,6 +168,8 @@ struct DetailView: View {
             WidgetsPanelView()
         case .developerTools:
             DeveloperToolsView()
+        case .designSandbox:
+            DesignSandboxView()
         case .settings:
             PreferencesView()
         }
@@ -463,6 +490,189 @@ struct WidgetsPanelView: View {
     }
 }
 
+// MARK: - Command Palette View
+
+/// A command palette overlay for quick navigation using Cmd+K
+/// Features:
+/// - Triggered by Cmd+K keyboard shortcut
+/// - Fuzzy search across all screen names
+/// - Navigate with arrow keys and Enter, dismiss with Esc
+/// - Works from any screen in the app
+struct CommandPaletteView: View {
+    @Binding var isPresented: Bool
+    @Binding var selectedDestination: NavigationDestination
+
+    @State private var searchText = ""
+    @State private var selectedIndex: Int = 0
+    @FocusState private var isSearchFocused: Bool
+
+    private let allDestinations = NavigationDestination.allCases
+
+    /// Filter destinations based on fuzzy search
+    private var filteredDestinations: [NavigationDestination] {
+        if searchText.isEmpty {
+            return allDestinations
+        }
+
+        return allDestinations.filter { destination in
+            fuzzyMatch(searchText.lowercased(), in: destination.displayName.lowercased())
+        }
+    }
+
+    /// Fuzzy search: Returns true if all characters in query appear in order within text
+    private func fuzzyMatch(_ query: String, in text: String) -> Bool {
+        var queryIndex = query.startIndex
+        var textIndex = text.startIndex
+
+        while queryIndex < query.endIndex && textIndex < text.endIndex {
+            if query[queryIndex] == text[textIndex] {
+                queryIndex = query.index(after: queryIndex)
+            }
+            textIndex = text.index(after: textIndex)
+        }
+
+        return queryIndex == query.endIndex
+    }
+
+    var body: some View {
+        ZStack {
+            // Dimmed background
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    dismiss()
+                }
+                .onKeyPress { press in
+                    // Handle Escape key globally
+                    if press.key == .escape {
+                        dismiss()
+                        return .handled
+                    }
+                    // Handle arrow keys for navigation
+                    if press.key == .downArrow {
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            if selectedIndex < filteredDestinations.count - 1 {
+                                selectedIndex += 1
+                            }
+                        }
+                        return .handled
+                    }
+                    if press.key == .upArrow {
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            if selectedIndex > 0 {
+                                selectedIndex -= 1
+                            }
+                        }
+                        return .handled
+                    }
+                    return .ignored
+                }
+
+            // Command palette card
+            VStack(spacing: 0) {
+                // Search input
+                HStack(spacing: DesignTokens.Spacing.xxs) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                    TextField("Search screens...", text: $searchText)
+                        .font(DesignTokens.Typography.body)
+                        .textFieldStyle(.plain)
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            navigateToSelected()
+                        }
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                            selectedIndex = 0
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                        .accessibilityHint("Clears the search field")
+                    }
+                }
+                .padding(DesignTokens.Spacing.sm)
+                .background(DesignTokens.Colors.backgroundSecondary)
+
+                Divider()
+
+                // Results list
+                ScrollViewReader { scrollProxy in
+                    List(selection: $selectedIndex) {
+                        ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
+                            HStack(spacing: DesignTokens.Spacing.sm) {
+                                Image(systemName: destination.systemImage)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .frame(width: 20)
+                                    .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(destination.displayName)
+                                        .font(DesignTokens.Typography.body)
+                                        .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                                    Text(destination.rawValue)
+                                        .font(DesignTokens.Typography.caption)
+                                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                                }
+
+                                Spacer()
+
+                                if index == selectedIndex {
+                                    Text("↵")
+                                        .font(.caption)
+                                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                                }
+                            }
+                            .tag(index)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("\(destination.displayName), \(destination.rawValue)")
+                            .accessibilityHint(index == selectedIndex ? "Currently selected. Press enter to navigate" : "Press enter to navigate")
+                            .onTapGesture {
+                                selectedIndex = index
+                                navigateToSelected()
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .onChange(of: selectedIndex) { oldValue, newValue in
+                        scrollProxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
+            }
+            .frame(width: 500, height: 450)
+            .background(DesignTokens.Colors.background)
+            .cornerRadius(DesignTokens.CornerRadius.large)
+            .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
+            .onAppear {
+                isSearchFocused = true
+                selectedIndex = 0
+            }
+        }
+    }
+
+
+    private func navigateToSelected() {
+        guard !filteredDestinations.isEmpty && selectedIndex < filteredDestinations.count else {
+            return
+        }
+
+        selectedDestination = filteredDestinations[selectedIndex]
+        dismiss()
+    }
+
+    private func dismiss() {
+        searchText = ""
+        selectedIndex = 0
+        isPresented = false
+    }
+}
+
 #Preview {
-    ContentView()
+    ContentView(showCommandPalette: .constant(false))
 }

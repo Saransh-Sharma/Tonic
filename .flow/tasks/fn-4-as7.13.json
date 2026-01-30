@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-29T18:11:51.614538Z",
+  "depends_on": [
+    "fn-4-as7.3",
+    "fn-4-as7.6"
+  ],
+  "epic": "fn-4-as7",
+  "id": "fn-4-as7.13",
+  "priority": 13,
+  "spec_path": ".flow/tasks/fn-4-as7.13.md",
+  "status": "todo",
+  "title": "Redesign Settings with PreferenceList pattern",
+  "updated_at": "2026-01-29T18:11:51.614717Z"
+}

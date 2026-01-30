@@ -43,6 +43,7 @@ public final class AppearancePreferences: @unchecked Sendable {
     public var iconStyle: IconStyle = .filled
     public var reduceTransparency: Bool = false
     public var reduceMotion: Bool = false
+    public var useHighContrast: Bool = false
 
     private init() {
         loadFromUserDefaults()
@@ -54,6 +55,7 @@ public final class AppearancePreferences: @unchecked Sendable {
         static let iconStyle = "tonic.appearance.iconStyle"
         static let reduceTransparency = "tonic.appearance.reduceTransparency"
         static let reduceMotion = "tonic.appearance.reduceMotion"
+        static let useHighContrast = "tonic.appearance.useHighContrast"
     }
 
     public func setThemeMode(_ mode: ThemeMode) {
@@ -81,6 +83,13 @@ public final class AppearancePreferences: @unchecked Sendable {
         UserDefaults.standard.set(reduce, forKey: Keys.reduceMotion)
     }
 
+    public func setUseHighContrast(_ use: Bool) {
+        useHighContrast = use
+        UserDefaults.standard.set(use, forKey: Keys.useHighContrast)
+        // Notify observers of theme change
+        NotificationCenter.default.post(name: NSNotification.Name("TonicThemeDidChange"), object: nil)
+    }
+
     private func loadFromUserDefaults() {
         if let modeString = UserDefaults.standard.string(forKey: Keys.themeMode),
            let mode = ThemeMode(rawValue: modeString) {
@@ -99,6 +108,7 @@ public final class AppearancePreferences: @unchecked Sendable {
 
         reduceTransparency = UserDefaults.standard.bool(forKey: Keys.reduceTransparency)
         reduceMotion = UserDefaults.standard.bool(forKey: Keys.reduceMotion)
+        useHighContrast = UserDefaults.standard.bool(forKey: Keys.useHighContrast)
     }
 }
 
