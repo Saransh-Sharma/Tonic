@@ -55,13 +55,11 @@ final class WidgetReaderManager {
 - [ ] No regressions in existing code (new code only)
 
 ## Done summary
-Created WidgetReader protocol and WidgetReaderManager following Stats Master's reader pattern. Establishes foundation for unified refresh scheduling.
-
+- Task completed
 ## Evidence
-- Commits: (to be filled during implementation)
-- Tests: (to be filled during implementation)
-- PRs: (to be filled during implementation)
-
+- Commits:
+- Tests:
+- PRs:
 ## References
 - Stats Master: `stats-master/Kit/module/reader.swift:123-149`
 - Tonic existing: `Tonic/Tonic/Services/WidgetDataManager.swift:235-1151`
