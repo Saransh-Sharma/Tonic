@@ -37,9 +37,8 @@ Redesign SystemStatusDashboard to use a vertical list of MetricRows instead of c
 
 
 ## Done summary
-TBD
-
+Redesigned SystemStatusDashboard to use MetricRow components in a vertical list layout instead of circular gauges. Implemented real-time monitoring with configurable update intervals, sparkline graphs for key metrics, and semantic color coding for health status indicators across CPU, Memory, Disk, Network, and Battery metrics.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 9f6cf702955da78276712a18ac6b85ec0aca3f99
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
