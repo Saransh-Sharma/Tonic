@@ -8,7 +8,7 @@
   "id": "fn-5-v8r.3",
   "priority": null,
   "spec_path": ".flow/tasks/fn-5-v8r.3.md",
-  "status": "todo",
+  "status": "done",
   "title": "WidgetStore configuration persistence with migration",
-  "updated_at": "2026-01-30T20:12:06.472959Z"
+  "updated_at": "2026-01-31T12:00:00.000000Z"
 }
