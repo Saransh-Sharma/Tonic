@@ -542,6 +542,8 @@ struct DashboardView: View {
                 }
             }
             .padding(.vertical, DesignTokens.Spacing.sm)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("System health score: \(scanManager.healthScore) out of 100, \(healthRatingText)")
 
             // Health Score Explanation Button
             Button {
