@@ -690,6 +690,8 @@ struct PermissionCard: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .accessibilityLabel("Grant \(title.lowercased()) permission")
+                    .accessibilityHint("Opens System Settings to grant permission")
                 }
             }
         }

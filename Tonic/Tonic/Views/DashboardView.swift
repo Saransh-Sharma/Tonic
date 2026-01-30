@@ -556,6 +556,8 @@ struct DashboardView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Health score explanation")
+            .accessibilityHint("Shows how the health score is calculated")
             .popover(isPresented: $showHealthScoreExplanation, arrowEdge: .bottom) {
                 healthScoreExplanationPopover
             }
@@ -850,6 +852,7 @@ struct DashboardView: View {
                             .foregroundColor(DesignTokens.Colors.accent)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(isActivityExpanded ? "Show less activity history" : "View all activity history")
                 }
             }
             .padding(.horizontal, DesignTokens.Spacing.sm)

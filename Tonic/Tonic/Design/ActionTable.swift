@@ -317,6 +317,8 @@ struct ActionTable<Item: ActionTableItem, ContextMenu: View>: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Sort by \(column.title)")
+                .accessibilityHint(isCurrentSort ? "Currently sorted \(sortAscending ? "ascending" : "descending"). Click to reverse" : "Click to sort")
             } else {
                 Text(column.title)
                     .font(DesignTokens.Typography.captionEmphasized)
@@ -346,6 +348,8 @@ struct ActionTable<Item: ActionTableItem, ContextMenu: View>: View {
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Clear selection")
+            .accessibilityHint("Deselects all selected items")
 
             Spacer()
 
@@ -379,6 +383,8 @@ struct ActionTable<Item: ActionTableItem, ContextMenu: View>: View {
         .buttonStyle(.bordered)
         .tint(action.style == .destructive ? DesignTokens.Colors.destructive : nil)
         .disabled(!isEnabled)
+        .accessibilityLabel("\(action.title) \(selection.count) selected items")
+        .accessibilityHint(isEnabled ? "Click to \(action.title.lowercased())" : "Not available for selected items")
     }
 
     // MARK: - Selection Handling

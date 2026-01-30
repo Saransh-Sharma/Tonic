@@ -592,6 +592,8 @@ struct CommandPaletteView: View {
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                        .accessibilityHint("Clears the search field")
                     }
                 }
                 .padding(DesignTokens.Spacing.sm)
@@ -629,6 +631,8 @@ struct CommandPaletteView: View {
                             }
                             .tag(index)
                             .contentShape(Rectangle())
+                            .accessibilityLabel("\(destination.displayName), \(destination.rawValue)")
+                            .accessibilityHint(index == selectedIndex ? "Currently selected. Press enter to navigate" : "Press enter to navigate")
                             .onTapGesture {
                                 selectedIndex = index
                                 navigateToSelected()

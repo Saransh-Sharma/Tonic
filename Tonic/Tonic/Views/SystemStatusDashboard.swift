@@ -764,13 +764,15 @@ struct SystemStatusDashboard: View {
                     .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
-                Picker("", selection: $selectedUpdateInterval) {
+                Picker("Refresh interval", selection: $selectedUpdateInterval) {
                     ForEach(updateIntervals, id: \.value) { interval in
                         Text(interval.label).tag(interval.value)
                     }
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 160)
+                .accessibilityLabel("Update interval")
+                .accessibilityHint("Select how frequently to refresh system metrics")
                 .onChange(of: selectedUpdateInterval) { _, newValue in
                     monitor.setUpdateInterval(newValue)
                 }

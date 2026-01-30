@@ -25,9 +25,8 @@ Document design decisions and component specifications.
 
 
 ## Done summary
-TBD
-
+Created comprehensive Design.md documentation serving as the single source of truth for Tonic's design system. Document covers all design tokens (colors, typography, spacing, animations), detailed component specifications with usage examples, and accessibility/keyboard navigation guidance.
 ## Evidence
-- Commits:
+- Commits: 1fdc8c623e098b004a251a23f3b43388075d947b
 - Tests:
 - PRs:

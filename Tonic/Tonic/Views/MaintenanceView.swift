@@ -224,6 +224,8 @@ struct ScanTabView: View {
                 Task { await cancelScan() }
             }
             .buttonStyle(.bordered)
+            .accessibilityLabel("Cancel scan")
+            .accessibilityHint("Stops the scan and closes without saving results")
 
             Spacer()
         }
@@ -367,11 +369,15 @@ struct ScanTabView: View {
                         // Action handled by parent
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityLabel("Clean now")
+                    .accessibilityHint("Proceeds with cleanup immediately")
 
                     Button("Review Details") {
                         showSummarySheet = true
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Review details")
+                    .accessibilityHint("Shows detailed list of items to be cleaned")
 
                     Spacer()
 
@@ -379,6 +385,8 @@ struct ScanTabView: View {
                         Task { await startScan() }
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Scan again")
+                    .accessibilityHint("Starts a new scan")
                 }
             }
             .padding(DesignTokens.Spacing.md)
@@ -570,6 +578,8 @@ struct ScanSummarySheet: View {
                 }
                 .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Review details")
+                .accessibilityHint("Shows detailed list of items to be cleaned")
 
                 Button("Clean Now") {
                     onCleanNow()
@@ -577,6 +587,8 @@ struct ScanSummarySheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Clean now")
+                .accessibilityHint("Proceeds with cleanup immediately")
             }
         }
         .padding(DesignTokens.Spacing.lg)
@@ -731,12 +743,16 @@ struct CleanTabView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .accessibilityLabel("Select all categories")
+                    .accessibilityHint("Selects all cleanup categories")
 
                     Button("Deselect All") {
                         selectedCategories.removeAll()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .accessibilityLabel("Deselect all categories")
+                    .accessibilityHint("Deselects all cleanup categories")
 
                     Spacer()
 
