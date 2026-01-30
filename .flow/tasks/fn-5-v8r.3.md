@@ -32,8 +32,11 @@ final class WidgetStore {
 - [ ] In-memory cache improves read performance
 
 ## Done summary
-Implemented WidgetStore with UserDefaults persistence and legacy migration support.
-
+- Task completed
+## Evidence
+- Commits:
+- Tests:
+- PRs:
 ## References
 - Stats Master: `stats-master/Kit/plugins/Store.swift:14-137`
 - Tonic current: `Tonic/Tonic/Models/WidgetConfiguration.swift:277-500`
