@@ -35,9 +35,8 @@ Update SidebarView to use grouped sections for better information architecture.
 
 
 ## Done summary
-TBD
-
+Refactored SidebarView with grouped navigation sections (Maintenance, Explore, Menu Bar, Advanced) using non-selectable section headers as visual separators, following the new information architecture spec.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 71684a2224bd04704caaf74e9201a093c98c97ed
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
