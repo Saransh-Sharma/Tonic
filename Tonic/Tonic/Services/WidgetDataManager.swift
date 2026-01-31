@@ -22,7 +22,7 @@ import Darwin
 @_silgen_name("proc_pid_rusage")
 func proc_pid_rusage(_ pid: Int32, _ flavor: Int32, _ buffer: UnsafeMutablePointer<rusage_info_v2>) -> Int32
 
-public var RUSAGE_INFO_V2: Int32 { 5 }
+public var RUSAGE_INFO_V2: Int32 { 2 }
 
 // rusage_info_v2 structure for per-process resource usage
 public struct rusage_info_v2 {
@@ -675,6 +675,9 @@ public final class WidgetDataManager {
 
     // MARK: - Private Properties
 
+    /// Background queue for heavy data fetching work to avoid blocking the main thread
+    private let monitoringQueue = DispatchQueue(label: "com.tonic.widgetdata.monitoring", qos: .utility)
+
     private var updateTimer: DispatchSourceTimer?
     private var lastNetworkStats: (upload: UInt64, download: UInt64, timestamp: Date)?
     private var lastDiskReadBytes: UInt64 = 0
@@ -720,17 +723,17 @@ public final class WidgetDataManager {
         logger.info("🔵 Starting monitoring with interval: \(interval)s")
         logToFile("🔵 STARTING MONITORING with interval: \(interval)s")
 
-        updateTimer = DispatchSource.makeTimerSource(queue: .main)
-        updateTimer?.schedule(deadline: .now(), repeating: .seconds(Int(interval)))
+        // Use background queue for data fetching to avoid blocking the main thread
+        // The timer fires immediately (.now()) so no need for a separate initial call
+        updateTimer = DispatchSource.makeTimerSource(queue: monitoringQueue)
+        updateTimer?.schedule(deadline: .now() + 0.1, repeating: .seconds(Int(interval)))
         updateTimer?.setEventHandler { [weak self] in
             self?.updateAllData()
         }
         updateTimer?.resume()
 
-        // Initial update
-        logger.info("🔵 Triggering initial data update...")
-        logToFile("🔵 Triggering initial data update...")
-        updateAllData()
+        logger.info("🔵 Monitoring started, first update will occur in 0.1s on background queue")
+        logToFile("🔵 Monitoring started on background queue")
     }
 
     /// Stop monitoring system data
@@ -781,6 +784,7 @@ public final class WidgetDataManager {
     // MARK: - CPU Monitoring
 
     private func updateCPUData() {
+        // Fetch data on background thread
         let usage = getCPUUsage()
         let perCore = getPerCoreCPUUsage()
 
@@ -793,7 +797,7 @@ public final class WidgetDataManager {
         let thermalLimit = getThermalLimit()
         let averageLoad = getAverageLoad()
 
-        cpuData = CPUData(
+        let newCPUData = CPUData(
             totalUsage: usage,
             perCoreUsage: perCore,
             eCoreUsage: eCores,
@@ -804,8 +808,12 @@ public final class WidgetDataManager {
             averageLoad: averageLoad
         )
 
-        // Update history
-        addToHistory(&cpuHistory, value: usage, maxPoints: Self.maxHistoryPoints)
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.cpuData = newCPUData
+            self.addToHistory(&self.cpuHistory, value: usage, maxPoints: Self.maxHistoryPoints)
+        }
 
         logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
         logToFile("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
@@ -1155,7 +1163,10 @@ public final class WidgetDataManager {
         }
 
         guard result == KERN_SUCCESS else {
-            memoryData = MemoryData(usedBytes: 0, totalBytes: 0, pressure: .normal)
+            let emptyData = MemoryData(usedBytes: 0, totalBytes: 0, pressure: .normal)
+            DispatchQueue.main.async { [weak self] in
+                self?.memoryData = emptyData
+            }
             return
         }
 
@@ -1173,29 +1184,24 @@ public final class WidgetDataManager {
         // Get enhanced swap usage
         let (swapTotal, swapUsed) = getSwapUsage()
 
-        // Calculate memory pressure
+        // Calculate free memory
         let free = UInt64(stats.free_count) * pageSize
         let total = UInt64(stats.wire_count + stats.active_count + stats.inactive_count + stats.free_count) * pageSize
         let freePercentage = total > 0 ? Double(free) / Double(total) : 0
 
-        let pressure: MemoryPressure
-        if freePercentage < 0.05 {
-            pressure = .critical
-        } else if freePercentage < 0.15 {
-            pressure = .warning
-        } else {
-            pressure = .normal
-        }
+        // Get actual kernel memory pressure level via kern.memorystatus_vm_pressure_level
+        // Stats Master pattern: returns 0-4 where 0/1=normal, 2=warning, 4=critical
+        let (pressure, pressureLevel) = getKernelMemoryPressure()
 
-        // Calculate pressure value on 0-100 scale
-        let pressureValue = getMemoryPressureValue(freePercentage: freePercentage, pressure: pressure)
+        // Calculate pressure value on 0-100 scale using kernel level
+        let pressureValue = getMemoryPressureValue(level: pressureLevel, freePercentage: freePercentage)
 
         // Get top memory processes (async - we'll use cached value)
         let topProcesses = getTopMemoryProcesses()
 
         let swapBytes = swapUsed ?? 0
 
-        memoryData = MemoryData(
+        let newMemoryData = MemoryData(
             usedBytes: used,
             totalBytes: UInt64(memSize),
             pressure: pressure,
@@ -1208,8 +1214,12 @@ public final class WidgetDataManager {
             topProcesses: topProcesses
         )
 
-        // Update history
-        addToHistory(&memoryHistory, value: memoryData.usagePercentage, maxPoints: Self.maxHistoryPoints)
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.memoryData = newMemoryData
+            self.addToHistory(&self.memoryHistory, value: newMemoryData.usagePercentage, maxPoints: Self.maxHistoryPoints)
+        }
     }
 
     // MARK: - Enhanced Memory Readers
@@ -1231,29 +1241,62 @@ public final class WidgetDataManager {
         return (UInt64(xswUsage.xsu_total), UInt64(xswUsage.xsu_used))
     }
 
-    /// Map memory pressure enum and free percentage to a 0-100 scale
+    /// Get actual kernel memory pressure level via kern.memorystatus_vm_pressure_level
+    /// Stats Master pattern: returns 0-4 where 0/1=normal, 2=warning, 4=critical
+    private func getKernelMemoryPressure() -> (pressure: MemoryPressure, level: Int) {
+        var pressureLevel: Int = 0
+        var intSize: size_t = MemoryLayout<Int>.size
+
+        let result = sysctlbyname("kern.memorystatus_vm_pressure_level", &pressureLevel, &intSize, nil, 0)
+
+        guard result == 0 else {
+            // Fallback to normal if sysctl fails
+            return (.normal, 0)
+        }
+
+        // Map kernel pressure level to MemoryPressure enum
+        // Stats Master: 2 = warning, 4 = critical, default = normal
+        let pressure: MemoryPressure
+        switch pressureLevel {
+        case 2:
+            pressure = .warning
+        case 4:
+            pressure = .critical
+        default:
+            pressure = .normal
+        }
+
+        return (pressure, pressureLevel)
+    }
+
+    /// Map memory pressure to a 0-100 scale using kernel level
     /// - 0-33: Normal (low pressure)
     /// - 34-66: Warning (moderate pressure)
     /// - 67-100: Critical (high pressure)
-    private func getMemoryPressureValue(freePercentage: Double, pressure: MemoryPressure) -> Double {
-        switch pressure {
-        case .normal:
-            // Map 0-15% free to 0-33 on pressure scale
-            // Higher free = lower pressure
-            let normalizedFree = max(0.05, min(0.15, freePercentage))
-            return ((0.15 - normalizedFree) / 0.10) * 33.0
-        case .warning:
-            // Map 5-15% free to 34-66 on pressure scale
-            let normalizedFree = max(0.05, min(0.15, freePercentage))
-            return ((0.15 - normalizedFree) / 0.10) * 32.0 + 34.0
-        case .critical:
-            // Map 0-5% free to 67-100 on pressure scale
-            let normalizedFree = max(0.0, min(0.05, freePercentage))
-            return ((0.05 - normalizedFree) / 0.05) * 33.0 + 67.0
+    private func getMemoryPressureValue(level: Int, freePercentage: Double) -> Double {
+        switch level {
+        case 0, 1:
+            // Normal: 0-33, inversely proportional to free memory
+            // More free memory = lower pressure value
+            let normalizedFree = min(1.0, max(0.0, freePercentage))
+            return (1.0 - normalizedFree) * 33.0
+        case 2:
+            // Warning: 34-66
+            // Use free percentage to position within warning range
+            let normalizedFree = min(0.15, max(0.0, freePercentage))
+            return 34.0 + (1.0 - normalizedFree / 0.15) * 32.0
+        case 4:
+            // Critical: 67-100
+            // Use free percentage to position within critical range
+            let normalizedFree = min(0.05, max(0.0, freePercentage))
+            return 67.0 + (1.0 - normalizedFree / 0.05) * 33.0
+        default:
+            // Unknown level, treat as normal
+            return (1.0 - min(1.0, freePercentage)) * 33.0
         }
     }
 
-    /// Get top memory-consuming processes
+    /// Get top memory-consuming processes using top command (Stats Master pattern)
     /// Uses cached result to avoid frequent process spawning
     /// Returns [AppResourceUsage] to integrate with existing UI components
     private func getTopMemoryProcesses(limit: Int = 8) -> [AppResourceUsage]? {
@@ -1265,30 +1308,28 @@ public final class WidgetDataManager {
             return cached
         }
 
-        // Use ps command to get process memory info (more reliable than top/libproc)
-        // ps format: pid, command (truncated), rss (resident set size in KB)
+        // Use top command following Stats Master pattern
+        // top -l 1 -o mem -n <limit> -stats pid,command,mem
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = [
-            "-arc",     // all processes, nice output in user-friendly format, command with args
-            "-o", "pid=,comm=,rss="  // Output: PID, command, RSS in KB
-        ]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/top")
+        task.arguments = ["-l", "1", "-o", "mem", "-n", "\(limit)", "-stats", "pid,command,mem"]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        task.standardOutput = outputPipe
+        task.standardError = errorPipe
 
         do {
             try task.run()
             task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8),
                   task.terminationStatus == 0 else {
                 return nil
             }
 
-            let processes = parsePSOutput(output, limit: limit)
+            let processes = parseTopOutput(output, limit: limit)
             lastProcessFetchDate = now
             cachedTopProcesses = processes
             return processes
@@ -1297,51 +1338,137 @@ public final class WidgetDataManager {
         }
     }
 
-    /// Parse ps command output to extract process info
-    /// Expected format: "PID   COMMAND          RSS"
-    private func parsePSOutput(_ output: String, limit: Int) -> [AppResourceUsage]? {
+    /// Parse top command output to extract process info
+    /// Stats Master pattern: matches lines like "12345* processname 100M"
+    private func parseTopOutput(_ output: String, limit: Int) -> [AppResourceUsage]? {
         var processes: [AppResourceUsage] = []
-        let lines = output.components(separatedBy: .newlines)
 
-        // Skip header and empty lines
-        for line in lines.dropFirst() where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            guard processes.count < limit else { break }
+        output.enumerateLines { line, stop in
+            // Skip non-process lines (headers, stats, etc.)
+            guard self.lineMatchesProcessPattern(line) else { return }
 
-            // Parse: PID, command, rss (columns separated by whitespace)
-            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard parts.count >= 3,
-                  let pid = Int32(parts[0]),
-                  let rssKb = Double(parts[parts.count - 1]) else {
-                continue
+            if let process = self.parseProcessLine(line) {
+                processes.append(process)
             }
 
-            // The command might have spaces, so reconstruct it
-            // Format: PID command... RSS
-            let commandStart = line.firstIndex(of: " ") ?? line.endIndex
-            let commandEnd = line.lastIndex(of: " ") ?? line.endIndex
-
-            guard commandStart < commandEnd else { continue }
-
-            let command = String(line[line.index(after: commandStart)..<commandEnd])
-                .trimmingCharacters(in: .whitespaces)
-
-            // RSS is in KB, convert to bytes
-            let memoryBytes = UInt64(rssKb * 1024)
-
-            // Try to get app icon for known bundle identifiers
-            let appIcon = getAppIconForProcess(pid: pid, name: command)
-            let bundleId = getBundleIdentifier(for: command)
-
-            processes.append(AppResourceUsage(
-                name: command.isEmpty ? "Unknown" : command,
-                bundleIdentifier: bundleId,
-                icon: appIcon,
-                cpuUsage: 0,
-                memoryBytes: memoryBytes
-            ))
+            if processes.count >= limit {
+                stop = true
+            }
         }
 
         return processes.isEmpty ? nil : processes
+    }
+
+    /// Check if line matches the process output pattern
+    /// Pattern: starts with digits (PID), ends with memory size (digits followed by K/M/G)
+    private func lineMatchesProcessPattern(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+
+        // Check if line starts with a number (PID)
+        guard let firstChar = trimmed.first, firstChar.isNumber else { return false }
+
+        // Check if line ends with memory size pattern (digits + optional suffix)
+        let pattern = "\\d+[KMG]?\\+?\\-?\\s*$"
+        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+            let range = NSRange(location: 0, length: trimmed.utf16.count)
+            return regex.firstMatch(in: trimmed, options: [], range: range) != nil
+        }
+
+        return false
+    }
+
+    /// Parse a single process line from top output
+    /// Format: "PID[*] COMMAND MEM" where MEM is like "100M", "1G", "500K"
+    private func parseProcessLine(_ line: String) -> AppResourceUsage? {
+        var str = line.trimmingCharacters(in: .whitespaces)
+
+        // Extract PID (first numeric sequence)
+        guard let pidMatch = str.range(of: "^\\d+", options: .regularExpression) else { return nil }
+        let pidString = String(str[pidMatch])
+        guard let pid = Int32(pidString) else { return nil }
+
+        // Remove PID and any asterisk marker
+        str = String(str[pidMatch.upperBound...]).trimmingCharacters(in: .whitespaces)
+        if str.hasPrefix("*") {
+            str = String(str.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+
+        // Split remaining into parts
+        var parts = str.split(separator: " ", omittingEmptySubsequences: true)
+        guard parts.count >= 2 else { return nil }
+
+        // Last part is memory usage
+        let memString = String(parts.removeLast())
+
+        // Remaining parts form the command name
+        let command = parts.joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: " +", with: "", options: .regularExpression)
+            .replacingOccurrences(of: " -", with: "", options: .regularExpression)
+
+        // Parse memory value (convert to bytes)
+        let memoryBytes = parseMemoryString(memString)
+
+        // Try to get app name from NSRunningApplication
+        var name = command
+        if let app = NSRunningApplication(processIdentifier: pid),
+           let appName = app.localizedName {
+            name = appName
+        }
+
+        // Try to get app icon
+        let appIcon = getAppIconForProcess(pid: pid, name: name)
+        let bundleId = getBundleIdentifier(for: name)
+
+        return AppResourceUsage(
+            name: name.isEmpty ? "Unknown" : name,
+            bundleIdentifier: bundleId,
+            icon: appIcon,
+            cpuUsage: 0,
+            memoryBytes: memoryBytes
+        )
+    }
+
+    /// Parse memory string like "100M", "1G", "500K" to bytes
+    private func parseMemoryString(_ str: String) -> UInt64 {
+        let cleaned = str.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "+", with: "")
+            .replacingOccurrences(of: "-", with: "")
+
+        guard !cleaned.isEmpty else { return 0 }
+
+        // Get last character and check if it's a unit suffix
+        guard let lastCharacter = cleaned.last else { return 0 }
+        let lastChar = lastCharacter.uppercased()
+
+        // Determine if last character is numeric or a unit suffix
+        let hasUnitSuffix = !lastCharacter.isNumber
+        let numericString: String
+        if hasUnitSuffix {
+            numericString = String(cleaned.dropLast())
+        } else {
+            numericString = cleaned
+        }
+
+        guard let value = Double(numericString) else { return 0 }
+
+        if hasUnitSuffix {
+            switch lastChar {
+            case "G":
+                return UInt64(value * 1024 * 1024 * 1024)
+            case "M":
+                return UInt64(value * 1024 * 1024)
+            case "K":
+                return UInt64(value * 1024)
+            default:
+                // Unknown suffix, assume megabytes
+                return UInt64(value * 1024 * 1024)
+            }
+        } else {
+            // No suffix, assume megabytes (top default)
+            return UInt64(value * 1024 * 1024)
+        }
     }
 
     /// Get app icon for a process by PID
@@ -1466,13 +1593,17 @@ public final class WidgetDataManager {
         // Sort: boot volume first, then by used bytes
         volumes.sort { $0.isBootVolume && !$1.isBootVolume || ($0.isBootVolume == $1.isBootVolume && $0.usedBytes > $1.usedBytes) }
 
-        diskVolumes = volumes
-
         // Get disk I/O statistics using IOKit (for activity detection)
         let (readBytes, writeBytes) = getDiskIOStatistics()
-        primaryDiskActivity = (readBytes != lastDiskReadBytes || writeBytes != lastDiskWriteBytes)
+        let isActive = (readBytes != lastDiskReadBytes || writeBytes != lastDiskWriteBytes)
         lastDiskReadBytes = readBytes
         lastDiskWriteBytes = writeBytes
+
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            self?.diskVolumes = volumes
+            self?.primaryDiskActivity = isActive
+        }
     }
 
     // MARK: - Enhanced Disk Readers
@@ -1836,7 +1967,7 @@ public final class WidgetDataManager {
         let connectivity = getConnectivityInfo()
         let topProcesses = getTopNetworkProcesses()
 
-        networkData = NetworkData(
+        let newNetworkData = NetworkData(
             uploadBytesPerSecond: max(0, uploadRate),
             downloadBytesPerSecond: max(0, downloadRate),
             isConnected: isConnected,
@@ -1848,9 +1979,13 @@ public final class WidgetDataManager {
             topProcesses: topProcesses
         )
 
-        // Update history
-        addToHistory(&networkUploadHistory, value: uploadRate / 1024, maxPoints: Self.maxHistoryPoints) // KB/s
-        addToHistory(&networkDownloadHistory, value: downloadRate / 1024, maxPoints: Self.maxHistoryPoints)
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.networkData = newNetworkData
+            self.addToHistory(&self.networkUploadHistory, value: uploadRate / 1024, maxPoints: Self.maxHistoryPoints) // KB/s
+            self.addToHistory(&self.networkDownloadHistory, value: downloadRate / 1024, maxPoints: Self.maxHistoryPoints)
+        }
     }
 
     private func getNetworkStats() -> NetworkStats {
@@ -2385,17 +2520,24 @@ public final class WidgetDataManager {
             usedMemory = UInt64(Double(total) * (estimatedGPUMemoryPercent / 100.0))
         }
 
-        gpuData = GPUData(
+        let newGPUData = GPUData(
             usagePercentage: usage,
             usedMemory: usedMemory,
             totalMemory: totalMemory,
             temperature: temperature,
             timestamp: Date()
         )
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            self?.gpuData = newGPUData
+        }
         #else
         // Intel Macs - GPU monitoring not supported (discrete GPU)
         // Return empty GPU data to indicate no GPU available
-        gpuData = GPUData(timestamp: Date())
+        let emptyGPUData = GPUData(timestamp: Date())
+        DispatchQueue.main.async { [weak self] in
+            self?.gpuData = emptyGPUData
+        }
         #endif
     }
 
@@ -2459,8 +2601,12 @@ public final class WidgetDataManager {
         let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue()
         let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFDictionary]
 
+        let noBatteryData = BatteryData(isPresent: false)
+
         guard let powerSources = sources else {
-            batteryData = BatteryData(isPresent: false)
+            DispatchQueue.main.async { [weak self] in
+                self?.batteryData = noBatteryData
+            }
             return
         }
 
@@ -2474,7 +2620,9 @@ public final class WidgetDataManager {
 
             let isPresent = info[kIOPSIsPresentKey] as? Bool ?? true
             guard isPresent else {
-                batteryData = BatteryData(isPresent: false)
+                DispatchQueue.main.async { [weak self] in
+                    self?.batteryData = noBatteryData
+                }
                 return
             }
 
@@ -2515,7 +2663,7 @@ public final class WidgetDataManager {
             // Get charger wattage
             let chargerWattage = getChargerWattage()
 
-            batteryData = BatteryData(
+            let newBatteryData = BatteryData(
                 isPresent: true,
                 isCharging: isCharging,
                 isCharged: isCharged,
@@ -2527,10 +2675,16 @@ public final class WidgetDataManager {
                 optimizedCharging: optimizedCharging,
                 chargerWattage: chargerWattage
             )
+            // Dispatch property updates to main thread for @Observable
+            DispatchQueue.main.async { [weak self] in
+                self?.batteryData = newBatteryData
+            }
             return
         }
 
-        batteryData = BatteryData(isPresent: false)
+        DispatchQueue.main.async { [weak self] in
+            self?.batteryData = noBatteryData
+        }
     }
 
     // MARK: - Enhanced Battery Readers
@@ -2620,12 +2774,16 @@ public final class WidgetDataManager {
     // MARK: - Sensors Monitoring
 
     private func updateSensorsData() {
-        sensorsData = SensorsData(
+        let newSensorsData = SensorsData(
             temperatures: getSMCTemperatures(),
             fans: getSMCFans(),
             voltages: getSMCVoltages(),
             power: getSMCPower()
         )
+        // Dispatch property updates to main thread for @Observable
+        DispatchQueue.main.async { [weak self] in
+            self?.sensorsData = newSensorsData
+        }
     }
 
     // MARK: - Enhanced Sensors Readers
