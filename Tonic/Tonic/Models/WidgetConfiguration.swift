@@ -293,6 +293,11 @@ public enum WidgetUpdateInterval: String, CaseIterable, Identifiable, Codable {
 public final class WidgetPreferences: Sendable {
     public static let shared = WidgetPreferences()
 
+    // MARK: - Migration Version
+
+    /// Current migration version - increment when config structure changes
+    private static let currentMigrationVersion = 2
+
     // MARK: - Properties
 
     /// Configuration for all available widgets
@@ -314,6 +319,9 @@ public final class WidgetPreferences: Sendable {
         static let updateInterval = "tonic.widget.updateInterval"
         static let hasCompletedOnboarding = "tonic.widget.hasCompletedOnboarding"
         static let unifiedMenuBarMode = "tonic.widget.unifiedMenuBarMode"
+        static let migrationVersion = "tonic.widget.migrationVersion"
+        static let backupConfigs = "tonic.widget.configs.backup"
+        static let backupTimestamp = "tonic.widget.configs.backupTimestamp"
     }
 
     // MARK: - Initialization
@@ -322,6 +330,11 @@ public final class WidgetPreferences: Sendable {
         self.updateInterval = .balanced
         self.hasCompletedOnboarding = false
         self.unifiedMenuBarMode = false
+
+        // Run migration first, before loading configs
+        Self.migrateIfNeeded()
+
+        // Load configs (may have been updated by migration)
         self.widgetConfigs = Self.loadConfigsFromUserDefaults() ?? Self.defaultConfigs()
 
         // Load other preferences
@@ -339,6 +352,194 @@ public final class WidgetPreferences: Sendable {
         return allTypes.enumerated().map { index, type in
             WidgetConfiguration.default(for: type, at: index)
         }
+    }
+
+    // MARK: - Migration
+
+    /// Check if migration is needed and perform it if necessary
+    /// This is called during init before loading configs
+    private static func migrateIfNeeded() {
+        let currentVersion = UserDefaults.standard.integer(forKey: Keys.migrationVersion)
+
+        // No migration needed if already on current version
+        guard currentVersion < currentMigrationVersion else {
+            return
+        }
+
+        #if DEBUG
+        print("[WidgetPreferences] Migration needed: version \(currentVersion) -> \(currentMigrationVersion)")
+        #endif
+
+        // Create backup before migration
+        backupConfigs()
+
+        // Perform migration based on current version
+        do {
+            let migratedConfigs = try performMigration(from: currentVersion)
+            if let configs = migratedConfigs {
+                // Save migrated configs
+                if let encoded = try? JSONEncoder().encode(configs) {
+                    UserDefaults.standard.set(encoded, forKey: Keys.widgetConfigs)
+                }
+
+                #if DEBUG
+                print("[WidgetPreferences] Migration completed successfully")
+                #endif
+            }
+
+            // Update migration version
+            UserDefaults.standard.set(currentMigrationVersion, forKey: Keys.migrationVersion)
+
+        } catch {
+            // Log migration failure
+            #if DEBUG
+            print("[WidgetPreferences] Migration failed: \(error.localizedDescription)")
+            #endif
+
+            // Fallback: clear configs to use defaults
+            UserDefaults.standard.removeObject(forKey: Keys.widgetConfigs)
+
+            // Still update version to prevent repeated failed migrations
+            UserDefaults.standard.set(currentMigrationVersion, forKey: Keys.migrationVersion)
+        }
+    }
+
+    /// Perform migration from a specific version
+    /// - Returns: Migrated configs, or nil if no migration was performed
+    private static func performMigration(from version: Int) throws -> [WidgetConfiguration]? {
+        guard let data = UserDefaults.standard.data(forKey: Keys.widgetConfigs) else {
+            // No existing configs - nothing to migrate
+            return nil
+        }
+
+        // Version 0 -> 1: Migrate from legacy format (iconOnly/iconWithValue/iconWithValueAndSparkline)
+        // Version 1 -> 2: Add visualizationType field
+        if version == 0 {
+            return try migrateFromLegacyFormat(data: data)
+        } else if version == 1 {
+            return try migrateToVersion2(data: data)
+        }
+
+        return nil
+    }
+
+    /// Migrate from legacy format (pre-v1) to current format
+    private static func migrateFromLegacyFormat(data: Data) throws -> [WidgetConfiguration] {
+        // Try legacy format with old display modes
+        struct LegacyWidgetConfiguration: Decodable {
+            let id: UUID
+            var type: WidgetType
+            var isEnabled: Bool
+            var position: Int
+            var displayMode: LegacyDisplayMode
+            var showLabel: Bool
+            var valueFormat: WidgetValueFormat
+            var refreshInterval: WidgetUpdateInterval
+        }
+
+        enum LegacyDisplayMode: String, Decodable {
+            case iconOnly = "iconOnly"
+            case iconWithValue = "iconWithValue"
+            case iconWithValueAndSparkline = "iconWithValueAndSparkline"
+
+            func migrate() -> WidgetDisplayMode {
+                switch self {
+                case .iconOnly, .iconWithValue: return .compact
+                case .iconWithValueAndSparkline: return .detailed
+                }
+            }
+        }
+
+        let legacyConfigs = try JSONDecoder().decode([LegacyWidgetConfiguration].self, from: data)
+
+        // Migrate to new format with visualizationType
+        return legacyConfigs.map { legacy in
+            WidgetConfiguration(
+                id: legacy.id,
+                type: legacy.type,
+                visualizationType: legacy.type.defaultVisualization,
+                isEnabled: legacy.isEnabled,
+                position: legacy.position,
+                displayMode: legacy.displayMode.migrate(),
+                showLabel: legacy.showLabel,
+                valueFormat: legacy.valueFormat,
+                refreshInterval: legacy.refreshInterval,
+                accentColor: .system,
+                chartConfig: nil
+            )
+        }
+    }
+
+    /// Migrate from version 1 to version 2 (add visualizationType)
+    private static func migrateToVersion2(data: Data) throws -> [WidgetConfiguration] {
+        // Version 1 configs don't have visualizationType
+        struct PreVisualizationConfig: Decodable {
+            let id: UUID
+            var type: WidgetType
+            var isEnabled: Bool
+            var position: Int
+            var displayMode: WidgetDisplayMode
+            var showLabel: Bool
+            var valueFormat: WidgetValueFormat
+            var refreshInterval: WidgetUpdateInterval
+            var accentColor: WidgetAccentColor
+        }
+
+        let preVizConfigs = try JSONDecoder().decode([PreVisualizationConfig].self, from: data)
+
+        // Migrate by adding default visualizationType
+        return preVizConfigs.map { config in
+            WidgetConfiguration(
+                id: config.id,
+                type: config.type,
+                visualizationType: config.type.defaultVisualization,
+                isEnabled: config.isEnabled,
+                position: config.position,
+                displayMode: config.displayMode,
+                showLabel: config.showLabel,
+                valueFormat: config.valueFormat,
+                refreshInterval: config.refreshInterval,
+                accentColor: config.accentColor,
+                chartConfig: nil
+            )
+        }
+    }
+
+    /// Create backup of existing configs before migration
+    private static func backupConfigs() {
+        guard let data = UserDefaults.standard.data(forKey: Keys.widgetConfigs) else {
+            return
+        }
+
+        // Save backup
+        UserDefaults.standard.set(data, forKey: Keys.backupConfigs)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Keys.backupTimestamp)
+
+        #if DEBUG
+        let timestamp = Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: Keys.backupTimestamp))
+        print("[WidgetPreferences] Backup created at \(timestamp)")
+        #endif
+    }
+
+    /// Restore configs from backup (for recovery if needed)
+    public static func restoreFromBackup() -> Bool {
+        guard let backupData = UserDefaults.standard.data(forKey: Keys.backupConfigs) else {
+            return false
+        }
+
+        UserDefaults.standard.set(backupData, forKey: Keys.widgetConfigs)
+
+        #if DEBUG
+        print("[WidgetPreferences] Restored from backup")
+        #endif
+
+        return true
+    }
+
+    /// Get backup timestamp if available
+    public static var backupTimestamp: Date? {
+        let timestamp = UserDefaults.standard.double(forKey: Keys.backupTimestamp)
+        return timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : nil
     }
 
     /// Get enabled widgets sorted by position
