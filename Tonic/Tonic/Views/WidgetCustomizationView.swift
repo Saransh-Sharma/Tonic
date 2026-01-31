@@ -29,6 +29,9 @@ struct WidgetCustomizationView: View {
 
             ScrollView {
                 VStack(spacing: DesignTokens.Spacing.lg) {
+                    // OneView mode toggle
+                    oneViewModeSection
+
                     // Active widgets as a native list
                     activeWidgetsListSection
 
@@ -122,6 +125,46 @@ struct WidgetCustomizationView: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .padding(.vertical, DesignTokens.Spacing.md)
+    }
+
+    // MARK: - OneView Mode Section
+
+    private var oneViewModeSection: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(DesignTokens.Colors.accent)
+
+                    Text("Unified Menu Bar Mode")
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
+                }
+
+                Text("Combine all widgets into a single menu bar item")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            // Toggle switch
+            Toggle("", isOn: Binding(
+                get: { preferences.unifiedMenuBarMode },
+                set: { newValue in
+                    withAnimation(DesignTokens.Animation.fast) {
+                        preferences.setUnifiedMenuBarMode(newValue)
+                        // Refresh widgets to apply mode change
+                        WidgetCoordinator.shared.refreshWidgets()
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+        }
+        .padding(DesignTokens.Spacing.md)
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 
     // MARK: - Active Widgets List Section

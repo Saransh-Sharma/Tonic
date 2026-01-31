@@ -503,6 +503,9 @@ public final class WidgetCoordinator: ObservableObject {
     /// All active widget status items
     @Published public private(set) var activeWidgets: [WidgetType: WidgetStatusItem] = [:]
 
+    /// The unified OneView status item (when in unified mode)
+    private var oneViewStatusItem: OneViewStatusItem?
+
     /// Whether the widget system is active
     @Published public private(set) var isActive = false
 
@@ -542,51 +545,52 @@ public final class WidgetCoordinator: ObservableObject {
         print("✅ [WidgetCoordinator] Started with \(self.activeWidgets.count) active widgets")
     }
 
-    /// Start single unified timer for all widget view updates
-    /// This replaces the previous pattern of 7 individual per-widget timers
-    private func startViewRefreshTimer() {
-        viewRefreshTimer?.invalidate()
-        logger.info("⏰ Starting unified view refresh timer (1 timer for all widgets)")
-
-        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshAllWidgetViews()
-            }
-        }
-    }
-
-    /// Refresh all active widget views at once
-    private func refreshAllWidgetViews() {
-        for widget in activeWidgets.values {
-            widget.refresh()
-        }
-    }
-
-    /// Stop showing widgets
-    public func stop() {
-        isActive = false
-
-        // Stop unified view refresh timer
-        viewRefreshTimer?.invalidate()
-        viewRefreshTimer = nil
-
-        // Remove all status items
-        activeWidgets.values.forEach { $0.hide() }
-        activeWidgets.removeAll()
-
-        // Stop data monitoring
-        WidgetDataManager.shared.stopMonitoring()
-    }
-
-    /// Refresh widgets based on current preferences
+    /// Refresh widgets based on current preferences and mode
     public func refreshWidgets() {
-        let enabledConfigs = WidgetPreferences.shared.enabledWidgets
-        logger.info("🔄 refreshWidgets - enabled configs: \(enabledConfigs.count)")
+        let preferences = WidgetPreferences.shared
+        let enabledConfigs = preferences.enabledWidgets
+        logger.info("🔄 refreshWidgets - unified mode: \(preferences.unifiedMenuBarMode), enabled configs: \(enabledConfigs.count)")
 
-        // Log config values to trace what's being read from preferences
-        for config in enabledConfigs {
-            logger.info("📋 Config for \(config.type.rawValue): color=\(config.accentColor.rawValue), format=\(config.valueFormat.rawValue), mode=\(config.displayMode.rawValue)")
+        if preferences.unifiedMenuBarMode {
+            // Unified mode: show OneView, hide individual widgets
+            refreshUnifiedMode()
+        } else {
+            // Individual mode: show each widget separately
+            refreshIndividualWidgets()
         }
+    }
+
+    /// Refresh widgets in unified OneView mode
+    private func refreshUnifiedMode() {
+        // Remove all individual widgets
+        for (type, widget) in activeWidgets {
+            logger.info("🔻 Removing individual widget for unified mode: \(type.rawValue)")
+            widget.hide()
+            activeWidgets.removeValue(forKey: type)
+        }
+
+        // Create or update OneView
+        if oneViewStatusItem == nil {
+            logger.info("➕ Creating OneView status item")
+            oneViewStatusItem = OneViewStatusItem()
+        }
+
+        // Update the OneView to reflect current widget list
+        oneViewStatusItem?.refreshWidgetList()
+
+        logger.info("✅ OneView mode active")
+    }
+
+    /// Refresh widgets in individual mode
+    private func refreshIndividualWidgets() {
+        // Remove OneView if active
+        if let oneView = oneViewStatusItem {
+            logger.info("🔻 Removing OneView for individual mode")
+            oneView.hide()
+            oneViewStatusItem = nil
+        }
+
+        let enabledConfigs = WidgetPreferences.shared.enabledWidgets
 
         // Remove widgets that are no longer enabled
         let activeTypes = Set(activeWidgets.keys)
@@ -612,7 +616,49 @@ public final class WidgetCoordinator: ObservableObject {
         }
 
         let widgetTypes = self.activeWidgets.keys.map { $0.rawValue }
-        logger.info("✅ After refresh - active widgets: \(self.activeWidgets.count), types: \(widgetTypes)")
+        logger.info("✅ Individual mode active - \(self.activeWidgets.count) widgets: \(widgetTypes)")
+    }
+
+    /// Start single unified timer for all widget view updates
+    /// This replaces the previous pattern of 7 individual per-widget timers
+    private func startViewRefreshTimer() {
+        viewRefreshTimer?.invalidate()
+        logger.info("⏰ Starting unified view refresh timer (1 timer for all widgets)")
+
+        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshAllWidgetViews()
+            }
+        }
+    }
+
+    /// Refresh all active widget views at once
+    private func refreshAllWidgetViews() {
+        // Refresh individual widgets
+        for widget in activeWidgets.values {
+            widget.refresh()
+        }
+
+        // Also refresh OneView if active
+        oneViewStatusItem?.refresh()
+    }
+
+    /// Stop showing widgets
+    public func stop() {
+        isActive = false
+
+        // Stop unified view refresh timer
+        viewRefreshTimer?.invalidate()
+        viewRefreshTimer = nil
+
+        // Remove all status items including OneView
+        oneViewStatusItem?.hide()
+        oneViewStatusItem = nil
+        activeWidgets.values.forEach { $0.hide() }
+        activeWidgets.removeAll()
+
+        // Stop data monitoring
+        WidgetDataManager.shared.stopMonitoring()
     }
 
     /// Create the appropriate widget subclass for the given type and visualization

@@ -304,12 +304,16 @@ public final class WidgetPreferences: Sendable {
     /// Whether widget system has been onboarded
     public var hasCompletedOnboarding: Bool
 
+    /// Whether to use unified menu bar mode (OneView) instead of individual widgets
+    public var unifiedMenuBarMode: Bool
+
     // MARK: - UserDefaults Keys
 
     private enum Keys {
         static let widgetConfigs = "tonic.widget.configs"
         static let updateInterval = "tonic.widget.updateInterval"
         static let hasCompletedOnboarding = "tonic.widget.hasCompletedOnboarding"
+        static let unifiedMenuBarMode = "tonic.widget.unifiedMenuBarMode"
     }
 
     // MARK: - Initialization
@@ -317,6 +321,7 @@ public final class WidgetPreferences: Sendable {
     private init() {
         self.updateInterval = .balanced
         self.hasCompletedOnboarding = false
+        self.unifiedMenuBarMode = false
         self.widgetConfigs = Self.loadConfigsFromUserDefaults() ?? Self.defaultConfigs()
 
         // Load other preferences
@@ -386,6 +391,9 @@ public final class WidgetPreferences: Sendable {
 
         // Load onboarding status
         hasCompletedOnboarding = UserDefaults.standard.bool(forKey: Keys.hasCompletedOnboarding)
+
+        // Load unified menu bar mode
+        unifiedMenuBarMode = UserDefaults.standard.bool(forKey: Keys.unifiedMenuBarMode)
     }
 
     internal func saveConfigs() {
@@ -491,6 +499,10 @@ public final class WidgetPreferences: Sendable {
         UserDefaults.standard.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding)
     }
 
+    private func saveUnifiedMenuBarMode() {
+        UserDefaults.standard.set(unifiedMenuBarMode, forKey: Keys.unifiedMenuBarMode)
+    }
+
     // MARK: - Public Setters
 
     public func setUpdateInterval(_ interval: WidgetUpdateInterval) {
@@ -555,6 +567,16 @@ public final class WidgetPreferences: Sendable {
         updateConfig(for: type) { config in
             config.chartConfig = chartConfig
         }
+    }
+
+    public func setUnifiedMenuBarMode(_ enabled: Bool) {
+        unifiedMenuBarMode = enabled
+        saveUnifiedMenuBarMode()
+    }
+
+    public func toggleUnifiedMenuBarMode() {
+        unifiedMenuBarMode.toggle()
+        saveUnifiedMenuBarMode()
     }
 }
 
