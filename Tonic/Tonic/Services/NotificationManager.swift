@@ -339,6 +339,12 @@ public final class NotificationManager: Sendable {
         }
     }
 
+    /// Toggle a threshold's enabled state
+    /// - Parameter id: The ID of the threshold to toggle
+    public func toggleThreshold(id: UUID) {
+        config.toggleThreshold(id: id)
+    }
+
     /// Toggle the enabled state of notifications
     public func toggleNotifications() {
         config.notificationsEnabled.toggle()

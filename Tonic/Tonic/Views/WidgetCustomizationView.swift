@@ -18,6 +18,7 @@ struct WidgetCustomizationView: View {
     @State private var showingResetAlert = false
     @State private var dataManager = WidgetDataManager.shared
     @State private var selectedWidgetForSettings: WidgetType?
+    @State private var showingNotificationSettings = false
 
     init() {}
 
@@ -49,6 +50,9 @@ struct WidgetCustomizationView: View {
         .sheet(item: $selectedWidgetForSettings) { type in
             WidgetSettingsSheet(widgetType: type, preferences: preferences)
         }
+        .sheet(isPresented: $showingNotificationSettings) {
+            NotificationSettingsView()
+        }
     }
 
     // MARK: - Header Section
@@ -79,6 +83,23 @@ struct WidgetCustomizationView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Reset widgets")
                     .accessibilityHint("Resets all widget settings to defaults")
+
+                    Button(action: { showingNotificationSettings = true }) {
+                        Label("Notifications", systemImage: "bell")
+                            .font(DesignTokens.Typography.caption)
+                            .padding(.horizontal, DesignTokens.Spacing.sm)
+                            .padding(.vertical, DesignTokens.Spacing.xs)
+                            .background(NotificationManager.shared.config.notificationsEnabled
+                                ? DesignTokens.Colors.success.opacity(0.2)
+                                : DesignTokens.Colors.backgroundSecondary)
+                            .foregroundColor(NotificationManager.shared.config.notificationsEnabled
+                                ? DesignTokens.Colors.success
+                                : DesignTokens.Colors.textSecondary)
+                            .cornerRadius(DesignTokens.CornerRadius.small)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Notification settings")
+                    .accessibilityHint("Configure notification thresholds")
 
                     Button(action: {
                         withAnimation(DesignTokens.Animation.fast) {
@@ -513,6 +534,10 @@ struct WidgetSettingsSheet: View {
                             colorSelector
                         }
 
+                        PreferenceSection(header: "Notifications") {
+                            widgetNotificationSettings
+                        }
+
                         PreferenceSection(header: "Preview") {
                             widgetPreview
                         }
@@ -831,6 +856,169 @@ struct WidgetSettingsSheet: View {
                 lineWidth: 1.2
             )
         }
+    }
+
+    // MARK: - Notification Settings
+
+    /// Notification threshold settings for this widget
+    private var widgetNotificationSettings: some View {
+        let notificationManager = NotificationManager.shared
+        let thresholds = notificationManager.config.thresholds(for: widgetType)
+        let hasThresholds = notificationManager.config.hasThresholds(for: widgetType)
+
+        return VStack(spacing: DesignTokens.Spacing.sm) {
+            // Status row
+            HStack {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                    Text(hasThresholds ? "Notifications configured" : "No notifications")
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(hasThresholds
+                            ? DesignTokens.Colors.success
+                            : DesignTokens.Colors.textSecondary)
+
+                    if hasThresholds {
+                        Text("\(thresholds.count) threshold(s) active")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
+                    }
+                }
+
+                Spacer()
+
+                // Quick toggle
+                Button {
+                    toggleQuickNotification()
+                } label: {
+                    Image(systemName: hasThresholds ? "bell.fill" : "bell")
+                        .font(.system(size: 14))
+                        .foregroundColor(hasThresholds
+                            ? DesignTokens.Colors.success
+                            : DesignTokens.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help(hasThresholds ? "Disable notifications" : "Enable default notifications")
+            }
+            .padding(.vertical, DesignTokens.Spacing.xs)
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .background(DesignTokens.Colors.backgroundTertiary)
+            .cornerRadius(DesignTokens.CornerRadius.small)
+
+            // Quick threshold presets
+            if !hasThresholds || thresholds.isEmpty {
+                quickThresholdPresets
+            }
+        }
+    }
+
+    /// Quick threshold presets for common scenarios
+    private var quickThresholdPresets: some View {
+        VStack(spacing: DesignTokens.Spacing.xxxs) {
+            Text("Quick presets")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
+                ForEach(presetThresholds(), id: \.label) { preset in
+                    Button {
+                        addPresetThreshold(preset)
+                    } label: {
+                        VStack(spacing: DesignTokens.Spacing.xxxs) {
+                            Text(preset.label)
+                                .font(DesignTokens.Typography.captionEmphasized)
+                            Text(preset.detail)
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textTertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                        .background(DesignTokens.Colors.backgroundTertiary)
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Threshold presets for this widget type
+    private func presetThresholds() -> [ThresholdPreset] {
+        switch widgetType {
+        case .cpu:
+            return [
+                ThresholdPreset(label: "High", detail: "> 80%", value: 80, condition: .greaterThanOrEqual),
+                ThresholdPreset(label: "Critical", detail: "> 90%", value: 90, condition: .greaterThanOrEqual)
+            ]
+        case .memory:
+            return [
+                ThresholdPreset(label: "High", detail: "> 85%", value: 85, condition: .greaterThanOrEqual),
+                ThresholdPreset(label: "Critical", detail: "> 95%", value: 95, condition: .greaterThanOrEqual)
+            ]
+        case .disk:
+            return [
+                ThresholdPreset(label: "Full", detail: "> 90%", value: 90, condition: .greaterThanOrEqual),
+                ThresholdPreset(label: "Warning", detail: "> 80%", value: 80, condition: .greaterThanOrEqual)
+            ]
+        case .gpu:
+            return [
+                ThresholdPreset(label: "High", detail: "> 85%", value: 85, condition: .greaterThanOrEqual),
+                ThresholdPreset(label: "Critical", detail: "> 95%", value: 95, condition: .greaterThanOrEqual)
+            ]
+        case .battery:
+            return [
+                ThresholdPreset(label: "Low", detail: "< 20%", value: 20, condition: .lessThanOrEqual),
+                ThresholdPreset(label: "Critical", detail: "< 10%", value: 10, condition: .lessThanOrEqual)
+            ]
+        case .sensors:
+            return [
+                ThresholdPreset(label: "Hot", detail: "> 85°", value: 85, condition: .greaterThanOrEqual),
+                ThresholdPreset(label: "Very Hot", detail: "> 95°", value: 95, condition: .greaterThanOrEqual)
+            ]
+        default:
+            return []
+        }
+    }
+
+    /// Add a preset threshold
+    private func addPresetThreshold(_ preset: ThresholdPreset) {
+        let threshold = NotificationThreshold(
+            widgetType: widgetType,
+            condition: preset.condition,
+            value: preset.value,
+            isEnabled: true
+        )
+        NotificationManager.shared.updateThreshold(threshold)
+    }
+
+    /// Toggle quick notification (adds default threshold or removes all)
+    private func toggleQuickNotification() {
+        let notificationManager = NotificationManager.shared
+        let hasThresholds = notificationManager.config.hasThresholds(for: widgetType)
+
+        if hasThresholds {
+            // Remove all thresholds for this widget
+            let thresholds = notificationManager.config.thresholds(for: widgetType)
+            for threshold in thresholds {
+                notificationManager.removeThreshold(id: threshold.id)
+            }
+        } else {
+            // Add default threshold
+            let defaults = NotificationThreshold.defaultThresholds(for: widgetType)
+            if let defaultThreshold = defaults.first {
+                var newThreshold = defaultThreshold
+                newThreshold.isEnabled = true
+                notificationManager.updateThreshold(newThreshold)
+            }
+        }
+    }
+
+    /// Helper struct for threshold presets
+    private struct ThresholdPreset {
+        let label: String
+        let detail: String
+        let value: Double
+        let condition: NotificationCondition
     }
 
     private var widgetAccentColor: Color {

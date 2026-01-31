@@ -65,9 +65,8 @@ Activity Monitor deep link: `activitymanager://show/` or reveal in Finder then o
 - [ ] Follows DesignComponents patterns
 - [ ] Uses DesignTokens for styling
 ## Done summary
-TBD
-
+Implemented process monitoring UI components for widget popovers. Created ProcessListWidgetView component that displays top processes for CPU, Memory, Network, and Disk usage with app icons, names, usage values, and color-coded usage bars. Integrated the component into all four widget detail views.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: d871cd510af1fc2aa1efa11cd6465b9dcd7ff955
+- Tests: xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic -configuration Debug build
 - PRs:

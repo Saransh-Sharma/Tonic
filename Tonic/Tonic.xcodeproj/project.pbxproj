@@ -45,6 +45,7 @@
 		75EFDFD72F224CCA00B990DA /* WidgetOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */; };
 		75EFDFD82F224CCA00B990DA /* NotificationRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFD42F224CCA00B990DA /* NotificationRulesView.swift */; };
 		75EFDFD92F224CCA00B990DA /* WidgetCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */; };
+		8A4B5C6D7E8F9A0B1C2D3E50 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A4B5C6D7E8F9A0B1C2D3E4F /* NotificationSettingsView.swift */; };
 		7B58865D3FED9980A7F4E487 /* TonicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561387584F1DDAFF11465619 /* TonicApp.swift */; };
 		7B8F6D734C02D833F2719674 /* RecommendationGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */; };
 		9046017F36F07233AA6F8679 /* LineChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */; };
@@ -161,6 +162,7 @@
 		75EFDFD42F224CCA00B990DA /* NotificationRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRulesView.swift; sourceTree = "<group>"; };
 		75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCustomizationView.swift; sourceTree = "<group>"; };
 		75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
+		8A4B5C6D7E8F9A0B1C2D3E4F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartStatusItem.swift; path = ChartStatusItems/LineChartStatusItem.swift; sourceTree = "<group>"; };
 		8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TachometerStatusItem.swift; path = ChartStatusItems/TachometerStatusItem.swift; sourceTree = "<group>"; };
 		8C091ED870B78BAB0C534C09 /* HealthScoreCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthScoreCalculator.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				75EFDFD42F224CCA00B990DA /* NotificationRulesView.swift */,
 				75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */,
 				75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */,
+				8A4B5C6D7E8F9A0B1C2D3E4F /* NotificationSettingsView.swift */,
 				12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */,
 				MV001F1 /* MaintenanceView.swift */,
 			);
@@ -555,6 +558,7 @@
 				75EFDFD72F224CCA00B990DA /* WidgetOnboardingView.swift in Sources */,
 				75EFDFD82F224CCA00B990DA /* NotificationRulesView.swift in Sources */,
 				75EFDFD92F224CCA00B990DA /* WidgetCustomizationView.swift in Sources */,
+				8A4B5C6D7E8F9A0B1C2D3E50 /* NotificationSettingsView.swift in Sources */,
 				39F60D956BB32885CF3A611F /* SidebarView.swift in Sources */,
 				F7249337013509A8B7DB4F5D /* SystemStatusDashboard.swift in Sources */,
 				A3B4C5D6E7F8A9B0C1D2E3F4 /* MenuBarController.swift in Sources */,
