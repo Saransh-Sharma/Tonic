@@ -35,6 +35,8 @@
 		75EFDFC92F224C1200B990DA /* SystemEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFC52F224C1200B990DA /* SystemEnums.swift */; };
 		75EFDFCA2F224C1200B990DA /* NotificationRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFC42F224C1200B990DA /* NotificationRule.swift */; };
 		75EFDFCB2F224C1200B990DA /* WeatherData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFC62F224C1200B990DA /* WeatherData.swift */; };
+		75EFF0012F3000000B990DA /* NotificationThreshold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFF0022F3000000B990DA /* NotificationThreshold.swift */; };
+		75EFF0032F3000100B990DA /* NotificationConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFF0042F3000100B990DA /* NotificationConfig.swift */; };
 		75EFDFD02F224C7400B990DA /* WidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFCE2F224C7400B990DA /* WidgetDataManager.swift */; };
 		75EFDFD12F224C7400B990DA /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFCD2F224C7400B990DA /* WeatherService.swift */; };
 		75EFDFD22F224C7400B990DA /* NotificationRuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFCC2F224C7400B990DA /* NotificationRuleEngine.swift */; };
@@ -146,6 +148,8 @@
 		75EFDFC52F224C1200B990DA /* SystemEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemEnums.swift; sourceTree = "<group>"; };
 		75EFDFC62F224C1200B990DA /* WeatherData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherData.swift; sourceTree = "<group>"; };
 		75EFDFC72F224C1200B990DA /* WidgetConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConfiguration.swift; sourceTree = "<group>"; };
+		75EFF0022F3000000B990DA /* NotificationThreshold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationThreshold.swift; sourceTree = "<group>"; };
+		75EFF0042F3000100B990DA /* NotificationConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationConfig.swift; sourceTree = "<group>"; };
 		75EFDFCC2F224C7400B990DA /* NotificationRuleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRuleEngine.swift; sourceTree = "<group>"; };
 		75EFDFCD2F224C7400B990DA /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
 		75EFDFCE2F224C7400B990DA /* WidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataManager.swift; sourceTree = "<group>"; };
@@ -378,6 +382,8 @@
 				75EFDFC52F224C1200B990DA /* SystemEnums.swift */,
 				75EFDFC62F224C1200B990DA /* WeatherData.swift */,
 				75EFDFC72F224C1200B990DA /* WidgetConfiguration.swift */,
+				75EFF0022F3000000B990DA /* NotificationThreshold.swift */,
+				75EFF0042F3000100B990DA /* NotificationConfig.swift */,
 				NET006F6 /* NetworkMetricsModels.swift */,
 				LO001F1 /* LoginItem.swift */,
 				LO002F2 /* BackgroundActivityItem.swift */,
@@ -514,6 +520,8 @@
 				75EFDFC92F224C1200B990DA /* SystemEnums.swift in Sources */,
 				75EFDFCA2F224C1200B990DA /* NotificationRule.swift in Sources */,
 				75EFDFCB2F224C1200B990DA /* WeatherData.swift in Sources */,
+				75EFF0012F3000000B990DA /* NotificationThreshold.swift in Sources */,
+				75EFF0032F3000100B990DA /* NotificationConfig.swift in Sources */,
 				AB0C58023B7686FC2EC9E835 /* AppMetadata.swift in Sources */,
 				C64CCF255672691362159736 /* DiskAnalysisModels.swift in Sources */,
 				F09F6EC961B1FEF37D163FD1 /* NavigationModels.swift in Sources */,

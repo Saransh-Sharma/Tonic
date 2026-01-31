@@ -2,330 +2,401 @@
 //  NotificationManager.swift
 //  Tonic
 //
-//  Smart notifications system
-//  Task ID: fn-1.27
+//  Central notification management service
+//  Task ID: fn-6-i4g.3
 //
 
 import Foundation
 import UserNotifications
+import AppKit
+import os
 
-/// Notification categories
-public enum NotificationCategory: String, CaseIterable, Identifiable {
-    case scanComplete = "Scan Complete"
-    case cleanComplete = "Clean Complete"
-    case lowDiskSpace = "Low Disk Space"
-    case highResourceUsage = "High Resource Usage"
-    case updateAvailable = "Update Available"
-    case weeklySummary = "Weekly Summary"
-    case tip = "Tip"
+// MARK: - Notification Time Tracker
 
-    public var id: String { rawValue }
+/// Actor for thread-safe tracking of notification times
+private actor NotificationTimeTracker {
+    private var times: [String: Date] = [:]
 
-    var identifier: String {
-        "com.tonicapp.\(rawValue.replacingOccurrences(of: " ", with: "").lowercased())"
+    func getLastTime(for thresholdId: String) -> Date? {
+        times[thresholdId]
+    }
+
+    func setLastTime(_ date: Date, for thresholdId: String) {
+        times[thresholdId] = date
+    }
+
+    func removeTime(for thresholdId: String) {
+        times.removeValue(forKey: thresholdId)
+    }
+
+    func removeAll() {
+        times.removeAll()
+    }
+
+    func getAll() -> [String: Date] {
+        times
+    }
+
+    func setAll(_ newTimes: [String: Date]) {
+        times = newTimes
     }
 }
 
-/// Notification priority
-public enum NotificationPriority: String {
-    case low = "low"
-    case normal = "normal"
-    case high = "high"
-}
+// MARK: - Notification Manager
 
-/// Smart notification configuration
-public struct NotificationConfig: Sendable {
-    let category: NotificationCategory
-    let title: String
-    let body: String
-    let priority: NotificationPriority
-    let actionable: Bool
-    let scheduleDate: Date?
-
-    init(category: NotificationCategory, title: String, body: String, priority: NotificationPriority = .normal, actionable: Bool = false, scheduleDate: Date? = nil) {
-        self.category = category
-        self.title = title
-        self.body = body
-        self.priority = priority
-        self.actionable = actionable
-        self.scheduleDate = scheduleDate
-    }
-}
-
-/// Notification preferences
-public struct NotificationPreferences: Codable, Sendable {
-    var scanComplete: Bool = true
-    var cleanComplete: Bool = true
-    var lowDiskSpace: Bool = true
-    var diskThreshold: Int = 10 // Percentage
-    var highResourceUsage: Bool = false
-    var updateAvailable: Bool = true
-    var weeklySummary: Bool = true
-    var tips: Bool = true
-    var quietHoursEnabled: Bool = false
-    var quietHoursStart: Date = Calendar.current.date(bySettingHour: 22, minute: 0, second: 0, of: Date()) ?? Date()
-    var quietHoursEnd: Date = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date()) ?? Date()
-
-    static let shared = NotificationPreferences()
-}
-
-/// Smart notifications manager
+/// Central manager for threshold-based notifications
+@MainActor
 @Observable
-public final class NotificationManager: NSObject, @unchecked Sendable {
+public final class NotificationManager: Sendable {
+
+    // MARK: - Singleton
 
     public static let shared = NotificationManager()
 
-    private let center = UNUserNotificationCenter.current()
-    public var preferences = NotificationPreferences.shared
+    private let logger = Logger(subsystem: "com.tonic.app", category: "NotificationManager")
 
-    private var isQuietHours: Bool {
-        guard preferences.quietHoursEnabled else { return false }
+    // MARK: - Configuration
 
-        let calendar = Calendar.current
-        let now = Date()
-        let currentHour = calendar.component(.hour, from: now)
-
-        let startHour = calendar.component(.hour, from: preferences.quietHoursStart)
-        let endHour = calendar.component(.hour, from: preferences.quietHoursEnd)
-
-        if startHour < endHour {
-            return currentHour >= startHour && currentHour < endHour
-        } else {
-            // Overnight quiet period (e.g., 10 PM to 8 AM)
-            return currentHour >= startHour || currentHour < endHour
+    /// Current notification configuration
+    public private(set) var config: NotificationConfig {
+        didSet {
+            config.save()
         }
     }
 
-    private override init() {
-        super.init()
-        setupCategories()
+    /// Whether notification permission has been granted
+    public private(set) var hasPermission: Bool = false
+
+    // MARK: - UserDefaults Keys
+
+    private enum Keys {
+        static let lastNotificationTime = "tonic.notifications.lastNotification"
     }
 
-    // MARK: - Setup
+    // MARK: - Private State
 
-    public func requestAuthorization() async -> Bool {
-        do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            if granted {
-                setupCategories()
+    /// Tracks the last notification time for each threshold ID
+    private let timeTracker = NotificationTimeTracker()
+
+    // MARK: - Initialization
+
+    private init() {
+        // Load configuration from UserDefaults
+        self.config = NotificationConfig.load()
+
+        // Load last notification times
+        Task {
+            await loadLastNotificationTimes()
+        }
+
+        // Check initial permission status
+        Task {
+            _ = await checkPermissionStatus()
+        }
+
+        logger.info("NotificationManager initialized with \(self.config.thresholds.count) thresholds")
+    }
+
+    // MARK: - Permission Management
+
+    /// Check if notification permission is granted
+    public func checkPermissionStatus() async -> Bool {
+        await withCheckedContinuation { continuation in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+                let granted = settings.authorizationStatus == .authorized
+                Task { @MainActor in
+                    self.hasPermission = granted
+                }
+                continuation.resume(returning: granted)
             }
-            return granted
-        } catch {
-            return false
         }
     }
 
-    private func setupCategories() {
-        let scanComplete = UNNotificationCategory(
-            identifier: NotificationCategory.scanComplete.identifier,
-            actions: [],
-            intentIdentifiers: [],
-            options: []
-        )
-
-        let cleanComplete = UNNotificationCategory(
-            identifier: NotificationCategory.cleanComplete.identifier,
-            actions: [],
-            intentIdentifiers: [],
-            options: []
-        )
-
-        let lowDiskSpace = UNNotificationCategory(
-            identifier: NotificationCategory.lowDiskSpace.identifier,
-            actions: [],
-            intentIdentifiers: [],
-            options: .customDismissAction
-        )
-
-        let updateAvailable = UNNotificationCategory(
-            identifier: NotificationCategory.updateAvailable.identifier,
-            actions: [],
-            intentIdentifiers: [],
-            options: []
-        )
-
-        center.setNotificationCategories([scanComplete, cleanComplete, lowDiskSpace, updateAvailable])
+    /// Request notification permission from the user
+    /// - Parameter completionHandler: Optional callback with the result
+    public func requestPermission(completionHandler: ((Bool) -> Void)? = nil) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            Task { @MainActor in
+                self.hasPermission = granted
+                if let error = error {
+                    self.logger.error("Notification permission error: \(error.localizedDescription)")
+                } else if granted {
+                    self.logger.info("Notification permission granted")
+                } else {
+                    self.logger.info("Notification permission denied")
+                }
+                completionHandler?(granted)
+            }
+        }
     }
 
-    // MARK: - Sending Notifications
+    /// Open macOS notification settings for Tonic
+    public func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
+        }
+    }
 
-    public func send(_ config: NotificationConfig) async {
-        // Check if notifications are enabled for this category
-        guard isEnabled(for: config.category) else { return }
+    // MARK: - Threshold Checking
 
-        // Check quiet hours
-        guard !isQuietHours || config.priority == .high else { return }
+    /// Check if a value triggers any configured thresholds for a widget type
+    /// - Parameters:
+    ///   - widgetType: The type of widget to check
+    ///   - value: The current value to evaluate
+    public func checkThreshold(widgetType: WidgetType, value: Double) {
+        guard config.notificationsEnabled else { return }
 
+        let enabledThresholds = config.enabledThresholds(for: widgetType)
+
+        for threshold in enabledThresholds {
+            if threshold.matches(currentValue: value) {
+                Task {
+                    await triggerNotificationIfNeeded(threshold: threshold, currentValue: value)
+                }
+            }
+        }
+    }
+
+    /// Check if a specific threshold should trigger a notification
+    /// - Parameters:
+    ///   - threshold: The threshold to check
+    ///   - currentValue: The current value that matched the threshold
+    private func triggerNotificationIfNeeded(threshold: NotificationThreshold, currentValue: Double) async {
+        // Check if enough time has passed since last notification for this threshold
+        let shouldSend = await shouldSendNotification(for: threshold.id)
+        if !shouldSend {
+            logger.debug("Skipping notification for \(threshold.widgetType.displayName) - debounce active")
+            return
+        }
+
+        // Check Do Not Disturb if configured
+        if config.respectDoNotDisturb && isInDoNotDisturb() {
+            logger.debug("Skipping notification - Do Not Disturb is active")
+            return
+        }
+
+        // Check permission
+        guard hasPermission else {
+            logger.warning("Cannot send notification - permission not granted")
+            return
+        }
+
+        // Generate notification content and send
+        let (title, body) = generateNotificationContent(threshold: threshold, currentValue: currentValue)
+        sendNotification(title: title, body: body, thresholdId: threshold.id.uuidString)
+
+        // Update last notification time
+        await setLastNotificationTime(for: threshold.id)
+    }
+
+    /// Check if enough time has passed to send another notification for a threshold
+    /// - Parameter thresholdId: The threshold ID to check
+    /// - Returns: True if notification should be sent
+    private func shouldSendNotification(for thresholdId: UUID) async -> Bool {
+        guard let lastTime = await timeTracker.getLastTime(for: thresholdId.uuidString) else {
+            return true // Never sent, can send now
+        }
+
+        let elapsed = Date().timeIntervalSince(lastTime)
+        return elapsed >= config.minimumInterval
+    }
+
+    /// Update the last notification time for a threshold
+    /// - Parameter thresholdId: The threshold ID to update
+    private func setLastNotificationTime(for thresholdId: UUID) async {
+        await timeTracker.setLastTime(Date(), for: thresholdId.uuidString)
+        await saveLastNotificationTimes()
+    }
+
+    // MARK: - Notification Sending
+
+    /// Generate title and body for a threshold notification
+    /// - Parameters:
+    ///   - threshold: The threshold that was triggered
+    ///   - currentValue: The current value
+    /// - Returns: A tuple of (title, body)
+    private func generateNotificationContent(threshold: NotificationThreshold, currentValue: Double) -> (String, String) {
+        let widgetName = threshold.widgetType.displayName
+
+        let title: String
+        let body: String
+
+        switch threshold.widgetType {
+        case .cpu, .gpu, .memory:
+            let currentPercent = String(format: "%.0f%%", currentValue)
+            title = "\(widgetName) Usage Alert"
+            body = "Current usage is \(currentPercent) (threshold: \(threshold.formattedValue))"
+
+        case .disk:
+            let currentPercent = String(format: "%.0f%%", currentValue)
+            title = "Disk Space Alert"
+            body = "Disk usage is \(currentPercent) (threshold: \(threshold.formattedValue))"
+
+        case .battery:
+            if currentValue <= 20 {
+                title = "Low Battery Warning"
+                body = "Battery is at \(threshold.formattedValue)"
+            } else {
+                title = "Battery Alert"
+                body = "Battery is at \(threshold.formattedValue)"
+            }
+
+        case .network:
+            let currentSpeed = String(format: "%.1f MB/s", currentValue)
+            title = "Network Alert"
+            body = "Network speed is \(currentSpeed) (threshold: \(threshold.formattedValue))"
+
+        case .sensors:
+            let currentTemp = String(format: "%.1f°", currentValue)
+            title = "Temperature Alert"
+            body = "Sensor temperature is \(currentTemp) (threshold: \(threshold.formattedValue))"
+
+        case .weather:
+            title = "Weather Alert"
+            body = "Temperature is \(threshold.formattedValue)"
+        }
+
+        return (title, body)
+    }
+
+    /// Send a notification
+    /// - Parameters:
+    ///   - title: Notification title
+    ///   - body: Notification body
+    ///   - thresholdId: Unique identifier for this notification
+    public func sendNotification(title: String, body: String, thresholdId: String = UUID().uuidString) {
         let content = UNMutableNotificationContent()
-        content.title = config.title
-        content.body = config.body
-        content.sound = config.priority == .high ? .default : .none
-        content.categoryIdentifier = config.category.identifier
+        content.title = title
+        content.body = body
+        content.sound = .default
 
+        // Create notification request
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: "tonic_\(thresholdId)_\(Date().timeIntervalSince1970)",
             content: content,
-            trigger: config.scheduleDate.map { date in
-                UNTimeIntervalNotificationTrigger(timeInterval: date.timeIntervalSinceNow, repeats: false)
-            } ?? nil
+            trigger: nil // Immediate delivery
         )
 
-        do {
-            try await center.add(request)
-        } catch {
-            // Silently fail
+        // Add the notification request
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error = error {
+                self?.logger.error("Failed to send notification: \(error.localizedDescription)")
+            } else {
+                self?.logger.info("Notification sent: \(title)")
+            }
         }
     }
 
-    // MARK: - Category-Specific Notifications
-
-    public func notifyScanComplete(itemsFound: Int, spaceToReclaim: Int64) async {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB]
-        formatter.countStyle = .file
-
-        let config = NotificationConfig(
-            category: .scanComplete,
-            title: "Scan Complete",
-            body: "Found \(itemsFound) items taking up \(formatter.string(fromByteCount: spaceToReclaim)). Ready to clean!",
-            priority: .normal
+    /// Send a test notification for verification
+    public func sendTestNotification() {
+        sendNotification(
+            title: "Tonic Notifications",
+            body: "Notification system is working correctly!",
+            thresholdId: "test"
         )
-
-        await send(config)
     }
 
-    public func notifyCleanComplete(spaceFreed: Int64) async {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB]
-        formatter.countStyle = .file
+    // MARK: - Do Not Disturb Detection
 
-        let config = NotificationConfig(
-            category: .cleanComplete,
-            title: "Clean Complete",
-            body: "Freed up \(formatter.string(fromByteCount: spaceFreed)) of disk space.",
-            priority: .normal
-        )
+    /// Check if macOS Do Not Disturb / Focus mode is active
+    /// - Returns: True if DND is active
+    private func isInDoNotDisturb() -> Bool {
+        // Check notification center materials
+        // Note: macOS doesn't provide a direct API to check DND status
+        // This is a best-effort implementation using NSWorkspace
+        let workspace = NSWorkspace.shared
 
-        await send(config)
-    }
-
-    public func notifyLowDiskSpace(percentageUsed: Int) async {
-        guard percentageUsed >= (100 - preferences.diskThreshold) else { return }
-
-        let config = NotificationConfig(
-            category: .lowDiskSpace,
-            title: "Low Disk Space",
-            body: "Your disk is \(percentageUsed)% full. Consider cleaning up unnecessary files.",
-            priority: .high
-        )
-
-        await send(config)
-    }
-
-    public func notifyHighResourceUsage(cpu: Int?, memory: Int?) async {
-        guard preferences.highResourceUsage else { return }
-
-        var messages: [String] = []
-        if let cpu, cpu > 80 {
-            messages.append("CPU usage is at \(cpu)%")
-        }
-        if let memory, memory > 90 {
-            messages.append("Memory usage is at \(memory)%")
+        // Check if we're in fullscreen mode which often suppresses notifications
+        if let frontmostApp = workspace.frontmostApplication {
+            if frontmostApp.activationPolicy == .regular {
+                // For regular apps, check if the app has presentation options that might suppress notifications
+                let options = NSApp.presentationOptions
+                if options.contains(.hideDock) || options.contains(.disableProcessSwitching) {
+                    return true
+                }
+            }
         }
 
-        guard !messages.isEmpty else { return }
-
-        let config = NotificationConfig(
-            category: .highResourceUsage,
-            title: "High Resource Usage",
-            body: messages.joined(separator: ". "),
-            priority: .normal
-        )
-
-        await send(config)
+        return false
     }
 
-    public func notifyUpdateAvailable(version: String) async {
-        let config = NotificationConfig(
-            category: .updateAvailable,
-            title: "Update Available",
-            body: "Tonic \(version) is ready to install.",
-            priority: .normal
-        )
+    // MARK: - Configuration Management
 
-        await send(config)
+    /// Update a threshold in the configuration
+    /// - Parameter threshold: The threshold to add or update
+    public func updateThreshold(_ threshold: NotificationThreshold) {
+        config.setThreshold(threshold)
     }
 
-    public func notifyWeeklySummary(itemsCleaned: Int, spaceFreed: Int64) async {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useGB, .useMB]
-        formatter.countStyle = .file
-
-        let config = NotificationConfig(
-            category: .weeklySummary,
-            title: "Weekly Summary",
-            body: "This week: Cleaned \(itemsCleaned) items and freed \(formatter.string(fromByteCount: spaceFreed)).",
-            priority: .low
-        )
-
-        await send(config)
-    }
-
-    // MARK: - Tips
-
-    private let tips = [
-        "Tip: Empty your trash regularly to free up disk space.",
-        "Tip: Remove old iOS backups you no longer need.",
-        "Tip: Clear browser cache to free up space and improve privacy.",
-        "Tip: Uninstall apps you haven't used in the last 6 months.",
-        "Tip: Remove old downloads from your Downloads folder.",
-        "Tip: Clean Xcode derived data if you're a developer.",
-        "Tip: Remove Docker images and containers you no longer use.",
-        "Tip: Empty mail downloads and attachments.",
-        "Tip: Remove duplicate files using Tonic's duplicate finder.",
-        "Tip: Check for large files in your hidden space folder."
-    ]
-
-    public func sendRandomTip() async {
-        guard preferences.tips else { return }
-
-        let randomTip = tips.randomElement() ?? tips[0]
-
-        let config = NotificationConfig(
-            category: .tip,
-            title: "Tonic Tip",
-            body: randomTip,
-            priority: .low
-        )
-
-        await send(config)
-    }
-
-    // MARK: - Helpers
-
-    private func isEnabled(for category: NotificationCategory) -> Bool {
-        switch category {
-        case .scanComplete: return preferences.scanComplete
-        case .cleanComplete: return preferences.cleanComplete
-        case .lowDiskSpace: return preferences.lowDiskSpace
-        case .highResourceUsage: return preferences.highResourceUsage
-        case .updateAvailable: return preferences.updateAvailable
-        case .weeklySummary: return preferences.weeklySummary
-        case .tip: return preferences.tips
+    /// Remove a threshold from the configuration
+    /// - Parameter id: The ID of the threshold to remove
+    public func removeThreshold(id: UUID) {
+        config.removeThreshold(id: id)
+        // Clear last notification time for this threshold
+        Task {
+            await timeTracker.removeTime(for: id.uuidString)
+            await saveLastNotificationTimes()
         }
     }
 
-    public func checkAuthorizationStatus() async -> UNAuthorizationStatus {
-        let settings = await center.notificationSettings()
-        return settings.authorizationStatus
+    /// Toggle the enabled state of notifications
+    public func toggleNotifications() {
+        config.notificationsEnabled.toggle()
     }
 
+    /// Update the minimum interval between notifications
+    /// - Parameter interval: New interval in seconds
+    public func setMinimumInterval(_ interval: TimeInterval) {
+        config.minimumInterval = interval
+    }
+
+    /// Toggle respect for Do Not Disturb
+    public func toggleRespectDoNotDisturb() {
+        config.respectDoNotDisturb.toggle()
+    }
+
+    /// Reset all notification settings to defaults
+    public func resetToDefaults() {
+        config.reset()
+        Task {
+            await timeTracker.removeAll()
+            await saveLastNotificationTimes()
+        }
+        logger.info("Notification configuration reset to defaults")
+    }
+
+    // MARK: - Persistence
+
+    /// Load last notification times from UserDefaults
+    private func loadLastNotificationTimes() async {
+        guard let data = UserDefaults.standard.data(forKey: Keys.lastNotificationTime),
+              let decoded = try? JSONDecoder().decode([String: Date].self, from: data) else {
+            return
+        }
+
+        await timeTracker.setAll(decoded)
+    }
+
+    /// Save last notification times to UserDefaults
+    private func saveLastNotificationTimes() async {
+        let timesToSave = await timeTracker.getAll()
+
+        if let encoded = try? JSONEncoder().encode(timesToSave) {
+            UserDefaults.standard.set(encoded, forKey: Keys.lastNotificationTime)
+        }
+    }
+
+    // MARK: - Cleanup
+
+    /// Remove all pending notifications
+    public func removeAllPendingNotifications() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        logger.info("All pending notifications removed")
+    }
+
+    /// Remove all delivered notifications
     public func removeAllDeliveredNotifications() {
-        center.removeAllDeliveredNotifications()
-    }
-
-    public func getDeliveredNotificationCount() async -> Int {
-        let notifications = await center.deliveredNotifications()
-        return notifications.count
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        logger.info("All delivered notifications removed")
     }
 }

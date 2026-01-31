@@ -100,9 +100,8 @@ Stats Master stores these values differently. We're adapting to Tonic's structur
 - [ ] Relevant models conform to Codable
 - [ ] No breaking changes to existing models
 ## Done summary
-TBD
-
+Added enhanced data models for Stats Master parity: ProcessUsage for per-process resource tracking, WiFiDetails/PublicIPInfo for extended network info, NVMeSMARTData for disk health, extended SensorsData with power readings and min/max values, and new system enums (PowerSource, ThermalState, ProcessSortOption).
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 560f5fa95608670e4f3ec2ca2ff8cce6ff3fa093
+- Tests: xcodebuild -project /Users/saransh1337/Developer/Projects/TONIC/Tonic/Tonic.xcodeproj -scheme Tonic -configuration Debug -destination 'platform=macOS' build
 - PRs:
