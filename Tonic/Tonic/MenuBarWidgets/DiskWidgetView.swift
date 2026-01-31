@@ -294,20 +294,7 @@ public struct DiskDetailView: View {
     }
 
     private var perAppSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Disk Usage by App")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            Text("Per-app disk usage tracking coming soon.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding()
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        ProcessListWidgetView(widgetType: .disk, maxCount: 5)
     }
 
     private func colorForUsage(_ percentage: Double) -> Color {

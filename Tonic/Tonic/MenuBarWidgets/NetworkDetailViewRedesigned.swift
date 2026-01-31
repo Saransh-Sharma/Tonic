@@ -388,6 +388,9 @@ public struct NetworkDetailViewRedesigned: View {
 
                     // Speed test card
                     speedTestCard
+
+                    // Top network processes
+                    ProcessListWidgetView(widgetType: .network, maxCount: 5)
                 }
                 .padding(16)
             }

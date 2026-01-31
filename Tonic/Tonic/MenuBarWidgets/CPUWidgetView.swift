@@ -249,50 +249,7 @@ public struct CPUDetailView: View {
     }
 
     private var topAppsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Top CPU Apps")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            if dataManager.topCPUApps.isEmpty {
-                Text("No app data available")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(dataManager.topCPUApps.prefix(5))) { app in
-                        HStack(spacing: 12) {
-                            // App icon
-                            if let icon = app.icon {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .frame(width: 20, height: 20)
-                            }
-
-                            Text(app.name)
-                                .font(.caption)
-                                .lineLimit(1)
-
-                            Spacer()
-
-                            Text("\(Int(app.cpuUsage))%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .monospaced()
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        ProcessListWidgetView(widgetType: .cpu, maxCount: 5)
     }
 
     private var usageColor: Color {

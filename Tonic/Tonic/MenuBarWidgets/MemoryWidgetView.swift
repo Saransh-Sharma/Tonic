@@ -311,55 +311,7 @@ public struct MemoryDetailView: View {
     }
 
     private var topAppsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Top Memory Apps")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            if dataManager.topMemoryApps.isEmpty {
-                Text("No app data available")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(dataManager.topMemoryApps.prefix(5))) { app in
-                        HStack(spacing: 12) {
-                            if let icon = app.icon {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .frame(width: 20, height: 20)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.name)
-                                    .font(.caption)
-                                    .lineLimit(1)
-
-                                Text(app.memoryString)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text("\(Double(app.memoryBytes) / Double(dataManager.memoryData.totalBytes) * 100, specifier: "%.1f")%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .monospaced()
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        ProcessListWidgetView(widgetType: .memory, maxCount: 5)
     }
 
     private var pressureColor: Color {

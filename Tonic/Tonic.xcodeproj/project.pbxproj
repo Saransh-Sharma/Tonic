@@ -115,6 +115,7 @@
 		SS018B2B7C7E8E8F33B4C5D6E /* ProjectArtifactPurge.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS018FILE312F4F4B8A8B3C3D3 /* ProjectArtifactPurge.swift */; };
 		SS019B3B7C7E8E8F34C5D6E7F /* SystemOptimization.swift in Sources */ = {isa = PBXBuildFile; fileRef = SS019FILE322F5F5C9B9C4D4E4 /* SystemOptimization.swift */; };
 		TT001A1B2C3D4E5F60G7H8I9J /* OnboardingTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT001FILE2G3G4H515E7F8G9H /* OnboardingTourView.swift */; };
+		86153705973F4E7599D1039B /* ProcessListComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1E778DD9A3465E97DD9818 /* ProcessListComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -145,6 +146,7 @@
 		75EFDFB82F224BE200B990DA /* NetworkWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetView.swift; sourceTree = "<group>"; };
 		75EFDFB92F224BE200B990DA /* WeatherWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherWidgetView.swift; sourceTree = "<group>"; };
 		75EFDFBA2F224BE200B990DA /* WidgetStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusItem.swift; sourceTree = "<group>"; };
+		0C1E778DD9A3465E97DD9818 /* ProcessListComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessListComponents.swift; sourceTree = "<group>"; };
 		75EFDFC42F224C1200B990DA /* NotificationRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRule.swift; sourceTree = "<group>"; };
 		75EFDFC52F224C1200B990DA /* SystemEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemEnums.swift; sourceTree = "<group>"; };
 		C308F1770B5A4DED9231C818 /* NetworkDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDetails.swift; sourceTree = "<group>"; };
@@ -330,6 +332,7 @@
 				75EFDFB82F224BE200B990DA /* NetworkWidgetView.swift */,
 				75EFDFB92F224BE200B990DA /* WeatherWidgetView.swift */,
 				75EFDFBA2F224BE200B990DA /* WidgetStatusItem.swift */,
+				0C1E778DD9A3465E97DD9818 /* ProcessListComponents.swift */,
 				NET007F7 /* NetworkDetailViewRedesigned.swift */,
 				NET008F8 /* NetworkWidgetIndex.swift */,
 				0B8EAD5AE23666C39AD1EC11 /* Components */,
@@ -566,6 +569,7 @@
 				75EFDFC12F224BE200B990DA /* CPUWidgetView.swift in Sources */,
 				75EFDFC22F224BE200B990DA /* NetworkWidgetView.swift in Sources */,
 				75EFDFC32F224BE200B990DA /* WidgetStatusItem.swift in Sources */,
+				86153705973F4E7599D1039B /* ProcessListComponents.swift in Sources */,
 				D7E8F9A0B1C2D3E4F5A6B7C8 /* PrivilegedHelperProtocol.swift in Sources */,
 				SS005A5B6C7D7E8F20A1B2C3 /* AccessibilityView.swift in Sources */,
 				SS006A6B7C7E8E8F21B2C3D4E /* OnboardingView.swift in Sources */,
