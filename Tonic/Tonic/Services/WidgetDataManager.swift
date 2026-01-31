@@ -3014,6 +3014,28 @@ public final class WidgetDataManager {
 
         return nil
     }
+
+    // MARK: - History Accessors
+
+    /// Get network upload history for chart visualization
+    public func getNetworkUploadHistory() -> [Double] {
+        networkUploadHistory
+    }
+
+    /// Get network download history for chart visualization
+    public func getNetworkDownloadHistory() -> [Double] {
+        networkDownloadHistory
+    }
+
+    /// Get CPU history for chart visualization
+    public func getCPUHistory() -> [Double] {
+        cpuHistory
+    }
+
+    /// Get memory history for chart visualization
+    public func getMemoryHistory() -> [Double] {
+        memoryHistory
+    }
 }
 
 // MARK: - C Types

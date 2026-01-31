@@ -19,6 +19,10 @@
 		39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */; };
 		39F60D956BB32885CF3A611F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD96844B37981E628F20497 /* SidebarView.swift */; };
 		48C5C55A4D0E311C64B89C9F /* SpeedStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */; };
+		4A8D09C7014DDCE666670DC5 /* NetworkChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09C6014DDCE666670DC5 /* NetworkChartStatusItem.swift */; };
+		4A8D09C9014DDCE666670DC6 /* NetworkChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09C8014DDCE666670DC6 /* NetworkChartWidgetView.swift */; };
+		4A8D09CA014DDCE666670DC7 /* LineChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09CB014DDCE666670DC7 /* LineChartWidgetView.swift */; };
+		4A8D09CC014DDCE666670DC8 /* BarChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09CD014DDCE666670DC8 /* BarChartWidgetView.swift */; };
 		6A7A780E9DF26434C8E8F7EA /* DiskAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41F4E935929B3AC2ACDA2B2 /* DiskAnalysisView.swift */; };
 		6C89B19E3FA0CA427EED0A25 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58269188377B485FBDE88264 /* PreferencesView.swift */; };
 		719597A1A946ADD5E41EA315 /* ScanCategoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9265DC123422CC22EBC0040F /* ScanCategoryScanner.swift */; };
@@ -129,6 +133,10 @@
 		403765C5F7EA0EBB647FA096 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		451AB06BBB0DDDD2249DE75A /* DiskScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskScanner.swift; sourceTree = "<group>"; };
 		4A8D09BB014DDCE666670DC4 /* VisualizationType.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisualizationType.swift; path = VisualizationType.swift; sourceTree = "<group>"; };
+		4A8D09C6014DDCE666670DC5 /* NetworkChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NetworkChartStatusItem.swift; path = ChartStatusItems/NetworkChartStatusItem.swift; sourceTree = "<group>"; };
+		4A8D09C8014DDCE666670DC6 /* NetworkChartWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NetworkChartWidgetView.swift; path = Views/NetworkChartWidgetView.swift; sourceTree = "<group>"; };
+		4A8D09CB014DDCE666670DC7 /* LineChartWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartWidgetView.swift; path = Views/LineChartWidgetView.swift; sourceTree = "<group>"; };
+		4A8D09CD014DDCE666670DC8 /* BarChartWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BarChartWidgetView.swift; path = Views/BarChartWidgetView.swift; sourceTree = "<group>"; };
 		4F780DECED89A3E9762E52BF /* AppInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInventoryView.swift; sourceTree = "<group>"; };
 		54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecommendationGenerator.swift; sourceTree = "<group>"; };
 		55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PieChartStatusItem.swift; path = ChartStatusItems/PieChartStatusItem.swift; sourceTree = "<group>"; };
@@ -337,6 +345,9 @@
 				75EFDFB72F224BE200B990DA /* MemoryWidgetView.swift */,
 				75EFDFB82F224BE200B990DA /* NetworkWidgetView.swift */,
 				75EFDFB92F224BE200B990DA /* WeatherWidgetView.swift */,
+				4A8D09CB014DDCE666670DC7 /* LineChartWidgetView.swift */,
+				4A8D09CD014DDCE666670DC8 /* BarChartWidgetView.swift */,
+				4A8D09C8014DDCE666670DC6 /* NetworkChartWidgetView.swift */,
 				75EFDFBA2F224BE200B990DA /* WidgetStatusItem.swift */,
 				AC01EFC4232AD0A0286717F2 /* OneViewStatusItem.swift */,
 				0C1E778DD9A3465E97DD9818 /* ProcessListComponents.swift */,
@@ -375,6 +386,7 @@
 				8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */,
 				6A4E0DE55BF86910E4ED502E /* StackStatusItem.swift */,
 				5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */,
+				4A8D09C6014DDCE666670DC5 /* NetworkChartStatusItem.swift */,
 				BE8B233C46BD7556D326AD6F /* BatteryDetailsStatusItem.swift */,
 				E33722CF5B22B73770B8C233 /* LabelStatusItem.swift */,
 			);
@@ -635,8 +647,12 @@
 				A3A37D0532C831211D80ED15 /* TachometerStatusItem.swift in Sources */,
 				053C129394237EEDBAB1ADCC /* StackStatusItem.swift in Sources */,
 				48C5C55A4D0E311C64B89C9F /* SpeedStatusItem.swift in Sources */,
+				4A8D09C7014DDCE666670DC5 /* NetworkChartStatusItem.swift in Sources */,
 				C1AF4104DF621E3BA814994B /* BatteryDetailsStatusItem.swift in Sources */,
 				E854B4627ED9305FED9D1EC7 /* LabelStatusItem.swift in Sources */,
+				4A8D09C9014DDCE666670DC6 /* NetworkChartWidgetView.swift in Sources */,
+				4A8D09CA014DDCE666670DC7 /* LineChartWidgetView.swift in Sources */,
+				4A8D09CC014DDCE666670DC8 /* BarChartWidgetView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

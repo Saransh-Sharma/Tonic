@@ -3,6 +3,7 @@
 //  Tonic
 //
 //  Status item for line chart visualization
+//  Task ID: fn-6-i4g.12
 //
 
 import AppKit
@@ -14,31 +15,100 @@ public final class LineChartStatusItem: WidgetStatusItem {
 
     public override func createCompactView() -> AnyView {
         let dataManager = WidgetDataManager.shared
-        let value: Double
+        let history: [Double]
+        let currentValue: Double
 
         switch widgetType {
         case .cpu:
-            value = dataManager.cpuData.totalUsage
+            history = dataManager.getCPUHistory()
+            currentValue = dataManager.cpuData.totalUsage
         case .memory:
-            value = dataManager.memoryData.usagePercentage
+            history = dataManager.getMemoryHistory()
+            currentValue = dataManager.memoryData.usagePercentage
         case .network:
-            value = dataManager.networkData.downloadBytesPerSecond / 1024 // KB/s
+            // For network, use download history
+            history = dataManager.getNetworkDownloadHistory()
+            currentValue = min(1.0, dataManager.networkData.downloadBytesPerSecond / 10_000_000) // Normalize to 0-1
         case .gpu:
-            value = dataManager.gpuData.usagePercentage ?? 0
+            history = dataManager.getCPUHistory() // Reuse CPU history as placeholder
+            currentValue = dataManager.gpuData.usagePercentage ?? 0
         default:
-            value = 0
+            history = []
+            currentValue = 0
         }
 
-        // TODO: Implement LineChartWidgetView
+        // Create line chart config from widget configuration
+        let chartConfig = LineChartConfig(
+            historySize: configuration.chartConfig?.historySize ?? 60,
+            scaling: configuration.chartConfig?.scaling ?? .linear,
+            showBackground: configuration.chartConfig?.showBackground ?? false,
+            showFrame: configuration.chartConfig?.showFrame ?? false,
+            showValue: false,
+            showValueOverlay: configuration.chartConfig?.showValue ?? false,
+            fillMode: .gradient,
+            lineColor: .blue
+        )
+
         return AnyView(
-            Text("\(Int(value))%")
-                .font(.system(size: 11))
-                .foregroundColor(configuration.accentColor.colorValue(for: widgetType))
+            LineChartWidgetView(
+                data: history.isEmpty ? [0.3, 0.4, 0.35, 0.5, 0.45, 0.6] : history,
+                config: chartConfig,
+                currentValue: currentValue
+            )
         )
     }
 
     public override func createDetailView() -> AnyView {
-        // TODO: Implement proper detail views
-        return AnyView(EmptyView())
+        let dataManager = WidgetDataManager.shared
+
+        // Get chart data based on widget type
+        let history: [Double]
+        let currentValue: Double
+
+        switch widgetType {
+        case .cpu:
+            history = dataManager.getCPUHistory()
+            currentValue = dataManager.cpuData.totalUsage
+        case .memory:
+            history = dataManager.getMemoryHistory()
+            currentValue = dataManager.memoryData.usagePercentage
+        default:
+            history = []
+            currentValue = 0
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: widgetType.icon)
+                        .foregroundColor(.blue)
+                    Text("\(widgetType.displayName) History")
+                        .font(.headline)
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current: \(Int(currentValue * 100))%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    LineChartWidgetView(
+                        data: history.isEmpty ? [0.3, 0.4, 0.35] : history,
+                        config: LineChartConfig(
+                            historySize: 90,
+                            showBackground: true,
+                            showFrame: true,
+                            fillMode: .gradient
+                        ),
+                        currentValue: currentValue
+                    )
+                    .frame(height: 60)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .frame(width: 250, height: 180)
+        )
     }
 }

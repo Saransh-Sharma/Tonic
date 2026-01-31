@@ -5,6 +5,7 @@
 //  Bar Chart widget view for multi-value data visualization
 //  Matches Stats Master's Bar Chart functionality
 //  Task ID: fn-5-v8r.8
+//  Enhanced for Stats Master parity: fn-6-i4g.12
 //
 
 import SwiftUI
@@ -17,17 +18,26 @@ public struct BarChartConfig: Sendable, Equatable {
     public let barSpacing: CGFloat
     public let showLabels: Bool
     public let colorMode: BarColorMode
+    public let stackedMode: Bool  // Stack E/P cores vertically
+    public let eCoreColor: Color?  // Custom color for efficiency cores
+    public let pCoreColor: Color?  // Custom color for performance cores
 
     public init(
         barWidth: CGFloat = 4,
         barSpacing: CGFloat = 2,
         showLabels: Bool = false,
-        colorMode: BarColorMode = .uniform
+        colorMode: BarColorMode = .uniform,
+        stackedMode: Bool = false,
+        eCoreColor: Color? = nil,
+        pCoreColor: Color? = nil
     ) {
         self.barWidth = max(1, barWidth)
         self.barSpacing = barSpacing
         self.showLabels = showLabels
         self.colorMode = colorMode
+        self.stackedMode = stackedMode
+        self.eCoreColor = eCoreColor
+        self.pCoreColor = pCoreColor
     }
 }
 
@@ -37,6 +47,32 @@ public enum BarColorMode: String, Sendable, Equatable {
     case gradient
     case byValue
     case byCategory
+    case ePCores  // Color by E/P core cluster (Apple Silicon)
+}
+
+// MARK: - E/P Core Data
+
+/// E/P core cluster data for CPU visualization
+public struct EPCoreData: Sendable {
+    public let eCores: [Double]
+    public let pCores: [Double]
+    public let eCoreCount: Int
+    public let pCoreCount: Int
+
+    public init(eCores: [Double] = [], pCores: [Double] = []) {
+        self.eCores = eCores
+        self.pCores = pCores
+        self.eCoreCount = eCores.count
+        self.pCoreCount = pCores.count
+    }
+
+    public var allCores: [Double] {
+        eCores + pCores
+    }
+
+    public var isEmpty: Bool {
+        eCores.isEmpty && pCores.isEmpty
+    }
 }
 
 // MARK: - Bar Chart Widget View
@@ -47,18 +83,31 @@ public struct BarChartWidgetView: View {
     private let data: [Double]
     private let config: BarChartConfig
     private let baseColor: Color
+    private let epCoreData: EPCoreData?
 
     public init(
         data: [Double],
         config: BarChartConfig = BarChartConfig(),
-        baseColor: Color = .accentColor
+        baseColor: Color = .accentColor,
+        epCoreData: EPCoreData? = nil
     ) {
         self.data = data
         self.config = config
         self.baseColor = baseColor
+        self.epCoreData = epCoreData
     }
 
     public var body: some View {
+        if config.stackedMode, let epData = epCoreData, !epData.isEmpty {
+            // Stacked E/P core mode
+            stackedEPCoreView(epData)
+        } else {
+            // Standard bar mode
+            standardBarView
+        }
+    }
+
+    private var standardBarView: some View {
         HStack(spacing: config.barSpacing) {
             ForEach(Array(data.enumerated()), id: \.offset) { index, value in
                 barView(for: value, at: index)
@@ -66,6 +115,53 @@ public struct BarChartWidgetView: View {
         }
         .frame(height: 22)
         .padding(.horizontal, 4)
+    }
+
+    /// Stacked view for E/P cores (E cores stacked on left, P cores on right)
+    @ViewBuilder
+    private func stackedEPCoreView(_ epData: EPCoreData) -> some View {
+        HStack(spacing: 4) {
+            // E cores section
+            if !epData.eCores.isEmpty {
+                VStack(spacing: 1) {
+                    ForEach(Array(epData.eCores.enumerated()), id: \.offset) { index, value in
+                        coreBar(value: value, color: eCoreColor)
+                    }
+                }
+            }
+
+            // P cores section
+            if !epData.pCores.isEmpty {
+                VStack(spacing: 1) {
+                    ForEach(Array(epData.pCores.enumerated()), id: \.offset) { index, value in
+                        coreBar(value: value, color: pCoreColor)
+                    }
+                }
+            }
+        }
+        .frame(height: 22)
+    }
+
+    @ViewBuilder
+    private func coreBar(value: Double, color: Color) -> some View {
+        GeometryReader { geometry in
+            let barHeight = max(2, min(geometry.size.height, geometry.size.height * CGFloat(value)))
+            RoundedRectangle(cornerRadius: 1)
+                .fill(color)
+                .frame(height: barHeight)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+        }
+        .frame(height: 22)
+    }
+
+    /// Color for E cores (cooler - blue/green)
+    private var eCoreColor: Color {
+        config.eCoreColor ?? Color(red: 0.37, green: 0.62, blue: 1.0)
+    }
+
+    /// Color for P cores (warmer - orange/red)
+    private var pCoreColor: Color {
+        config.pCoreColor ?? Color(red: 1.0, green: 0.62, blue: 0.04)
     }
 
     @ViewBuilder
@@ -105,6 +201,16 @@ public struct BarChartWidgetView: View {
             // Different color per category (index-based)
             let colors: [Color] = [.blue, .green, .orange, .purple, .red, .yellow, .pink, .cyan]
             return colors[index % colors.count]
+        case .ePCores:
+            // Color by E/P core cluster
+            if let epData = epCoreData, !epData.isEmpty {
+                if index < epData.eCoreCount {
+                    return eCoreColor
+                } else {
+                    return pCoreColor
+                }
+            }
+            return baseColor
         }
     }
 
@@ -160,6 +266,38 @@ public struct MiniBarChartView: View {
                 data: [0.45, 0.72, 0.38, 0.56, 0.29, 0.81, 0.44, 0.67],
                 config: BarChartConfig(barWidth: 4, barSpacing: 2),
                 baseColor: .blue
+            )
+        }
+
+        // CPU with E/P core coloring
+        VStack(alignment: .leading, spacing: 4) {
+            Text("E/P Core Coloring (4E + 4P)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            BarChartWidgetView(
+                data: [0.25, 0.30, 0.28, 0.35, 0.72, 0.81, 0.68, 0.75],
+                config: BarChartConfig(barWidth: 4, barSpacing: 2, colorMode: .ePCores),
+                baseColor: .blue,
+                epCoreData: EPCoreData(
+                    eCores: [0.25, 0.30, 0.28, 0.35],
+                    pCores: [0.72, 0.81, 0.68, 0.75]
+                )
+            )
+        }
+
+        // Stacked E/P mode
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Stacked E/P Mode")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            BarChartWidgetView(
+                data: [],
+                config: BarChartConfig(barWidth: 4, barSpacing: 1, stackedMode: true),
+                baseColor: .blue,
+                epCoreData: EPCoreData(
+                    eCores: [0.25, 0.30, 0.28, 0.35],
+                    pCores: [0.72, 0.81, 0.68, 0.75]
+                )
             )
         }
 

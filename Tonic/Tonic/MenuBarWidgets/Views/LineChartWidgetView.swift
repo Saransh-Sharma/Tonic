@@ -5,6 +5,7 @@
 //  Line Chart widget view for real-time data visualization
 //  Matches Stats Master's Line Chart functionality
 //  Task ID: fn-5-v8r.7
+//  Enhanced for Stats Master parity: fn-6-i4g.12
 //
 
 import SwiftUI
@@ -18,6 +19,8 @@ public struct LineChartConfig: Sendable, Equatable {
     public let showBackground: Bool
     public let showFrame: Bool
     public let showValue: Bool
+    public let showValueOverlay: Bool  // Show current value as overlay on chart
+    public let fillMode: FillMode  // Fill vs line only
     public let lineColor: ChartColor
 
     public init(
@@ -26,6 +29,8 @@ public struct LineChartConfig: Sendable, Equatable {
         showBackground: Bool = false,
         showFrame: Bool = false,
         showValue: Bool = false,
+        showValueOverlay: Bool = false,
+        fillMode: FillMode = .gradient,
         lineColor: ChartColor = .accent
     ) {
         self.historySize = min(120, max(30, historySize))
@@ -33,6 +38,8 @@ public struct LineChartConfig: Sendable, Equatable {
         self.showBackground = showBackground
         self.showFrame = showFrame
         self.showValue = showValue
+        self.showValueOverlay = showValueOverlay
+        self.fillMode = fillMode
         self.lineColor = lineColor
     }
 
@@ -45,6 +52,13 @@ public struct LineChartConfig: Sendable, Equatable {
         default: return 32
         }
     }
+}
+
+/// Fill mode for line chart
+public enum FillMode: String, Sendable, Equatable {
+    case gradient  // Gradient fill below line
+    case solid     // Solid fill below line
+    case lineOnly  // Line only, no fill
 }
 
 /// Color mode for chart line and fill
@@ -69,31 +83,6 @@ public enum ChartColor: String, Sendable, Equatable {
         case .purple: return .purple
         case .orange: return .orange
         }
-    }
-}
-
-/// Scaling mode for chart values
-public enum ScalingMode: String, Sendable, Equatable {
-    case linear
-    case square
-    case cube
-    case logarithmic
-
-    func scale(_ value: Double) -> Double {
-        guard value > 0 else { return 0 }
-        switch self {
-        case .linear: return value
-        case .square: return value * value
-        case .cube: return value * value * value
-        case .logarithmic: return log(max(0.001, value))
-        }
-    }
-
-    func normalize(_ value: Double, max: Double) -> Double {
-        guard max > 0 else { return 0 }
-        let scaled = scale(value)
-        let maxScaled = scale(max)
-        return min(1, scaled / maxScaled)
     }
 }
 
@@ -197,15 +186,10 @@ public struct LineChartWidgetView: View {
                             style: StrokeStyle(lineWidth: 1, dash: [4, 4])
                         )
                     } else {
-                        // Area fill
-                        areaPath(size: size)
-                            .fill(
-                                LinearGradient(
-                                    colors: [effectiveColor.opacity(0.2), effectiveColor.opacity(0.02)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
+                        // Area fill (based on fillMode)
+                        if config.fillMode != .lineOnly {
+                            areaFill(size: size)
+                        }
 
                         // Line path
                         linePath(size: size)
@@ -219,6 +203,11 @@ public struct LineChartWidgetView: View {
             .frame(width: config.chartWidth)
 
             // Value overlay (if enabled)
+            if config.showValueOverlay, let value = currentValue {
+                valueOverlayView(value: value)
+            }
+
+            // Value text (legacy showValue - displays outside chart)
             if config.showValue, let value = currentValue {
                 HStack {
                     Spacer()
@@ -229,12 +218,56 @@ public struct LineChartWidgetView: View {
                 }
             }
         }
-        .overlay(
-            // Frame overlay
-            RoundedRectangle(cornerRadius: 2)
-                .stroke(effectiveColor.opacity(0.3), lineWidth: 1),
-            isEnabled: config.showFrame
-        )
+        .overlay {
+            // Frame overlay (if enabled)
+            if config.showFrame {
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(effectiveColor.opacity(0.3), lineWidth: 1)
+            }
+        }
+    }
+
+    /// Value overlay displayed on the chart
+    @ViewBuilder
+    private func valueOverlayView(value: Double) -> some View {
+        HStack {
+            Spacer()
+            VStack {
+                Spacer()
+                Text("\(Int(value * 100))")
+                    .font(.system(size: 7, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule()
+                            .fill(effectiveColor)
+                    )
+                    .padding(.trailing, 2)
+                    .padding(.bottom, 2)
+            }
+        }
+    }
+
+    /// Area fill based on fill mode
+    @ViewBuilder
+    private func areaFill(size: CGSize) -> some View {
+        let areaPath = self.areaPath(size: size)
+
+        switch config.fillMode {
+        case .gradient:
+            areaPath.fill(
+                LinearGradient(
+                    colors: [effectiveColor.opacity(0.3), effectiveColor.opacity(0.05)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        case .solid:
+            areaPath.fill(effectiveColor.opacity(0.2))
+        case .lineOnly:
+            EmptyView()
+        }
     }
 
     private func linePath(size: CGSize) -> Path {
@@ -291,7 +324,7 @@ public struct LineChartWidgetView: View {
             if value <= 0 {
                 normalizedY = 0.5
             } else {
-                normalizedY = 1 - config.scaling.normalize(value, max: maxVal)
+                normalizedY = 1 - config.scaling.normalize(value, maxValue: maxVal)
             }
             let y = max(0, min(size.height, normalizedY * size.height))
             points.append(CGPoint(x: x, y: y))

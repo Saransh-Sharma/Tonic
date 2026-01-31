@@ -57,6 +57,9 @@ public final class WidgetFactory {
         case .speed:
             return SpeedStatusItem(widgetType: type, configuration: configuration)
 
+        case .networkChart:
+            return NetworkChartStatusItem(widgetType: type, configuration: configuration)
+
         case .batteryDetails:
             return BatteryDetailsStatusItem(widgetType: type, configuration: configuration)
 

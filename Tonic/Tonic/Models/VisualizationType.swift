@@ -20,6 +20,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
     case tachometer = "tachometer"          // Gauge with needle
     case stack = "stack"                    // Multiple sensor readings
     case speed = "speed"                    // Network up/down display
+    case networkChart = "networkChart"      // Dual-line network chart (upload/download)
     case batteryDetails = "batteryDetails"  // Extended battery info
     case label = "label"                    // Static text label
     case state = "state"                    // On/off indicator
@@ -37,6 +38,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .tachometer: return "Tachometer"
         case .stack: return "Stack"
         case .speed: return "Speed"
+        case .networkChart: return "Network Chart"
         case .batteryDetails: return "Battery Details"
         case .label: return "Label"
         case .state: return "State"
@@ -54,6 +56,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .tachometer: return "gauge"
         case .stack: return "square.stack.fill"
         case .speed: return "speedometer"
+        case .networkChart: return "chart.xyaxis.line"
         case .batteryDetails: return "bolt.fill.batteryblock"
         case .label: return "textformat"
         case .state: return "circlebadge.fill"
@@ -71,6 +74,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .tachometer: return 24
         case .stack: return 80
         case .speed: return 90
+        case .networkChart: return 60
         case .batteryDetails: return 80
         case .label: return 60
         case .state: return 20
@@ -88,6 +92,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .tachometer: return "Gauge with needle"
         case .stack: return "Stacked sensor values"
         case .speed: return "Network speed display"
+        case .networkChart: return "Dual-line upload/download chart"
         case .batteryDetails: return "Extended battery info"
         case .label: return "Custom text label"
         case .state: return "On/off indicator"
@@ -98,7 +103,7 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
     /// Whether this visualization supports history data
     public var supportsHistory: Bool {
         switch self {
-        case .lineChart, .barChart: return true
+        case .lineChart, .barChart, .networkChart: return true
         default: return false
         }
     }

@@ -593,7 +593,7 @@ extension WidgetType {
         case .disk:
             return [.mini, .pieChart, .barChart]
         case .network:
-            return [.mini, .speed, .lineChart]
+            return [.mini, .speed, .lineChart, .networkChart]
         case .gpu:
             return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
         case .battery:
