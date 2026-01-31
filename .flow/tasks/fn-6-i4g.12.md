@@ -55,9 +55,8 @@ Reference: `LineChartWidgetView.swift:15-97` for current line chart implementati
 - [ ] networkChart registered for WidgetType.network
 - [ ] WidgetFactory routes networkChart correctly
 ## Done summary
-TBD
-
+Enhanced widget visualizations with Stats Master features: Line chart now supports value overlays and configurable fill modes. Bar chart has E/P core cluster coloring and stacked mode. Created NetworkChartWidgetView with dual-line upload/download display, independent colors and scaling per direction. All visualizations integrated with WidgetFactory and VisualizationType.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 3175e498c6a39554ea76a69e2743433ff441cf17
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

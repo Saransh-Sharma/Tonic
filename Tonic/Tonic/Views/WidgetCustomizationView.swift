@@ -769,14 +769,63 @@ struct WidgetSettingsSheet: View {
     }
 
     private var colorSelector: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            ForEach(WidgetAccentColor.allCases) { color in
-                colorButton(color)
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            // Automatic color options
+            colorCategorySection(
+                title: "Automatic",
+                colors: WidgetAccentColor.automaticColors
+            )
+
+            // System colors
+            colorCategorySection(
+                title: "System",
+                colors: WidgetAccentColor.systemColors
+            )
+
+            // Primary colors
+            colorCategorySection(
+                title: "Primary",
+                colors: WidgetAccentColor.primaryColors
+            )
+
+            // Secondary colors
+            colorCategorySection(
+                title: "Secondary",
+                colors: WidgetAccentColor.secondaryColors
+            )
+
+            // Gray colors
+            colorCategorySection(
+                title: "Grays",
+                colors: WidgetAccentColor.grayColors
+            )
+
+            // Special colors
+            colorCategorySection(
+                title: "Special",
+                colors: WidgetAccentColor.specialColors
+            )
+        }
+    }
+
+    private func colorCategorySection(title: String, colors: [WidgetAccentColor]) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+            Text(title)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(32), spacing: DesignTokens.Spacing.xs), count: 8),
+                spacing: DesignTokens.Spacing.xs
+            ) {
+                ForEach(colors) { color in
+                    colorSwatchButton(color)
+                }
             }
         }
     }
 
-    private func colorButton(_ color: WidgetAccentColor) -> some View {
+    private func colorSwatchButton(_ color: WidgetAccentColor) -> some View {
         let isSelected = config?.accentColor == color
 
         return Button {
@@ -784,39 +833,77 @@ struct WidgetSettingsSheet: View {
                 preferences.setWidgetColor(type: widgetType, color: color)
             }
         } label: {
-            VStack(spacing: DesignTokens.Spacing.xs) {
-                Circle()
-                    .fill(swatchColor(for: color))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Circle()
-                            .stroke(isSelected ? DesignTokens.Colors.accent : Color.clear, lineWidth: 2)
-                    )
-                    .overlay(
-                        Image(systemName: isSelected ? "checkmark" : "")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(isSelected ? DesignTokens.Colors.accent : .white)
-                    )
+            ZStack {
+                if color.isAutomatic {
+                    Circle()
+                        .fill(automaticColorGradient(for: color))
+                        .frame(width: 24, height: 24)
+                } else if color == .clear {
+                    Circle()
+                        .fill(
+                            AngularGradient(
+                                colors: [.white, .gray.opacity(0.3), .white],
+                                center: .center
+                            )
+                        )
+                        .frame(width: 24, height: 24)
+                } else {
+                    Circle()
+                        .fill(swatchColor(for: color))
+                        .frame(width: 24, height: 24)
+                }
 
-                Text(color.displayName)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(isSelected ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
+                if isSelected {
+                    Circle()
+                        .stroke(DesignTokens.Colors.accent, lineWidth: 2)
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(color == .white || color == .lightGray || color == .clear ? .black : .white)
+                }
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: 32, height: 32)
         }
         .buttonStyle(.plain)
+        .help(color.displayName)
+    }
+
+    private func automaticColorGradient(for color: WidgetAccentColor) -> LinearGradient {
+        switch color {
+        case .utilization:
+            return LinearGradient(
+                colors: [.green, .yellow, .orange, .red],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .pressure:
+            return LinearGradient(
+                colors: [.green, .yellow, .red],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .cluster:
+            return LinearGradient(
+                colors: [WidgetColorPalette.ClusterColor.eCores, WidgetColorPalette.ClusterColor.pCores],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        default:
+            return LinearGradient(
+                colors: [swatchColor(for: color)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
     }
 
     private func swatchColor(for color: WidgetAccentColor) -> Color {
-        switch color {
-        case .system:
-            return widgetAccentColor
-        case .blue: return Color(red: 0.37, green: 0.62, blue: 1.0)
-        case .green: return Color(red: 0.19, green: 0.82, blue: 0.35)
-        case .orange: return Color(red: 1.0, green: 0.62, blue: 0.04)
-        case .purple: return Color(red: 0.75, green: 0.35, blue: 0.95)
-        case .yellow: return Color(red: 1.0, green: 0.84, blue: 0.04)
+        if let nsColor = color.nsColor {
+            return Color(nsColor: nsColor)
         }
+        // Fallback for automatic colors
+        return widgetAccentColor
     }
 
     private var widgetPreview: some View {

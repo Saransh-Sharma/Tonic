@@ -128,14 +128,80 @@ private struct IntervalButton: View {
 
 // MARK: - Color Picker Row
 
-/// Horizontal color picker for widget accent colors
+/// Categorized color picker for widget accent colors (30+ options)
 struct ColorPickerRow: View {
     let widgetType: WidgetType
     @Binding var selection: WidgetAccentColor
+    var showAutomaticColors: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            // Automatic colors section (if enabled)
+            if showAutomaticColors {
+                ColorCategoryRow(
+                    title: "Automatic",
+                    colors: WidgetAccentColor.automaticColors,
+                    widgetType: widgetType,
+                    selection: $selection
+                )
+            }
+
+            // System colors
+            ColorCategoryRow(
+                title: "System",
+                colors: WidgetAccentColor.systemColors,
+                widgetType: widgetType,
+                selection: $selection
+            )
+
+            // Primary colors
+            ColorCategoryRow(
+                title: "Primary",
+                colors: WidgetAccentColor.primaryColors,
+                widgetType: widgetType,
+                selection: $selection
+            )
+
+            // Secondary colors
+            ColorCategoryRow(
+                title: "Secondary",
+                colors: WidgetAccentColor.secondaryColors,
+                widgetType: widgetType,
+                selection: $selection
+            )
+
+            // Grays
+            ColorCategoryRow(
+                title: "Grays",
+                colors: WidgetAccentColor.grayColors,
+                widgetType: widgetType,
+                selection: $selection
+            )
+
+            // Special colors
+            ColorCategoryRow(
+                title: "Special",
+                colors: WidgetAccentColor.specialColors,
+                widgetType: widgetType,
+                selection: $selection
+            )
+        }
+    }
+}
+
+/// Compact horizontal color picker showing only frequently used colors
+struct CompactColorPickerRow: View {
+    let widgetType: WidgetType
+    @Binding var selection: WidgetAccentColor
+
+    private let frequentColors: [WidgetAccentColor] = [
+        .system, .utilization, .systemAccent, .monochrome,
+        .secondBlue, .secondGreen, .secondOrange, .secondPurple
+    ]
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            ForEach(WidgetAccentColor.allCases) { color in
+            ForEach(frequentColors) { color in
                 ColorSwatch(
                     color: color,
                     widgetType: widgetType,
@@ -143,6 +209,38 @@ struct ColorPickerRow: View {
                 ) {
                     withAnimation(DesignTokens.Animation.fast) {
                         selection = color
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ColorCategoryRow: View {
+    let title: String
+    let colors: [WidgetAccentColor]
+    let widgetType: WidgetType
+    @Binding var selection: WidgetAccentColor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+            Text(title)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(28), spacing: DesignTokens.Spacing.xs), count: 8),
+                spacing: DesignTokens.Spacing.xs
+            ) {
+                ForEach(colors) { color in
+                    ColorSwatch(
+                        color: color,
+                        widgetType: widgetType,
+                        isSelected: selection == color
+                    ) {
+                        withAnimation(DesignTokens.Animation.fast) {
+                            selection = color
+                        }
                     }
                 }
             }
@@ -158,22 +256,73 @@ private struct ColorSwatch: View {
 
     var body: some View {
         Button(action: action) {
-            Circle()
-                .fill(color.colorValue(for: widgetType))
-                .frame(width: 24, height: 24)
-                .overlay(
+            ZStack {
+                // Base circle with color
+                if color.isAutomatic {
+                    // Gradient or pattern for automatic colors
                     Circle()
-                        .stroke(isSelected ? DesignTokens.Colors.accent : Color.clear, lineWidth: 2)
-                        .padding(-2)
-                )
-                .overlay(
+                        .fill(automaticColorGradient)
+                        .frame(width: 24, height: 24)
+                } else if color == .clear {
+                    // Transparent pattern for clear
+                    Circle()
+                        .fill(
+                            AngularGradient(
+                                colors: [.white, .gray.opacity(0.3), .white],
+                                center: .center
+                            )
+                        )
+                        .frame(width: 24, height: 24)
+                } else {
+                    Circle()
+                        .fill(color.colorValue(for: widgetType))
+                        .frame(width: 24, height: 24)
+                }
+
+                // Selection ring
+                if isSelected {
+                    Circle()
+                        .stroke(DesignTokens.Colors.accent, lineWidth: 2)
+                        .frame(width: 28, height: 28)
+
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .opacity(isSelected ? 1 : 0)
-                )
+                        .foregroundColor(color == .white || color == .lightGray ? .black : .white)
+                }
+            }
+            .frame(width: 28, height: 28)
         }
         .buttonStyle(.plain)
+        .help(color.displayName)
+    }
+
+    private var automaticColorGradient: LinearGradient {
+        switch color {
+        case .utilization:
+            return LinearGradient(
+                colors: [.green, .yellow, .orange, .red],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .pressure:
+            return LinearGradient(
+                colors: [.green, .yellow, .red],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        case .cluster:
+            return LinearGradient(
+                colors: [WidgetColorPalette.ClusterColor.eCores, WidgetColorPalette.ClusterColor.pCores],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        default:
+            return LinearGradient(
+                colors: [color.colorValue(for: widgetType)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
     }
 }
 
@@ -313,6 +462,8 @@ struct WidgetPreviewBox: View {
             return "\(Int(dataManager.batteryData.chargePercentage))%"
         case .weather:
             return "21°"
+        case .sensors:
+            return "45°C"
         }
     }
 

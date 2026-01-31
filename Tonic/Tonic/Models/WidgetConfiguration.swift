@@ -122,55 +122,269 @@ public enum WidgetValueFormat: String, CaseIterable, Identifiable, Codable {
 
 // MARK: - Widget Accent Color
 
-/// Color options for widgets
+/// Color options for widgets (30+ options matching Stats Master PRD)
+/// Categories: automatic, system, primary, secondary, grays, special
 public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Sendable {
-    case system = "system"
-    case blue = "blue"
+    // MARK: Automatic Colors (Calculated)
+    case system = "system"              // Auto - default color per widget type
+    case utilization = "utilization"    // Based on utilization (green->yellow->orange->red)
+    case pressure = "pressure"          // Based on memory pressure
+    case cluster = "cluster"            // Based on CPU cluster (E/P cores)
+
+    // MARK: System Colors
+    case systemAccent = "systemAccent"  // macOS accent color
+    case monochrome = "monochrome"      // Adapts to light/dark mode
+
+    // MARK: Primary Colors
+    case red = "red"
     case green = "green"
+    case blue = "blue"
+    case yellow = "yellow"
     case orange = "orange"
     case purple = "purple"
-    case yellow = "yellow"
+    case brown = "brown"
+    case cyan = "cyan"
+    case magenta = "magenta"
+    case pink = "pink"
+    case teal = "teal"
+    case indigo = "indigo"
+
+    // MARK: Secondary Colors (System variants)
+    case secondRed = "secondRed"
+    case secondGreen = "secondGreen"
+    case secondBlue = "secondBlue"
+    case secondYellow = "secondYellow"
+    case secondOrange = "secondOrange"
+    case secondPurple = "secondPurple"
+    case secondBrown = "secondBrown"
+
+    // MARK: Gray Colors
+    case gray = "gray"
+    case secondGray = "secondGray"
+    case darkGray = "darkGray"
+    case lightGray = "lightGray"
+
+    // MARK: Special Colors
+    case white = "white"
+    case black = "black"
+    case clear = "clear"
 
     public var id: String { rawValue }
 
     /// Display name for the color
     public var displayName: String {
         switch self {
+        // Automatic
         case .system: return "Auto"
-        case .blue: return "Blue"
+        case .utilization: return "Based on utilization"
+        case .pressure: return "Based on pressure"
+        case .cluster: return "Based on cluster"
+        // System
+        case .systemAccent: return "System accent"
+        case .monochrome: return "Monochrome"
+        // Primary
+        case .red: return "Red"
         case .green: return "Green"
+        case .blue: return "Blue"
+        case .yellow: return "Yellow"
         case .orange: return "Orange"
         case .purple: return "Purple"
-        case .yellow: return "Yellow"
+        case .brown: return "Brown"
+        case .cyan: return "Cyan"
+        case .magenta: return "Magenta"
+        case .pink: return "Pink"
+        case .teal: return "Teal"
+        case .indigo: return "Indigo"
+        // Secondary
+        case .secondRed: return "Second red"
+        case .secondGreen: return "Second green"
+        case .secondBlue: return "Second blue"
+        case .secondYellow: return "Second yellow"
+        case .secondOrange: return "Second orange"
+        case .secondPurple: return "Second purple"
+        case .secondBrown: return "Second brown"
+        // Grays
+        case .gray: return "Gray"
+        case .secondGray: return "Second gray"
+        case .darkGray: return "Dark gray"
+        case .lightGray: return "Light gray"
+        // Special
+        case .white: return "White"
+        case .black: return "Black"
+        case .clear: return "Clear"
         }
     }
 
-    /// The actual Color value
+    /// Whether this color is automatic (calculated from values)
+    public var isAutomatic: Bool {
+        switch self {
+        case .system, .utilization, .pressure, .cluster:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The NSColor value for this color option (for fixed colors)
+    public var nsColor: NSColor? {
+        switch self {
+        // Automatic colors return nil (need value to calculate)
+        case .system, .utilization, .pressure, .cluster:
+            return nil
+        // System
+        case .systemAccent: return .controlAccentColor
+        case .monochrome: return .textColor
+        // Primary
+        case .red: return .red
+        case .green: return .green
+        case .blue: return .blue
+        case .yellow: return .yellow
+        case .orange: return .orange
+        case .purple: return .purple
+        case .brown: return .brown
+        case .cyan: return .cyan
+        case .magenta: return .magenta
+        case .pink: return .systemPink
+        case .teal: return .systemTeal
+        case .indigo: return .systemIndigo
+        // Secondary
+        case .secondRed: return .systemRed
+        case .secondGreen: return .systemGreen
+        case .secondBlue: return .systemBlue
+        case .secondYellow: return .systemYellow
+        case .secondOrange: return .systemOrange
+        case .secondPurple: return .systemPurple
+        case .secondBrown: return .systemBrown
+        // Grays
+        case .gray: return .gray
+        case .secondGray: return .systemGray
+        case .darkGray: return .darkGray
+        case .lightGray: return .lightGray
+        // Special
+        case .white: return .white
+        case .black: return .black
+        case .clear: return .clear
+        }
+    }
+
+    /// The actual Color value (for fixed colors, uses system default for automatic)
     public func colorValue(for widgetType: WidgetType) -> Color {
         switch self {
         case .system:
             // Return default color for each widget type when in Auto mode
             return defaultColor(for: widgetType)
-        case .blue: return Color(red: 0.37, green: 0.62, blue: 1.0)
-        case .green: return Color(red: 0.19, green: 0.82, blue: 0.35)
-        case .orange: return Color(red: 1.0, green: 0.62, blue: 0.04)
-        case .purple: return Color(red: 0.75, green: 0.35, blue: 0.95)
-        case .yellow: return Color(red: 1.0, green: 0.84, blue: 0.04)
+        case .utilization, .pressure, .cluster:
+            // These need a value to calculate - return system accent as fallback
+            return Color(nsColor: .controlAccentColor)
+        default:
+            if let nsColor = nsColor {
+                return Color(nsColor: nsColor)
+            }
+            return defaultColor(for: widgetType)
+        }
+    }
+
+    /// Calculate color based on a utilization value (0-100%)
+    /// For .utilization color mode
+    public func colorValue(forUtilization percentage: Double) -> Color {
+        switch self {
+        case .utilization:
+            return UtilizationColorHelper.color(forPercentage: percentage)
+        default:
+            if let nsColor = nsColor {
+                return Color(nsColor: nsColor)
+            }
+            return Color(nsColor: .controlAccentColor)
+        }
+    }
+
+    /// Calculate NSColor based on a utilization value (0-100%)
+    public func nsColorValue(forUtilization percentage: Double) -> NSColor {
+        switch self {
+        case .utilization:
+            return UtilizationColorHelper.nsColor(forPercentage: percentage)
+        default:
+            return nsColor ?? .controlAccentColor
+        }
+    }
+
+    /// Calculate color based on memory pressure
+    public func colorValue(forPressure pressure: MemoryPressureLevel) -> Color {
+        switch self {
+        case .pressure:
+            return WidgetColorPalette.pressureColor(for: pressure)
+        default:
+            if let nsColor = nsColor {
+                return Color(nsColor: nsColor)
+            }
+            return Color(nsColor: .controlAccentColor)
+        }
+    }
+
+    /// Calculate color for CPU cluster (E-core vs P-core)
+    public func colorValue(isEfficiencyCore: Bool) -> Color {
+        switch self {
+        case .cluster:
+            return isEfficiencyCore
+                ? WidgetColorPalette.ClusterColor.eCores
+                : WidgetColorPalette.ClusterColor.pCores
+        default:
+            if let nsColor = nsColor {
+                return Color(nsColor: nsColor)
+            }
+            return Color(nsColor: .controlAccentColor)
         }
     }
 
     /// Default color for each widget type when in Auto mode
     private func defaultColor(for widgetType: WidgetType) -> Color {
         switch widgetType {
-        case .cpu: return Color(red: 0.37, green: 0.62, blue: 1.0)
-        case .memory: return Color(red: 0.19, green: 0.82, blue: 0.35)
-        case .disk: return Color(red: 1.0, green: 0.62, blue: 0.04)
-        case .network: return Color(red: 0.39, green: 0.82, blue: 1.0)
-        case .gpu: return Color(red: 0.75, green: 0.35, blue: 0.95)
-        case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
-        case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
-        case .sensors: return Color(red: 1.0, green: 0.5, blue: 0.0)
+        case .cpu: return Color(nsColor: .systemBlue)
+        case .memory: return Color(nsColor: .systemGreen)
+        case .disk: return Color(nsColor: .systemOrange)
+        case .network: return Color(nsColor: .systemCyan)
+        case .gpu: return Color(nsColor: .systemPurple)
+        case .battery: return Color(nsColor: .systemGreen)
+        case .weather: return Color(nsColor: .systemYellow)
+        case .sensors: return Color(nsColor: .systemOrange)
         }
+    }
+
+    // MARK: - Color Categories for Picker
+
+    /// All fixed colors (excluding automatic ones)
+    public static var fixedColors: [WidgetAccentColor] {
+        allCases.filter { !$0.isAutomatic }
+    }
+
+    /// Automatic color options
+    public static var automaticColors: [WidgetAccentColor] {
+        [.system, .utilization, .pressure, .cluster]
+    }
+
+    /// System colors
+    public static var systemColors: [WidgetAccentColor] {
+        [.systemAccent, .monochrome]
+    }
+
+    /// Primary colors
+    public static var primaryColors: [WidgetAccentColor] {
+        [.red, .green, .blue, .yellow, .orange, .purple, .brown, .cyan, .magenta, .pink, .teal, .indigo]
+    }
+
+    /// Secondary colors
+    public static var secondaryColors: [WidgetAccentColor] {
+        [.secondRed, .secondGreen, .secondBlue, .secondYellow, .secondOrange, .secondPurple, .secondBrown]
+    }
+
+    /// Gray colors
+    public static var grayColors: [WidgetAccentColor] {
+        [.gray, .secondGray, .darkGray, .lightGray]
+    }
+
+    /// Special colors
+    public static var specialColors: [WidgetAccentColor] {
+        [.white, .black, .clear]
     }
 }
 

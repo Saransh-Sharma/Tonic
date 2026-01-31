@@ -83,8 +83,7 @@ Reference: Existing battery code at `WidgetDataManager.swift:1007-1067`, existin
 - [ ] Graceful fallback when SMC unavailable
 - [ ] All new readers follow Reader protocol
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
