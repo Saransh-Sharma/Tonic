@@ -172,24 +172,3 @@ public enum BatteryHealth: String, Sendable {
     }
 }
 
-// MARK: - BatteryData Extension
-
-public extension BatteryData {
-    init(isPresent: Bool, isCharging: Bool = false, isCharged: Bool = false,
-         chargePercentage: Double = 0, estimatedMinutesRemaining: Int? = nil,
-         health: BatteryHealth = .unknown, cycleCount: Int? = nil, temperature: Double? = nil,
-         timestamp: Date = Date()) {
-        self.init(
-            isPresent: isPresent,
-            isCharging: isCharging,
-            isCharged: isCharged,
-            chargePercentage: chargePercentage,
-            estimatedMinutesRemaining: estimatedMinutesRemaining,
-            health: health,
-            timestamp: timestamp
-        )
-    }
-
-    var cycleCount: Int? { nil }
-    var temperature: Double? { nil }
-}

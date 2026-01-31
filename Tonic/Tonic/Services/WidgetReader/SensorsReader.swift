@@ -230,7 +230,7 @@ final class SensorsReader: WidgetReader {
             let minSpeed = readSMCValue(minSpeedKey) ?? 0
 
             readings.append(FanReading(
-                id: i,
+                fanId: i,
                 name: "Fan \(i)",
                 currentSpeed: Int(currentSpeed),
                 minSpeed: Int(minSpeed),
@@ -278,14 +278,14 @@ public struct SensorReading: Sendable, Identifiable {
 /// Fan speed reading
 public struct FanReading: Sendable, Identifiable {
     public let id = UUID()
-    public let id: Int  // Fan ID
+    public let fanId: Int  // Hardware fan index
     public let name: String
     public let currentSpeed: Int  // RPM
     public let minSpeed: Int  // RPM
     public let maxSpeed: Int  // RPM
 
-    public init(id: Int, name: String, currentSpeed: Int, minSpeed: Int, maxSpeed: Int) {
-        self.id = id
+    public init(fanId: Int, name: String, currentSpeed: Int, minSpeed: Int, maxSpeed: Int) {
+        self.fanId = fanId
         self.name = name
         self.currentSpeed = currentSpeed
         self.minSpeed = minSpeed

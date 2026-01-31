@@ -165,7 +165,7 @@ struct DetailView: View {
         case .liveMonitoring:
             SystemStatusDashboard()
         case .menuBarWidgets:
-            WidgetsPanelView()
+            WidgetsPanelWrapper()
         case .developerTools:
             DeveloperToolsView()
         case .designSandbox:
@@ -395,15 +395,20 @@ struct DeveloperToolsView: View {
     }
 }
 
-// MARK: - Widgets Panel View
+// MARK: - Widgets Panel Wrapper
+// Note: WidgetsPanelView is now defined in WidgetsPanelView.swift
+// This wrapper handles onboarding before showing the main panel
 
-struct WidgetsPanelView: View {
+struct WidgetsPanelWrapper: View {
     @State private var showWidgetOnboarding = false
 
     var body: some View {
         Group {
             // Content
             if WidgetPreferences.shared.hasCompletedOnboarding {
+                // Use the working widget customization view
+                // WidgetsPanelView in WidgetsPanelView.swift shows the new Stats Master-parity UI
+                // but still needs integration work, so we use WidgetCustomizationView for now
                 WidgetCustomizationView()
             } else {
                 widgetOnboardingPrompt

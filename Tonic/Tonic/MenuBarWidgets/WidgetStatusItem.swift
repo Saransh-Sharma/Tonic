@@ -39,9 +39,6 @@ public class WidgetStatusItem: ObservableObject {
     /// Hosting controller for the compact view (type-erased)
     private var anyHostingController: NSHostingController<AnyView>?
 
-    /// Timer for updating the view
-    private var updateTimer: Timer?
-
     /// Data manager reference
     private var dataManager: WidgetDataManager {
         WidgetDataManager.shared
@@ -56,7 +53,8 @@ public class WidgetStatusItem: ObservableObject {
         logger.info("🔵 Initializing widget: \(widgetType.rawValue), enabled: \(configuration.isEnabled)")
         setupStatusItem()
         setupPopover()
-        startUpdateTimer()
+        // Note: Per-widget timers removed - unified WidgetRefreshScheduler handles data updates
+        // and WidgetDataManager (@Observable) triggers SwiftUI view updates automatically
     }
 
     deinit {
@@ -64,19 +62,6 @@ public class WidgetStatusItem: ObservableObject {
         MainActor.assumeIsolated {
             if let statusItem = self.statusItem {
                 NSStatusBar.system.removeStatusItem(statusItem)
-            }
-        }
-        updateTimer?.invalidate()
-    }
-
-    // MARK: - View Updates
-
-    private func startUpdateTimer() {
-        // Update the view every 1 second to reflect data changes
-        self.logger.info("⏰ Starting update timer for \(self.widgetType.rawValue)")
-        self.updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateCompactView()
             }
         }
     }
@@ -515,6 +500,9 @@ public final class WidgetCoordinator: ObservableObject {
     /// Whether the widget system is active
     @Published public private(set) var isActive = false
 
+    /// Single unified view refresh timer (replaces 7 per-widget timers)
+    private var viewRefreshTimer: Timer?
+
     private init() {}
 
     // MARK: - Widget Management
@@ -539,13 +527,42 @@ public final class WidgetCoordinator: ObservableObject {
         logger.info("🔄 Refreshing widgets...")
         print("🔄 [WidgetCoordinator] Refreshing widgets...")
         refreshWidgets()
+
+        // Start single unified view refresh timer (replaces 7 per-widget timers)
+        // This is a key performance improvement: 1 timer instead of 7
+        startViewRefreshTimer()
+
         logger.info("✅ WidgetCoordinator started with \(self.activeWidgets.count) active widgets")
         print("✅ [WidgetCoordinator] Started with \(self.activeWidgets.count) active widgets")
+    }
+
+    /// Start single unified timer for all widget view updates
+    /// This replaces the previous pattern of 7 individual per-widget timers
+    private func startViewRefreshTimer() {
+        viewRefreshTimer?.invalidate()
+        logger.info("⏰ Starting unified view refresh timer (1 timer for all widgets)")
+
+        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshAllWidgetViews()
+            }
+        }
+    }
+
+    /// Refresh all active widget views at once
+    private func refreshAllWidgetViews() {
+        for widget in activeWidgets.values {
+            widget.refresh()
+        }
     }
 
     /// Stop showing widgets
     public func stop() {
         isActive = false
+
+        // Stop unified view refresh timer
+        viewRefreshTimer?.invalidate()
+        viewRefreshTimer = nil
 
         // Remove all status items
         activeWidgets.values.forEach { $0.hide() }

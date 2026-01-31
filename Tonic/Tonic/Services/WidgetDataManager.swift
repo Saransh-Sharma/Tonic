@@ -188,15 +188,20 @@ public struct BatteryData: Sendable {
     public let chargePercentage: Double
     public let estimatedMinutesRemaining: Int?
     public let health: BatteryHealth
+    public let cycleCount: Int?
+    public let temperature: Double?  // Celsius
     public let timestamp: Date
 
     public init(isPresent: Bool, isCharging: Bool = false, isCharged: Bool = false,
                 chargePercentage: Double = 0, estimatedMinutesRemaining: Int? = nil,
-                health: BatteryHealth = .unknown, timestamp: Date = Date()) {
+                health: BatteryHealth = .unknown, cycleCount: Int? = nil,
+                temperature: Double? = nil, timestamp: Date = Date()) {
         self.isPresent = isPresent
         self.isCharging = isCharging
         self.isCharged = isCharged
         self.chargePercentage = chargePercentage
+        self.cycleCount = cycleCount
+        self.temperature = temperature
         self.estimatedMinutesRemaining = estimatedMinutesRemaining
         self.health = health
         self.timestamp = timestamp

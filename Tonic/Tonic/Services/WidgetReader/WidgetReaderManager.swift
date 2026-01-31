@@ -39,9 +39,9 @@ final class WidgetReaderManager {
     func refreshReaders() async {
         for (key, reader) in readers {
             do {
-                // Type-erased read - we store the result but don't return it
-                _ = try await reader.read()
-                cache[key] = (reader, Date())  // Placeholder - actual value stored in typed cache
+                // Type-erased read - store the result in cache
+                let value = try await reader.read()
+                cache[key] = (value, Date())
             } catch {
                 print("Warning: Failed to refresh reader for \(key): \(error)")
             }
