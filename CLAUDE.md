@@ -23,6 +23,7 @@
 | `Tonic/Tonic/Models/` | Data types and enums |
 | `Tonic/Tonic/Design/` | Design tokens, components, animations |
 | `Tonic/Tonic/MenuBarWidgets/` | Menu bar widget implementations |
+| `Tonic/Tonic/Services/WidgetReader/` | Reader protocol implementations for data sources |
 | `Tonic/Tonic/Utilities/` | Helper utilities |
 | `TonicHelperTool/` | Privileged helper for root operations |
 
@@ -36,6 +37,8 @@
 
 ```swift
 WidgetPreferences.shared        // Widget configuration
+WidgetCoordinator.shared        // Menu bar widget lifecycle (OneView/Individual mode)
+NotificationManager.shared      // Threshold-based notifications
 PermissionManager.shared        // Permission checks
 PrivilegedHelperManager.shared  // Root operations
 CollectorBin.shared             // Deletion staging
@@ -125,15 +128,36 @@ Real-time metrics via IOKit:
 - GPU (Apple Silicon unified memory)
 - Battery status
 
-### 4. Menu Bar Widgets
-7 customizable widgets:
-- CPU, Memory, Disk, Network, GPU, Battery, Weather
-- Display modes: Icon only, Icon+Value, Icon+Value+Sparkline
+### 4. Reader Architecture (`ReaderProtocol.swift`)
+Stats Master-inspired reader pattern for modular data collection:
+- `Reader<T>` protocol: Async data fetching with lifecycle management
+- `BaseReader<T>`: Common implementation with history tracking
+- Reader types: `CPUReader`, `MemoryReader`, `DiskReader`, `NetworkReader`, `GPUReader`, `BatteryReader`, `SensorsReader`
+- Features: Configurable intervals, optional readers, popup-only mode, history limits
+- Unified refresh via `WidgetRefreshScheduler` (single timer instead of per-widget timers)
 
-### 5. Weather (`WeatherService.swift`)
+### 5. Menu Bar Widgets (`WidgetCoordinator`)
+Stats Master-parity widget system with flexible visualizations:
+- **Data Sources**: CPU, Memory, Disk, Network, GPU, Battery, Weather, Sensors (8 types)
+- **Visualization Types**: mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text
+- **Display Modes**: Compact (icon+value), Detailed (adds sparkline for mini visualization)
+- **OneView Mode**: Unified menu bar item showing all widgets in a horizontal grid (toggleable)
+- **WidgetFactory**: Creates appropriate status items based on data source + visualization
+- **Notification Thresholds**: Per-widget configurable alerts via `NotificationManager`
+
+### 6. Weather (`WeatherService.swift`)
 - Uses Open-Meteo API (free, no key required)
 - CoreLocation for position
 - Current conditions + 7-day forecast
+
+### 7. Notification System (`NotificationManager.swift`)
+Threshold-based alert system for menu bar widgets:
+- **Per-widget thresholds**: CPU, Memory, Disk, GPU, Battery, Network, Sensors
+- **Threshold types**: Greater than, less than, equal to conditions
+- **Debouncing**: Configurable minimum interval between notifications (default 5 minutes)
+- **Do Not Disturb**: Option to respect macOS Focus modes
+- **Notification types**: Usage alerts, low battery warnings, temperature warnings
+- **Permission management**: Built-in request and settings integration
 
 ## Permissions
 
@@ -188,10 +212,24 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 ## Common Tasks
 
 ### Adding a New Widget
-1. Create widget view in `MenuBarWidgets/`
-2. Add `WidgetType` case in `Models/WidgetConfiguration.swift`
-3. Register in `WidgetCoordinator.swift`
-4. Add icon to `WidgetType.icon`
+1. Create widget view in `MenuBarWidgets/` (subclass `WidgetStatusItem`)
+2. Add `WidgetType` case in `Models/WidgetConfiguration.swift` with compatible visualizations
+3. Create reader in `Services/WidgetReader/` (subclass `BaseReader<T>`)
+4. Add data source to `WidgetDataManager` if new metrics needed
+5. Update `WidgetFactory.createWidget()` to handle new type
+6. Add icon and display name to `WidgetType`
+
+### Configuring Notification Thresholds
+1. Access via `NotificationManager.shared`
+2. Use `updateThreshold()` to add/update a threshold for a widget type
+3. Set threshold value, condition (greater/less than), and enabled state
+4. Configure minimum interval and Do Not Disturb respect via `NotificationConfig`
+
+### Enabling OneView Mode
+1. Set `WidgetPreferences.shared.unifiedMenuBarMode = true`
+2. Widgets will display in single horizontal menu bar item
+3. Clicking shows unified popover with all widget details
+4. Toggle via Widgets Panel in app preferences
 
 ### Adding a New Cleanup Category
 1. Add case to `DeepCleanCategory` in `DeepCleanEngine.swift`
