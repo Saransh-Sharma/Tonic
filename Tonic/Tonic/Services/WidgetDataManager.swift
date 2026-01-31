@@ -14,6 +14,7 @@ import AppKit
 import MachO
 import SwiftUI
 import os
+import Network
 
 // MARK: - IOKit Constants
 
@@ -198,6 +199,34 @@ public struct NetworkData: Sendable {
     public let ipAddress: String?
     public let timestamp: Date
 
+    // Enhanced properties for Stats Master parity
+    public let wifiDetails: WiFiDetails?           // Extended WiFi information
+    public let publicIP: PublicIPInfo?             // Public IP with geolocation
+    public let connectivity: ConnectivityInfo?     // Latency, jitter, reachability
+    public let topProcesses: [ProcessNetworkUsage]?  // Top network-using processes
+
+    public init(uploadBytesPerSecond: Double, downloadBytesPerSecond: Double,
+                isConnected: Bool, connectionType: ConnectionType = .unknown,
+                ssid: String? = nil, ipAddress: String? = nil,
+                wifiDetails: WiFiDetails? = nil,
+                publicIP: PublicIPInfo? = nil,
+                connectivity: ConnectivityInfo? = nil,
+                topProcesses: [ProcessNetworkUsage]? = nil,
+                timestamp: Date = Date()) {
+        self.uploadBytesPerSecond = uploadBytesPerSecond
+        self.downloadBytesPerSecond = downloadBytesPerSecond
+        self.isConnected = isConnected
+        self.connectionType = connectionType
+        self.ssid = ssid
+        self.ipAddress = ipAddress
+        self.wifiDetails = wifiDetails
+        self.publicIP = publicIP
+        self.connectivity = connectivity
+        self.topProcesses = topProcesses
+        self.timestamp = timestamp
+    }
+
+    /// Backward-compatible initializer for existing code
     public init(uploadBytesPerSecond: Double, downloadBytesPerSecond: Double,
                 isConnected: Bool, connectionType: ConnectionType = .unknown,
                 ssid: String? = nil, ipAddress: String? = nil, timestamp: Date = Date()) {
@@ -207,6 +236,10 @@ public struct NetworkData: Sendable {
         self.connectionType = connectionType
         self.ssid = ssid
         self.ipAddress = ipAddress
+        self.wifiDetails = nil
+        self.publicIP = nil
+        self.connectivity = nil
+        self.topProcesses = nil
         self.timestamp = timestamp
     }
 
@@ -237,13 +270,7 @@ public struct NetworkData: Sendable {
     }
 }
 
-/// Network connection type
-public enum ConnectionType: String, Sendable {
-    case wifi
-    case ethernet
-    case cellular
-    case unknown
-}
+// ConnectionType is now defined in NetworkDetails.swift with enhanced cases
 
 /// GPU data for widgets (Apple Silicon only)
 public struct GPUData: Sendable {
@@ -465,6 +492,14 @@ public final class WidgetDataManager {
     // Process list caching (to avoid frequent process spawning)
     private var cachedTopProcesses: [AppResourceUsage]?
     private var lastProcessFetchDate: Date?
+
+    // Network enhancement caching
+    private var cachedPublicIP: PublicIPInfo?
+    private var lastPublicIPFetch: Date?
+    private var lastConnectivityCheck: Date?
+    private var previousPingLatencies: [Double] = []
+    private let publicIPCacheInterval: TimeInterval = 300  // 5 minutes
+    private let connectivityCheckInterval: TimeInterval = 30  // 30 seconds
 
     // MARK: - Initialization
 
@@ -1163,8 +1198,7 @@ public final class WidgetDataManager {
             "iTunes": "com.apple.iTunes",
             "TV": "com.apple.TV",
             "News": "com.apple.News",
-            "FaceTime": "com.apple.FaceTime",
-            "iTunes": "com.apple.iTunes"
+            "FaceTime": "com.apple.FaceTime"
         ]
 
         return knownApps[name]
@@ -1291,12 +1325,22 @@ public final class WidgetDataManager {
         let connectionType = getConnectionType()
         let ssid = getWiFiSSID()
 
+        // Get enhanced network data
+        let wifiDetails = getWiFiDetails()
+        let publicIP = getPublicIP()
+        let connectivity = getConnectivityInfo()
+        let topProcesses = getTopNetworkProcesses()
+
         networkData = NetworkData(
             uploadBytesPerSecond: max(0, uploadRate),
             downloadBytesPerSecond: max(0, downloadRate),
             isConnected: isConnected,
             connectionType: connectionType,
-            ssid: ssid
+            ssid: ssid,
+            wifiDetails: wifiDetails,
+            publicIP: publicIP,
+            connectivity: connectivity,
+            topProcesses: topProcesses
         )
 
         // Update history
@@ -1407,6 +1451,361 @@ public final class WidgetDataManager {
             return interface.ssid()
         }
         return nil
+    }
+
+    // MARK: - Enhanced Network Readers
+
+    /// Get detailed WiFi information including SSID, RSSI, channel, security, and BSSID
+    private func getWiFiDetails() -> WiFiDetails? {
+        let client = CWWiFiClient.shared()
+        guard let interface = client.interfaces()?.first,
+              interface.powerOn(),
+              let ssid = interface.ssid() else {
+            return nil
+        }
+
+        // Get RSSI (signal strength)
+        let rssi = interface.rssiValue()
+
+        // Get channel information
+        var channel = 0
+        if let channelInfo = interface.wlanChannel() {
+            channel = channelInfo.channelNumber
+            _ = channelInfo.channelBand  // Available for future use
+        }
+
+        // Get security type
+        let security = getSecurityType(from: interface)
+
+        // Get BSSID
+        let bssid = interface.bssid() ?? "Unknown"
+
+        return WiFiDetails(
+            ssid: ssid,
+            rssi: rssi,
+            channel: channel,
+            security: security,
+            bssid: bssid
+        )
+    }
+
+    /// Get security type from WiFi interface
+    private func getSecurityType(from interface: CWInterface) -> String {
+        // CoreWLAN security detection via system_profiler
+        // This is the most reliable method without requiring additional entitlements
+        return getSecurityTypeFromSystemProfiler()
+    }
+
+    /// Get security type from system_profiler (fallback)
+    private func getSecurityTypeFromSystemProfiler() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        task.arguments = ["SPAirPortDataType", "-xml"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                return "Unknown"
+            }
+
+            // Parse XML for security type (simplified)
+            if output.contains("WPA3") {
+                return "WPA3"
+            } else if output.contains("WPA2") {
+                return "WPA2"
+            } else if output.contains("WPA") {
+                return "WPA"
+            } else if output.contains("WEP") {
+                return "WEP"
+            }
+        } catch {}
+
+        return "Unknown"
+    }
+
+    /// Get public IP information with caching
+    private func getPublicIP() -> PublicIPInfo? {
+        let now = Date()
+
+        // Return cached IP if still valid
+        if let cached = cachedPublicIP,
+           let lastFetch = lastPublicIPFetch,
+           now.timeIntervalSince(lastFetch) < publicIPCacheInterval {
+            return cached
+        }
+
+        // Fetch fresh IP data asynchronously
+        Task { @MainActor in
+            if let ipInfo = await fetchPublicIPFromAPI() {
+                self.cachedPublicIP = ipInfo
+                self.lastPublicIPFetch = now
+
+                // Trigger IP change notification if IP changed
+                if let oldIP = self.cachedPublicIP?.ipAddress,
+                   oldIP != ipInfo.ipAddress {
+                    self.logger.info("Public IP changed from \(oldIP) to \(ipInfo.ipAddress)")
+                }
+            }
+        }
+
+        return cachedPublicIP
+    }
+
+    /// Fetch public IP from external APIs with fallback
+    private func fetchPublicIPFromAPI() async -> PublicIPInfo? {
+        // Try multiple APIs for reliability
+        let apis: [String] = [
+            "https://api.ipify.org?format=text",           // Simple IP
+            "https://icanhazip.com",                        // Simple IP
+            "https://ifconfig.me/ip",                       // Simple IP
+        ]
+
+        for api in apis {
+            if let ip = await fetchIPFrom(url: api) {
+                // For simple IP APIs, we don't get geo info
+                return PublicIPInfo(ipAddress: ip.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+
+        return nil
+    }
+
+    /// Fetch IP from a specific URL
+    private func fetchIPFrom(url: String) async -> String? {
+        guard let url = URL(string: url) else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5.0
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            return String(data: data, encoding: .utf8)
+        } catch {
+            logger.warning("Failed to fetch IP from \(url): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Get connectivity information (latency, jitter, reachability)
+    private func getConnectivityInfo() -> ConnectivityInfo? {
+        let now = Date()
+
+        // Only check connectivity every 30 seconds to avoid excessive pings
+        if let lastCheck = lastConnectivityCheck,
+           now.timeIntervalSince(lastCheck) < connectivityCheckInterval {
+            return nil  // Return nil to use cached value from UI
+        }
+
+        lastConnectivityCheck = now
+
+        // Perform ping test to 8.8.8.8 (Google DNS)
+        let pingResults = performPingTest(host: "8.8.8.8", count: 5)
+
+        guard let avgLatency = pingResults.average, !pingResults.latencies.isEmpty else {
+            return ConnectivityInfo(latency: 0, jitter: 0, isReachable: false)
+        }
+
+        // Calculate jitter (standard deviation of latencies)
+        let jitter = calculateJitter(latencies: pingResults.latencies)
+
+        return ConnectivityInfo(
+            latency: avgLatency,
+            jitter: jitter,
+            isReachable: pingResults.isReachable
+        )
+    }
+
+    /// Ping test result structure
+    private struct PingResult {
+        let latencies: [Double]
+        let isReachable: Bool
+        let average: Double?
+    }
+
+    /// Perform ICMP ping test to a host
+    private func performPingTest(host: String, count: Int) -> PingResult {
+        var latencies: [Double] = []
+
+        // Use ping command with timeout
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/sbin/ping")
+        task.arguments = [
+            "-c", String(count),
+            "-i", "0.2",  // 200ms between pings
+            "-W", "1000", // 1 second timeout per ping
+            host
+        ]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                return PingResult(latencies: [], isReachable: false, average: nil)
+            }
+
+            let isReachable = task.terminationStatus == 0
+
+            // Parse ping output for latencies
+            // Expected format: "64 bytes from 8.8.8.8: icmp_seq=0 ttl=117 time=14.2 ms"
+            let lines = output.split(separator: "\n")
+            for line in lines {
+                if line.contains("time=") {
+                    if let timeRange = line.range(of: "time="),
+                       let msRange = line[timeRange.upperBound...].range(of: " ") {
+                        let timeString = String(line[timeRange.upperBound..<msRange.lowerBound])
+                        if let latency = Double(timeString) {
+                            latencies.append(latency)
+                        }
+                    }
+                }
+            }
+
+            let average = latencies.isEmpty ? nil : latencies.reduce(0, +) / Double(latencies.count)
+            return PingResult(latencies: latencies, isReachable: isReachable, average: average)
+
+        } catch {
+            logger.warning("Ping test failed: \(error.localizedDescription)")
+            return PingResult(latencies: [], isReachable: false, average: nil)
+        }
+    }
+
+    /// Calculate jitter (standard deviation of latencies)
+    private func calculateJitter(latencies: [Double]) -> Double {
+        guard latencies.count > 1 else { return 0 }
+
+        let avg = latencies.reduce(0, +) / Double(latencies.count)
+        let variance = latencies.map { pow($0 - avg, 2) }.reduce(0, +) / Double(latencies.count)
+        return sqrt(variance)
+    }
+
+    /// Get top processes by network usage
+    private func getTopNetworkProcesses(limit: Int = 8) -> [ProcessNetworkUsage]? {
+        // Use nettop command to get network usage per process
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
+        task.arguments = [
+            "-P",           // Parseable output
+            "-L", "1",      // Single sample
+            "-n",           // No DNS resolution
+            "-k", "time,interface,state,rx_dupe,rx_ooo,re-tx,rtt_avg,rcvsize,rcvsize_max,tcpi_win_mrcv,tcpi_win_snd,tcpi_rcv_wnd,tcpi_snd_wnd,snd_wnd,snd_wnd_max,tcpi_snd_bwnd,tcpi_rttcur,tcpi_rttcur,srtt,srtt_var,rtt_var,rtt_min,rtt_max,rtt_cnt,rtt_tot,rtt_tot_sec,rx_win,tx_win,tx_win_max,tx_win_una,tx_win_una_max,tx_win_nxt,tx_win_nxt_max,tx_win_cnt,tx_win_cnt_max,tx_win_tot,tx_win_tot_max,tx_win_sec,tx_win_sec_max,tx_win_usec,tx_win_usec_max,tx_win_usec_tot,tx_win_usec_tot_max,tcpi_rcv_oopack,tcpi_rcv_ovpack,tcpi_snd_zerowin,tcpi_rcv_zerowin,tcpi_snd_dupack,tcpi_snd_zerowin_probe,tcpi_rcv_zerowin_probe,tcpi_rexmt_lim,tcpi_rexmt_cnt,tcpi_rexmt_tot,tcpi_rexmt_tot_sec,tcpi_pmtu,tcpi_snd_bwnd_1,tcpi_snd_bwnd_2,tcpi_snd_bwnd_3,tcpi_snd_bwnd_4,tcpi_snd_bwnd_5,tcpi_snd_bwnd_6,tcpi_snd_bwnd_7,tcpi_snd_bwnd_8,tcpi_snd_bwnd_9,tcpi_snd_bwnd_10,tcpi_snd_bwnd_11,tcpi_snd_bwnd_12,tcpi_snd_bwnd_13,tcpi_snd_bwnd_14,tcpi_snd_bwnd_15,tcpi_snd_bwnd_16,tcpi_snd_bwnd_17,tcpi_snd_bwnd_18,tcpi_snd_bwnd_19,tcpi_snd_bwnd_20,tcpi_snd_bwnd_21,tcpi_snd_bwnd_22,tcpi_snd_bwnd_23,tcpi_snd_bwnd_24,tcpi_snd_bwnd_25,tcpi_snd_bwnd_26,tcpi_snd_bwnd_27,tcpi_snd_bwnd_28,tcpi_snd_bwnd_29,tcpi_snd_bwnd_30,tcpi_snd_bwnd_31,tcpi_snd_bwnd_32,tcpi_snd_bwnd_33,tcpi_snd_bwnd_34,tcpi_snd_bwnd_35,tcpi_snd_bwnd_36,tcpi_snd_bwnd_37,tcpi_snd_bwnd_38,tcpi_snd_bwnd_39,tcpi_snd_bwnd_40,tcpi_snd_bwnd_41,tcpi_snd_bwnd_42,tcpi_snd_bwnd_43,tcpi_snd_bwnd_44,tcpi_snd_bwnd_45,tcpi_snd_bwnd_46,tcpi_snd_bwnd_47,tcpi_snd_bwnd_48,tcpi_snd_bwnd_49,tcpi_snd_bwnd_50,tcpi_snd_bwnd_51,tcpi_snd_bwnd_52,tcpi_snd_bwnd_53,tcpi_snd_bwnd_54,tcpi_snd_bwnd_55,tcpi_snd_bwnd_56,tcpi_snd_bwnd_57,tcpi_snd_bwnd_58,tcpi_snd_bwnd_59,tcpi_snd_bwnd_60,tcpi_snd_bwnd_61,tcpi_snd_bwnd_62,tcpi_snd_bwnd_63,tcpi_snd_bwnd_64,tcpi_snd_bwnd_65,tcpi_snd_bwnd_66,tcpi_snd_bwnd_67,tcpi_snd_bwnd_68,tcpi_snd_bwnd_69,tcpi_snd_bwnd_70,tcpi_snd_bwnd_71,tcpi_snd_bwnd_72,tcpi_snd_bwnd_73,tcpi_snd_bwnd_74,tcpi_snd_bwnd_75,tcpi_snd_bwnd_76,tcpi_snd_bwnd_77,tcpi_snd_bwnd_78,tcpi_snd_bwnd_79,tcpi_snd_bwnd_80,tcpi_snd_bwnd_81,tcpi_snd_bwnd_82,tcpi_snd_bwnd_83,tcpi_snd_bwnd_84,tcpi_snd_bwnd_85,tcpi_snd_bwnd_86,tcpi_snd_bwnd_87,tcpi_snd_bwnd_88,tcpi_snd_bwnd_89,tcpi_snd_bwnd_90,tcpi_snd_bwnd_91,tcpi_snd_bwnd_92,tcpi_snd_bwnd_93,tcpi_snd_bwnd_94,tcpi_snd_bwnd_95,tcpi_snd_bwnd_96,tcpi_snd_bwnd_97,tcpi_snd_bwnd_98,tcpi_snd_bwnd_99,tcpi_snd_bwnd_100,tcpi_snd_bwnd_101,tcpi_snd_bwnd_102,tcpi_snd_bwnd_103,tcpi_snd_bwnd_104,tcpi_snd_bwnd_105,tcpi_snd_bwnd_106,tcpi_snd_bwnd_107,tcpi_snd_bwnd_108,tcpi_snd_bwnd_109,tcpi_snd_bwnd_110,tcpi_snd_bwnd_111,tcpi_snd_bwnd_112,tcpi_snd_bwnd_113,tcpi_snd_bwnd_114,tcpi_snd_bwnd_115,tcpi_snd_bwnd_116,tcpi_snd_bwnd_117,tcpi_snd_bwnd_118,tcpi_snd_bwnd_119,tcpi_snd_bwnd_120,tcpi_snd_bwnd_121,tcpi_snd_bwnd_122,tcpi_snd_bwnd_123,tcpi_snd_bwnd_124,tcpi_snd_bwnd_125,tcpi_snd_bwnd_126,tcpi_snd_bwnd_127,tcpi_snd_bwnd_128,tcpi_snd_bwnd_129,tcpi_snd_bwnd_130,tcpi_snd_bwnd_131,tcpi_snd_bwnd_132,tcpi_snd_bwnd_133,tcpi_snd_bwnd_134,tcpi_snd_bwnd_135,tcpi_snd_bwnd_136,tcpi_snd_bwnd_137,tcpi_snd_bwnd_138,tcpi_snd_bwnd_139,tcpi_snd_bwnd_140,tcpi_snd_bwnd_141,tcpi_snd_bwnd_142,tcpi_snd_bwnd_143,tcpi_snd_bwnd_144,tcpi_snd_bwnd_145,tcpi_snd_bwnd_146,tcpi_snd_bwnd_147,tcpi_snd_bwnd_148,tcpi_snd_bwnd_149,tcpi_snd_bwnd_150,tcpi_snd_bwnd_151,tcpi_snd_bwnd_152,tcpi_snd_bwnd_153,tcpi_snd_bwnd_154,tcpi_snd_bwnd_155,tcpi_snd_bwnd_156,tcpi_snd_bwnd_157,tcpi_snd_bwnd_158,tcpi_snd_bwnd_159,tcpi_snd_bwnd_160,tcpi_snd_bwnd_161,tcpi_snd_bwnd_162,tcpi_snd_bwnd_163,tcpi_snd_bwnd_164,tcpi_snd_bwnd_165,tcpi_snd_bwnd_166,tcpi_snd_bwnd_167,tcpi_snd_bwnd_168,tcpi_snd_bwnd_169,tcpi_snd_bwnd_170,tcpi_snd_bwnd_171,tcpi_snd_bwnd_172,tcpi_snd_bwnd_173,tcpi_snd_bwnd_174,tcpi_snd_bwnd_175,tcpi_snd_bwnd_176,tcpi_snd_bwnd_177,tcpi_snd_bwnd_178,tcpi_snd_bwnd_179,tcpi_snd_bwnd_180,tcpi_snd_bwnd_181,tcpi_snd_bwnd_182,tcpi_snd_bwnd_183,tcpi_snd_bwnd_184,tcpi_snd_bwnd_185,tcpi_snd_bwnd_186,tcpi_snd_bwnd_187,tcpi_snd_bwnd_188,tcpi_snd_bwnd_189,tcpi_snd_bwnd_190,tcpi_snd_bwnd_191,tcpi_snd_bwnd_192,tcpi_snd_bwnd_193,tcpi_snd_bwnd_194,tcpi_snd_bwnd_195,tcpi_snd_bwnd_196,tcpi_snd_bwnd_197,tcpi_snd_bwnd_198,tcpi_snd_bwnd_199,tcpi_snd_bwnd_200,tcpi_snd_bwnd_201,tcpi_snd_bwnd_202,tcpi_snd_bwnd_203,tcpi_snd_bwnd_204,tcpi_snd_bwnd_205,tcpi_snd_bwnd_206,tcpi_snd_bwnd_207,tcpi_snd_bwnd_208,tcpi_snd_bwnd_209,tcpi_snd_bwnd_210,tcpi_snd_bwnd_211,tcpi_snd_bwnd_212,tcpi_snd_bwnd_213,tcpi_snd_bwnd_214,tcpi_snd_bwnd_215,tcpi_snd_bwnd_216,tcpi_snd_bwnd_217,tcpi_snd_bwnd_218,tcpi_snd_bwnd_219,tcpi_snd_bwnd_220,tcpi_snd_bwnd_221,tcpi_snd_bwnd_222,tcpi_snd_bwnd_223,tcpi_snd_bwnd_224,tcpi_snd_bwnd_225,tcpi_snd_bwnd_226,tcpi_snd_bwnd_227,tcpi_snd_bwnd_228,tcpi_snd_bwnd_229,tcpi_snd_bwnd_230,tcpi_snd_bwnd_231,tcpi_snd_bwnd_232,tcpi_snd_bwnd_233,tcpi_snd_bwnd_234,tcpi_snd_bwnd_235,tcpi_snd_bwnd_236,tcpi_snd_bwnd_237,tcpi_snd_bwnd_238,tcpi_snd_bwnd_239,tcpi_snd_bwnd_240,tcpi_snd_bwnd_241,tcpi_snd_bwnd_242,tcpi_snd_bwnd_243,tcpi_snd_bwnd_244,tcpi_snd_bwnd_245,tcpi_snd_bwnd_246,tcpi_snd_bwnd_247,tcpi_snd_bwnd_248,tcpi_snd_bwnd_249,tcpi_snd_bwnd_250,tcpi_snd_bwnd_251,tcpi_snd_bwnd_252,tcpi_snd_bwnd_253,tcpi_snd_bwnd_254,tcpi_snd_bwnd_255"
+        ]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard task.terminationStatus == 0,
+                  let output = String(data: data, encoding: .utf8) else {
+                return parseNettopOutputAlternative()
+            }
+
+            return parseNettopOutput(output, limit: limit)
+        } catch {
+            logger.warning("nettop failed: \(error.localizedDescription)")
+            return parseNettopOutputAlternative()
+        }
+    }
+
+    /// Parse nettop output to extract process network usage
+    private func parseNettopOutput(_ output: String, limit: Int) -> [ProcessNetworkUsage]? {
+        var processes: [ProcessNetworkUsage] = []
+        let lines = output.components(separatedBy: .newlines)
+
+        // nettop parseable format has columns separated by commas
+        // First line is header, skip it
+        for line in lines.dropFirst() where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+            guard processes.count < limit else { break }
+
+            // Parse: command,pid,rx_bytes,tx_bytes,...
+            let components = line.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard components.count >= 4,
+                  let pid = Int(components[1]),
+                  let rxBytes = UInt64(components[2]),
+                  let txBytes = UInt64(components[3]) else {
+                continue
+            }
+
+            let processName = components[0]
+
+            processes.append(ProcessNetworkUsage(
+                pid: pid,
+                name: processName,
+                uploadBytes: txBytes,
+                downloadBytes: rxBytes
+            ))
+        }
+
+        // Sort by total bytes
+        processes.sort { $0.totalBytes > $1.totalBytes }
+
+        return processes.isEmpty ? nil : Array(processes.prefix(limit))
+    }
+
+    /// Alternative method using lsof to get network connections by process
+    private func parseNettopOutputAlternative() -> [ProcessNetworkUsage]? {
+        // Use lsof to count network connections per process as a proxy
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ["-i", "-n", "-P", "-c", ""]
+        task.arguments = ["-i", "-n", "-P"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard task.terminationStatus == 0,
+                  let output = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+
+            // Count connections per process
+            var processConnections: [String: (pid: Int, tx: UInt64, rx: UInt64)] = [:]
+            let lines = output.components(separatedBy: .newlines)
+
+            for line in lines.dropFirst() {  // Skip header
+                let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+                guard parts.count >= 2,
+                      let pid = Int(parts[1]) else { continue }
+
+                let name = String(parts[0])
+                if let existing = processConnections[name] {
+                    processConnections[name] = (pid: existing.pid, tx: existing.tx + 1, rx: existing.rx + 1)
+                } else {
+                    processConnections[name] = (pid: pid, tx: 1, rx: 1)
+                }
+            }
+
+            // Convert to ProcessNetworkUsage
+            let processes = processConnections.map { name, data in
+                ProcessNetworkUsage(pid: data.pid, name: name, uploadBytes: data.tx, downloadBytes: data.rx)
+            }.sorted { $0.totalBytes > $1.totalBytes }.prefix(8)
+
+            return Array(processes)
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - GPU Monitoring

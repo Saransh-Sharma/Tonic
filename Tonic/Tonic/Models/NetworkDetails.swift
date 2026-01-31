@@ -126,6 +126,108 @@ public struct PublicIPInfo: Sendable, Codable, Equatable {
     }
 }
 
+// MARK: - Connectivity Info
+
+/// Network connectivity testing information
+/// Measures latency, jitter, and reachability to external servers
+public struct ConnectivityInfo: Sendable, Codable, Equatable {
+    /// Average latency in milliseconds
+    public let latency: Double
+
+    /// Jitter (variance in latency) in milliseconds
+    public let jitter: Double
+
+    /// Whether the target server is reachable
+    public let isReachable: Bool
+
+    /// When this measurement was taken
+    public let timestamp: Date
+
+    public init(
+        latency: Double,
+        jitter: Double,
+        isReachable: Bool,
+        timestamp: Date = Date()
+    ) {
+        self.latency = latency
+        self.jitter = jitter
+        self.isReachable = isReachable
+        self.timestamp = timestamp
+    }
+
+    /// Connection quality based on latency
+    public var quality: ConnectionQuality {
+        guard isReachable else { return .offline }
+        switch latency {
+        case 0..<50: return .excellent
+        case 50..<100: return .good
+        case 100..<200: return .fair
+        default: return .poor
+        }
+    }
+}
+
+/// Connection quality classification
+public enum ConnectionQuality: String, Sendable {
+    case excellent = "Excellent"
+    case good = "Good"
+    case fair = "Fair"
+    case poor = "Poor"
+    case offline = "Offline"
+
+    public var colorHex: String {
+        switch self {
+        case .excellent: return "#34C759"  // Green
+        case .good: return "#30D158"       // Light green
+        case .fair: return "#FF9F0A"       // Orange
+        case .poor: return "#FF3B30"       // Red
+        case .offline: return "#8E8E93"    // Gray
+        }
+    }
+}
+
+// MARK: - Process Network Usage
+
+/// Network usage information for a single process
+public struct ProcessNetworkUsage: Sendable, Identifiable, Equatable {
+    public let id: UUID
+    public let pid: Int
+    public let name: String
+    public let uploadBytes: UInt64
+    public let downloadBytes: UInt64
+    public let totalBytes: UInt64
+
+    public init(
+        pid: Int,
+        name: String,
+        uploadBytes: UInt64,
+        downloadBytes: UInt64
+    ) {
+        self.id = UUID()
+        self.pid = pid
+        self.name = name
+        self.uploadBytes = uploadBytes
+        self.downloadBytes = downloadBytes
+        self.totalBytes = uploadBytes + downloadBytes
+    }
+
+    /// Formatted upload string
+    public var uploadString: String {
+        ByteCountFormatter.string(fromByteCount: Int64(uploadBytes), countStyle: .binary)
+    }
+
+    /// Formatted download string
+    public var downloadString: String {
+        ByteCountFormatter.string(fromByteCount: Int64(downloadBytes), countStyle: .binary)
+    }
+
+    /// Total usage percentage (relative to a provided max)
+    public func usagePercentage(of maxBytes: UInt64) -> Double {
+        guard maxBytes > 0 else { return 0 }
+        return Double(totalBytes) / Double(maxBytes) * 100
+    }
+}
+
 // MARK: - Connection Type Extension
 
 /// Network connection type with enhanced details

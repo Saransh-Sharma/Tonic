@@ -212,6 +212,10 @@ extension WidgetDataManager {
             return "cable.connector"
         case .cellular:
             return "antenna.radiowaves.left.and.right.fill"
+        case .tethered:
+            return "personalhotspot"
+        case .disconnected:
+            return "wifi.slash"
         case .unknown:
             return "network"
         }

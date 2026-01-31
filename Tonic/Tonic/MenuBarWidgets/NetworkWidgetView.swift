@@ -61,6 +61,8 @@ public struct NetworkCompactView: View {
         case .wifi: return "wifi"
         case .ethernet: return "cable.connector"
         case .cellular: return "antenna.radiowaves.left.and.right"
+        case .tethered: return "personalhotspot"
+        case .disconnected: return "wifi.slash"
         case .unknown: return "network"
         }
     }
@@ -146,6 +148,8 @@ public struct NetworkDetailViewLegacy: View {
         case .wifi: return "wifi.fill"
         case .ethernet: return "cable.connector"
         case .cellular: return "antenna.radiowaves.left.and.right.fill"
+        case .tethered: return "personalhotspot"
+        case .disconnected: return "wifi.slash"
         case .unknown: return "network"
         }
     }
@@ -184,6 +188,8 @@ public struct NetworkDetailViewLegacy: View {
         case .wifi: return "Wi-Fi"
         case .ethernet: return "Ethernet"
         case .cellular: return "Cellular"
+        case .tethered: return "Tethered"
+        case .disconnected: return "Disconnected"
         case .unknown: return "Network"
         }
     }
