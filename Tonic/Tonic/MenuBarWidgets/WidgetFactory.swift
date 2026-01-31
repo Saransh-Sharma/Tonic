@@ -65,6 +65,12 @@ public final class WidgetFactory {
 
         case .label, .state, .text:
             return LabelStatusItem(widgetType: type, configuration: configuration)
+
+        case .memory:
+            return MemoryVisualizationStatusItem(widgetType: type, configuration: configuration)
+
+        case .battery:
+            return BatteryVisualizationStatusItem(widgetType: type, configuration: configuration)
         }
     }
 

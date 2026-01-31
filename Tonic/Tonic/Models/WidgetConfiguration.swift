@@ -1004,7 +1004,7 @@ extension WidgetType {
         case .cpu:
             return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
         case .memory:
-            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer, .memory]
         case .disk:
             return [.mini, .pieChart, .barChart]
         case .network:
@@ -1012,7 +1012,7 @@ extension WidgetType {
         case .gpu:
             return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
         case .battery:
-            return [.mini, .pieChart, .batteryDetails]
+            return [.mini, .pieChart, .batteryDetails, .battery]
         case .sensors:
             return [.stack, .tachometer, .text, .label]
         case .weather:

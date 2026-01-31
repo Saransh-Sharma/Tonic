@@ -11,6 +11,7 @@
 		0E042871FFC1C684EAF93568 /* AppInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F780DECED89A3E9762E52BF /* AppInventoryView.swift */; };
 		1592F32E48B36663CDBBE43E /* Whitelist.swift in Sources */ = {isa = PBXBuildFile; fileRef = D607EC2EC13F8B4AA0D47E92 /* Whitelist.swift */; };
 		18799FE1CFD6BBD23E2BEFAD /* InterferenceScanResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */; };
+		1F1D2A248241A5AE34D551FA /* BatteryVisualizationStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D826BE993ADF563A187063 /* BatteryVisualizationStatusItem.swift */; };
 		28C2997F771B1F82F743126B /* AppResetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0560D938238124CEE7B43CE /* AppResetService.swift */; };
 		2FA425C842ECB7EA6ADAA013 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403765C5F7EA0EBB647FA096 /* ScanResult.swift */; };
 		30302E63635E42A6BEF4640528EA9CCB /* DesignSandboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B0889A1DD4416793EEAA0452204A93 /* DesignSandboxView.swift */; };
@@ -63,6 +64,7 @@
 		A3B4C5D6E7F8A9B0C1D2E3F4 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* MenuBarController.swift */; };
 		A53C7A35019C46B7B9CBE2C6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B75FAB9C82CB697999304C /* DesignTokens.swift */; };
 		AB0C58023B7686FC2EC9E835 /* AppMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58EEBBB99EBEAF9CC1353AF0 /* AppMetadata.swift */; };
+		AB32BADA735232966494CA4D /* MemoryVisualizationStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FCEF06D4FDC8D82DC622087 /* MemoryVisualizationStatusItem.swift */; };
 		AT001B1 /* ActionTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AT001F1 /* ActionTable.swift */; };
 		B35A749686F4FC2D9F0DDF41 /* VisualizationType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09BB014DDCE666670DC4 /* VisualizationType.swift */; };
 		B5C6D7E8F9A0B1C2D3E4F5A6 /* PrivilegedHelperManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D7E8F9A0B1C2D3E4F5A6B7 /* PrivilegedHelperManager.swift */; };
@@ -173,6 +175,7 @@
 		75EFF0022F3000000B990DA /* NotificationThreshold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationThreshold.swift; sourceTree = "<group>"; };
 		75EFF0042F3000100B990DA /* NotificationConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationConfig.swift; sourceTree = "<group>"; };
 		7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartStatusItem.swift; path = ChartStatusItems/LineChartStatusItem.swift; sourceTree = "<group>"; };
+		7FCEF06D4FDC8D82DC622087 /* MemoryVisualizationStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MemoryVisualizationStatusItem.swift; path = ChartStatusItems/MemoryVisualizationStatusItem.swift; sourceTree = "<group>"; };
 		8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TachometerStatusItem.swift; path = ChartStatusItems/TachometerStatusItem.swift; sourceTree = "<group>"; };
 		8A4B5C6D7E8F9A0B1C2D3E4F /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		8C091ED870B78BAB0C534C09 /* HealthScoreCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthScoreCalculator.swift; sourceTree = "<group>"; };
@@ -194,6 +197,7 @@
 		C7A20B6974C4B7F4BC4DFE76 /* ColorZones.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColorZones.swift; sourceTree = "<group>"; };
 		CF737044F96CCFB37732EE40 /* WidgetColors.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetColors.swift; sourceTree = "<group>"; };
 		D0560D938238124CEE7B43CE /* AppResetService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppResetService.swift; sourceTree = "<group>"; };
+		D0D826BE993ADF563A187063 /* BatteryVisualizationStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BatteryVisualizationStatusItem.swift; path = ChartStatusItems/BatteryVisualizationStatusItem.swift; sourceTree = "<group>"; };
 		D1BA01ABB925AB24C44FE468 /* TonicColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicColors.swift; sourceTree = "<group>"; };
 		D1E2F3A4B5C6D7E8F9A0B1C2 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		D2A57DC1D883FD21FB995169 /* Tonic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tonic.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -394,6 +398,8 @@
 				4A8D09C6014DDCE666670DC5 /* NetworkChartStatusItem.swift */,
 				BE8B233C46BD7556D326AD6F /* BatteryDetailsStatusItem.swift */,
 				E33722CF5B22B73770B8C233 /* LabelStatusItem.swift */,
+				7FCEF06D4FDC8D82DC622087 /* MemoryVisualizationStatusItem.swift */,
+				D0D826BE993ADF563A187063 /* BatteryVisualizationStatusItem.swift */,
 			);
 			name = ChartStatusItems;
 			sourceTree = "<group>";
@@ -659,6 +665,8 @@
 				4A8D09CC014DDCE666670DC8 /* BarChartWidgetView.swift in Sources */,
 				60F2C3705419ED8373CC78CB /* WidgetColors.swift in Sources */,
 				578C87E2E82E55894AD6CC0F /* ColorZones.swift in Sources */,
+				AB32BADA735232966494CA4D /* MemoryVisualizationStatusItem.swift in Sources */,
+				1F1D2A248241A5AE34D551FA /* BatteryVisualizationStatusItem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

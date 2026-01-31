@@ -25,6 +25,8 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
     case label = "label"                    // Static text label
     case state = "state"                    // On/off indicator
     case text = "text"                      // Dynamic formatted text
+    case memory = "memory"                  // Two-row used/total memory display
+    case battery = "battery"                // Battery icon with fill level
 
     public var id: String { rawValue }
 
@@ -43,6 +45,8 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .label: return "Label"
         case .state: return "State"
         case .text: return "Text"
+        case .memory: return "Memory"
+        case .battery: return "Battery"
         }
     }
 
@@ -61,6 +65,8 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .label: return "textformat"
         case .state: return "circlebadge.fill"
         case .text: return "text.alignleft"
+        case .memory: return "memorychip"
+        case .battery: return "battery.100"
         }
     }
 
@@ -79,6 +85,8 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .label: return 60
         case .state: return 20
         case .text: return 70
+        case .memory: return 50
+        case .battery: return 40
         }
     }
 
@@ -97,6 +105,8 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         case .label: return "Custom text label"
         case .state: return "On/off indicator"
         case .text: return "Dynamic formatted text"
+        case .memory: return "Two-row used/total display"
+        case .battery: return "Battery icon with fill level"
         }
     }
 

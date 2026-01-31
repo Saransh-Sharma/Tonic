@@ -45,9 +45,8 @@ Other: white, black, clear
 - [ ] Color picker in settings shows full palette
 - [ ] Colors persist correctly in `WidgetConfiguration`
 ## Done summary
-TBD
-
+Implemented enhanced color system with 30+ color options matching Stats Master PRD specifications. Added utilization-based automatic coloring (green->yellow->orange->red), pressure-based coloring for memory, and CPU cluster colors (teal for E-cores, indigo for P-cores). Created ColorZones system for custom threshold-based coloring and updated the color picker UI with categorized color palette.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 6c59c76d718dc163255104a2e66f02347610ca17
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
