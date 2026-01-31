@@ -63,9 +63,8 @@ Reference: Stats Master's CPU cluster coloring at `stats-master/Modules/CPU/widg
 - [ ] All new readers follow Reader protocol from Task 1
 - [ ] Thread-safe with existing locking patterns
 ## Done summary
-TBD
-
+Extended CPUData struct with enhanced CPU monitoring capabilities including E/P core usage distribution, CPU frequency, temperature, thermal throttling detection, and load averages. Added six new reader methods to WidgetDataManager with Apple Silicon support and graceful fallbacks for Intel Macs.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: cdb203813435a1ea6daf46528b3dda2093b634b5
+- Tests: xcodebuild -scheme Tonic -configuration Debug -destination 'platform=macOS' build
 - PRs:

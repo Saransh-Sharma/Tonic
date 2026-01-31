@@ -84,6 +84,41 @@ public struct MemoryData: Sendable {
     public let swapBytes: UInt64
     public let timestamp: Date
 
+    // Enhanced properties for Stats Master parity
+    public let freeBytes: UInt64?                      // Calculated free memory
+    public let swapTotalBytes: UInt64?                 // Total swap space available
+    public let swapUsedBytes: UInt64?                  // Actual swap space used
+    public let pressureValue: Double?                  // Memory pressure on 0-100 scale
+    public let topProcesses: [AppResourceUsage]?       // Top memory-consuming processes
+
+    /// Full initializer with all enhanced properties
+    public init(
+        usedBytes: UInt64,
+        totalBytes: UInt64,
+        pressure: MemoryPressure,
+        compressedBytes: UInt64 = 0,
+        swapBytes: UInt64 = 0,
+        freeBytes: UInt64? = nil,
+        swapTotalBytes: UInt64? = nil,
+        swapUsedBytes: UInt64? = nil,
+        pressureValue: Double? = nil,
+        topProcesses: [AppResourceUsage]? = nil,
+        timestamp: Date = Date()
+    ) {
+        self.usedBytes = usedBytes
+        self.totalBytes = totalBytes
+        self.pressure = pressure
+        self.compressedBytes = compressedBytes
+        self.swapBytes = swapBytes
+        self.freeBytes = freeBytes
+        self.swapTotalBytes = swapTotalBytes
+        self.swapUsedBytes = swapUsedBytes
+        self.pressureValue = pressureValue
+        self.topProcesses = topProcesses
+        self.timestamp = timestamp
+    }
+
+    /// Backward-compatible initializer for existing code
     public init(usedBytes: UInt64, totalBytes: UInt64, pressure: MemoryPressure,
                 compressedBytes: UInt64 = 0, swapBytes: UInt64 = 0, timestamp: Date = Date()) {
         self.usedBytes = usedBytes
@@ -92,11 +127,29 @@ public struct MemoryData: Sendable {
         self.compressedBytes = compressedBytes
         self.swapBytes = swapBytes
         self.timestamp = timestamp
+        // Enhanced properties default to nil for backward compatibility
+        self.freeBytes = nil
+        self.swapTotalBytes = nil
+        self.swapUsedBytes = nil
+        self.pressureValue = nil
+        self.topProcesses = nil
     }
 
     public var usagePercentage: Double {
         guard totalBytes > 0 else { return 0 }
         return Double(usedBytes) / Double(totalBytes) * 100
+    }
+
+    /// Swap usage percentage
+    public var swapUsagePercentage: Double? {
+        guard let swapTotal = swapTotalBytes, swapTotal > 0 else { return nil }
+        return Double(swapUsedBytes ?? 0) / Double(swapTotal) * 100
+    }
+
+    /// Free memory percentage
+    public var freePercentage: Double? {
+        guard totalBytes > 0 else { return nil }
+        return Double(freeBytes ?? 0) / Double(totalBytes) * 100
     }
 }
 
@@ -408,6 +461,10 @@ public final class WidgetDataManager {
     private var previousNumCpuInfo: mach_msg_type_number_t = 0
     private var previousNumCPUs: UInt32 = 0
     private let cpuLock = NSLock()
+
+    // Process list caching (to avoid frequent process spawning)
+    private var cachedTopProcesses: [AppResourceUsage]?
+    private var lastProcessFetchDate: Date?
 
     // MARK: - Initialization
 
@@ -877,12 +934,8 @@ public final class WidgetDataManager {
         var memSizeLen = MemoryLayout<Int>.size
         sysctlbyname("hw.memsize", &memSize, &memSizeLen, nil, 0)
 
-        // Get swap usage
-        var xswUsage = xsw_usage(xsu_total: 0, xsu_used: 0, xsu_pagesize: 0, xsu_encrypted: 0)
-        var xswSize = MemoryLayout<xsw_usage>.stride
-        if sysctlbyname("vm.swapusage", &xswUsage, &xswSize, nil, 0) == 0 {
-            // Swap available in xswUsage
-        }
+        // Get enhanced swap usage
+        let (swapTotal, swapUsed) = getSwapUsage()
 
         // Calculate memory pressure
         let free = UInt64(stats.free_count) * pageSize
@@ -898,18 +951,223 @@ public final class WidgetDataManager {
             pressure = .normal
         }
 
-        let swapBytes = UInt64(xswUsage.xsu_used)
+        // Calculate pressure value on 0-100 scale
+        let pressureValue = getMemoryPressureValue(freePercentage: freePercentage, pressure: pressure)
+
+        // Get top memory processes (async - we'll use cached value)
+        let topProcesses = getTopMemoryProcesses()
+
+        let swapBytes = swapUsed ?? 0
 
         memoryData = MemoryData(
             usedBytes: used,
             totalBytes: UInt64(memSize),
             pressure: pressure,
             compressedBytes: compressed,
-            swapBytes: swapBytes
+            swapBytes: swapBytes,
+            freeBytes: free,
+            swapTotalBytes: swapTotal,
+            swapUsedBytes: swapUsed,
+            pressureValue: pressureValue,
+            topProcesses: topProcesses
         )
 
         // Update history
         addToHistory(&memoryHistory, value: memoryData.usagePercentage, maxPoints: Self.maxHistoryPoints)
+    }
+
+    // MARK: - Enhanced Memory Readers
+
+    /// Get detailed swap usage information
+    /// Returns (totalBytes, usedBytes)
+    private func getSwapUsage() -> (total: UInt64?, used: UInt64?) {
+        var xswUsage = xsw_usage(xsu_total: 0, xsu_used: 0, xsu_pagesize: 0, xsu_encrypted: 0)
+        var xswSize = MemoryLayout<xsw_usage>.stride
+
+        guard sysctlbyname("vm.swapusage", &xswUsage, &xswSize, nil, 0) == 0 else {
+            return (nil, nil)
+        }
+
+        // xsw_usage structure provides:
+        // - xsu_total: total swap space in bytes
+        // - xsu_used: used swap space in bytes
+        // - xsu_pagesize: page size (for reference)
+        return (UInt64(xswUsage.xsu_total), UInt64(xswUsage.xsu_used))
+    }
+
+    /// Map memory pressure enum and free percentage to a 0-100 scale
+    /// - 0-33: Normal (low pressure)
+    /// - 34-66: Warning (moderate pressure)
+    /// - 67-100: Critical (high pressure)
+    private func getMemoryPressureValue(freePercentage: Double, pressure: MemoryPressure) -> Double {
+        switch pressure {
+        case .normal:
+            // Map 0-15% free to 0-33 on pressure scale
+            // Higher free = lower pressure
+            let normalizedFree = max(0.05, min(0.15, freePercentage))
+            return ((0.15 - normalizedFree) / 0.10) * 33.0
+        case .warning:
+            // Map 5-15% free to 34-66 on pressure scale
+            let normalizedFree = max(0.05, min(0.15, freePercentage))
+            return ((0.15 - normalizedFree) / 0.10) * 32.0 + 34.0
+        case .critical:
+            // Map 0-5% free to 67-100 on pressure scale
+            let normalizedFree = max(0.0, min(0.05, freePercentage))
+            return ((0.05 - normalizedFree) / 0.05) * 33.0 + 67.0
+        }
+    }
+
+    /// Get top memory-consuming processes
+    /// Uses cached result to avoid frequent process spawning
+    /// Returns [AppResourceUsage] to integrate with existing UI components
+    private func getTopMemoryProcesses(limit: Int = 8) -> [AppResourceUsage]? {
+        // Use a simple cache to avoid spawning commands too frequently
+        let now = Date()
+        if let cachedDate = lastProcessFetchDate,
+           now.timeIntervalSince(cachedDate) < 2.0,
+           let cached = cachedTopProcesses {
+            return cached
+        }
+
+        // Use ps command to get process memory info (more reliable than top/libproc)
+        // ps format: pid, command (truncated), rss (resident set size in KB)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = [
+            "-arc",     // all processes, nice output in user-friendly format, command with args
+            "-o", "pid=,comm=,rss="  // Output: PID, command, RSS in KB
+        ]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8),
+                  task.terminationStatus == 0 else {
+                return nil
+            }
+
+            let processes = parsePSOutput(output, limit: limit)
+            lastProcessFetchDate = now
+            cachedTopProcesses = processes
+            return processes
+        } catch {
+            return nil
+        }
+    }
+
+    /// Parse ps command output to extract process info
+    /// Expected format: "PID   COMMAND          RSS"
+    private func parsePSOutput(_ output: String, limit: Int) -> [AppResourceUsage]? {
+        var processes: [AppResourceUsage] = []
+        let lines = output.components(separatedBy: .newlines)
+
+        // Skip header and empty lines
+        for line in lines.dropFirst() where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+            guard processes.count < limit else { break }
+
+            // Parse: PID, command, rss (columns separated by whitespace)
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 3,
+                  let pid = Int32(parts[0]),
+                  let rssKb = Double(parts[parts.count - 1]) else {
+                continue
+            }
+
+            // The command might have spaces, so reconstruct it
+            // Format: PID command... RSS
+            let commandStart = line.firstIndex(of: " ") ?? line.endIndex
+            let commandEnd = line.lastIndex(of: " ") ?? line.endIndex
+
+            guard commandStart < commandEnd else { continue }
+
+            let command = String(line[line.index(after: commandStart)..<commandEnd])
+                .trimmingCharacters(in: .whitespaces)
+
+            // RSS is in KB, convert to bytes
+            let memoryBytes = UInt64(rssKb * 1024)
+
+            // Try to get app icon for known bundle identifiers
+            let appIcon = getAppIconForProcess(pid: pid, name: command)
+            let bundleId = getBundleIdentifier(for: command)
+
+            processes.append(AppResourceUsage(
+                name: command.isEmpty ? "Unknown" : command,
+                bundleIdentifier: bundleId,
+                icon: appIcon,
+                cpuUsage: 0,
+                memoryBytes: memoryBytes
+            ))
+        }
+
+        return processes.isEmpty ? nil : processes
+    }
+
+    /// Get app icon for a process by PID
+    private func getAppIconForProcess(pid: Int32, name: String) -> NSImage? {
+        // Try to get the app's bundle from the process
+        var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
+        let result = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
+
+        guard result > 0,
+              let path = String(cString: pathBuffer) as String? else {
+            return nil
+        }
+
+        // Check if this is an app bundle
+        if path.contains(".app/") {
+            if let appPath = path.components(separatedBy: ".app/").first?.appending(".app"),
+               let bundle = Bundle(path: appPath) {
+                // Try to get the app icon from Info.plist
+                if let iconFile = bundle.infoDictionary?["CFBundleIconFile"] as? String,
+                   let iconPath = bundle.path(forResource: iconFile.replacingOccurrences(of: ".icns", with: ""), ofType: "icns") {
+                    return NSImage(contentsOfFile: iconPath)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    /// Get bundle identifier for a process name
+    private func getBundleIdentifier(for name: String) -> String? {
+        // Common apps bundle identifiers
+        let knownApps: [String: String] = [
+            "Safari": "com.apple.Safari",
+            "Finder": "com.apple.finder",
+            "Activity Monitor": "com.apple.ActivityMonitor",
+            "Calendar": "com.apple.iCal",
+            "Mail": "com.apple.Mail",
+            "Messages": "com.apple.iChat",
+            "Music": "com.apple.Music",
+            "Photos": "com.apple.Photos",
+            "Notes": "com.apple.Notes",
+            "Reminders": "com.apple.Reminders",
+            "Terminal": "com.apple.Terminal",
+            "Xcode": "com.apple.dt.Xcode",
+            "Firefox": "org.mozilla.firefox",
+            "Chrome": "com.google.Chrome",
+            "Chrome Renderer": "com.google.Chrome",
+            "Chrome Helper": "com.google.Chrome.helper",
+            "Slack": "com.tinyspeck.slackmacgap",
+            "Discord": "com.hnc.Discord",
+            "Zoom": "us.zoom.xos",
+            "Visual Studio Code": "com.microsoft.VSCode",
+            "Atom": "com.github.atom",
+            "Sublime Text": "com.sublimetext.3",
+            "iTunes": "com.apple.iTunes",
+            "TV": "com.apple.TV",
+            "News": "com.apple.News",
+            "FaceTime": "com.apple.FaceTime",
+            "iTunes": "com.apple.iTunes"
+        ]
+
+        return knownApps[name]
     }
 
     // MARK: - Disk Monitoring
