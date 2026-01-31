@@ -19,6 +19,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
     case network = "network"
     case weather = "weather"
     case battery = "battery"
+    case sensors = "sensors"
 
     public var id: String { rawValue }
 
@@ -32,6 +33,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
         case .network: return "Network"
         case .weather: return "Weather"
         case .battery: return "Battery"
+        case .sensors: return "Sensors"
         }
     }
 
@@ -45,6 +47,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
         case .network: return "wifi"
         case .weather: return "cloud.sun"
         case .battery: return "battery.100"
+        case .sensors: return "thermometer"
         }
     }
 
@@ -53,6 +56,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .gpu: return true // Apple Silicon only
         case .battery: return true // Portable Macs only
+        case .sensors: return true // Depends on SMC availability
         default: return false
         }
     }
@@ -165,6 +169,7 @@ public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Send
         case .gpu: return Color(red: 0.75, green: 0.35, blue: 0.95)
         case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
         case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
+        case .sensors: return Color(red: 1.0, green: 0.5, blue: 0.0)
         }
     }
 }
@@ -175,6 +180,7 @@ public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Send
 public struct WidgetConfiguration: Codable, Identifiable, Sendable {
     public let id: UUID
     public var type: WidgetType
+    public var visualizationType: VisualizationType
     public var isEnabled: Bool
     public var position: Int
     public var displayMode: WidgetDisplayMode
@@ -182,20 +188,24 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
     public var valueFormat: WidgetValueFormat
     public var refreshInterval: WidgetUpdateInterval
     public var accentColor: WidgetAccentColor
+    public var chartConfig: ChartConfiguration?
 
     public init(
         id: UUID = UUID(),
         type: WidgetType,
+        visualizationType: VisualizationType? = nil,
         isEnabled: Bool = true,
         position: Int,
         displayMode: WidgetDisplayMode,
         showLabel: Bool = false,
         valueFormat: WidgetValueFormat = .percentage,
         refreshInterval: WidgetUpdateInterval = .balanced,
-        accentColor: WidgetAccentColor = .system
+        accentColor: WidgetAccentColor = .system,
+        chartConfig: ChartConfiguration? = nil
     ) {
         self.id = id
         self.type = type
+        self.visualizationType = visualizationType ?? type.defaultVisualization
         self.isEnabled = isEnabled
         self.position = position
         self.displayMode = displayMode
@@ -203,19 +213,22 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
         self.valueFormat = valueFormat
         self.refreshInterval = refreshInterval
         self.accentColor = accentColor
+        self.chartConfig = chartConfig
     }
 
     /// Default configuration for a given widget type
     public static func `default`(for type: WidgetType, at position: Int) -> WidgetConfiguration {
         WidgetConfiguration(
             type: type,
+            visualizationType: type.defaultVisualization,
             isEnabled: type.isDefaultEnabled,
             position: position,
             displayMode: .compact,
             showLabel: false,
             valueFormat: type.defaultValueFormat,
             refreshInterval: .balanced,
-            accentColor: .system
+            accentColor: .system,
+            chartConfig: nil
         )
     }
 }
@@ -228,7 +241,7 @@ extension WidgetType {
             return .percentage
         case .disk, .network:
             return .valueWithUnit
-        case .weather:
+        case .weather, .sensors:
             return .valueWithUnit
         }
     }
@@ -239,7 +252,7 @@ extension WidgetType {
     var isDefaultEnabled: Bool {
         switch self {
         case .cpu, .memory, .disk: return true
-        case .gpu, .network, .weather, .battery: return false
+        case .gpu, .network, .weather, .battery, .sensors: return false
         }
     }
 }
@@ -315,7 +328,7 @@ public final class WidgetPreferences: Sendable {
     /// Create default widget configurations
     private static func defaultConfigs() -> [WidgetConfiguration] {
         let allTypes: [WidgetType] = [
-            .cpu, .gpu, .memory, .disk, .network, .weather, .battery
+            .cpu, .gpu, .memory, .disk, .network, .weather, .battery, .sensors
         ]
 
         return allTypes.enumerated().map { index, type in
@@ -391,7 +404,39 @@ public final class WidgetPreferences: Sendable {
             return configs
         }
 
-        // If that fails, try to decode with legacy format and migrate
+        // Second, try to decode without visualizationType (pre-Stats Master parity)
+        struct PreVisualizationConfig: Codable {
+            let id: UUID
+            var type: WidgetType
+            var isEnabled: Bool
+            var position: Int
+            var displayMode: WidgetDisplayMode
+            var showLabel: Bool
+            var valueFormat: WidgetValueFormat
+            var refreshInterval: WidgetUpdateInterval
+            var accentColor: WidgetAccentColor
+        }
+
+        if let preVizConfigs = try? JSONDecoder().decode([PreVisualizationConfig].self, from: data) {
+            // Migrate by adding default visualizationType
+            return preVizConfigs.map { config in
+                WidgetConfiguration(
+                    id: config.id,
+                    type: config.type,
+                    visualizationType: config.type.defaultVisualization,
+                    isEnabled: config.isEnabled,
+                    position: config.position,
+                    displayMode: config.displayMode,
+                    showLabel: config.showLabel,
+                    valueFormat: config.valueFormat,
+                    refreshInterval: config.refreshInterval,
+                    accentColor: config.accentColor,
+                    chartConfig: nil
+                )
+            }
+        }
+
+        // Third, try legacy format with old display modes
         struct LegacyWidgetConfiguration: Codable {
             let id: UUID
             var type: WidgetType
@@ -422,13 +467,15 @@ public final class WidgetPreferences: Sendable {
                 WidgetConfiguration(
                     id: legacy.id,
                     type: legacy.type,
+                    visualizationType: legacy.type.defaultVisualization,
                     isEnabled: legacy.isEnabled,
                     position: legacy.position,
                     displayMode: legacy.displayMode.migrate(),
                     showLabel: legacy.showLabel,
                     valueFormat: legacy.valueFormat,
                     refreshInterval: legacy.refreshInterval,
-                    accentColor: .system
+                    accentColor: .system,
+                    chartConfig: nil
                 )
             }
         }
@@ -496,5 +543,56 @@ public final class WidgetPreferences: Sendable {
         updateConfig(for: type) { config in
             config.accentColor = color
         }
+    }
+
+    public func setWidgetVisualization(type: WidgetType, visualization: VisualizationType) {
+        updateConfig(for: type) { config in
+            config.visualizationType = visualization
+        }
+    }
+
+    public func setWidgetChartConfig(type: WidgetType, chartConfig: ChartConfiguration?) {
+        updateConfig(for: type) { config in
+            config.chartConfig = chartConfig
+        }
+    }
+}
+
+// MARK: - Compatible Visualizations
+
+extension WidgetType {
+    /// Returns the visualization types compatible with this data source
+    public var compatibleVisualizations: [VisualizationType] {
+        switch self {
+        case .cpu:
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+        case .memory:
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+        case .disk:
+            return [.mini, .pieChart, .barChart]
+        case .network:
+            return [.mini, .speed, .lineChart]
+        case .gpu:
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+        case .battery:
+            return [.mini, .pieChart, .batteryDetails]
+        case .sensors:
+            return [.stack, .tachometer, .text, .label]
+        case .weather:
+            return [.mini, .text, .label]
+        }
+    }
+
+    /// Default visualization for this data source type
+    public var defaultVisualization: VisualizationType {
+        switch self {
+        case .sensors: return .stack
+        default: return .mini
+        }
+    }
+
+    /// Whether this data source supports chart-based visualizations
+    public var supportsCharts: Bool {
+        compatibleVisualizations.contains(where: { $0.supportsHistory })
     }
 }

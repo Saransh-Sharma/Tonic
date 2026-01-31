@@ -156,6 +156,8 @@ public class WidgetStatusItem: ObservableObject {
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Battery: \(Int(dataManager.batteryData.chargePercentage))%, Present: \(dataManager.batteryData.isPresent)")
         case .weather:
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated")
+        case .sensors:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Sensors: \(dataManager.sensorsData.temperatures.count) temps")
         }
     }
 
@@ -449,6 +451,10 @@ struct WidgetCompactView: View {
                 }
             }
             return "--"
+            
+        case .sensors:
+            // TODO: Add proper sensor value display
+            return "--"
         }
     }
 }
@@ -609,24 +615,14 @@ public final class WidgetCoordinator: ObservableObject {
         logger.info("✅ After refresh - active widgets: \(self.activeWidgets.count), types: \(widgetTypes)")
     }
 
-    /// Create the appropriate widget subclass for the given type
+    /// Create the appropriate widget subclass for the given type and visualization
     private func createWidget(for type: WidgetType, configuration: WidgetConfiguration) -> WidgetStatusItem {
-        switch type {
-        case .cpu:
-            return CPUStatusItem(widgetType: type, configuration: configuration)
-        case .memory:
-            return MemoryStatusItem(widgetType: type, configuration: configuration)
-        case .disk:
-            return DiskStatusItem(widgetType: type, configuration: configuration)
-        case .network:
-            return NetworkStatusItem(widgetType: type, configuration: configuration)
-        case .gpu:
-            return GPUStatusItem(widgetType: type, configuration: configuration)
-        case .battery:
-            return BatteryStatusItem(widgetType: type, configuration: configuration)
-        case .weather:
-            return WeatherStatusItem(widgetType: type, configuration: configuration)
-        }
+        // Use the new WidgetFactory which handles both data source type and visualization type
+        return WidgetFactory.createWidget(
+            for: type,
+            visualization: configuration.visualizationType,
+            configuration: configuration
+        )
     }
 
     /// Update a specific widget's configuration

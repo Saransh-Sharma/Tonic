@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-31T06:31:05.918836Z",
+  "depends_on": [
+    "fn-6-i4g.3",
+    "fn-6-i4g.4"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.10",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-6-i4g.10.md",
+  "status": "todo",
+  "title": "Notification System Implementation",
+  "updated_at": "2026-01-31T06:33:15.525038Z"
+}

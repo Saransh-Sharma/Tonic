@@ -3,137 +3,27 @@
 //  Tonic
 //
 //  Main Widgets Panel configuration UI
-//  Matches Stats Master's settings pattern with Tonic's design language
-//  Task ID: fn-5-v8r.13
+//  Uses the unified WidgetType + VisualizationType system for Stats Master parity
 //
 
 import SwiftUI
 
-// MARK: - Widget Type Enum
+// MARK: - Widget Category
 
-/// All available widget types matching Stats Master
-public enum AvailableWidgetType: String, CaseIterable, Identifiable {
-    // System monitoring widgets
-    case cpu = "CPU"
-    case memory = "Memory"
-    case disk = "Disk"
-    case network = "Network"
-    case battery = "Battery"
-    case gpu = "GPU"
-    case sensors = "Sensors"
-
-    // Chart widgets
-    case lineChart = "Line Chart"
-    case barChart = "Bar Chart"
-    case pieChart = "Pie Chart"
-    case stack = "Stack"
-    case tachometer = "Tachometer"
-
-    // Information widgets
-    case label = "Label"
-    case state = "State"
-    case text = "Text"
-
-    // Specialized widgets
-    case speed = "Speed Test"
-    case batteryDetails = "Battery Details"
-
-    public var id: String { rawValue }
-
-    public var icon: String {
-        switch self {
-        case .cpu: return "cpu"
-        case .memory: return "memorychip"
-        case .disk: return "internaldrive"
-        case .network: return "network"
-        case .battery: return "battery.100"
-        case .gpu: return "cpu"
-        case .sensors: return "thermometer"
-        case .lineChart: return "chart.line.uptrend.xyaxis"
-        case .barChart: return "chart.bar.fill"
-        case .pieChart: return "chart.pie.fill"
-        case .stack: return "stack.fill"
-        case .tachometer: return "gauge"
-        case .label: return "text.alignleft"
-        case .state: return "circlebadge"
-        case .text: return "textformat"
-        case .speed: return "speedometer"
-        case .batteryDetails: return "bolt.fill.batteryblock"
-        }
-    }
-
-    public var category: WidgetCategory {
-        switch self {
-        case .cpu, .memory, .disk, .network, .battery, .gpu, .sensors:
-            return .system
-        case .lineChart, .barChart, .pieChart:
-            return .chart
-        case .stack, .tachometer:
-            return .sensor
-        case .label, .state, .text:
-            return .info
-        case .speed, .batteryDetails:
-            return .specialized
-        }
-    }
-
-    public var description: String {
-        switch self {
-        case .cpu: return "CPU usage per core"
-        case .memory: return "Memory usage & pressure"
-        case .disk: return "Disk usage per volume"
-        case .network: return "Network up/down speed"
-        case .battery: return "Battery percentage"
-        case .gpu: return "GPU usage (Apple Silicon)"
-        case .sensors: return "Temperature & fan speeds"
-        case .lineChart: return "Real-time data history"
-        case .barChart: return "Multi-value bars"
-        case .pieChart: return "Circular progress"
-        case .stack: return "Sensor stack display"
-        case .tachometer: return "Circular gauge"
-        case .label: return "Custom text label"
-        case .state: return "Binary on/off indicator"
-        case .text: return "Dynamic formatted text"
-        case .speed: return "Network speed test"
-        case .batteryDetails: return "Extended battery info"
-        }
-    }
-}
-
+/// Categories for organizing widget data sources
 public enum WidgetCategory: String, CaseIterable, Identifiable {
     case system = "System"
-    case chart = "Charts"
-    case sensor = "Sensors"
-    case info = "Information"
-    case specialized = "Specialized"
+    case environment = "Environment"
 
     public var id: String { rawValue }
-}
 
-// MARK: - Active Widget Model
-
-/// Model for an active widget configuration
-@Observable
-@MainActor
-public final class ActiveWidget: Identifiable, Sendable {
-    public let id: UUID
-    public var type: AvailableWidgetType
-    public var name: String
-    public var isEnabled: Bool
-    public var order: Int
-
-    public init(
-        id: UUID = UUID(),
-        type: AvailableWidgetType,
-        name: String,
-        isEnabled: Bool = true,
-        order: Int = 0
-    ) {
-        self.id = id
-        self.type = type
-        self.name = name
-        self.isEnabled = isEnabled
-        self.order = order
+    public var widgetTypes: [WidgetType] {
+        switch self {
+        case .system:
+            return [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors]
+        case .environment:
+            return [.weather]
+        }
     }
 }
 
@@ -142,79 +32,106 @@ public final class ActiveWidget: Identifiable, Sendable {
 @Observable
 @MainActor
 public final class WidgetPanelViewModel {
-    public var availableWidgets: [AvailableWidgetType] = AvailableWidgetType.allCases
-    public var activeWidgets: [ActiveWidget] = []
+    public var activeConfigs: [WidgetConfiguration] = []
+    public var showingAddSheet = false
+    public var showingConfigSheet = false
+    public var selectedConfigForEdit: WidgetConfiguration?
 
-    private let widgetStore = WidgetStore.shared
+    // Add sheet state
+    public var selectedDataSource: WidgetType = .cpu
+    public var selectedVisualization: VisualizationType = .mini
 
     public init() {
         loadActiveWidgets()
     }
 
     public func loadActiveWidgets() {
-        activeWidgets = widgetStore.loadAllConfigs().map { config in
-            ActiveWidget(
-                id: config.id,
-                type: .cpu,  // Would map from config
-                name: config.name,
-                isEnabled: true,
-                order: 0
-            )
-        }.sorted { $0.order < $1.order }
+        activeConfigs = WidgetPreferences.shared.widgetConfigs
+            .filter { $0.isEnabled }
+            .sorted { $0.position < $1.position }
     }
 
-    public func addWidget(_ type: AvailableWidgetType) {
-        let widget = ActiveWidget(
-            type: type,
-            name: type.rawValue,
-            order: activeWidgets.count
-        )
-        activeWidgets.append(widget)
-        saveWidgets()
-    }
-
-    public func removeWidget(_ widget: ActiveWidget) {
-        activeWidgets.removeAll { $0.id == widget.id }
-        reorderWidgets()
-        saveWidgets()
-    }
-
-    public func moveWidget(_ widget: ActiveWidget, to newIndex: Int) {
-        guard let index = activeWidgets.firstIndex(where: { $0.id == widget.id }) else { return }
-        activeWidgets.remove(at: index)
-        activeWidgets.insert(widget, at: min(newIndex, activeWidgets.count))
-        reorderWidgets()
-        saveWidgets()
-    }
-
-    public func toggleWidget(_ widget: ActiveWidget) {
-        widget.isEnabled.toggle()
-        saveWidgets()
-    }
-
-    private func reorderWidgets() {
-        for (index, _) in activeWidgets.enumerated() {
-            activeWidgets[index].order = index
-        }
-    }
-
-    private func saveWidgets() {
-        // Save to WidgetStore
-        _ = widgetStore.saveConfig(WidgetConfiguration(
-            id: UUID(),
-            name: "Widget",
-            type: .cpu,
-            displayMode: .iconOnly,
+    public func addWidget() {
+        let position = WidgetPreferences.shared.widgetConfigs.count
+        var newConfig = WidgetConfiguration(
+            type: selectedDataSource,
+            visualizationType: selectedVisualization,
             isEnabled: true,
-            refreshInterval: 2.0
-        ))
+            position: position,
+            displayMode: .compact,
+            showLabel: false,
+            valueFormat: selectedDataSource.defaultValueFormat,
+            refreshInterval: .balanced,
+            accentColor: .system,
+            chartConfig: selectedVisualization.supportsHistory ? ChartConfiguration.default : nil
+        )
+
+        // Add to preferences
+        WidgetPreferences.shared.widgetConfigs.append(newConfig)
+        WidgetPreferences.shared.saveConfigs()
+
+        // Refresh the widget coordinator
+        WidgetCoordinator.shared.refreshWidgets()
+
+        // Reload local state
+        loadActiveWidgets()
+
+        // Reset add sheet state
+        selectedDataSource = .cpu
+        selectedVisualization = .mini
+        showingAddSheet = false
+    }
+
+    public func removeWidget(_ config: WidgetConfiguration) {
+        // Find and disable the widget
+        WidgetPreferences.shared.setWidgetEnabled(type: config.type, enabled: false)
+
+        // Refresh coordinator
+        WidgetCoordinator.shared.refreshWidgets()
+
+        // Reload local state
+        loadActiveWidgets()
+    }
+
+    public func toggleWidget(_ config: WidgetConfiguration) {
+        WidgetPreferences.shared.toggleWidget(type: config.type)
+        WidgetCoordinator.shared.refreshWidgets()
+        loadActiveWidgets()
+    }
+
+    public func updateVisualization(for config: WidgetConfiguration, to visualization: VisualizationType) {
+        WidgetPreferences.shared.setWidgetVisualization(type: config.type, visualization: visualization)
+        WidgetCoordinator.shared.refreshWidgets()
+        loadActiveWidgets()
+    }
+
+    public func reorderWidgets(from source: IndexSet, to destination: Int) {
+        var configs = activeConfigs
+        configs.move(fromOffsets: source, toOffset: destination)
+
+        // Update positions
+        for (index, var config) in configs.enumerated() {
+            if let existingIndex = WidgetPreferences.shared.widgetConfigs.firstIndex(where: { $0.id == config.id }) {
+                WidgetPreferences.shared.widgetConfigs[existingIndex].position = index
+            }
+        }
+
+        WidgetPreferences.shared.saveConfigs()
+        WidgetCoordinator.shared.refreshWidgets()
+        loadActiveWidgets()
+    }
+
+    /// Called when data source changes in add sheet
+    public func onDataSourceChanged() {
+        // Reset to default visualization for new data source
+        selectedVisualization = selectedDataSource.defaultVisualization
     }
 }
 
 // MARK: - Widgets Panel View
 
 /// Main Widgets Panel for widget configuration
-/// Following Stats Master's pattern with Tonic's design language
+/// Uses the unified WidgetType + VisualizationType system
 public struct WidgetsPanelView: View {
     @State private var viewModel = WidgetPanelViewModel()
     @State private var selectedCategory: WidgetCategory? = nil
@@ -227,65 +144,146 @@ public struct WidgetsPanelView: View {
                 // Header
                 header
 
-                // Available Widgets Section
-                availableWidgetsSection
+                // Active Widgets Section
+                activeWidgetsSection
 
                 Divider()
                     .padding(.horizontal, DesignTokens.Spacing.md)
 
-                // Active Widgets Section (Horizontal Layout)
-                activeWidgetsSection
+                // Available Data Sources Section
+                availableDataSourcesSection
             }
             .padding(DesignTokens.Spacing.md)
         }
         .background(DesignTokens.Colors.background)
         .navigationTitle("Menu Bar Widgets")
+        .sheet(isPresented: $viewModel.showingAddSheet) {
+            AddWidgetSheet(viewModel: viewModel)
+        }
     }
 
     // MARK: - Header
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text("Menu Bar Widgets")
-                .font(.title)
-                .fontWeight(.semibold)
+            HStack {
+                Text("Menu Bar Widgets")
+                    .font(.title)
+                    .fontWeight(.semibold)
 
-            Text("Add and configure widgets for your menu bar")
+                Spacer()
+
+                Button(action: { viewModel.showingAddSheet = true }) {
+                    Label("Add Widget", systemImage: "plus.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
+            Text("Configure widgets for your menu bar. Each data source can use different visualizations.")
                 .font(.subheadline)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Available Widgets Section
+    // MARK: - Active Widgets Section
 
-    private var availableWidgetsSection: some View {
+    private var activeWidgetsSection: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("Available Widgets")
+            HStack {
+                Text("Active Widgets")
+                    .font(.headline)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Spacer()
+
+                Text("\(viewModel.activeConfigs.count) active")
+                    .font(.caption)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+
+            if viewModel.activeConfigs.isEmpty {
+                emptyActiveWidgetsState
+            } else {
+                activeWidgetsList
+            }
+        }
+    }
+
+    private var emptyActiveWidgetsState: some View {
+        Card(variant: .flat) {
+            VStack(spacing: DesignTokens.Spacing.sm) {
+                Image(systemName: "square.grid.3x3.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                Text("No Active Widgets")
+                    .font(.subheadline)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                Text("Click 'Add Widget' to add widgets to your menu bar")
+                    .font(.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .multilineTextAlignment(.center)
+
+                Button(action: { viewModel.showingAddSheet = true }) {
+                    Label("Add Widget", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, DesignTokens.Spacing.xs)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(DesignTokens.Spacing.lg)
+        }
+    }
+
+    private var activeWidgetsList: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            ForEach(viewModel.activeConfigs) { config in
+                ActiveWidgetRow(
+                    config: config,
+                    onRemove: { viewModel.removeWidget(config) },
+                    onToggle: { viewModel.toggleWidget(config) },
+                    onVisualizationChange: { viz in
+                        viewModel.updateVisualization(for: config, to: viz)
+                    }
+                )
+            }
+        }
+    }
+
+    // MARK: - Available Data Sources Section
+
+    private var availableDataSourcesSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("Data Sources")
                 .font(.headline)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             // Category filter
             categoryFilter
 
-            // Widget grid
+            // Data source grid
             LazyVGrid(
                 columns: [
                     GridItem(.adaptive(minimum: 140, maximum: 180), spacing: DesignTokens.Spacing.sm)
                 ],
                 spacing: DesignTokens.Spacing.sm
             ) {
-                ForEach(filteredWidgets) { widget in
-                    AvailableWidgetCard(
-                        widget: widget,
-                        onAdd: { viewModel.addWidget(widget) }
+                ForEach(filteredDataSources, id: \.self) { type in
+                    DataSourceCard(
+                        type: type,
+                        isEnabled: viewModel.activeConfigs.contains { $0.type == type },
+                        onTap: {
+                            viewModel.selectedDataSource = type
+                            viewModel.selectedVisualization = type.defaultVisualization
+                            viewModel.showingAddSheet = true
+                        }
                     )
                 }
             }
         }
     }
-
-    // MARK: - Category Filter
 
     private var categoryFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -310,188 +308,265 @@ public struct WidgetsPanelView: View {
         }
     }
 
-    private var filteredWidgets: [AvailableWidgetType] {
+    private var filteredDataSources: [WidgetType] {
         guard let category = selectedCategory else {
-            return viewModel.availableWidgets
+            return WidgetType.allCases
         }
-        return viewModel.availableWidgets.filter { $0.category == category }
-    }
-
-    // MARK: - Active Widgets Section (Horizontal Layout)
-
-    private var activeWidgetsSection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            HStack {
-                Text("Active Widgets")
-                    .font(.headline)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Spacer()
-
-                Text("\(viewModel.activeWidgets.count) widgets")
-                    .font(.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            if viewModel.activeWidgets.isEmpty {
-                emptyActiveWidgetsState
-            } else {
-                activeWidgetsScroll
-            }
-        }
-    }
-
-    private var emptyActiveWidgetsState: some View {
-        Card(variant: .flat) {
-            VStack(spacing: DesignTokens.Spacing.sm) {
-                Image(systemName: "square.grid.3x3.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(DesignTokens.Colors.textTertiary)
-
-                Text("No Active Widgets")
-                    .font(.subheadline)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                Text("Add widgets from the available section above")
-                    .font(.caption)
-                    .foregroundColor(DesignTokens.Colors.textTertiary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(DesignTokens.Spacing.lg)
-        }
-    }
-
-    private var activeWidgetsScroll: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach(viewModel.activeWidgets) { widget in
-                    ActiveWidgetCard(
-                        widget: widget,
-                        onRemove: { viewModel.removeWidget(widget) },
-                        onToggle: { viewModel.toggleWidget(widget) },
-                        onConfigure: { configureWidget(widget) }
-                    )
-                }
-            }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .padding(.vertical, DesignTokens.Spacing.xs)
-        }
-        .frame(height: 120)
-    }
-
-    private func configureWidget(_ widget: ActiveWidget) {
-        // Open configuration sheet
+        return category.widgetTypes
     }
 }
 
-// MARK: - Available Widget Card
+// MARK: - Add Widget Sheet
 
-struct AvailableWidgetCard: View {
-    let widget: AvailableWidgetType
-    let onAdd: () -> Void
+struct AddWidgetSheet: View {
+    @Bindable var viewModel: WidgetPanelViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Add Widget")
+                    .font(.headline)
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+
+            Divider()
+
+            // Content
+            Form {
+                // Data Source Picker
+                Section("Data Source") {
+                    Picker("Type", selection: $viewModel.selectedDataSource) {
+                        ForEach(WidgetType.allCases, id: \.self) { type in
+                            Label(type.displayName, systemImage: type.icon)
+                                .tag(type)
+                        }
+                    }
+                    .onChange(of: viewModel.selectedDataSource) { _, _ in
+                        viewModel.onDataSourceChanged()
+                    }
+
+                    Text(dataSourceDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Visualization Picker
+                Section("Visualization Style") {
+                    Picker("Style", selection: $viewModel.selectedVisualization) {
+                        ForEach(viewModel.selectedDataSource.compatibleVisualizations, id: \.self) { viz in
+                            Label(viz.displayName, systemImage: viz.icon)
+                                .tag(viz)
+                        }
+                    }
+
+                    Text(viewModel.selectedVisualization.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Preview
+                Section("Preview") {
+                    HStack {
+                        Spacer()
+                        widgetPreview
+                        Spacer()
+                    }
+                    .padding(.vertical, DesignTokens.Spacing.md)
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            // Footer
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+
+                Spacer()
+
+                Button("Add Widget") {
+                    viewModel.addWidget()
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+        .frame(width: 400, height: 500)
+    }
+
+    private var dataSourceDescription: String {
+        switch viewModel.selectedDataSource {
+        case .cpu: return "CPU usage per core and total utilization"
+        case .memory: return "Memory usage, pressure, and allocation"
+        case .disk: return "Disk usage per volume"
+        case .network: return "Network upload and download speeds"
+        case .gpu: return "GPU usage (Apple Silicon only)"
+        case .battery: return "Battery level and charging status"
+        case .sensors: return "Temperature and fan speed readings"
+        case .weather: return "Current weather conditions"
+        }
+    }
+
+    @ViewBuilder
+    private var widgetPreview: some View {
+        VStack {
+            HStack(spacing: 8) {
+                Image(systemName: viewModel.selectedDataSource.icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(.accentColor)
+
+                Text(viewModel.selectedVisualization.displayName)
+                    .font(.system(size: 12, weight: .medium))
+
+                Image(systemName: viewModel.selectedVisualization.icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+
+            Text("Menu bar preview")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Active Widget Row
+
+struct ActiveWidgetRow: View {
+    let config: WidgetConfiguration
+    let onRemove: () -> Void
+    let onToggle: () -> Void
+    let onVisualizationChange: (VisualizationType) -> Void
+
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main row
+            HStack(spacing: DesignTokens.Spacing.md) {
+                // Icon
+                Image(systemName: config.type.icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(config.accentColor.colorValue(for: config.type))
+                    .frame(width: 32)
+
+                // Info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(config.type.displayName)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Text(config.visualizationType.displayName)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Visualization picker
+                Menu {
+                    ForEach(config.type.compatibleVisualizations, id: \.self) { viz in
+                        Button(action: { onVisualizationChange(viz) }) {
+                            Label(viz.displayName, systemImage: viz.icon)
+                        }
+                    }
+                } label: {
+                    Image(systemName: config.visualizationType.icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 32)
+
+                // Toggle
+                Toggle("", isOn: Binding(
+                    get: { config.isEnabled },
+                    set: { _ in onToggle() }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+
+                // Remove
+                Button(action: onRemove) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundColor(.red.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(DesignTokens.Spacing.md)
+        }
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.md)
+    }
+}
+
+// MARK: - Data Source Card
+
+struct DataSourceCard: View {
+    let type: WidgetType
+    let isEnabled: Bool
+    let onTap: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: onAdd) {
+        Button(action: onTap) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 HStack {
-                    Image(systemName: widget.icon)
+                    Image(systemName: type.icon)
                         .font(.system(size: 16))
-                        .foregroundColor(DesignTokens.Colors.accent)
+                        .foregroundColor(isEnabled ? DesignTokens.Colors.accent : DesignTokens.Colors.textSecondary)
                         .frame(width: 24, height: 24)
 
                     Spacer()
 
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(DesignTokens.Colors.accent)
-                        .opacity(isHovering ? 1 : 0.5)
+                    if isEnabled {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 14))
+                    } else {
+                        Image(systemName: "plus.circle")
+                            .foregroundColor(DesignTokens.Colors.accent)
+                            .font(.system(size: 14))
+                            .opacity(isHovering ? 1 : 0.5)
+                    }
                 }
 
-                Text(widget.rawValue)
+                Text(type.displayName)
                     .font(.subheadline)
                     .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                Text(widget.description)
+                Text("\(type.compatibleVisualizations.count) visualizations")
                     .font(.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .lineLimit(2)
             }
             .padding(DesignTokens.Spacing.md)
             .frame(height: 72)
             .background(isHovering ? DesignTokens.Colors.selectedContentBackground : DesignTokens.Colors.backgroundSecondary)
             .cornerRadius(DesignTokens.CornerRadius.md)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
+                    .stroke(isEnabled ? DesignTokens.Colors.accent : Color.clear, lineWidth: 2)
+            )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovering = hovering
-        }
-    }
-}
-
-// MARK: - Active Widget Card
-
-struct ActiveWidgetCard: View {
-    let widget: ActiveWidget
-    let onRemove: () -> Void
-    let onToggle: () -> Void
-    let onConfigure: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Image(systemName: widget.type.icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(widget.isEnabled ? DesignTokens.Colors.accent : DesignTokens.Colors.textTertiary)
-
-                Spacer()
-
-                if isHovering {
-                    HStack(spacing: DesignTokens.Spacing.xs) {
-                        Button(action: onConfigure) {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 11))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: onRemove) {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.system(size: 11))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .transition(.opacity)
-                }
-            }
-
-            Text(widget.name)
-                .font(.caption)
-                .foregroundColor(widget.isEnabled ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textTertiary)
-
-            Toggle("", isOn: Binding(
-                get: { widget.isEnabled },
-                set: { _ in onToggle() }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-        }
-        .padding(DesignTokens.Spacing.md)
-        .frame(width: 120, height: 100)
-        .background(DesignTokens.Colors.backgroundSecondary)
-        .cornerRadius(DesignTokens.CornerRadius.md)
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
-                .stroke(widget.isEnabled ? DesignTokens.Colors.accent : DesignTokens.Colors.separator, lineWidth: widget.isEnabled ? 2 : 1)
-        )
-        .opacity(widget.isEnabled ? 1 : 0.6)
-        .onHover { hovering in
-            withAnimation {
-                isHovering = hovering
-            }
         }
     }
 }

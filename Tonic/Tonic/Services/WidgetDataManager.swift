@@ -234,6 +234,53 @@ public struct AppResourceUsage: Sendable, Identifiable {
     }
 }
 
+/// Data structure for system sensor readings
+public struct SensorsData: Sendable, Codable, Equatable {
+    public var temperatures: [SensorReading]
+    public var fans: [FanReading]
+    public var voltages: [SensorReading]
+    
+    public init(
+        temperatures: [SensorReading] = [],
+        fans: [FanReading] = [],
+        voltages: [SensorReading] = []
+    ) {
+        self.temperatures = temperatures
+        self.fans = fans
+        self.voltages = voltages
+    }
+}
+
+/// Individual sensor reading
+public struct SensorReading: Sendable, Codable, Equatable, Identifiable {
+    public let id: String
+    public let name: String
+    public let value: Double
+    public let unit: String
+    
+    public init(id: String, name: String, value: Double, unit: String) {
+        self.id = id
+        self.name = name
+        self.value = value
+        self.unit = unit
+    }
+}
+
+/// Fan sensor reading
+public struct FanReading: Sendable, Codable, Equatable, Identifiable {
+    public let id: String
+    public let name: String
+    public let rpm: Int
+    public let maxRPM: Int?
+    
+    public init(id: String, name: String, rpm: Int, maxRPM: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.rpm = rpm
+        self.maxRPM = maxRPM
+    }
+}
+
 // MARK: - Widget Data Manager
 
 /// Central data manager that aggregates and distributes system monitoring data to widgets
@@ -302,6 +349,13 @@ public final class WidgetDataManager {
     // MARK: - Battery Data
 
     public private(set) var batteryData: BatteryData = BatteryData(isPresent: false)
+
+    // MARK: - Sensors Data
+
+    public private(set) var sensorsData: SensorsData = SensorsData()
+
+    /// Weather data (optional, may be nil if location not available)
+    public private(set) var weatherData: WeatherData?
 
     // MARK: - Monitoring State
 
@@ -379,15 +433,16 @@ public final class WidgetDataManager {
         updateNetworkData()
         updateGPUData()
         updateBatteryData()
+        updateSensorsData()
 
         // Update top apps less frequently (every 3rd update - effectively every 3s)
         updateCounter += 1
         if updateCounter >= 3 {
             updateCounter = 0
             // Run on background queue to avoid blocking main thread
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.updateTopCPUApps()
-                self?.updateTopMemoryApps()
+            Task.detached { [weak self] in
+                await self?.updateTopCPUApps()
+                await self?.updateTopMemoryApps()
             }
         }
 
@@ -411,7 +466,7 @@ public final class WidgetDataManager {
     }
 
     private func getCPUUsage() -> Double {
-        var numCPUs: UInt32 = 0
+        var _: UInt32 = 0
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -471,7 +526,7 @@ public final class WidgetDataManager {
 
     private func getPerCoreCPUUsage() -> [Double] {
         var coreUsages: [Double] = []
-        var numCPUs: UInt32 = 0
+        var _: UInt32 = 0
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -919,8 +974,8 @@ public final class WidgetDataManager {
 
         defer { IOObjectRelease(iterator) }
 
-        var cpuTemp: Double? = nil
-        var gpuTemp: Double? = nil
+        let cpuTemp: Double? = nil
+        let gpuTemp: Double? = nil
 
         // Apple Silicon thermal zones
         let thermalZones = [
@@ -1009,6 +1064,14 @@ public final class WidgetDataManager {
         }
 
         batteryData = BatteryData(isPresent: false)
+    }
+
+    // MARK: - Sensors Monitoring
+
+    private func updateSensorsData() {
+        // TODO: Implement SensorsReader to fetch temperature and fan data
+        // For now, use empty sensors data
+        sensorsData = SensorsData()
     }
 
     // MARK: - Helper Methods

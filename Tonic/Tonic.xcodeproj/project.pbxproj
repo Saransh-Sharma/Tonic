@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		053C129394237EEDBAB1ADCC /* StackStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A4E0DE55BF86910E4ED502E /* StackStatusItem.swift */; };
 		0E042871FFC1C684EAF93568 /* AppInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F780DECED89A3E9762E52BF /* AppInventoryView.swift */; };
 		1592F32E48B36663CDBBE43E /* Whitelist.swift in Sources */ = {isa = PBXBuildFile; fileRef = D607EC2EC13F8B4AA0D47E92 /* Whitelist.swift */; };
 		18799FE1CFD6BBD23E2BEFAD /* InterferenceScanResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */; };
@@ -17,6 +18,7 @@
 		3899455DE5ECCB46379F5020 /* DesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45718B5A4D93C70D9E7AFAE /* DesignComponents.swift */; };
 		39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */; };
 		39F60D956BB32885CF3A611F /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD96844B37981E628F20497 /* SidebarView.swift */; };
+		48C5C55A4D0E311C64B89C9F /* SpeedStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */; };
 		6A7A780E9DF26434C8E8F7EA /* DiskAnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41F4E935929B3AC2ACDA2B2 /* DiskAnalysisView.swift */; };
 		6C89B19E3FA0CA427EED0A25 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58269188377B485FBDE88264 /* PreferencesView.swift */; };
 		719597A1A946ADD5E41EA315 /* ScanCategoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9265DC123422CC22EBC0040F /* ScanCategoryScanner.swift */; };
@@ -42,25 +44,34 @@
 		75EFDFD92F224CCA00B990DA /* WidgetCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */; };
 		7B58865D3FED9980A7F4E487 /* TonicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561387584F1DDAFF11465619 /* TonicApp.swift */; };
 		7B8F6D734C02D833F2719674 /* RecommendationGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */; };
+		9046017F36F07233AA6F8679 /* LineChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */; };
 		9BEB91BA7DA2BC9C2C777B10 /* TonicColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BA01ABB925AB24C44FE468 /* TonicColors.swift */; };
+		A19692704DAB019EDAF2DFB0 /* BarChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322880011AB5FC0279349470 /* BarChartStatusItem.swift */; };
+		A3A37D0532C831211D80ED15 /* TachometerStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */; };
 		A3B4C5D6E7F8A9B0C1D2E3F4 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* MenuBarController.swift */; };
 		A53C7A35019C46B7B9CBE2C6 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B75FAB9C82CB697999304C /* DesignTokens.swift */; };
 		AB0C58023B7686FC2EC9E835 /* AppMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58EEBBB99EBEAF9CC1353AF0 /* AppMetadata.swift */; };
 		AT001B1 /* ActionTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = AT001F1 /* ActionTable.swift */; };
+		B35A749686F4FC2D9F0DDF41 /* VisualizationType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8D09BB014DDCE666670DC4 /* VisualizationType.swift */; };
 		B5C6D7E8F9A0B1C2D3E4F5A6 /* PrivilegedHelperManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D7E8F9A0B1C2D3E4F5A6B7 /* PrivilegedHelperManager.swift */; };
+		C1AF4104DF621E3BA814994B /* BatteryDetailsStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8B233C46BD7556D326AD6F /* BatteryDetailsStatusItem.swift */; };
 		C1D2E3F4A5B6C7D8E9F0A1B2 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C6D7E8F9A0B1C2 /* AppUpdater.swift */; };
 		C61C27E623BFAC719138D566 /* HealthScoreCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C091ED870B78BAB0C534C09 /* HealthScoreCalculator.swift */; };
 		C64CCF255672691362159736 /* DiskAnalysisModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED7E1822B028682FF8090AC5 /* DiskAnalysisModels.swift */; };
 		D7E8F9A0B1C2D3E4F5A6B7C8 /* PrivilegedHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F9A0B1C2D3E4F5A6B7C8D9 /* PrivilegedHelperProtocol.swift */; };
 		E1A44D8219526CA8B9B8FA55 /* ProtectedApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0DA89823AC42CE866E1FEFC /* ProtectedApps.swift */; };
 		E3F4A5B6C7D8E9F0A1B2C3D4 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A5B6C7D8E9F0A1B2C3D4E5 /* FileOperations.swift */; };
+		E854B4627ED9305FED9D1EC7 /* LabelStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33722CF5B22B73770B8C233 /* LabelStatusItem.swift */; };
 		E92A727F6F7AF2C71660D6B3 /* DiskScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451AB06BBB0DDDD2249DE75A /* DiskScanner.swift */; };
+		EB8EDD1DB2B958C7F2FF483B /* SensorsStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66726A2D7892895FDA054AD /* SensorsStatusItem.swift */; };
 		ECA94BA743B0F618D3FE85C4 /* WiFiInterferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B79DAEEC90D042AF57536B /* WiFiInterferenceService.swift */; };
 		EEBF2DCD2F552F065A9D1E8B /* DesignAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */; };
 		F09F6EC961B1FEF37D163FD1 /* NavigationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F6121BA6532032529AD6E9 /* NavigationModels.swift */; };
 		F1A2B3C4D5E6F7A8B9C0D1E2 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* DashboardView.swift */; };
 		F7249337013509A8B7DB4F5D /* SystemStatusDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */; };
 		F8CAE468426B3E61E2B2990C /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60203727B4DCE325D1534B06 /* SparkleUpdater.swift */; };
+		FA6760CF97C5FA6E3C2EE572 /* PieChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */; };
+		FF245793B8C5F9D0C1C560A8 /* WidgetFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BB090FE1CE9F44066FDEF7 /* WidgetFactory.swift */; };
 		LO001B1 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO001F1 /* LoginItem.swift */; };
 		LO002B2 /* BackgroundActivityItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO002F2 /* BackgroundActivityItem.swift */; };
 		LO003B3 /* LoginItemsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LO003F3 /* LoginItemsManager.swift */; };
@@ -105,16 +116,22 @@
 
 /* Begin PBXFileReference section */
 		031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignAnimations.swift; sourceTree = "<group>"; };
+		06BB090FE1CE9F44066FDEF7 /* WidgetFactory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WidgetFactory.swift; path = WidgetFactory.swift; sourceTree = "<group>"; };
 		12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResetConfirmationSheet.swift; sourceTree = "<group>"; };
+		322880011AB5FC0279349470 /* BarChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BarChartStatusItem.swift; path = ChartStatusItems/BarChartStatusItem.swift; sourceTree = "<group>"; };
 		36B79DAEEC90D042AF57536B /* WiFiInterferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WiFiInterferenceService.swift; sourceTree = "<group>"; };
 		403765C5F7EA0EBB647FA096 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
 		451AB06BBB0DDDD2249DE75A /* DiskScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskScanner.swift; sourceTree = "<group>"; };
+		4A8D09BB014DDCE666670DC4 /* VisualizationType.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VisualizationType.swift; path = VisualizationType.swift; sourceTree = "<group>"; };
 		4F780DECED89A3E9762E52BF /* AppInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInventoryView.swift; sourceTree = "<group>"; };
 		54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecommendationGenerator.swift; sourceTree = "<group>"; };
+		55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PieChartStatusItem.swift; path = ChartStatusItems/PieChartStatusItem.swift; sourceTree = "<group>"; };
 		561387584F1DDAFF11465619 /* TonicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicApp.swift; sourceTree = "<group>"; };
 		58269188377B485FBDE88264 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		58EEBBB99EBEAF9CC1353AF0 /* AppMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMetadata.swift; sourceTree = "<group>"; };
+		5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpeedStatusItem.swift; path = ChartStatusItems/SpeedStatusItem.swift; sourceTree = "<group>"; };
 		60203727B4DCE325D1534B06 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		6A4E0DE55BF86910E4ED502E /* StackStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StackStatusItem.swift; path = ChartStatusItems/StackStatusItem.swift; sourceTree = "<group>"; };
 		6BD96844B37981E628F20497 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		75B31A732F22C7160057934B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		75EFDFB32F224BE200B990DA /* BatteryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryWidgetView.swift; sourceTree = "<group>"; };
@@ -136,6 +153,8 @@
 		75EFDFD42F224CCA00B990DA /* NotificationRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRulesView.swift; sourceTree = "<group>"; };
 		75EFDFD52F224CCA00B990DA /* WidgetCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCustomizationView.swift; sourceTree = "<group>"; };
 		75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
+		7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartStatusItem.swift; path = ChartStatusItems/LineChartStatusItem.swift; sourceTree = "<group>"; };
+		8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TachometerStatusItem.swift; path = ChartStatusItems/TachometerStatusItem.swift; sourceTree = "<group>"; };
 		8C091ED870B78BAB0C534C09 /* HealthScoreCalculator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthScoreCalculator.swift; sourceTree = "<group>"; };
 		8D36AE4175FE0E33DCA8E15B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		9265DC123422CC22EBC0040F /* ScanCategoryScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScanCategoryScanner.swift; sourceTree = "<group>"; };
@@ -143,9 +162,11 @@
 		99BD9E18ECE9927F49E85245 /* InterferenceScanResultsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterferenceScanResultsView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		A41F4E935929B3AC2ACDA2B2 /* DiskAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisView.swift; sourceTree = "<group>"; };
+		A66726A2D7892895FDA054AD /* SensorsStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SensorsStatusItem.swift; path = SensorsStatusItem.swift; sourceTree = "<group>"; };
 		AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusDashboard.swift; sourceTree = "<group>"; };
 		AT001F1 /* ActionTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTable.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		BE8B233C46BD7556D326AD6F /* BatteryDetailsStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BatteryDetailsStatusItem.swift; path = ChartStatusItems/BatteryDetailsStatusItem.swift; sourceTree = "<group>"; };
 		C4B75FAB9C82CB697999304C /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		C6D7E8F9A0B1C2D3E4F5A6B7 /* PrivilegedHelperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedHelperManager.swift; sourceTree = "<group>"; };
 		D0560D938238124CEE7B43CE /* AppResetService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppResetService.swift; sourceTree = "<group>"; };
@@ -154,6 +175,7 @@
 		D2A57DC1D883FD21FB995169 /* Tonic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tonic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D607EC2EC13F8B4AA0D47E92 /* Whitelist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Whitelist.swift; sourceTree = "<group>"; };
 		D6F6121BA6532032529AD6E9 /* NavigationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationModels.swift; sourceTree = "<group>"; };
+		E33722CF5B22B73770B8C233 /* LabelStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LabelStatusItem.swift; path = ChartStatusItems/LabelStatusItem.swift; sourceTree = "<group>"; };
 		E45718B5A4D93C70D9E7AFAE /* DesignComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignComponents.swift; sourceTree = "<group>"; };
 		E8F9A0B1C2D3E4F5A6B7C8D9 /* PrivilegedHelperProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedHelperProtocol.swift; sourceTree = "<group>"; };
 		ED7E1822B028682FF8090AC5 /* DiskAnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisModels.swift; sourceTree = "<group>"; };
@@ -305,6 +327,9 @@
 				NET007F7 /* NetworkDetailViewRedesigned.swift */,
 				NET008F8 /* NetworkWidgetIndex.swift */,
 				0B8EAD5AE23666C39AD1EC11 /* Components */,
+				06BB090FE1CE9F44066FDEF7 /* WidgetFactory.swift */,
+				A66726A2D7892895FDA054AD /* SensorsStatusItem.swift */,
+				A5C7893052B2F84CD31E82CA /* ChartStatusItems */,
 			);
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
@@ -325,6 +350,21 @@
 			);
 			sourceTree = "<group>";
 		};
+		A5C7893052B2F84CD31E82CA /* ChartStatusItems */ = {
+			isa = PBXGroup;
+			children = (
+				7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */,
+				322880011AB5FC0279349470 /* BarChartStatusItem.swift */,
+				55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */,
+				8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */,
+				6A4E0DE55BF86910E4ED502E /* StackStatusItem.swift */,
+				5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */,
+				BE8B233C46BD7556D326AD6F /* BatteryDetailsStatusItem.swift */,
+				E33722CF5B22B73770B8C233 /* LabelStatusItem.swift */,
+			);
+			name = ChartStatusItems;
+			sourceTree = "<group>";
+		};
 		AC5552FD6A3C08AD22387EFB /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -341,6 +381,7 @@
 				NET006F6 /* NetworkMetricsModels.swift */,
 				LO001F1 /* LoginItem.swift */,
 				LO002F2 /* BackgroundActivityItem.swift */,
+				4A8D09BB014DDCE666670DC4 /* VisualizationType.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -559,6 +600,17 @@
 				719597A1A946ADD5E41EA315 /* ScanCategoryScanner.swift in Sources */,
 				C61C27E623BFAC719138D566 /* HealthScoreCalculator.swift in Sources */,
 				7B8F6D734C02D833F2719674 /* RecommendationGenerator.swift in Sources */,
+				B35A749686F4FC2D9F0DDF41 /* VisualizationType.swift in Sources */,
+				FF245793B8C5F9D0C1C560A8 /* WidgetFactory.swift in Sources */,
+				EB8EDD1DB2B958C7F2FF483B /* SensorsStatusItem.swift in Sources */,
+				9046017F36F07233AA6F8679 /* LineChartStatusItem.swift in Sources */,
+				A19692704DAB019EDAF2DFB0 /* BarChartStatusItem.swift in Sources */,
+				FA6760CF97C5FA6E3C2EE572 /* PieChartStatusItem.swift in Sources */,
+				A3A37D0532C831211D80ED15 /* TachometerStatusItem.swift in Sources */,
+				053C129394237EEDBAB1ADCC /* StackStatusItem.swift in Sources */,
+				48C5C55A4D0E311C64B89C9F /* SpeedStatusItem.swift in Sources */,
+				C1AF4104DF621E3BA814994B /* BatteryDetailsStatusItem.swift in Sources */,
+				E854B4627ED9305FED9D1EC7 /* LabelStatusItem.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -58,7 +58,7 @@ struct WidgetCustomizationView: View {
             HStack {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                     Text("Menu Bar Widgets")
-                        .font(DesignTokens.Typography.headlineLarge)
+                        .font(DesignTokens.Typography.h3)
 
                     Text("Drag to reorder, toggle to enable/disable widgets in your menu bar.")
                         .font(DesignTokens.Typography.caption)
@@ -435,6 +435,8 @@ struct WidgetCustomizationView: View {
             return "\(Int(dataManager.batteryData.chargePercentage))%"
         case .weather:
             return "21°C"
+        case .sensors:
+            return "--"
         }
     }
 
@@ -447,6 +449,7 @@ struct WidgetCustomizationView: View {
         case .gpu: return "Monitor GPU utilization."
         case .battery: return "Displays charge and time remaining."
         case .weather: return "Current local temperature."
+        case .sensors: return "System temperature and fan sensors."
         }
     }
 }
@@ -652,6 +655,7 @@ struct WidgetSettingsSheet: View {
             case .gpu: return "1.2 GHz"
             case .battery: return "3h 20m"
             case .weather: return "21°C"
+            case .sensors: return "45°C"
             }
         }
     }
@@ -793,6 +797,7 @@ struct WidgetSettingsSheet: View {
         case .gpu: return usePercent ? "45%" : "1.2 GHz"
         case .battery: return usePercent ? "85%" : "3h 20m"
         case .weather: return "21°C"
+        case .sensors: return "45°C"
         }
     }
 
@@ -837,6 +842,7 @@ struct WidgetSettingsSheet: View {
         case .gpu: return Color(red: 0.75, green: 0.35, blue: 0.95)
         case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
         case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
+        case .sensors: return Color(red: 1.0, green: 0.45, blue: 0.35)
         }
     }
 }

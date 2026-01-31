@@ -1,0 +1,16 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-31T06:31:06.018190Z",
+  "depends_on": [
+    "fn-6-i4g.12"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.11",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-6-i4g.11.md",
+  "status": "todo",
+  "title": "OneView Mode",
+  "updated_at": "2026-01-31T06:33:15.616494Z"
+}
