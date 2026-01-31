@@ -76,9 +76,8 @@ Pattern reference: `WidgetPreferences.swift:291-294` for the `@Observable` singl
 - [ ] Debouncing prevents notification spam
 - [ ] Do Not Disturb is respected
 ## Done summary
-TBD
-
+Created threshold-based notification system foundation for Tonic menu bar widgets. Implemented NotificationThreshold model with comparison conditions (equals, notEquals, greaterThan, lessThan, greaterThanOrEqual, lessThanOrEqual), NotificationConfig for persistence and global settings, and NotificationManager singleton service with UserNotifications framework integration, permission handling, debouncing, and Do Not Disturb detection.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 93249f60e2bf224e411b1bd25f6675f51629bbeb
+- Tests: xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic -configuration Debug build
 - PRs:

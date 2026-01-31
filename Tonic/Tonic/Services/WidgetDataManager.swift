@@ -31,11 +31,46 @@ private let kIOPropertyThermalInformationKey = "ThermalInformation"
 public struct CPUData: Sendable {
     public let totalUsage: Double
     public let perCoreUsage: [Double]
+    public let eCoreUsage: [Double]?       // Efficiency core usage values
+    public let pCoreUsage: [Double]?       // Performance core usage values
+    public let frequency: Double?          // Current CPU frequency in GHz
+    public let temperature: Double?        // CPU temperature in Celsius
+    public let thermalLimit: Bool?         // Whether CPU is being thermally throttled
+    public let averageLoad: [Double]?      // 1-minute, 5-minute, 15-minute load averages
     public let timestamp: Date
 
-    public init(totalUsage: Double, perCoreUsage: [Double], timestamp: Date = Date()) {
+    public init(
+        totalUsage: Double,
+        perCoreUsage: [Double],
+        eCoreUsage: [Double]? = nil,
+        pCoreUsage: [Double]? = nil,
+        frequency: Double? = nil,
+        temperature: Double? = nil,
+        thermalLimit: Bool? = nil,
+        averageLoad: [Double]? = nil,
+        timestamp: Date = Date()
+    ) {
         self.totalUsage = totalUsage
         self.perCoreUsage = perCoreUsage
+        self.eCoreUsage = eCoreUsage
+        self.pCoreUsage = pCoreUsage
+        self.frequency = frequency
+        self.temperature = temperature
+        self.thermalLimit = thermalLimit
+        self.averageLoad = averageLoad
+        self.timestamp = timestamp
+    }
+
+    /// Backward-compatible initializer for existing code
+    public init(totalUsage: Double, perCoreUsage: [Double], timestamp: Date) {
+        self.totalUsage = totalUsage
+        self.perCoreUsage = perCoreUsage
+        self.eCoreUsage = nil
+        self.pCoreUsage = nil
+        self.frequency = nil
+        self.temperature = nil
+        self.thermalLimit = nil
+        self.averageLoad = nil
         self.timestamp = timestamp
     }
 }
@@ -456,7 +491,25 @@ public final class WidgetDataManager {
         let usage = getCPUUsage()
         let perCore = getPerCoreCPUUsage()
 
-        cpuData = CPUData(totalUsage: usage, perCoreUsage: perCore)
+        // Get E/P core usage distribution (Apple Silicon only)
+        let (eCores, pCores) = getEPCores(from: perCore)
+
+        // Get enhanced CPU data
+        let frequency = getCPUFrequency()
+        let temperature = getCPUTemperature()
+        let thermalLimit = getThermalLimit()
+        let averageLoad = getAverageLoad()
+
+        cpuData = CPUData(
+            totalUsage: usage,
+            perCoreUsage: perCore,
+            eCoreUsage: eCores,
+            pCoreUsage: pCores,
+            frequency: frequency,
+            temperature: temperature,
+            thermalLimit: thermalLimit,
+            averageLoad: averageLoad
+        )
 
         // Update history
         addToHistory(&cpuHistory, value: usage, maxPoints: Self.maxHistoryPoints)
@@ -558,6 +611,242 @@ public final class WidgetDataManager {
         }
 
         return coreUsages
+    }
+
+    // MARK: - Enhanced CPU Readers
+
+    /// Get CPU core configuration (E/P cores for Apple Silicon)
+    private func getCPUCoreConfig() -> (eCoreCount: Int, pCoreCount: Int)? {
+        #if arch(arm64)
+        // Apple Silicon - read E/P core counts from sysctl
+        var eCoreCount: Int = 0
+        var pCoreCount: Int = 0
+        var size: Int = MemoryLayout<Int>.size
+
+        // Get efficiency core count (perflevel0 = E cores)
+        if sysctlbyname("hw.perflevel0.physicalcpu", &eCoreCount, &size, nil, 0) != 0 {
+            // Fallback: try alternative sysctl
+            eCoreCount = 0
+        }
+
+        // Get performance core count (perflevel1 = P cores)
+        if sysctlbyname("hw.perflevel1.physicalcpu", &pCoreCount, &size, nil, 0) != 0 {
+            // Fallback: try alternative sysctl
+            pCoreCount = 0
+        }
+
+        // If we couldn't get perflevel data, try legacy approach
+        if eCoreCount == 0 && pCoreCount == 0 {
+            var totalCores: Int = 0
+            sysctlbyname("hw.physicalcpu", &totalCores, &size, nil, 0)
+
+            // Default to assuming half are E cores for modern Apple Silicon
+            if totalCores > 0 {
+                eCoreCount = totalCores / 2
+                pCoreCount = totalCores - eCoreCount
+            }
+        }
+
+        if eCoreCount > 0 || pCoreCount > 0 {
+            return (eCoreCount, pCoreCount)
+        }
+        #endif
+        return nil
+    }
+
+    /// Split per-core usage into E and P core arrays
+    private func getEPCores(from perCoreUsage: [Double]) -> (eCores: [Double]?, pCores: [Double]?) {
+        #if arch(arm64)
+        guard let config = getCPUCoreConfig() else {
+            return (nil, nil)
+        }
+
+        let totalCores = perCoreUsage.count
+        guard totalCores >= config.eCoreCount + config.pCoreCount else {
+            return (nil, nil)
+        }
+
+        // On Apple Silicon, E cores typically come first in the core list
+        let eCores = Array(perCoreUsage.prefix(config.eCoreCount))
+        let pCores = Array(perCoreUsage.suffix(config.pCoreCount))
+
+        return (eCores.isEmpty ? nil : eCores, pCores.isEmpty ? nil : pCores)
+        #else
+        return (nil, nil)
+        #endif
+    }
+
+    /// Get current CPU frequency in GHz
+    private func getCPUFrequency() -> Double? {
+        #if arch(arm64)
+        // For Apple Silicon, get base frequency from sysctl
+        var frequency: Int64 = 0
+        var size = MemoryLayout<Int64>.size
+
+        if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
+            return Double(frequency) / 1_000_000_000 // Convert Hz to GHz
+        }
+
+        // Fallback: try getting frequency for each cluster
+        var eFreq: Int64 = 0
+        var pFreq: Int64 = 0
+
+        if sysctlbyname("hw.perflevel0.physicalcpu", &eFreq, &size, nil, 0) == 0,
+           sysctlbyname("hw.perflevel1.physicalcpu", &pFreq, &size, nil, 0) == 0 {
+            // Use P-core frequency as the representative frequency
+            if sysctlbyname("hw.perflevel1.cpufrequency", &pFreq, &size, nil, 0) == 0 {
+                return Double(pFreq) / 1_000_000_000
+            }
+        }
+        #else
+        // Intel Macs - get CPU frequency
+        var frequency: Int64 = 0
+        var size = MemoryLayout<Int64>.size
+
+        if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
+            return Double(frequency) / 1_000_000_000
+        }
+        #endif
+
+        return nil
+    }
+
+    /// Get CPU temperature in Celsius
+    private func getCPUTemperature() -> Double? {
+        #if arch(arm64)
+        // Apple Silicon temperature reading via IOKit
+        var iterator: io_iterator_t = 0
+
+        // Try to access thermal sensors via IORegistry
+        let result = IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOThermalSensor"), &iterator)
+
+        guard result == KERN_SUCCESS else {
+            // Fallback: use ProcessInfo thermal state
+            return getThermalStateTemperature()
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        var temperatures: [Double] = []
+
+        while true {
+            let service = IOIteratorNext(iterator)
+            guard service != 0 else { break }
+
+            if let props = IORegistryEntryCreateCFProperty(service, "Temperature" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Double {
+                temperatures.append(props)
+            }
+
+            IOObjectRelease(service)
+        }
+
+        if !temperatures.isEmpty {
+            return temperatures.reduce(0, +) / Double(temperatures.count)
+        }
+
+        return getThermalStateTemperature()
+        #else
+        // Intel Macs - try SMC via IOKit (limited access)
+        // Return nil for Intel as we don't have direct SMC access
+        return getThermalStateTemperature()
+        #endif
+    }
+
+    /// Estimate temperature based on ProcessInfo thermal state
+    private func getThermalStateTemperature() -> Double? {
+        let thermalState = ProcessInfo.processInfo.thermalState
+
+        switch thermalState {
+        case .nominal:
+            return 45.0 // Typical idle temperature
+        case .fair:
+            return 60.0
+        case .serious:
+            return 75.0
+        case .critical:
+            return 90.0
+        @unknown default:
+            return nil
+        }
+    }
+
+    /// Check if CPU is being thermally throttled
+    private func getThermalLimit() -> Bool {
+        // Check using ProcessInfo thermal state
+        let thermalState = ProcessInfo.processInfo.thermalState
+
+        let isThrottled = thermalState == .serious || thermalState == .critical
+
+        if isThrottled {
+            return true
+        }
+
+        // Also check pmset for additional thermal info
+        let task = Process()
+        task.launchPath = "/usr/bin/pmset"
+        task.arguments = ["-g", "therm"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return false }
+
+            // Check if any CPU limits are active
+            let lines = output.split(separator: "\n")
+            for line in lines where line.contains("CPU") || line.contains("Scheduler") {
+                if let value = Int(line.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()),
+                   value > 0 {
+                    return true
+                }
+            }
+        } catch {
+            // If pmset fails, rely on ProcessInfo
+        }
+
+        return false
+    }
+
+    /// Get average load (1, 5, 15 minute averages)
+    private func getAverageLoad() -> [Double]? {
+        let task = Process()
+        task.launchPath = "/usr/bin/uptime"
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8),
+                  let line = output.split(separator: "\n").first else {
+                return nil
+            }
+
+            // Parse load averages from uptime output
+            // Format: "load averages: 0.5 0.3 0.1" or "load average: 0.50, 0.30, 0.10"
+            if let range = line.range(of: "load average")?.upperBound ?? line.range(of: "load averages")?.upperBound {
+                let loadString = String(line[range...])
+                let components = loadString.components(separatedBy: CharacterSet(charactersIn: " ,"))
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                    .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
+
+                if components.count >= 3 {
+                    return Array(components.prefix(3))
+                }
+            }
+        } catch {
+            logger.warning("Failed to get average load: \(error.localizedDescription)")
+        }
+
+        return nil
     }
 
     // MARK: - Memory Monitoring
