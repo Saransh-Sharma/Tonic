@@ -84,8 +84,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Apply saved theme preference
         applyThemePreference()
 
-        // Start widget system if onboarding completed
-        startWidgetSystem()
+        // Start widget system after a brief delay to allow the UI to appear first
+        // This prevents blocking the main thread during app launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.startWidgetSystem()
+        }
 
         // Listen for theme changes
         NotificationCenter.default.addObserver(

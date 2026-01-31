@@ -58,9 +58,8 @@ Pressure level detection via `sysctlbyname("vm.memory_pressure")` — returns 0-
 - [ ] All new readers follow Reader protocol
 - [ ] Thread-safe with existing patterns
 ## Done summary
-TBD
-
+Enhanced MemoryReader and WidgetDataManager with Stats Master parity for RAM monitoring. Implemented kernel memory pressure detection via kern.memorystatus_vm_pressure_level sysctl, process memory list via top command, and proper swap usage reading via vm.swapusage sysctl. All new enhanced properties (freeBytes, swapTotalBytes, swapUsedBytes, pressureValue, topProcesses) are now populated correctly.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 14483c3ecbe71716ff5b1eadc4a30920099f0965
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

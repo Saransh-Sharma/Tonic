@@ -69,9 +69,8 @@ Reference: Existing disk code at `WidgetDataManager.swift:677-713`.
 - [ ] Graceful fallback for non-NVMe drives
 - [ ] All new readers follow Reader protocol
 ## Done summary
-TBD
-
+Enhanced DiskReader with Stats Master parity: NVMe SMART data reading (temperature, life%, critical warnings), IOPS tracking, activity bytes/sec calculation with delta tracking, and process disk I/O tracking via proc_pid_rusage.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 28371c616a5a3103c335dc03d821bce46c16a514
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

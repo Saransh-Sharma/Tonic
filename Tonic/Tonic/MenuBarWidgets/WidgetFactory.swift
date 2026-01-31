@@ -74,24 +74,13 @@ public final class WidgetFactory {
         type: WidgetType,
         configuration: WidgetConfiguration
     ) -> WidgetStatusItem {
-        switch type {
-        case .cpu:
-            return CPUStatusItem(widgetType: type, configuration: configuration)
-        case .memory:
-            return MemoryStatusItem(widgetType: type, configuration: configuration)
-        case .disk:
-            return DiskStatusItem(widgetType: type, configuration: configuration)
-        case .network:
-            return NetworkStatusItem(widgetType: type, configuration: configuration)
-        case .gpu:
-            return GPUStatusItem(widgetType: type, configuration: configuration)
-        case .battery:
-            return BatteryStatusItem(widgetType: type, configuration: configuration)
-        case .weather:
-            return WeatherStatusItem(widgetType: type, configuration: configuration)
-        case .sensors:
+        // Use the base WidgetStatusItem for all widget types
+        // The base class handles different types through its widgetType property
+        // Special handling for sensors which has custom views
+        if type == .sensors {
             return SensorsStatusItem(widgetType: type, configuration: configuration)
         }
+        return WidgetStatusItem(widgetType: type, configuration: configuration)
     }
 
     /// Get the estimated width for a widget with the given visualization

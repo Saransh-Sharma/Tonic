@@ -65,9 +65,19 @@ Reference: `WidgetConfiguration.swift:397-484` for existing multi-version decodi
 - [ ] Tested with partial config
 - [ ] Tested with full config
 ## Done summary
-TBD
+Implemented comprehensive user preferences migration layer for WidgetPreferences.
 
+The migration system preserves existing user configurations when transitioning to the
+Stats Master parity menu bar system. Key features include:
+
+- Version-based migration (current version: 2)
+- Automatic backup before migration
+- Legacy display mode mapping (iconOnly/iconWithValue -> compact/detailed)
+- VisualizationType field addition with widget-specific defaults
+- Graceful failure handling with fallback to defaults
+- Debug logging for troubleshooting
+- Public restoreFromBackup() method for manual recovery
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 325eb15a25e87c70c252236374fc56c4b67069be
+- Tests: xcodebuild -scheme Tonic -configuration Debug build (succeeded), Manual testing recommended: defaults delete com.tonic.Tonic tonic.widget.configs && launch app to verify defaults load correctly
 - PRs:

@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-31T13:05:38.789655Z",
+  "depends_on": [
+    "fn-6-i4g.19",
+    "fn-6-i4g.17"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.20",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-6-i4g.20.md",
+  "status": "todo",
+  "title": "Per-Widget Settings UI Enhancement",
+  "updated_at": "2026-01-31T13:07:23.334147Z"
+}
