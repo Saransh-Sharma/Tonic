@@ -417,8 +417,29 @@ public struct BatteryData: Sendable {
     public let health: BatteryHealth
     public let cycleCount: Int?
     public let temperature: Double?  // Celsius
+    public let optimizedCharging: Bool?  // Optimized Battery Charging enabled
+    public let chargerWattage: Double?  // Charger wattage (W)
     public let timestamp: Date
 
+    public init(isPresent: Bool, isCharging: Bool = false, isCharged: Bool = false,
+                chargePercentage: Double = 0, estimatedMinutesRemaining: Int? = nil,
+                health: BatteryHealth = .unknown, cycleCount: Int? = nil,
+                temperature: Double? = nil, optimizedCharging: Bool? = nil,
+                chargerWattage: Double? = nil, timestamp: Date = Date()) {
+        self.isPresent = isPresent
+        self.isCharging = isCharging
+        self.isCharged = isCharged
+        self.chargePercentage = chargePercentage
+        self.cycleCount = cycleCount
+        self.temperature = temperature
+        self.optimizedCharging = optimizedCharging
+        self.chargerWattage = chargerWattage
+        self.estimatedMinutesRemaining = estimatedMinutesRemaining
+        self.health = health
+        self.timestamp = timestamp
+    }
+
+    /// Backward-compatible initializer for existing code
     public init(isPresent: Bool, isCharging: Bool = false, isCharged: Bool = false,
                 chargePercentage: Double = 0, estimatedMinutesRemaining: Int? = nil,
                 health: BatteryHealth = .unknown, cycleCount: Int? = nil,
@@ -432,6 +453,9 @@ public struct BatteryData: Sendable {
         self.estimatedMinutesRemaining = estimatedMinutesRemaining
         self.health = health
         self.timestamp = timestamp
+        // Enhanced properties default to nil for backward compatibility
+        self.optimizedCharging = nil
+        self.chargerWattage = nil
     }
 }
 
@@ -461,50 +485,111 @@ public struct AppResourceUsage: Sendable, Identifiable {
     }
 }
 
+// MARK: - Sensors Data Types
+// NOTE: These are defined here as well since SensorsData.swift is not in the build target
+
 /// Data structure for system sensor readings
 public struct SensorsData: Sendable, Codable, Equatable {
     public var temperatures: [SensorReading]
     public var fans: [FanReading]
     public var voltages: [SensorReading]
-    
+    public var power: [SensorReading]
+
     public init(
         temperatures: [SensorReading] = [],
         fans: [FanReading] = [],
-        voltages: [SensorReading] = []
+        voltages: [SensorReading] = [],
+        power: [SensorReading] = []
     ) {
         self.temperatures = temperatures
         self.fans = fans
         self.voltages = voltages
+        self.power = power
     }
+
+    /// Empty sensor data
+    public static let empty = SensorsData()
 }
 
-/// Individual sensor reading
+/// Individual sensor reading with name and value
 public struct SensorReading: Sendable, Codable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let value: Double
     public let unit: String
-    
+    public let min: Double?
+    public let max: Double?
+
+    public init(
+        id: String,
+        name: String,
+        value: Double,
+        unit: String,
+        min: Double? = nil,
+        max: Double? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.value = value
+        self.unit = unit
+        self.min = min
+        self.max = max
+    }
+
+    /// Convenience initializer without min/max (backward compatible)
     public init(id: String, name: String, value: Double, unit: String) {
         self.id = id
         self.name = name
         self.value = value
         self.unit = unit
+        self.min = nil
+        self.max = nil
     }
 }
 
-/// Fan sensor reading
+/// Fan sensor reading with RPM
 public struct FanReading: Sendable, Codable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let rpm: Int
+    public let minRPM: Int?
     public let maxRPM: Int?
-    
+    public let mode: FanMode?
+
+    public init(id: String, name: String, rpm: Int, minRPM: Int? = nil, maxRPM: Int? = nil, mode: FanMode? = nil) {
+        self.id = id
+        self.name = name
+        self.rpm = rpm
+        self.minRPM = minRPM
+        self.maxRPM = maxRPM
+        self.mode = mode
+    }
+
+    /// Backward-compatible initializer without min/mode
     public init(id: String, name: String, rpm: Int, maxRPM: Int? = nil) {
         self.id = id
         self.name = name
         self.rpm = rpm
+        self.minRPM = nil
         self.maxRPM = maxRPM
+        self.mode = nil
+    }
+}
+
+/// Fan operating mode
+public enum FanMode: String, Sendable, Codable {
+    case automatic = "auto"
+    case forced = "forced"
+    case manual = "manual"
+    case unknown = "unknown"
+
+    public var displayName: String {
+        switch self {
+        case .automatic: return "Auto"
+        case .forced: return "Forced"
+        case .manual: return "Manual"
+        case .unknown: return "Unknown"
+        }
     }
 }
 
@@ -2418,13 +2503,29 @@ public final class WidgetDataManager {
                 health = .unknown
             }
 
+            // Get cycle count from IOKit
+            let cycleCount = getBatteryCycleCount()
+
+            // Get temperature from IOKit (in deci-degrees)
+            let temperature = getBatteryTemperature()
+
+            // Get optimized charging status from IOPS
+            let optimizedCharging = getOptimizedChargingStatus(from: info)
+
+            // Get charger wattage
+            let chargerWattage = getChargerWattage()
+
             batteryData = BatteryData(
                 isPresent: true,
                 isCharging: isCharging,
                 isCharged: isCharged,
                 chargePercentage: Double(capacity),
                 estimatedMinutesRemaining: timeToEmpty,
-                health: health
+                health: health,
+                cycleCount: cycleCount,
+                temperature: temperature,
+                optimizedCharging: optimizedCharging,
+                chargerWattage: chargerWattage
             )
             return
         }
@@ -2432,12 +2533,343 @@ public final class WidgetDataManager {
         batteryData = BatteryData(isPresent: false)
     }
 
+    // MARK: - Enhanced Battery Readers
+
+    /// Get battery cycle count from IOKit
+    private func getBatteryCycleCount() -> Int? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSmartBattery"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return nil
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        guard let properties = IORegistryEntryCreateCFProperty(
+            service,
+            "DesignCycleCount9C" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int else {
+            return nil
+        }
+
+        return properties
+    }
+
+    /// Get battery temperature from IOKit (returns Celsius)
+    private func getBatteryTemperature() -> Double? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSmartBattery"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return nil
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        // Temperature is stored in deci-degrees (divide by 100 to get Celsius)
+        guard let tempValue = IORegistryEntryCreateCFProperty(
+            service,
+            "Temperature" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int else {
+            return nil
+        }
+
+        // Convert from deci-degrees Celsius to Celsius
+        return Double(tempValue) / 100.0
+    }
+
+    /// Get optimized charging status from IOPS power source info
+    private func getOptimizedChargingStatus(from info: NSDictionary) -> Bool? {
+        // Check if "Optimized Battery Charging Engaged" key exists
+        if let optimizedEngaged = info["Optimized Battery Charging Engaged"] as? Int {
+            return optimizedEngaged == 1
+        }
+        return nil
+    }
+
+    /// Get charger wattage from IOPS
+    private func getChargerWattage() -> Double? {
+        guard let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] else {
+            return nil
+        }
+
+        if let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? Int {
+            return Double(watts)
+        }
+
+        return nil
+    }
+
     // MARK: - Sensors Monitoring
 
     private func updateSensorsData() {
-        // TODO: Implement SensorsReader to fetch temperature and fan data
-        // For now, use empty sensors data
-        sensorsData = SensorsData()
+        sensorsData = SensorsData(
+            temperatures: getSMCTemperatures(),
+            fans: getSMCFans(),
+            voltages: getSMCVoltages(),
+            power: getSMCPower()
+        )
+    }
+
+    // MARK: - Enhanced Sensors Readers
+
+    /// Get temperature sensors using IOKit
+    private func getSMCTemperatures() -> [SensorReading] {
+        var readings: [SensorReading] = []
+
+        #if arch(arm64)
+        // Apple Silicon: Use IORegistry for thermal sensors
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("IOThermalSensor"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return getEstimatedTemperatures()
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        var temps: [Double] = []
+        while true {
+            let service = IOIteratorNext(iterator)
+            guard service != 0 else { break }
+
+            if let props = IORegistryEntryCreateCFProperty(
+                service,
+                "Temperature" as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue() as? Double {
+                temps.append(props)
+            }
+            IOObjectRelease(service)
+        }
+
+        if !temps.isEmpty {
+            let avgTemp = temps.reduce(0, +) / Double(temps.count)
+            readings.append(SensorReading(
+                id: "cpu_thermal",
+                name: "CPU",
+                value: avgTemp,
+                unit: "°C",
+                min: 20,
+                max: 100
+            ))
+        }
+        #else
+        // Intel Macs: Try to estimate temperature
+        readings.append(getEstimatedTemperatures().first ?? SensorReading(
+            id: "cpu_estimated",
+            name: "CPU",
+            value: getThermalStateTemperature() ?? 45,
+            unit: "°C",
+            min: 20,
+            max: 100
+        ))
+        #endif
+
+        return readings.isEmpty ? getEstimatedTemperatures() : readings
+    }
+
+    /// Get estimated temperature based on thermal state
+    private func getEstimatedTemperatures() -> [SensorReading] {
+        let thermalState = ProcessInfo.processInfo.thermalState
+        let temp: Double
+        switch thermalState {
+        case .nominal: temp = 45
+        case .fair: temp = 60
+        case .serious: temp = 75
+        case .critical: temp = 90
+        @unknown default: temp = 50
+        }
+
+        return [SensorReading(
+            id: "cpu_estimated",
+            name: "CPU",
+            value: temp,
+            unit: "°C",
+            min: 20,
+            max: 100
+        )]
+    }
+
+    /// Get fan sensors using IOKit
+    private func getSMCFans() -> [FanReading] {
+        var readings: [FanReading] = []
+
+        // Try to read fan info from IOKit
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSMC"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return readings
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else {
+            return readings
+        }
+        defer { IOObjectRelease(service) }
+
+        // Try to get fan count
+        if let fanCountProp = IORegistryEntryCreateCFProperty(
+            service,
+            "FNum" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int {
+            for i in 0..<fanCountProp {
+                let currentSpeedKey = "F\(i)Ac" as CFString
+                let maxSpeedKey = "F\(i)Mx" as CFString
+
+                let currentSpeed = IORegistryEntryCreateCFProperty(
+                    service,
+                    currentSpeedKey,
+                    kCFAllocatorDefault,
+                    0
+                )?.takeRetainedValue() as? Int
+
+                let maxSpeed = IORegistryEntryCreateCFProperty(
+                    service,
+                    maxSpeedKey,
+                    kCFAllocatorDefault,
+                    0
+                )?.takeRetainedValue() as? Int
+
+                if let current = currentSpeed {
+                    readings.append(FanReading(
+                        id: "fan_\(i)",
+                        name: "Fan \(i)",
+                        rpm: current,
+                        minRPM: 0,
+                        maxRPM: maxSpeed,
+                        mode: .automatic
+                    ))
+                }
+            }
+        }
+
+        return readings
+    }
+
+    /// Get voltage sensors
+    private func getSMCVoltages() -> [SensorReading] {
+        var readings: [SensorReading] = []
+
+        #if arch(arm64)
+        // Apple Silicon voltage reading via IORegistry (limited availability)
+        // Most voltage sensors require privileged access
+        var iterator: io_iterator_t = 0
+        if IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleARMIODevice"),
+            &iterator
+        ) == KERN_SUCCESS {
+            defer { IOObjectRelease(iterator) }
+
+            var service: io_object_t
+            repeat {
+                service = IOIteratorNext(iterator)
+                guard service != 0 else { break }
+
+                if let voltage = IORegistryEntryCreateCFProperty(
+                    service,
+                    "voltage-s0" as CFString,
+                    kCFAllocatorDefault,
+                    0
+                )?.takeRetainedValue() as? Double {
+                    readings.append(SensorReading(
+                        id: "cpu_voltage",
+                        name: "CPU Voltage",
+                        value: voltage / 1000, // Convert mV to V
+                        unit: "V",
+                        min: 0.8,
+                        max: 1.5
+                    ))
+                }
+                IOObjectRelease(service)
+            } while service != 0
+        }
+        #endif
+
+        return readings
+    }
+
+    /// Get power sensors
+    private func getSMCPower() -> [SensorReading] {
+        var readings: [SensorReading] = []
+
+        #if arch(arm64)
+        // Apple Silicon: Try IOReport for Energy Model
+        // Note: This requires privileged access on some systems
+        if let cpuPower = getCPUThermalPower() {
+            readings.append(SensorReading(
+                id: "cpu_power_estimated",
+                name: "CPU Power",
+                value: cpuPower,
+                unit: "W",
+                min: 0,
+                max: 30
+            ))
+        }
+
+        if let gpuPower = getGPUThermalPower() {
+            readings.append(SensorReading(
+                id: "gpu_power_estimated",
+                name: "GPU Power",
+                value: gpuPower,
+                unit: "W",
+                min: 0,
+                max: 30
+            ))
+        }
+        #endif
+
+        return readings
+    }
+
+    /// Estimate CPU power consumption based on thermal state
+    private func getCPUThermalPower() -> Double? {
+        let thermalState = ProcessInfo.processInfo.thermalState
+        switch thermalState {
+        case .nominal: return 2.0
+        case .fair: return 8.0
+        case .serious: return 15.0
+        case .critical: return 25.0
+        @unknown default: return nil
+        }
+    }
+
+    /// Estimate GPU power consumption based on usage
+    private func getGPUThermalPower() -> Double? {
+        // Use GPU data from WidgetDataManager
+        if gpuData.usagePercentage != nil {
+            let percent = gpuData.usagePercentage ?? 0
+            return percent * 0.3 // Max ~30W at full load
+        }
+        return nil
     }
 
     // MARK: - Helper Methods
@@ -2572,14 +3004,14 @@ public final class WidgetDataManager {
                 return NSWorkspace.shared.icon(forFile: path)
             }
         }
-        
+
         // Try running apps
         for app in NSWorkspace.shared.runningApplications {
             if app.localizedName == processName || app.executableURL?.lastPathComponent == processName {
                 return app.icon
             }
         }
-        
+
         return nil
     }
 }

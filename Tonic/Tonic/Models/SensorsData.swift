@@ -91,12 +91,54 @@ public struct FanReading: Sendable, Codable, Equatable, Identifiable {
     public let id: String
     public let name: String
     public let rpm: Int
+    public let minRPM: Int?
     public let maxRPM: Int?
-    
+    public let mode: FanMode?
+
+    public init(id: String, name: String, rpm: Int, minRPM: Int? = nil, maxRPM: Int? = nil, mode: FanMode? = nil) {
+        self.id = id
+        self.name = name
+        self.rpm = rpm
+        self.minRPM = minRPM
+        self.maxRPM = maxRPM
+        self.mode = mode
+    }
+
+    /// Backward-compatible initializer without min/mode
     public init(id: String, name: String, rpm: Int, maxRPM: Int? = nil) {
         self.id = id
         self.name = name
         self.rpm = rpm
+        self.minRPM = nil
         self.maxRPM = maxRPM
+        self.mode = nil
+    }
+
+    /// Speed percentage (0-100) based on max RPM
+    public var speedPercentage: Double? {
+        guard let maxRPM = maxRPM, maxRPM > 0 else { return nil }
+        return Double(rpm) / Double(maxRPM) * 100
+    }
+
+    /// Formatted mode string
+    public var modeString: String? {
+        mode?.displayName
+    }
+}
+
+/// Fan operating mode
+public enum FanMode: String, Sendable, Codable {
+    case automatic = "auto"
+    case forced = "forced"
+    case manual = "manual"
+    case unknown = "unknown"
+
+    public var displayName: String {
+        switch self {
+        case .automatic: return "Auto"
+        case .forced: return "Forced"
+        case .manual: return "Manual"
+        case .unknown: return "Unknown"
+        }
     }
 }
