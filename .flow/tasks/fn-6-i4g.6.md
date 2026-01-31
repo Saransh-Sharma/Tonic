@@ -64,9 +64,8 @@ Reference: Existing network code at `WidgetDataManager.swift:760-802`.
 - [ ] Process network usage via nettop
 - [ ] All new readers follow Reader protocol
 ## Done summary
-TBD
-
+Implemented Stats Master's enhanced network readers including WiFi details (SSID, RSSI, channel, security, BSSID), public IP tracking with 5-minute caching, ICMP ping connectivity testing with latency/jitter calculation, and top network processes via nettop/lsof.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 677833c
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
