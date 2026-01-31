@@ -813,6 +813,9 @@ public final class WidgetDataManager {
             guard let self = self else { return }
             self.cpuData = newCPUData
             self.addToHistory(&self.cpuHistory, value: usage, maxPoints: Self.maxHistoryPoints)
+
+            // Check notification thresholds
+            NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usage)
         }
 
         logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
@@ -1219,6 +1222,9 @@ public final class WidgetDataManager {
             guard let self = self else { return }
             self.memoryData = newMemoryData
             self.addToHistory(&self.memoryHistory, value: newMemoryData.usagePercentage, maxPoints: Self.maxHistoryPoints)
+
+            // Check notification thresholds
+            NotificationManager.shared.checkThreshold(widgetType: .memory, value: newMemoryData.usagePercentage)
         }
     }
 
@@ -1603,6 +1609,11 @@ public final class WidgetDataManager {
         DispatchQueue.main.async { [weak self] in
             self?.diskVolumes = volumes
             self?.primaryDiskActivity = isActive
+
+            // Check notification thresholds for primary volume
+            if let primaryVolume = volumes.first {
+                NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
+            }
         }
     }
 
@@ -2530,6 +2541,11 @@ public final class WidgetDataManager {
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
             self?.gpuData = newGPUData
+
+            // Check notification thresholds
+            if let gpuUsage = usage {
+                NotificationManager.shared.checkThreshold(widgetType: .gpu, value: gpuUsage)
+            }
         }
         #else
         // Intel Macs - GPU monitoring not supported (discrete GPU)
@@ -2678,6 +2694,11 @@ public final class WidgetDataManager {
             // Dispatch property updates to main thread for @Observable
             DispatchQueue.main.async { [weak self] in
                 self?.batteryData = newBatteryData
+
+                // Check notification thresholds (only when not charging to avoid spam)
+                if !isCharging {
+                    NotificationManager.shared.checkThreshold(widgetType: .battery, value: Double(capacity))
+                }
             }
             return
         }
@@ -2783,6 +2804,11 @@ public final class WidgetDataManager {
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
             self?.sensorsData = newSensorsData
+
+            // Check notification thresholds for max temperature
+            if let maxTemp = newSensorsData.temperatures.map({ $0.value }).max() {
+                NotificationManager.shared.checkThreshold(widgetType: .sensors, value: maxTemp)
+            }
         }
     }
 

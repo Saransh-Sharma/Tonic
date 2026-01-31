@@ -45,9 +45,8 @@ Add two new visualization types to achieve full PRD parity: `memory` (two-row us
 - [ ] Memory visualization compatible with `.memory` widget type
 - [ ] Battery visualization compatible with `.battery` widget type
 ## Done summary
-TBD
-
+Added two new visualization types for full PRD parity: `memory` (two-row used/total display) and `battery` (battery icon with fill level). Both integrate with WidgetFactory and are now available as visualization options for their respective widget types.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 173b305c36fca5b9eb05a76b4a8449317148b011
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

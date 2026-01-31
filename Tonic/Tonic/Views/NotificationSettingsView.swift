@@ -19,6 +19,7 @@ struct NotificationSettingsView: View {
     @State private var showingPermissionAlert = false
     @State private var showingTestAlert = false
     @State private var testAlertMessage = ""
+    @State private var editingThreshold: NotificationThreshold?
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -60,6 +61,17 @@ struct NotificationSettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(testAlertMessage)
+        }
+        .sheet(item: $editingThreshold) { threshold in
+            ThresholdEditorSheet(
+                threshold: threshold,
+                onSave: { updatedThreshold in
+                    notificationManager.updateThreshold(updatedThreshold)
+                },
+                onDelete: {
+                    notificationManager.removeThreshold(id: threshold.id)
+                }
+            )
         }
     }
 
@@ -107,13 +119,50 @@ struct NotificationSettingsView: View {
                         get: { notificationManager.config.notificationsEnabled },
                         set: { newValue in
                             if newValue && !notificationManager.hasPermission {
-                                showingPermissionAlert = true
+                                // Request permission first
+                                notificationManager.requestPermission { granted in
+                                    if granted {
+                                        // Permission granted, enable notifications
+                                        notificationManager.toggleNotifications()
+                                    } else {
+                                        // Permission denied, show settings alert
+                                        showingPermissionAlert = true
+                                    }
+                                }
                             } else {
                                 notificationManager.toggleNotifications()
                             }
                         }
                     )
                 )
+
+                // Permission status row (only show when not granted)
+                if !notificationManager.hasPermission {
+                    PreferenceRow(
+                        title: "Permission Status",
+                        subtitle: "Tap to request notification permission",
+                        icon: "exclamationmark.triangle.fill",
+                        iconColor: DesignTokens.Colors.warning,
+                        showDivider: true
+                    ) {
+                        Button {
+                            notificationManager.requestPermission { granted in
+                                if !granted {
+                                    showingPermissionAlert = true
+                                }
+                            }
+                        } label: {
+                            Text("Request Permission")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, DesignTokens.Spacing.sm)
+                                .padding(.vertical, DesignTokens.Spacing.xs)
+                                .background(DesignTokens.Colors.accent)
+                                .cornerRadius(DesignTokens.CornerRadius.small)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
 
                 // Respect Do Not Disturb
                 PreferenceToggleRow(
@@ -276,13 +325,8 @@ struct NotificationSettingsView: View {
     }
 
     private func editThreshold(_ threshold: NotificationThreshold) {
-        // Present an edit sheet for the threshold
-        // This would expand to show threshold editor
-        // For now, we toggle through common values
-        var updatedThreshold = threshold
-        let stepValue = stepForWidgetType(threshold.widgetType)
-        updatedThreshold.value = min(threshold.value + stepValue, maxValueForWidgetType(threshold.widgetType))
-        notificationManager.updateThreshold(updatedThreshold)
+        // Present the threshold editor sheet
+        editingThreshold = threshold
     }
 
     private func testThreshold(_ threshold: NotificationThreshold) {
@@ -296,24 +340,6 @@ struct NotificationSettingsView: View {
         let title = "\(threshold.widgetType.displayName) Alert (Test)"
         let body = "This is a test. Threshold: \(threshold.formattedValue)"
         return (title, body)
-    }
-
-    private func stepForWidgetType(_ type: WidgetType) -> Double {
-        switch type {
-        case .cpu, .memory, .gpu, .battery: return 5.0
-        case .disk: return 5.0
-        case .sensors: return 5.0
-        default: return 1.0
-        }
-    }
-
-    private func maxValueForWidgetType(_ type: WidgetType) -> Double {
-        switch type {
-        case .cpu, .memory, .gpu, .battery: return 100.0
-        case .disk: return 100.0
-        case .sensors: return 120.0
-        default: return 100.0
-        }
     }
 }
 
@@ -495,8 +521,359 @@ struct NotificationIntervalRow: View {
     }
 }
 
+// MARK: - Threshold Editor Sheet
+
+/// A sheet for editing notification threshold values
+struct ThresholdEditorSheet: View {
+    let threshold: NotificationThreshold
+    let onSave: (NotificationThreshold) -> Void
+    let onDelete: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var editedValue: Double
+    @State private var editedCondition: NotificationCondition
+    @State private var editedEnabled: Bool
+
+    init(threshold: NotificationThreshold, onSave: @escaping (NotificationThreshold) -> Void, onDelete: @escaping () -> Void) {
+        self.threshold = threshold
+        self.onSave = onSave
+        self.onDelete = onDelete
+        _editedValue = State(initialValue: threshold.value)
+        _editedCondition = State(initialValue: threshold.condition)
+        _editedEnabled = State(initialValue: threshold.isEnabled)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+                    Text("Edit Threshold")
+                        .font(DesignTokens.Typography.h3)
+
+                    Text(threshold.widgetType.displayName)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(DesignTokens.Spacing.md)
+
+            Divider()
+
+            // Content
+            ScrollView {
+                VStack(spacing: DesignTokens.Spacing.lg) {
+                    // Preview
+                    thresholdPreview
+
+                    // Condition selector
+                    conditionSelector
+
+                    // Value slider
+                    valueSlider
+
+                    // Quick presets
+                    quickPresets
+                }
+                .padding(DesignTokens.Spacing.lg)
+            }
+
+            Divider()
+
+            // Footer
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Button(role: .destructive) {
+                    onDelete()
+                    dismiss()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .font(DesignTokens.Typography.body)
+                        .foregroundColor(DesignTokens.Colors.destructive)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .background(DesignTokens.Colors.destructive.opacity(0.1))
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    var updatedThreshold = threshold
+                    updatedThreshold.value = editedValue
+                    updatedThreshold.condition = editedCondition
+                    updatedThreshold.isEnabled = editedEnabled
+                    onSave(updatedThreshold)
+                    dismiss()
+                } label: {
+                    Text("Save")
+                        .font(DesignTokens.Typography.body)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, DesignTokens.Spacing.lg)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .background(DesignTokens.Colors.accent)
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(DesignTokens.Spacing.md)
+        }
+        .frame(width: 400, height: 500)
+        .background(DesignTokens.Colors.background)
+    }
+
+    private var thresholdPreview: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            HStack {
+                Image(systemName: threshold.widgetType.icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(widgetColor)
+
+                Text(threshold.widgetType.displayName)
+                    .font(DesignTokens.Typography.h3)
+
+                Text(editedCondition.symbol)
+                    .font(DesignTokens.Typography.h3)
+                    .foregroundColor(conditionColor)
+
+                Text(formattedValue)
+                    .font(DesignTokens.Typography.h3)
+                    .monospacedDigit()
+            }
+            .padding(DesignTokens.Spacing.md)
+            .frame(maxWidth: .infinity)
+            .background(DesignTokens.Colors.backgroundSecondary)
+            .cornerRadius(DesignTokens.CornerRadius.medium)
+
+            Toggle("Enabled", isOn: $editedEnabled)
+                .toggleStyle(.switch)
+        }
+    }
+
+    private var conditionSelector: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text("Condition")
+                .font(DesignTokens.Typography.captionEmphasized)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(availableConditions, id: \.self) { condition in
+                    conditionButton(condition)
+                }
+            }
+        }
+    }
+
+    private func conditionButton(_ condition: NotificationCondition) -> some View {
+        let isSelected = editedCondition == condition
+
+        return Button {
+            withAnimation(DesignTokens.Animation.fast) {
+                editedCondition = condition
+            }
+        } label: {
+            VStack(spacing: DesignTokens.Spacing.xxxs) {
+                Text(condition.symbol)
+                    .font(DesignTokens.Typography.bodyEmphasized)
+
+                Text(condition.displayName)
+                    .font(DesignTokens.Typography.caption)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, DesignTokens.Spacing.sm)
+            .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+            .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
+            .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var valueSlider: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            HStack {
+                Text("Value")
+                    .font(DesignTokens.Typography.captionEmphasized)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .textCase(.uppercase)
+
+                Spacer()
+
+                Text(formattedValue)
+                    .font(DesignTokens.Typography.bodyEmphasized)
+                    .monospacedDigit()
+                    .foregroundColor(DesignTokens.Colors.accent)
+            }
+
+            Slider(
+                value: $editedValue,
+                in: sliderRange,
+                step: sliderStep
+            )
+            .accentColor(DesignTokens.Colors.accent)
+
+            HStack {
+                Text(formatValue(sliderRange.lowerBound))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                Spacer()
+
+                Text(formatValue(sliderRange.upperBound))
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+            }
+        }
+    }
+
+    private var quickPresets: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text("Quick Values")
+                .font(DesignTokens.Typography.captionEmphasized)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .textCase(.uppercase)
+
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(quickPresetValues, id: \.self) { value in
+                    presetButton(value)
+                }
+            }
+        }
+    }
+
+    private func presetButton(_ value: Double) -> some View {
+        let isSelected = abs(editedValue - value) < 0.1
+
+        return Button {
+            withAnimation(DesignTokens.Animation.fast) {
+                editedValue = value
+            }
+        } label: {
+            Text(formatValue(value))
+                .font(DesignTokens.Typography.captionEmphasized)
+                .monospacedDigit()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+                .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
+                .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Helpers
+
+    private var widgetColor: Color {
+        switch threshold.widgetType {
+        case .cpu: return Color(red: 0.37, green: 0.62, blue: 1.0)
+        case .memory: return Color(red: 0.19, green: 0.82, blue: 0.35)
+        case .disk: return Color(red: 1.0, green: 0.62, blue: 0.04)
+        case .gpu: return Color(red: 0.75, green: 0.35, blue: 0.95)
+        case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
+        case .sensors: return Color(red: 1.0, green: 0.45, blue: 0.0)
+        default: return DesignTokens.Colors.accent
+        }
+    }
+
+    private var conditionColor: Color {
+        switch editedCondition {
+        case .greaterThan, .greaterThanOrEqual:
+            return DesignTokens.Colors.warning
+        case .lessThan, .lessThanOrEqual:
+            return DesignTokens.Colors.info
+        default:
+            return DesignTokens.Colors.textSecondary
+        }
+    }
+
+    private var availableConditions: [NotificationCondition] {
+        switch threshold.widgetType {
+        case .battery:
+            return [.lessThan, .lessThanOrEqual, .equals]
+        case .sensors:
+            return [.greaterThan, .greaterThanOrEqual, .equals]
+        default:
+            return [.greaterThan, .greaterThanOrEqual, .lessThan, .lessThanOrEqual]
+        }
+    }
+
+    private var sliderRange: ClosedRange<Double> {
+        switch threshold.widgetType {
+        case .cpu, .memory, .gpu, .battery, .disk:
+            return 0...100
+        case .sensors:
+            return 30...120
+        default:
+            return 0...100
+        }
+    }
+
+    private var sliderStep: Double {
+        switch threshold.widgetType {
+        case .cpu, .memory, .gpu, .battery, .disk:
+            return 5
+        case .sensors:
+            return 5
+        default:
+            return 1
+        }
+    }
+
+    private var quickPresetValues: [Double] {
+        switch threshold.widgetType {
+        case .cpu, .memory, .gpu:
+            return [70, 80, 90, 95]
+        case .disk:
+            return [75, 85, 90, 95]
+        case .battery:
+            return [10, 15, 20, 30]
+        case .sensors:
+            return [70, 80, 90, 100]
+        default:
+            return [50, 75, 90, 100]
+        }
+    }
+
+    private var formattedValue: String {
+        formatValue(editedValue)
+    }
+
+    private func formatValue(_ value: Double) -> String {
+        switch threshold.widgetType {
+        case .cpu, .memory, .gpu, .battery, .disk:
+            return String(format: "%.0f%%", value)
+        case .sensors:
+            return String(format: "%.0f\u{00B0}", value)
+        default:
+            return String(format: "%.0f", value)
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview("Notification Settings") {
     NotificationSettingsView()
+}
+
+#Preview("Threshold Editor") {
+    ThresholdEditorSheet(
+        threshold: NotificationThreshold(
+            widgetType: .cpu,
+            condition: .greaterThanOrEqual,
+            value: 80
+        ),
+        onSave: { _ in },
+        onDelete: { }
+    )
 }
