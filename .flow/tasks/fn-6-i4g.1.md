@@ -63,9 +63,8 @@ Reference: `WidgetStatusItem.swift:546-563` for current unified timer pattern.
 - [ ] Documentation comments on protocol requirements
 - [ ] No specific reader implementations (foundation only)
 ## Done summary
-TBD
-
+Implemented the Reader<T> protocol and BaseReader<T> class foundation following Stats Master's reader pattern, adapted for Tonic's @Observable and @MainActor architecture. Added Repeater class for per-reader timers and ReaderRegistry for centralized management. Protocol supports optional readers, popup-only mode, configurable intervals, and history tracking.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: e40f1c7ca754e760fb43f4bf3b509aea51a0dd26
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

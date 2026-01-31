@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import OSLog
 
 // MARK: - Reader State
 
@@ -52,8 +53,8 @@ public enum ReaderState: Sendable {
 /// reader.start()
 /// ```
 ///
-/// - Parameter T: The type of data the reader produces. Must be `Sendable` for thread safety.
-public protocol Reader<T>: AnyObject where T: Sendable {
+/// - Parameter Output: The type of data the reader produces. Must be `Sendable` for thread safety.
+public protocol Reader: AnyObject {
     /// Associated type for the data this reader produces
     associatedtype Output: Sendable
 
@@ -149,7 +150,7 @@ public protocol Reader<T>: AnyObject where T: Sendable {
     /// Update the value and trigger callback
     ///
     /// - Parameter value: The new value to set (or nil for optional readers)
-    func callback(_ value: Output?)
+    func updateValue(_ value: Output?)
 
     /// Set a new update interval
     ///
@@ -216,12 +217,12 @@ public extension Reader {
 /// }
 /// ```
 @MainActor
-open class BaseReader<T: Sendable>: Reader<T> {
+open class BaseReader<Output: Sendable>: Reader {
 
     // MARK: - Public Properties
 
     /// The most recent value from read operations
-    public private(set) var value: T?
+    public private(set) var value: Output?
 
     /// Update interval in seconds (nil = use unified scheduler)
     public var interval: TimeInterval?
@@ -239,10 +240,10 @@ open class BaseReader<T: Sendable>: Reader<T> {
     public let historyLimit: Int?
 
     /// Historical values
-    public private(set) var history: [T] = []
+    public private(set) var history: [Output] = []
 
     /// Callback for value updates
-    public var callback: ((T?) -> Void)?
+    public var callback: ((Output?) -> Void)?
 
     // MARK: - Private Properties
 
@@ -273,15 +274,13 @@ open class BaseReader<T: Sendable>: Reader<T> {
         optional: Bool = false,
         popupOnly: Bool = false,
         historyLimit: Int? = nil,
-        callback: ((T?) -> Void)? = nil
+        callback: ((Output?) -> Void)? = nil
     ) {
         self.interval = interval
         self.isOptional = optional
         self.isPopupOnly = popupOnly
         self.historyLimit = historyLimit
         self.callback = callback
-
-        super.init()
 
         // Perform subclass setup
         setup()
@@ -346,7 +345,7 @@ open class BaseReader<T: Sendable>: Reader<T> {
 
     // MARK: - Public Methods
 
-    public func callback(_ newValue: T?) {
+    public func updateValue(_ newValue: Output?) {
         // Update stored value
         self.value = newValue
 
@@ -390,7 +389,7 @@ open class BaseReader<T: Sendable>: Reader<T> {
     /// Subclasses override this to perform actual data reading
     ///
     /// - Returns: The current value, or nil if unavailable
-    open func read() -> T? {
+    open func read() -> Output? {
         nil
     }
 
@@ -405,11 +404,11 @@ open class BaseReader<T: Sendable>: Reader<T> {
                 logger.warning("Reader \(type(of: self)) returned nil but is not optional")
             }
 
-            callback(newValue)
+            updateValue(newValue)
         } catch {
             if isOptional {
                 logger.debug("Optional reader \(type(of: self)) failed: \(error.localizedDescription)")
-                callback(nil)
+                updateValue(nil)
             } else {
                 logger.error("Reader \(type(of: self)) failed: \(error.localizedDescription)")
             }
@@ -425,7 +424,7 @@ open class BaseReader<T: Sendable>: Reader<T> {
 /// a lightweight alternative to Timer for reader scheduling.
 ///
 /// Uses DispatchSourceTimer for precise, efficient scheduling.
-public final class Repeater: Sendable {
+public final class Repeater: @unchecked Sendable {
 
     private enum State: Sendable {
         case paused
@@ -435,6 +434,7 @@ public final class Repeater: Sendable {
     private var state: State = .paused
     private let callback: @Sendable () -> Void
     private let queue = DispatchQueue(label: "com.tonic.reader.repeater", qos: .utility)
+    private let stateLock = NSLock()
 
     // Use unsafe mutable reference for DispatchSourceTimer which is not Sendable
     // All access is synchronized via the queue
@@ -453,25 +453,44 @@ public final class Repeater: Sendable {
         let newTimer = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
         newTimer.schedule(deadline: .now() + .seconds(seconds), repeating: .seconds(seconds), leeway: .milliseconds(100))
         newTimer.setEventHandler { [weak self] in
-            guard self?.state == .running else { return }
-            self.callback()
+            guard let self = self else { return }
+            self.stateLock.lock()
+            let shouldRun = self.state == .running
+            self.stateLock.unlock()
+            if shouldRun {
+                self.callback()
+            }
         }
         self.timer = newTimer
     }
 
     public func start() {
         queue.sync {
-            guard state == .paused else { return }
+            stateLock.lock()
+            guard state == .paused else {
+                stateLock.unlock()
+                return
+            }
+            stateLock.unlock()
             timer?.resume()
+            stateLock.lock()
             state = .running
+            stateLock.unlock()
         }
     }
 
     public func pause() {
         queue.sync {
-            guard state == .running else { return }
+            stateLock.lock()
+            guard state == .running else {
+                stateLock.unlock()
+                return
+            }
+            stateLock.unlock()
             timer?.suspend()
+            stateLock.lock()
             state = .paused
+            stateLock.unlock()
         }
     }
 
@@ -479,13 +498,19 @@ public final class Repeater: Sendable {
         queue.sync {
             timer?.cancel()
             timer = nil
+            stateLock.lock()
             state = .paused
+            stateLock.unlock()
         }
     }
 
     public func reset(seconds: Int, restart: Bool = false) {
         queue.sync {
-            if state == .running {
+            stateLock.lock()
+            let wasRunning = state == .running
+            stateLock.unlock()
+
+            if wasRunning {
                 timer?.suspend()
             }
 
@@ -494,7 +519,9 @@ public final class Repeater: Sendable {
 
             if restart {
                 timer?.resume()
+                stateLock.lock()
                 state = .running
+                stateLock.unlock()
             }
         }
     }
@@ -511,16 +538,27 @@ public final class ReaderRegistry: @unchecked Sendable {
 
     public static let shared = ReaderRegistry()
 
-    private var readers: [String: any Reader<any Sendable>] = [:]
+    /// Type-erased reader wrapper
+    private struct AnyReader {
+        let start: () -> Void
+        let stop: () -> Void
+        let pause: () -> Void
+    }
+
+    private var readers: [String: AnyReader] = [:]
     private let lock = NSLock()
 
     private init() {}
 
     /// Register a reader with a unique identifier
-    public func register<R: Reader<any Sendable>>(_ reader: R, forKey key: String) {
+    public func register<R: Reader>(_ reader: R, forKey key: String) {
         lock.lock()
         defer { lock.unlock() }
-        readers[key] = reader
+        readers[key] = AnyReader(
+            start: { reader.start() },
+            stop: { reader.stop() },
+            pause: { reader.pause() }
+        )
     }
 
     /// Unregister a reader
@@ -529,13 +567,6 @@ public final class ReaderRegistry: @unchecked Sendable {
         defer { lock.unlock() }
         readers[key]?.stop()
         readers.removeValue(forKey: key)
-    }
-
-    /// Get a registered reader by key
-    public func reader(forKey key: String) -> (any Reader<any Sendable>)? {
-        lock.lock()
-        defer { lock.unlock() }
-        return readers[key]
     }
 
     /// Start all registered readers
