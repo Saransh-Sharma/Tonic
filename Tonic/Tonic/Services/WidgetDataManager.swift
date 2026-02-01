@@ -666,6 +666,10 @@ public final class WidgetDataManager {
 
     public private(set) var sensorsData: SensorsData = SensorsData()
 
+    // MARK: - Bluetooth Data
+
+    public private(set) var bluetoothData: BluetoothData = BluetoothData.empty
+
     /// Weather data (optional, may be nil if location not available)
     public private(set) var weatherData: WeatherData?
 
@@ -696,6 +700,11 @@ public final class WidgetDataManager {
     // Process list caching (to avoid frequent process spawning)
     private var cachedTopProcesses: [AppResourceUsage]?
     private var lastProcessFetchDate: Date?
+
+    // Bluetooth reader
+    private lazy var bluetoothReader = BluetoothReader()
+    private var lastBluetoothUpdate: Date?
+    private let bluetoothUpdateInterval: TimeInterval = 10.0  // Bluetooth updates less frequently
 
     // Network enhancement caching
     private var cachedPublicIP: PublicIPInfo?
@@ -765,6 +774,7 @@ public final class WidgetDataManager {
         updateGPUData()
         updateBatteryData()
         updateSensorsData()
+        updateBluetoothData()
 
         // Update top apps less frequently (every 3rd update - effectively every 3s)
         updateCounter += 1
@@ -3197,6 +3207,30 @@ public final class WidgetDataManager {
         }
 
         return nil
+    }
+
+    // MARK: - Bluetooth Monitoring
+
+    private func updateBluetoothData() {
+        // Bluetooth updates less frequently than other data sources
+        if let lastUpdate = lastBluetoothUpdate,
+           Date().timeIntervalSince(lastUpdate) < bluetoothUpdateInterval {
+            return
+        }
+
+        lastBluetoothUpdate = Date()
+
+        // Use the Bluetooth reader to get data
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            do {
+                let newData = try await self.bluetoothReader.read()
+                self.bluetoothData = newData
+            } catch {
+                // On error, keep the existing data or set to empty
+                self.logger.warning("Failed to read Bluetooth data: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - History Accessors

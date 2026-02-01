@@ -55,9 +55,8 @@ Reference: `WidgetFactory.swift:14-110` for widget creation patterns.
 - [ ] Mode switch works at runtime
 - [ ] Menu bar overflow handled gracefully
 ## Done summary
-TBD
-
+Implemented OneView mode for unified menu bar display. Created OneViewStatusItem and OneViewContentView that combine all enabled widgets into a single menu bar item with horizontal grid layout. Added unifiedMenuBarMode toggle to WidgetPreferences and WidgetCustomizationView. Mode switch works at runtime, properly hiding/showing individual widgets vs unified view.
 ## Evidence
-- Commits:
+- Commits: 0240c40
 - Tests:
 - PRs:

@@ -158,6 +158,8 @@ public class WidgetStatusItem: ObservableObject {
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated")
         case .sensors:
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Sensors: \(dataManager.sensorsData.temperatures.count) temps")
+        case .bluetooth:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Bluetooth: \(dataManager.bluetoothData.connectedDevices.count) connected, enabled: \(dataManager.bluetoothData.isBluetoothEnabled)")
         }
     }
 
@@ -455,6 +457,17 @@ struct WidgetCompactView: View {
         case .sensors:
             // TODO: Add proper sensor value display
             return "--"
+
+        case .bluetooth:
+            if dataManager.bluetoothData.isBluetoothEnabled {
+                let connectedCount = dataManager.bluetoothData.connectedDevices.count
+                if let device = dataManager.bluetoothData.devicesWithBattery.first,
+                   let battery = device.primaryBatteryLevel {
+                    return "\(battery)%"
+                }
+                return "\(connectedCount)"
+            }
+            return "Off"
         }
     }
 }

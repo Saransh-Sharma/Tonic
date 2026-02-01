@@ -60,9 +60,8 @@ Reference pattern: `WidgetCustomizationView.swift:14-898` for settings UI struct
 - [ ] Notifications respect user preferences
 - [ ] Notification history/log available (optional)
 ## Done summary
-TBD
-
+Completed notification system implementation with threshold checking integrated in WidgetDataManager for all widget types (CPU, Memory, Disk, GPU, Battery, Sensors). Added enhanced UI with permission request flow, threshold editor sheet with slider/condition selector, and quick preset values for common configurations.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 06355861e31cc10394539f2bcf4399473ae89931
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

@@ -82,11 +82,15 @@ public final class WidgetFactory {
     ) -> WidgetStatusItem {
         // Use the base WidgetStatusItem for all widget types
         // The base class handles different types through its widgetType property
-        // Special handling for sensors which has custom views
-        if type == .sensors {
+        // Special handling for sensors and bluetooth which have custom views
+        switch type {
+        case .sensors:
             return SensorsStatusItem(widgetType: type, configuration: configuration)
+        case .bluetooth:
+            return BluetoothStatusItem(widgetType: type, configuration: configuration)
+        default:
+            return WidgetStatusItem(widgetType: type, configuration: configuration)
         }
-        return WidgetStatusItem(widgetType: type, configuration: configuration)
     }
 
     /// Get the estimated width for a widget with the given visualization

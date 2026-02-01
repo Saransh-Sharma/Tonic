@@ -13,7 +13,19 @@ import SwiftUI
 public final class LabelStatusItem: WidgetStatusItem {
 
     public override func createCompactView() -> AnyView {
-        // TODO: Implement LabelWidgetView with configurable text
+        let dataManager = WidgetDataManager.shared
+
+        // Handle state visualization for Bluetooth
+        if widgetType == .bluetooth && configuration.visualizationType == .state {
+            return AnyView(
+                BluetoothStateView(
+                    data: dataManager.bluetoothData,
+                    configuration: configuration
+                )
+            )
+        }
+
+        // Default label display
         return AnyView(
             Text(widgetType.displayName)
                 .font(.system(size: 11))
@@ -22,7 +34,11 @@ public final class LabelStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        // TODO: Implement text/label configuration view
-        return AnyView(EmptyView())
+        switch widgetType {
+        case .bluetooth:
+            return AnyView(BluetoothDetailView())
+        default:
+            return AnyView(EmptyView())
+        }
     }
 }
