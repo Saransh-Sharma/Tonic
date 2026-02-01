@@ -645,6 +645,7 @@ public final class WidgetDataManager {
 
     public private(set) var diskVolumes: [DiskVolumeData] = []
     public private(set) var primaryDiskActivity: Bool = false
+    public private(set) var diskHistory: [Double] = []
 
     // MARK: - Network Data
 
@@ -657,14 +658,17 @@ public final class WidgetDataManager {
     // MARK: - GPU Data
 
     public private(set) var gpuData: GPUData = GPUData()
+    public private(set) var gpuHistory: [Double] = []
 
     // MARK: - Battery Data
 
     public private(set) var batteryData: BatteryData = BatteryData(isPresent: false)
+    public private(set) var batteryHistory: [Double] = []
 
     // MARK: - Sensors Data
 
     public private(set) var sensorsData: SensorsData = SensorsData()
+    public private(set) var sensorsHistory: [Double] = []
 
     // MARK: - Bluetooth Data
 
@@ -1617,11 +1621,15 @@ public final class WidgetDataManager {
 
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
-            self?.diskVolumes = volumes
-            self?.primaryDiskActivity = isActive
+            guard let self = self else { return }
+            self.diskVolumes = volumes
+            self.primaryDiskActivity = isActive
 
             // Check notification thresholds for primary volume
             if let primaryVolume = volumes.first {
+                // Track history for line charts
+                self.addToHistory(&self.diskHistory, value: primaryVolume.usagePercentage, maxPoints: Self.maxHistoryPoints)
+
                 NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
             }
         }
@@ -2554,10 +2562,14 @@ public final class WidgetDataManager {
         )
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
-            self?.gpuData = newGPUData
+            guard let self = self else { return }
+            self.gpuData = newGPUData
 
-            // Check notification thresholds
+            // Track history for line charts
             if let gpuUsage = usage {
+                self.addToHistory(&self.gpuHistory, value: gpuUsage, maxPoints: Self.maxHistoryPoints)
+
+                // Check notification thresholds
                 NotificationManager.shared.checkThreshold(widgetType: .gpu, value: gpuUsage)
             }
         }
@@ -2707,7 +2719,11 @@ public final class WidgetDataManager {
             )
             // Dispatch property updates to main thread for @Observable
             DispatchQueue.main.async { [weak self] in
-                self?.batteryData = newBatteryData
+                guard let self = self else { return }
+                self.batteryData = newBatteryData
+
+                // Track history for line charts
+                self.addToHistory(&self.batteryHistory, value: Double(capacity), maxPoints: Self.maxHistoryPoints)
 
                 // Check notification thresholds (only when not charging to avoid spam)
                 if !isCharging {
@@ -2817,10 +2833,14 @@ public final class WidgetDataManager {
         )
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
-            self?.sensorsData = newSensorsData
+            guard let self = self else { return }
+            self.sensorsData = newSensorsData
 
             // Check notification thresholds for max temperature
             if let maxTemp = newSensorsData.temperatures.map({ $0.value }).max() {
+                // Track history for line charts
+                self.addToHistory(&self.sensorsHistory, value: maxTemp, maxPoints: Self.maxHistoryPoints)
+
                 NotificationManager.shared.checkThreshold(widgetType: .sensors, value: maxTemp)
             }
         }
@@ -3266,6 +3286,26 @@ public final class WidgetDataManager {
     /// Get memory history for chart visualization
     public func getMemoryHistory() -> [Double] {
         memoryHistory
+    }
+
+    /// Get GPU history for chart visualization
+    public func getGPUHistory() -> [Double] {
+        gpuHistory
+    }
+
+    /// Get battery history for chart visualization
+    public func getBatteryHistory() -> [Double] {
+        batteryHistory
+    }
+
+    /// Get sensors history for chart visualization
+    public func getSensorsHistory() -> [Double] {
+        sensorsHistory
+    }
+
+    /// Get disk history for chart visualization
+    public func getDiskHistory() -> [Double] {
+        diskHistory
     }
 }
 
