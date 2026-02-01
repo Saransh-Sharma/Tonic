@@ -2077,7 +2077,13 @@ public final class WidgetDataManager {
         var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
         while let current = ptr {
             let interface = String(cString: current.pointee.ifa_name)
-            let addrFamily = current.pointee.ifa_addr.pointee.sa_family
+
+            // Safely unwrap ifa_addr - it can be nil for some interfaces
+            guard let ifa_addr = current.pointee.ifa_addr else {
+                ptr = current.pointee.ifa_next
+                continue
+            }
+            let addrFamily = ifa_addr.pointee.sa_family
 
             // Check for active ethernet interfaces (en0, en1, etc.)
             if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
