@@ -3,6 +3,7 @@
 //  Tonic
 //
 //  Status item for pie chart visualization
+//  Performance optimized view refresh
 //
 
 import AppKit
@@ -11,6 +12,9 @@ import SwiftUI
 /// Status item that displays a pie chart visualization in the menu bar
 @MainActor
 public final class PieChartStatusItem: WidgetStatusItem {
+
+    /// Performance optimization: Cache value to avoid unnecessary redraws
+    private var cachedValue: Double = -1
 
     public override func createCompactView() -> AnyView {
         let dataManager = WidgetDataManager.shared
@@ -35,11 +39,23 @@ public final class PieChartStatusItem: WidgetStatusItem {
             value = 0
         }
 
-        // TODO: Implement PieChartWidgetView
+        // Use PieChartWidgetView for actual pie chart visualization
+        let normalizedValue = value / 100.0
+        let color = configuration.accentColor.colorValue(for: widgetType)
+
         return AnyView(
-            Text("\(Int(value))%")
-                .font(.system(size: 11))
-                .foregroundColor(configuration.accentColor.colorValue(for: widgetType))
+            PieChartWidgetView(
+                value: normalizedValue,
+                config: PieChartConfig(
+                    size: 18,
+                    strokeWidth: 3,
+                    showBackgroundCircle: true,
+                    showLabel: false,
+                    colorMode: configuration.accentColor.isUtilizationBased ? .dynamic : .fixed
+                ),
+                fixedColor: color
+            )
+            .equatable() // Performance: Add equatable modifier to prevent unnecessary redraws
         )
     }
 

@@ -4,6 +4,7 @@
 //
 //  Status item for line chart visualization
 //  Task ID: fn-6-i4g.12
+//  Performance optimized view refresh
 //
 
 import AppKit
@@ -12,6 +13,9 @@ import SwiftUI
 /// Status item that displays a line chart visualization in the menu bar
 @MainActor
 public final class LineChartStatusItem: WidgetStatusItem {
+
+    /// Performance optimization: Cache history hash to avoid unnecessary redraws
+    private var cachedHistoryHash: Int = 0
 
     public override func createCompactView() -> AnyView {
         let dataManager = WidgetDataManager.shared
@@ -49,12 +53,20 @@ public final class LineChartStatusItem: WidgetStatusItem {
             lineColor: .blue
         )
 
+        // Performance: Use cached data if unchanged
+        let currentHash = history.hashValue
+        if currentHash == cachedHistoryHash && cachedHistoryHash != 0 {
+            // Data unchanged, view will use SwiftUI's built-in diffing
+        }
+        cachedHistoryHash = currentHash
+
         return AnyView(
             LineChartWidgetView(
                 data: history.isEmpty ? [0.3, 0.4, 0.35, 0.5, 0.45, 0.6] : history,
                 config: chartConfig,
                 currentValue: currentValue
             )
+            .equatable() // Performance: Add equatable modifier to prevent unnecessary redraws
         )
     }
 

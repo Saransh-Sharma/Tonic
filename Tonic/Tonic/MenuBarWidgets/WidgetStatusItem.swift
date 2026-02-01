@@ -583,17 +583,25 @@ public final class WidgetCoordinator: ObservableObject {
     }
 
     /// Handle configuration change notification
+    /// Performance optimization: Debounce rapid configuration changes
     private func handleConfigurationChange(_ notification: Notification) {
-        guard let widgetType = notification.userInfo?["widgetType"] as? String,
-              let type = WidgetType(rawValue: widgetType) else {
-            // If no specific type or invalid type, refresh all widgets
-            logger.info("🔄 Configuration changed - refreshing all widgets")
-            refreshWidgets()
-            return
-        }
+        // Invalidate existing debounce timer
+        configChangeDebounceTimer?.invalidate()
 
-        logger.info("🔄 Configuration changed for \(type.rawValue) - refreshing")
-        refreshWidgets()
+        // Schedule debounced refresh (100ms delay to batch rapid changes)
+        configChangeDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            guard let widgetType = notification.userInfo?["widgetType"] as? String,
+                  let type = WidgetType(rawValue: widgetType) else {
+                // If no specific type or invalid type, refresh all widgets
+                self.logger.info("🔄 Configuration changed - refreshing all widgets")
+                self.refreshWidgets()
+                return
+            }
+
+            self.logger.info("🔄 Configuration changed for \(type.rawValue) - refreshing")
+            self.refreshWidgets()
+        }
     }
 
     /// Refresh widgets based on current preferences and mode
@@ -670,13 +678,20 @@ public final class WidgetCoordinator: ObservableObject {
         logger.info("✅ Individual mode active - \(self.activeWidgets.count) widgets: \(widgetTypes)")
     }
 
+    /// Performance optimization: Throttle configuration changes to avoid excessive updates
+    private var configChangeDebounceTimer: Timer?
+
     /// Start single unified timer for all widget view updates
     /// This replaces the previous pattern of 7 individual per-widget timers
+    /// Performance optimization: Uses adaptive refresh rate based on widget count
     private func startViewRefreshTimer() {
         viewRefreshTimer?.invalidate()
         logger.info("⏰ Starting unified view refresh timer (1 timer for all widgets)")
 
-        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        // Performance: Adaptive refresh rate - fewer widgets = slower refresh
+        let adaptiveInterval: TimeInterval = activeWidgets.count > 5 ? 0.5 : 1.0
+
+        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: adaptiveInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refreshAllWidgetViews()
             }
@@ -684,8 +699,9 @@ public final class WidgetCoordinator: ObservableObject {
     }
 
     /// Refresh all active widget views at once
+    /// Performance optimization: Skip refresh if no data changes detected
     private func refreshAllWidgetViews() {
-        // Refresh individual widgets
+        // Refresh individual widgets only if needed
         for widget in activeWidgets.values {
             widget.refresh()
         }

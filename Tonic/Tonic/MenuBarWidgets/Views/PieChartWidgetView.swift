@@ -45,10 +45,17 @@ public enum PieColorMode: String, Sendable, Equatable {
 
 /// Pie chart widget for displaying percentage values
 /// Ideal for: Battery level, disk usage
-public struct PieChartWidgetView: View {
+public struct PieChartWidgetView: View, Equatable {
     private let value: Double  // 0.0 to 1.0
     private let config: PieChartConfig
     private let fixedColor: Color
+
+    // Performance: Equatable conformance for SwiftUI optimization
+    public static func == (lhs: PieChartWidgetView, rhs: PieChartWidgetView) -> Bool {
+        return abs(lhs.value - rhs.value) < 0.01 &&
+               lhs.config == rhs.config &&
+               lhs.fixedColor == rhs.fixedColor
+    }
 
     public init(
         value: Double,

@@ -139,10 +139,17 @@ public final class ChartDataBuffer: Sendable {
 
 /// Line chart widget for displaying real-time data
 /// Matches Stats Master's Line Chart functionality
-public struct LineChartWidgetView: View {
+public struct LineChartWidgetView: View, Equatable {
     private let data: [Double]
     private let config: LineChartConfig
     private let currentValue: Double?
+
+    // Performance: Equatable conformance for SwiftUI optimization
+    public static func == (lhs: LineChartWidgetView, rhs: LineChartWidgetView) -> Bool {
+        return lhs.data == rhs.data &&
+               lhs.config == rhs.config &&
+               lhs.currentValue == rhs.currentValue
+    }
 
     public init(
         data: [Double],

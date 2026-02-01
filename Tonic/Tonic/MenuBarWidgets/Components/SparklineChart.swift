@@ -25,7 +25,7 @@ struct CachedSparklinePath: Equatable {
 
 /// Mini line chart for displaying metric history
 /// Optimized to avoid recalculating paths on every render
-public struct NetworkSparklineChart: View {
+public struct NetworkSparklineChart: View, Equatable {
 
     // MARK: - Properties
 
@@ -34,6 +34,15 @@ public struct NetworkSparklineChart: View {
     let height: CGFloat
     let showArea: Bool
     let lineWidth: CGFloat
+
+    // Performance: Equatable conformance for SwiftUI optimization
+    public static func == (lhs: NetworkSparklineChart, rhs: NetworkSparklineChart) -> Bool {
+        return lhs.data == rhs.data &&
+               lhs.color == rhs.color &&
+               lhs.height == rhs.height &&
+               lhs.showArea == rhs.showArea &&
+               lhs.lineWidth == rhs.lineWidth
+    }
 
     // MARK: - State
 

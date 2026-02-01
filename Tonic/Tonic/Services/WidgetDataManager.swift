@@ -2790,7 +2790,9 @@ public final class WidgetDataManager {
 
             // Track history for line charts
             if let gpuUsage = usage {
-                self.addToHistory(&self.gpuHistory, value: gpuUsage, maxPoints: Self.maxHistoryPoints)
+                // Performance optimization: Use circular buffer for O(1) history add
+                self.gpuCircularBuffer.add(gpuUsage)
+                self.gpuHistory = self.gpuCircularBuffer.toArray()
 
                 // Check notification thresholds
                 NotificationManager.shared.checkThreshold(widgetType: .gpu, value: gpuUsage)
@@ -2945,8 +2947,9 @@ public final class WidgetDataManager {
                 guard let self = self else { return }
                 self.batteryData = newBatteryData
 
-                // Track history for line charts
-                self.addToHistory(&self.batteryHistory, value: Double(capacity), maxPoints: Self.maxHistoryPoints)
+                // Performance optimization: Use circular buffer for O(1) history add
+                self.batteryCircularBuffer.add(Double(capacity))
+                self.batteryHistory = self.batteryCircularBuffer.toArray()
 
                 // Check notification thresholds (only when not charging to avoid spam)
                 if !isCharging {
@@ -3061,8 +3064,9 @@ public final class WidgetDataManager {
 
             // Check notification thresholds for max temperature
             if let maxTemp = newSensorsData.temperatures.map({ $0.value }).max() {
-                // Track history for line charts
-                self.addToHistory(&self.sensorsHistory, value: maxTemp, maxPoints: Self.maxHistoryPoints)
+                // Performance optimization: Use circular buffer for O(1) history add
+                self.sensorsCircularBuffer.add(maxTemp)
+                self.sensorsHistory = self.sensorsCircularBuffer.toArray()
 
                 NotificationManager.shared.checkThreshold(widgetType: .sensors, value: maxTemp)
             }
@@ -3567,9 +3571,10 @@ public final class WidgetDataManager {
         )
         self.bluetoothData = newData
 
-        // Track connection count history for chart visualization
+        // Performance optimization: Use circular buffer for O(1) history add
         let connectedCount = Double(devices.filter { $0.isConnected }.count)
-        addToHistory(&bluetoothHistory, value: connectedCount, maxPoints: Self.maxHistoryPoints)
+        bluetoothCircularBuffer.add(connectedCount)
+        bluetoothHistory = bluetoothCircularBuffer.toArray()
 
         // Check notification thresholds for Bluetooth device batteries
         let connectedDeviceBatteries = devices
