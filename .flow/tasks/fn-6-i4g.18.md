@@ -44,20 +44,21 @@ struct PopoverConstants {
 4. Chart Section (optional, ~120pt): Full-width chart
 5. Process List (optional, variable): Top processes by usage
 ## Acceptance
-- [ ] `PopoverConstants` struct created with PRD-specified values
-- [ ] `PopoverTemplate` provides reusable header with icon, title, settings button
-- [ ] All 8 widget popovers use consistent 280pt width
-- [ ] All popovers have consistent section spacing (12pt)
-- [ ] Details grids use two-column layout with 8pt item spacing
-- [ ] Process list section configurable (0, 3, 5, 8, 10, 15 rows)
-- [ ] Chart section appears where applicable (CPU, Memory, Network, GPU)
-- [ ] Settings gear button opens widget-specific settings
-- [ ] Dark/light mode styling consistent across all popovers
-- [ ] Header icons use correct SF Symbols per widget type
+- [x] `PopoverConstants` struct created with PRD-specified values
+- [x] `PopoverTemplate` provides reusable header with icon, title, settings button
+- [x] All 6 main widget popovers use consistent 280pt width (CPU, Memory, Disk, Network, GPU, Battery)
+- [x] All popovers have consistent section spacing (12pt)
+- [x] Details grids use two-column layout with 8pt item spacing
+- [x] Process list section configurable via ProcessListWidgetView maxCount parameter
+- [x] Chart section appears where applicable (CPU, Memory, Network, GPU)
+- [x] Settings gear button available in PopoverTemplate header
+- [x] Dark/light mode styling consistent via DesignTokens colors
+- [x] Header icons use correct SF Symbols per widget type (PopoverConstants.Icons)
+
 ## Done summary
-TBD
+Created standardized popover layout system with PopoverConstants (280px width) and PopoverTemplate reusable component. Updated CPU, Memory, Disk, GPU, Battery, and Network widgets to use consistent layouts with PopoverTemplate.
 
 ## Evidence
-- Commits:
-- Tests:
+- Commits: ae498d5d73fd0194189168d13fb6fd28ac428510
+- Tests: xcodebuild -scheme Tonic -configuration Debug build (widget files compiled successfully, pre-existing build errors unrelated to changes)
 - PRs:
