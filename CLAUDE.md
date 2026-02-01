@@ -24,6 +24,7 @@
 | `Tonic/Tonic/Design/` | Design tokens, components, animations |
 | `Tonic/Tonic/MenuBarWidgets/` | Menu bar widget implementations |
 | `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/` | Chart-based widget status items |
+| `Tonic/Tonic/MenuBarWidgets/Popovers/` | Stats Master-style popover views |
 | `Tonic/Tonic/MenuBarWidgets/Views/` | Chart view components |
 | `Tonic/Tonic/Utilities/` | Helper utilities |
 | `TonicHelperTool/` | Privileged helper for root operations |

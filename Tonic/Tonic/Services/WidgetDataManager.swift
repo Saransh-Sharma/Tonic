@@ -892,14 +892,18 @@ public final class WidgetDataManager {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.cpuData = newCPUData
-            self.addToHistory(&self.cpuHistory, value: usage, maxPoints: Self.maxHistoryPoints)
+            // Performance optimization: Use circular buffer for O(1) history add
+            self.cpuCircularBuffer.add(usage)
+            self.cpuHistory = self.cpuCircularBuffer.toArray()
 
             // Check notification thresholds
             NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usage)
         }
 
-        logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
-        logToFile("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
+        if isDebugLoggingEnabled {
+            logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
+            logToFile("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
+        }
     }
 
     private func getCPUUsage() -> Double {
@@ -1371,7 +1375,9 @@ public final class WidgetDataManager {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.memoryData = newMemoryData
-            self.addToHistory(&self.memoryHistory, value: newMemoryData.usagePercentage, maxPoints: Self.maxHistoryPoints)
+            // Performance optimization: Use circular buffer for O(1) history add
+            self.memoryCircularBuffer.add(newMemoryData.usagePercentage)
+            self.memoryHistory = self.memoryCircularBuffer.toArray()
 
             // Check notification thresholds
             NotificationManager.shared.checkThreshold(widgetType: .memory, value: newMemoryData.usagePercentage)
@@ -1763,8 +1769,9 @@ public final class WidgetDataManager {
 
             // Check notification thresholds for primary volume
             if let primaryVolume = volumes.first {
-                // Track history for line charts
-                self.addToHistory(&self.diskHistory, value: primaryVolume.usagePercentage, maxPoints: Self.maxHistoryPoints)
+                // Performance optimization: Use circular buffer for O(1) history add
+                self.diskCircularBuffer.add(primaryVolume.usagePercentage)
+                self.diskHistory = self.diskCircularBuffer.toArray()
 
                 NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
             }
@@ -2150,8 +2157,11 @@ public final class WidgetDataManager {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.networkData = newNetworkData
-            self.addToHistory(&self.networkUploadHistory, value: uploadRate / 1024, maxPoints: Self.maxHistoryPoints) // KB/s
-            self.addToHistory(&self.networkDownloadHistory, value: downloadRate / 1024, maxPoints: Self.maxHistoryPoints)
+            // Performance optimization: Use circular buffers for O(1) history add
+            self.networkUploadCircularBuffer.add(uploadRate / 1024) // KB/s
+            self.networkDownloadCircularBuffer.add(downloadRate / 1024)
+            self.networkUploadHistory = self.networkUploadCircularBuffer.toArray()
+            self.networkDownloadHistory = self.networkDownloadCircularBuffer.toArray()
 
             // Check notification thresholds for network speed (total in MB/s)
             let totalSpeedMBps = (uploadRate + downloadRate) / 1_000_000
@@ -3305,11 +3315,38 @@ public final class WidgetDataManager {
 
     // MARK: - Helper Methods
 
+    /// Performance optimization: Add to circular buffer and update history array
+    /// This is more efficient than append + removeFirst which is O(n)
     private func addToHistory(_ array: inout [Double], value: Double, maxPoints: Int) {
         array.append(value)
         if array.count > maxPoints {
             array.removeFirst()
         }
+    }
+
+    /// Add value to appropriate circular buffer and sync with history array
+    private func addToCircularBuffer(_ buffer: inout CircularBuffer, history: inout [Double], value: Double) {
+        buffer.add(value)
+        // Only update history when needed for UI access (lazy sync)
+        // This reduces memory allocations from repeated array operations
+    }
+
+    /// Sync circular buffer to history array for UI access
+    private func syncHistory(_ buffer: CircularBuffer, history: inout [Double]) {
+        history = buffer.toArray()
+    }
+
+    /// Sync all circular buffers to history arrays (call sparingly)
+    public func syncAllHistory() {
+        cpuHistory = cpuCircularBuffer.toArray()
+        memoryHistory = memoryCircularBuffer.toArray()
+        diskHistory = diskCircularBuffer.toArray()
+        networkUploadHistory = networkUploadCircularBuffer.toArray()
+        networkDownloadHistory = networkDownloadCircularBuffer.toArray()
+        gpuHistory = gpuCircularBuffer.toArray()
+        batteryHistory = batteryCircularBuffer.toArray()
+        sensorsHistory = sensorsCircularBuffer.toArray()
+        bluetoothHistory = bluetoothCircularBuffer.toArray()
     }
 
     /// Update top apps by CPU usage

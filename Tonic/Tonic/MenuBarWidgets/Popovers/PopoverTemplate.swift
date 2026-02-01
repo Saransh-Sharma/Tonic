@@ -380,13 +380,14 @@ struct CircularProgress: View {
 // MARK: - Usage Bar
 
 /// A horizontal usage bar for percentage display
+/// Task ID: fn-6-i4g.41
 struct UsageBar: View {
 
     let percentage: Double
     let color: Color
     var height: CGFloat = 8
 
-    init(percentage: Double, color: Color, height: CGFloat = 8) {
+    init(percentage: Double, color: Color, height: CGFloat = PopoverConstants.progressBarHeight) {
         self.percentage = percentage
         self.color = color
         self.height = height
@@ -402,9 +403,208 @@ struct UsageBar: View {
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(color)
                     .frame(width: max(0, geometry.size.width * (percentage / 100)), height: height)
+                    .animation(PopoverConstants.fastAnimation, value: percentage)
             }
         }
         .frame(height: height)
+    }
+}
+
+// MARK: - Indicator Dot
+
+/// A colored indicator dot for status display
+/// Task ID: fn-6-i4g.41
+struct IndicatorDot: View {
+    let color: Color
+    var size: CGFloat = PopoverConstants.indicatorDotSize
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Icon Label Row
+
+/// A standardized row with an icon, label, and value
+/// Used throughout all popover views for consistency
+/// Task ID: fn-6-i4g.41
+struct IconLabelRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    var valueColor: Color = DesignTokens.Colors.textPrimary
+    var iconColor: Color = DesignTokens.Colors.textSecondary
+
+    var body: some View {
+        HStack(spacing: PopoverConstants.iconTextGap) {
+            Image(systemName: icon)
+                .font(.system(size: PopoverConstants.smallIconSize))
+                .foregroundColor(iconColor)
+                .frame(width: 16)
+
+            Text(label)
+                .font(PopoverConstants.smallLabelFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Spacer()
+
+            Text(value)
+                .font(PopoverConstants.smallValueFont)
+                .foregroundColor(valueColor)
+        }
+    }
+}
+
+// MARK: - Section Header
+
+/// A standardized section header for all popovers
+/// Task ID: fn-6-i4g.41
+struct SectionHeader: View {
+    let title: String
+    var icon: String?
+    var alignment: HorizontalAlignment = .leading
+
+    var body: some View {
+        HStack(spacing: PopoverConstants.iconTextGap) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: PopoverConstants.mediumIconSize))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+
+            Text(title)
+                .font(PopoverConstants.sectionTitleFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
+    }
+}
+
+// MARK: - Process Row
+
+/// A standardized row for displaying process information
+/// Used in CPU, Memory, Disk, and Battery popovers
+/// Task ID: fn-6-i4g.41
+struct ProcessRow: View {
+    let name: String
+    let icon: NSImage?
+    let value: Double
+    let color: Color
+    var showPercentage: Bool = true
+
+    var body: some View {
+        HStack(spacing: PopoverConstants.itemSpacing) {
+            // App icon
+            if let icon = icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: PopoverConstants.appIconSize, height: PopoverConstants.appIconSize)
+            } else {
+                Image(systemName: "app.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: PopoverConstants.appIconSize, height: PopoverConstants.appIconSize)
+            }
+
+            // Process name
+            Text(name)
+                .font(PopoverConstants.smallLabelFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+                .frame(width: 70, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: PopoverConstants.smallCornerRadius)
+                        .fill(Color.gray.opacity(0.15))
+
+                    RoundedRectangle(cornerRadius: PopoverConstants.smallCornerRadius)
+                        .fill(color)
+                        .frame(width: geometry.size.width * min(value / 100, 1.0))
+                        .animation(PopoverConstants.fastAnimation, value: value)
+                }
+            }
+            .frame(height: PopoverConstants.progressBarHeight)
+
+            // Percentage
+            if showPercentage {
+                Text("\(Int(value))%")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: 30, alignment: .trailing)
+            }
+        }
+    }
+}
+
+// MARK: - Empty State View
+
+/// A standardized empty state view for popovers
+/// Task ID: fn-6-i4g.41
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            if let subtitle = subtitle {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, PopoverConstants.verticalPadding)
+    }
+}
+
+// MARK: - Metric Card
+
+/// A standardized metric display with label and value
+/// Used in dashboard sections across all popovers
+/// Task ID: fn-6-i4g.41
+struct MetricCard: View {
+    let value: String
+    let label: String
+    var color: Color = DesignTokens.Colors.accent
+    var icon: String?
+
+    var body: some View {
+        VStack(spacing: PopoverConstants.compactSpacing) {
+            if let icon = icon {
+                HStack(alignment: .firstTextBaseline, spacing: PopoverConstants.compactSpacing) {
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                    Text(value)
+                        .font(PopoverConstants.mediumValueFont)
+                        .foregroundColor(color)
+                }
+            } else {
+                Text(value)
+                    .font(PopoverConstants.mediumValueFont)
+                    .foregroundColor(color)
+            }
+
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+        }
     }
 }
 
