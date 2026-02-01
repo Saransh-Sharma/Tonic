@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T18:12:42.486318Z",
+  "depends_on": [
+    "fn-6-i4g.21",
+    "fn-6-i4g.22",
+    "fn-6-i4g.23"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.24",
+  "priority": 4,
+  "spec_path": ".flow/tasks/fn-6-i4g.24.md",
+  "status": "todo",
+  "title": "Delete Dead WidgetReader Directory",
+  "updated_at": "2026-02-01T18:13:44.378093Z"
+}

@@ -128,22 +128,30 @@ Real-time metrics via IOKit:
 - GPU (Apple Silicon unified memory)
 - Battery status
 
-### 4. Reader Architecture (`ReaderProtocol.swift`)
+### 4. Reader Architecture (`WidgetReader.swift`)
 Stats Master-inspired reader pattern for modular data collection:
-- `Reader<T>` protocol: Async data fetching with lifecycle management
-- `BaseReader<T>`: Common implementation with history tracking
-- Reader types: `CPUReader`, `MemoryReader`, `DiskReader`, `NetworkReader`, `GPUReader`, `BatteryReader`, `SensorsReader`
+- `WidgetReader<T>` protocol: Async data fetching with lifecycle management
+- Reader implementations in `Services/WidgetReader/`:
+  - `CPUReader` - CPU usage with per-core data
+  - `MemoryReader` - Memory usage with pressure levels
+  - `DiskReader` - Disk usage with SMART data
+  - `NetworkReader` - Network bandwidth with WiFi/IP info
+  - `GPUReader` - GPU usage (Apple Silicon unified memory)
+  - `BatteryReader` - Battery status with health metrics
+  - `SensorsReader` - Temperature sensors via SMC
+  - `BluetoothReader` - Bluetooth device batteries via IOBluetooth
 - Features: Configurable intervals, optional readers, popup-only mode, history limits
 - Unified refresh via `WidgetRefreshScheduler` (single timer instead of per-widget timers)
 
 ### 5. Menu Bar Widgets (`WidgetCoordinator`)
 Stats Master-parity widget system with flexible visualizations:
-- **Data Sources**: CPU, Memory, Disk, Network, GPU, Battery, Weather, Sensors (8 types)
-- **Visualization Types**: mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text
+- **Data Sources**: CPU, Memory, Disk, Network, GPU, Battery, Weather, Sensors, Bluetooth (9 types)
+- **Visualization Types**: mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text, memory, battery (14 types)
 - **Display Modes**: Compact (icon+value), Detailed (adds sparkline for mini visualization)
 - **OneView Mode**: Unified menu bar item showing all widgets in a horizontal grid (toggleable)
 - **WidgetFactory**: Creates appropriate status items based on data source + visualization
 - **Notification Thresholds**: Per-widget configurable alerts via `NotificationManager`
+- **Color System**: 30+ color options including utilization-based auto-coloring
 
 ### 6. Weather (`WeatherService.swift`)
 - Uses Open-Meteo API (free, no key required)

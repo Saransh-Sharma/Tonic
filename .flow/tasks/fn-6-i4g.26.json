@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T18:12:42.675502Z",
+  "depends_on": [
+    "fn-6-i4g.24",
+    "fn-6-i4g.25"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.26",
+  "priority": 6,
+  "spec_path": ".flow/tasks/fn-6-i4g.26.md",
+  "status": "todo",
+  "title": "Complete Data Population (11 Missing Fields)",
+  "updated_at": "2026-02-01T18:14:06.288102Z"
+}

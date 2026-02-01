@@ -2006,6 +2006,10 @@ public final class WidgetDataManager {
             self.networkData = newNetworkData
             self.addToHistory(&self.networkUploadHistory, value: uploadRate / 1024, maxPoints: Self.maxHistoryPoints) // KB/s
             self.addToHistory(&self.networkDownloadHistory, value: downloadRate / 1024, maxPoints: Self.maxHistoryPoints)
+
+            // Check notification thresholds for network speed (total in MB/s)
+            let totalSpeedMBps = (uploadRate + downloadRate) / 1_000_000
+            NotificationManager.shared.checkThreshold(widgetType: .network, value: totalSpeedMBps)
         }
     }
 
@@ -3226,6 +3230,15 @@ public final class WidgetDataManager {
             do {
                 let newData = try await self.bluetoothReader.read()
                 self.bluetoothData = newData
+
+                // Check notification thresholds for Bluetooth device batteries
+                // Use the lowest connected device battery level for threshold checking
+                let connectedDeviceBatteries = newData.devicesWithBattery
+                    .filter { $0.isConnected }
+                    .compactMap { $0.primaryBatteryLevel }
+                if let lowestBattery = connectedDeviceBatteries.min() {
+                    NotificationManager.shared.checkThreshold(widgetType: .bluetooth, value: Double(lowestBattery))
+                }
             } catch {
                 // On error, keep the existing data or set to empty
                 self.logger.warning("Failed to read Bluetooth data: \(error.localizedDescription)")
