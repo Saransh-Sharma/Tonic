@@ -72,7 +72,7 @@ public struct CPUPopoverView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             // Icon
             Image(systemName: PopoverConstants.Icons.cpu)
                 .font(.title2)
@@ -89,11 +89,11 @@ public struct CPUPopoverView: View {
             Button {
                 NSWorkspace.shared.launchApplication("Activity Monitor")
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 12))
+                HStack(spacing: PopoverConstants.compactSpacing) {
+                    Image(systemName: PopoverConstants.Icons.activityMonitor)
+                        .font(.system(size: PopoverConstants.mediumIconSize))
                     Text("Activity Monitor")
-                        .font(.system(size: 11))
+                        .font(PopoverConstants.smallLabelFont)
                 }
                 .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -103,7 +103,7 @@ public struct CPUPopoverView: View {
             Button {
                 // TODO: Open settings to CPU widget configuration
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: PopoverConstants.Icons.settings)
                     .font(.body)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -116,18 +116,16 @@ public struct CPUPopoverView: View {
     // MARK: - Dashboard Section
 
     private var dashboardSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Dashboard")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Dashboard")
 
-            HStack(spacing: 20) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 // System/User/Idle pie chart
                 CPUCircularGaugeView(
                     systemUsage: dataManager.cpuData.systemUsage,
                     userUsage: dataManager.cpuData.userUsage,
                     idleUsage: dataManager.cpuData.idleUsage,
-                    size: 70
+                    size: PopoverConstants.circularGaugeSize
                 )
 
                 // Temperature gauge
@@ -153,10 +151,8 @@ public struct CPUPopoverView: View {
     // MARK: - History Chart Section
 
     private var historyChartSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Usage History")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Usage History")
 
             NetworkSparklineChart(
                 data: dataManager.cpuHistory,
@@ -172,16 +168,14 @@ public struct CPUPopoverView: View {
     // MARK: - Core Usage Section
 
     private var coreUsageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Per-Core Usage")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Per-Core Usage")
 
             CoreClusterBarView.fromCPUData(
                 eCoreUsage: dataManager.cpuData.eCoreUsage,
                 pCoreUsage: dataManager.cpuData.pCoreUsage,
-                barHeight: 8,
-                barSpacing: 4,
+                barHeight: PopoverConstants.progressBarHeight + 2,
+                barSpacing: PopoverConstants.compactSpacing,
                 showLabels: true
             )
         }
@@ -198,13 +192,10 @@ public struct CPUPopoverView: View {
     }
 
     private func detailDot(_ label: String, value: Double, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-
+        HStack(spacing: PopoverConstants.iconTextGap) {
+            IndicatorDot(color: color)
             Text("\(label): \(Int(value))%")
-                .font(.system(size: 10))
+                .font(PopoverConstants.smallLabelFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
         }
     }
@@ -212,7 +203,7 @@ public struct CPUPopoverView: View {
     // MARK: - Load Average Section
 
     private var loadAverageSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: PopoverConstants.itemSpacing) {
             loadItem("1 min", value: dataManager.cpuData.averageLoad?[safe: 0])
             loadItem("5 min", value: dataManager.cpuData.averageLoad?[safe: 1])
             loadItem("15 min", value: dataManager.cpuData.averageLoad?[safe: 2])
@@ -220,13 +211,13 @@ public struct CPUPopoverView: View {
     }
 
     private func loadItem(_ label: String, value: Double?) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: PopoverConstants.compactSpacing) {
             Text(label)
                 .font(.system(size: 9))
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(String(format: "%.2f", value ?? 0))
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(PopoverConstants.smallValueFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
         }
         .frame(maxWidth: .infinity)
@@ -235,68 +226,26 @@ public struct CPUPopoverView: View {
     // MARK: - Top Processes Section
 
     private var topProcessesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Top Processes")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Top Processes")
 
             if dataManager.topCPUApps.isEmpty {
-                Text("No process data available")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
+                EmptyStateView(
+                    icon: "app.dashed",
+                    title: "No process data available"
+                )
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: PopoverConstants.compactSpacing) {
                     ForEach(dataManager.topCPUApps.prefix(5)) { process in
-                        processBar(process)
+                        ProcessRow(
+                            name: process.name,
+                            icon: process.icon,
+                            value: process.cpuUsage,
+                            color: DesignTokens.Colors.accent
+                        )
                     }
                 }
             }
-        }
-    }
-
-    private func processBar(_ process: AppResourceUsage) -> some View {
-        HStack(spacing: 8) {
-            // App icon if available
-            if let icon = process.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 14, height: 14)
-            } else {
-                Image(systemName: "app.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 14, height: 14)
-            }
-
-            // Process name
-            Text(process.name)
-                .font(.system(size: 10))
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 70, alignment: .leading)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.gray.opacity(0.15))
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(DesignTokens.Colors.accent)
-                        .frame(width: geometry.size.width * min(process.cpuUsage / 100, 1.0))
-                        .animation(.easeInOut(duration: 0.2), value: process.cpuUsage)
-                }
-            }
-            .frame(height: 6)
-
-            // Percentage
-            Text("\(Int(process.cpuUsage))%")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-                .frame(width: 30, alignment: .trailing)
         }
     }
 }

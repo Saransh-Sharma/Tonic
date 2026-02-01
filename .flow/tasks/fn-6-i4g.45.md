@@ -135,16 +135,13 @@ When enabled:
 - [ ] Works in dark mode
 - [ ] Proper padding and spacing match Stats Master
 
-## Done Summary
-
-Created reusable HeaderView component for widget popovers. Features icon, title, Activity Monitor toggle, and Settings button matching Stats Master's header design.
+## Done summary
+Created reusable HeaderView component for widget popovers matching Stats Master's header design with icon, title, Activity Monitor toggle, and Settings button.
 
 ## Evidence
-
-- Commits:
-- Tests:
+- Commits: d3c02baa34c480e2540e170d8831199fdd6e5363
+- Tests: xcodebuild -project /Users/saransh1337/Developer/Projects/TONIC/Tonic/Tonic.xcodeproj -scheme Tonic -configuration Debug -destination 'platform=macOS' build
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Kit/module/popup.swift`

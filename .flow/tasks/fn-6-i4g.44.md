@@ -119,16 +119,12 @@ class PopupWindow: NSWindow {
 
 If PopupWindow is too complex, Tonic can continue using NSPopover (current approach). The key parity is in the **content**, not the window type.
 
-## Done Summary
-
-Created PopupWindow NSWindow subclass with drag behavior, matching Stats Master's popup window implementation. Optional - NSPopover can continue to be used if preferred.
-
+## Done summary
+- Task completed
 ## Evidence
-
 - Commits:
 - Tests:
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Kit/module/popup.swift`

@@ -230,8 +230,27 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 
 ### Styling Conventions
 - Use `DesignTokens` instead of hardcoded values
+- Use `PopoverConstants` for popover-specific spacing and typography
 - Prefer `DesignComponents` (Card, PrimaryButton) over raw views
 - Apply animations from `DesignAnimations` for consistency
+- Use reusable popover components from `PopoverTemplate.swift` (ProcessRow, IconLabelRow, SectionHeader, etc.)
+
+### Popover Design System (Stats Master Parity)
+Located in `Tonic/Tonic/MenuBarWidgets/Popovers/`:
+- **PopoverConstants.swift**: Standardized spacing, typography, and sizes for all widget popovers
+  - Uses `DesignTokens` 8-point grid system for consistency
+  - Provides color helpers (percentageColor, temperatureColor, batteryColor)
+  - Animation timings (fast, normal, slow)
+- **PopoverTemplate.swift**: Reusable components for consistent popover UI
+  - `PopoverTemplate`: Standard template with header, content, action button
+  - `PopoverSection` / `TitledPopoverSection`: Section containers
+  - `PopoverDetailRow` / `PopoverDetailGrid`: Key-value displays
+  - `ProcessRow`: Standardized process list row
+  - `IconLabelRow`: Icon + label + value row
+  - `SectionHeader`: Section title with optional icon
+  - `EmptyStateView`: Empty state placeholder
+  - `MetricCard`: Metric display with label
+  - `CircularProgress`, `UsageBar`, `MetricDisplay`: Visual components
 
 ## Common Tasks
 

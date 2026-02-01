@@ -60,7 +60,7 @@ public struct GPUPopoverView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             // Icon
             Image(systemName: PopoverConstants.Icons.gpu)
                 .font(.title2)
@@ -77,11 +77,11 @@ public struct GPUPopoverView: View {
             Button {
                 NSWorkspace.shared.launchApplication("Activity Monitor")
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 12))
+                HStack(spacing: PopoverConstants.compactSpacing) {
+                    Image(systemName: PopoverConstants.Icons.activityMonitor)
+                        .font(.system(size: PopoverConstants.mediumIconSize))
                     Text("Activity Monitor")
-                        .font(.system(size: 11))
+                        .font(PopoverConstants.smallLabelFont)
                 }
                 .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -91,7 +91,7 @@ public struct GPUPopoverView: View {
             Button {
                 // TODO: Open settings to GPU widget configuration
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: PopoverConstants.Icons.settings)
                     .font(.body)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -114,12 +114,10 @@ public struct GPUPopoverView: View {
     // MARK: - Dashboard Section
 
     private var dashboardSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Dashboard")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Dashboard")
 
-            HStack(spacing: 20) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 // GPU usage gauge
                 gpuUsageGauge
 
@@ -143,12 +141,12 @@ public struct GPUPopoverView: View {
     }
 
     private var gpuUsageGauge: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: PopoverConstants.compactSpacing) {
             ZStack {
                 // Background circle
                 Circle()
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.2), lineWidth: 10)
-                    .frame(width: 70, height: 70)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.2), lineWidth: PopoverConstants.circularGaugeLineWidth)
+                    .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
 
                 // Fill circle
                 if let usage = dataManager.gpuData.usagePercentage {
@@ -156,11 +154,11 @@ public struct GPUPopoverView: View {
                         .trim(from: 0, to: usage / 100)
                         .stroke(
                             gpuUsageColor(usage).gradient,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                            style: StrokeStyle(lineWidth: PopoverConstants.circularGaugeLineWidth, lineCap: .round)
                         )
-                        .frame(width: 70, height: 70)
+                        .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
                         .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.3), value: usage)
+                        .animation(PopoverConstants.fastAnimation, value: usage)
 
                     // Center text
                     VStack(spacing: 0) {
@@ -184,7 +182,7 @@ public struct GPUPopoverView: View {
                     }
                 }
             }
-            .frame(width: 70, height: 70)
+            .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
 
             Text("GPU Utilization")
                 .font(.system(size: 9))
@@ -193,23 +191,23 @@ public struct GPUPopoverView: View {
     }
 
     private func memoryGauge(_ percentage: Double) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: PopoverConstants.compactSpacing) {
             ZStack {
                 // Background circle
                 Circle()
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.2), lineWidth: 10)
-                    .frame(width: 70, height: 70)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.2), lineWidth: PopoverConstants.circularGaugeLineWidth)
+                    .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
 
                 // Fill circle
                 Circle()
                     .trim(from: 0, to: percentage / 100)
                     .stroke(
                         Color.purple.gradient,
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        style: StrokeStyle(lineWidth: PopoverConstants.circularGaugeLineWidth, lineCap: .round)
                     )
-                    .frame(width: 70, height: 70)
+                    .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.3), value: percentage)
+                    .animation(PopoverConstants.fastAnimation, value: percentage)
 
                 // Center text
                 VStack(spacing: 0) {
@@ -222,7 +220,7 @@ public struct GPUPopoverView: View {
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
             }
-            .frame(width: 70, height: 70)
+            .frame(width: PopoverConstants.circularGaugeSize, height: PopoverConstants.circularGaugeSize)
 
             Text("GPU Memory")
                 .font(.system(size: 9))
@@ -233,10 +231,8 @@ public struct GPUPopoverView: View {
     // MARK: - History Chart Section
 
     private var historyChartSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Usage History")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Usage History")
 
             NetworkSparklineChart(
                 data: dataManager.gpuHistory,
@@ -252,29 +248,27 @@ public struct GPUPopoverView: View {
     // MARK: - Details Section
 
     private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Details")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.sectionSpacing) {
+            PopoverSectionHeader(title: "Details")
 
             // GPU Info Grid
-            VStack(spacing: 8) {
+            VStack(spacing: PopoverConstants.itemSpacing) {
                 // GPU Type
                 #if arch(arm64)
-                detailRow(
+                IconLabelRow(
                     icon: "video.bubble.left.fill",
                     label: "GPU Type",
                     value: "Apple Silicon"
                 )
 
-                detailRow(
+                IconLabelRow(
                     icon: "memorychip.fill",
                     label: "Memory Type",
                     value: "Unified Memory"
                 )
                 #else
                 if let usage = dataManager.gpuData.usagePercentage {
-                    detailRow(
+                    IconLabelRow(
                         icon: "video.bubble.left.fill",
                         label: "GPU Usage",
                         value: "\(Int(usage))%"
@@ -284,7 +278,7 @@ public struct GPUPopoverView: View {
 
                 // Temperature
                 if let temperature = dataManager.gpuData.temperature {
-                    detailRow(
+                    IconLabelRow(
                         icon: "thermometer",
                         label: "Temperature",
                         value: "\(Int(temperature))°C",
@@ -295,13 +289,13 @@ public struct GPUPopoverView: View {
                 // Memory Usage
                 if let used = dataManager.gpuData.usedMemory,
                    let total = dataManager.gpuData.totalMemory {
-                    detailRow(
+                    IconLabelRow(
                         icon: "memorychip.fill",
                         label: "Memory Used",
                         value: formatBytes(used)
                     )
 
-                    detailRow(
+                    IconLabelRow(
                         icon: "externaldrive.fill",
                         label: "Memory Total",
                         value: formatBytes(total)
@@ -311,9 +305,9 @@ public struct GPUPopoverView: View {
 
             // Platform note
             #if arch(arm64)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: PopoverConstants.compactSpacing) {
                 HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
+                    Image(systemName: PopoverConstants.Icons.info)
                         .font(.system(size: 10))
                         .foregroundColor(DesignTokens.Colors.textTertiary)
 
@@ -326,33 +320,9 @@ public struct GPUPopoverView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(6)
+                .cornerRadius(PopoverConstants.smallCornerRadius)
             }
             #endif
-        }
-    }
-
-    private func detailRow(
-        icon: String,
-        label: String,
-        value: String,
-        valueColor: Color = DesignTokens.Colors.textPrimary
-    ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-                .frame(width: 16)
-
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-
-            Spacer()
-
-            Text(value)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(valueColor)
         }
     }
 

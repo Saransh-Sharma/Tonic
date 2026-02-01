@@ -461,7 +461,7 @@ struct IconLabelRow: View {
 
 /// A standardized section header for all popovers
 /// Task ID: fn-6-i4g.41
-struct SectionHeader: View {
+struct PopoverSectionHeader: View {
     let title: String
     var icon: String?
     var alignment: HorizontalAlignment = .leading

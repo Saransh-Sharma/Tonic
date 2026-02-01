@@ -51,7 +51,7 @@ public final class PieChartStatusItem: WidgetStatusItem {
                     strokeWidth: 3,
                     showBackgroundCircle: true,
                     showLabel: false,
-                    colorMode: configuration.accentColor.isUtilizationBased ? .dynamic : .fixed
+                    colorMode: configuration.accentColor == .utilization ? .dynamic : .fixed
                 ),
                 fixedColor: color
             )

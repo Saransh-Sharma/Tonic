@@ -104,7 +104,7 @@ public struct DiskPopoverView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             // Icon
             Image(systemName: PopoverConstants.Icons.disk)
                 .font(.title2)
@@ -121,11 +121,11 @@ public struct DiskPopoverView: View {
             Button {
                 NSWorkspace.shared.launchApplication("Activity Monitor")
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.system(size: 12))
+                HStack(spacing: PopoverConstants.compactSpacing) {
+                    Image(systemName: PopoverConstants.Icons.activityMonitor)
+                        .font(.system(size: PopoverConstants.mediumIconSize))
                     Text("Activity Monitor")
-                        .font(.system(size: 11))
+                        .font(PopoverConstants.smallLabelFont)
                 }
                 .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -135,7 +135,7 @@ public struct DiskPopoverView: View {
             Button {
                 // TODO: Open settings to Disk widget configuration
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: PopoverConstants.Icons.settings)
                     .font(.body)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -148,10 +148,8 @@ public struct DiskPopoverView: View {
     // MARK: - Volume Selector Section
 
     private var volumeSelectorSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Select Volume")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Select Volume")
 
             Picker("Volume", selection: $selectedVolume) {
                 ForEach(dataManager.diskVolumes) { volume in
@@ -165,10 +163,8 @@ public struct DiskPopoverView: View {
     // MARK: - Usage Summary Section
 
     private var usageSummarySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Storage Usage")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Storage Usage")
 
             HStack(spacing: 16) {
                 // Donut chart for used/free

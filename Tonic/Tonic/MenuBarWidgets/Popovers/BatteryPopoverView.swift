@@ -72,7 +72,7 @@ public struct BatteryPopoverView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             // Icon
             Image(systemName: PopoverConstants.Icons.battery)
                 .font(.title2)
@@ -96,7 +96,7 @@ public struct BatteryPopoverView: View {
             Button {
                 // TODO: Open settings to Battery widget configuration
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: PopoverConstants.Icons.settings)
                     .font(.body)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -109,10 +109,8 @@ public struct BatteryPopoverView: View {
     // MARK: - History Chart Section
 
     private var historyChartSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Charge History")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Charge History")
 
             NetworkSparklineChart(
                 data: dataManager.batteryHistory,
@@ -128,12 +126,10 @@ public struct BatteryPopoverView: View {
     // MARK: - Dashboard Section
 
     private var dashboardSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Dashboard")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Dashboard")
 
-            HStack(spacing: 20) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 // Battery visual
                 batteryVisualView
                     .frame(maxWidth: .infinity)
@@ -179,12 +175,10 @@ public struct BatteryPopoverView: View {
     // MARK: - Details Section
 
     private var detailsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Details")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Details")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.compactSpacing) {
                 detailRow(label: "Level", value: "\(Int(dataManager.batteryData.chargePercentage))%")
 
                 detailRow(label: "Source", value: sourceText)
@@ -231,12 +225,10 @@ public struct BatteryPopoverView: View {
     // MARK: - Battery Info Section
 
     private var batteryInfoSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Battery")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Battery")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.compactSpacing) {
                 // Health
                 detailRow(label: "Health", value: healthText)
                     .overlay(
@@ -272,12 +264,10 @@ public struct BatteryPopoverView: View {
     // MARK: - Power Adapter Section
 
     private var powerAdapterSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Power Adapter")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Power Adapter")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.compactSpacing) {
                 // Is charging
                 detailRow(label: "Is charging", value: dataManager.batteryData.isCharging ? "Yes" : "No")
 
@@ -294,68 +284,26 @@ public struct BatteryPopoverView: View {
     // MARK: - Top Processes Section
 
     private var topProcessesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Top Processes")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Top Processes")
 
             if dataManager.topCPUApps.isEmpty {
-                Text("No process data available")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
+                EmptyStateView(
+                    icon: "app.dashed",
+                    title: "No process data available"
+                )
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: PopoverConstants.compactSpacing) {
                     ForEach(dataManager.topCPUApps.prefix(5)) { process in
-                        processBar(process)
+                        ProcessRow(
+                            name: process.name,
+                            icon: process.icon,
+                            value: process.cpuUsage,
+                            color: batteryColor
+                        )
                     }
                 }
             }
-        }
-    }
-
-    private func processBar(_ process: AppResourceUsage) -> some View {
-        HStack(spacing: 8) {
-            // App icon if available
-            if let icon = process.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 14, height: 14)
-            } else {
-                Image(systemName: "app.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 14, height: 14)
-            }
-
-            // Process name
-            Text(process.name)
-                .font(.system(size: 10))
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 70, alignment: .leading)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.gray.opacity(0.15))
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(batteryColor)
-                        .frame(width: geometry.size.width * min(process.cpuUsage / 100, 1.0))
-                        .animation(.easeInOut(duration: 0.2), value: process.cpuUsage)
-                }
-            }
-            .frame(height: 6)
-
-            // CPU usage as proxy for energy impact
-            Text("\(Int(process.cpuUsage))%")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-                .frame(width: 30, alignment: .trailing)
         }
     }
 
@@ -368,7 +316,7 @@ public struct BatteryPopoverView: View {
             .padding(.vertical, 2)
             .background(healthColor.opacity(0.2))
             .foregroundColor(healthColor)
-            .cornerRadius(4)
+            .cornerRadius(PopoverConstants.smallCornerRadius)
     }
 
     // MARK: - Computed Properties

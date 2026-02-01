@@ -54,7 +54,7 @@ public struct BluetoothPopoverView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             // Icon
             Image(systemName: PopoverConstants.Icons.bluetooth)
                 .font(.title2)
@@ -68,9 +68,7 @@ public struct BluetoothPopoverView: View {
             Spacer()
 
             // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+            IndicatorDot(color: statusColor)
 
             Text(statusText)
                 .font(.system(size: 11))
@@ -80,7 +78,7 @@ public struct BluetoothPopoverView: View {
             Button {
                 // TODO: Open settings to Bluetooth widget configuration
             } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: PopoverConstants.Icons.settings)
                     .font(.body)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
@@ -93,11 +91,11 @@ public struct BluetoothPopoverView: View {
     // MARK: - Status Section
 
     private var statusSection: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: DesignTokens.Spacing.sm) {
             // Connection count metric
-            VStack(spacing: 4) {
+            VStack(spacing: PopoverConstants.compactSpacing) {
                 Text("\(dataManager.bluetoothData.connectedDevices.count)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(PopoverConstants.largeMetricFont)
                     .foregroundColor(statusColor)
 
                 Text("Connected")
@@ -108,9 +106,9 @@ public struct BluetoothPopoverView: View {
 
             // Devices with battery metric
             let devicesWithBattery = dataManager.bluetoothData.devicesWithBattery.count
-            VStack(spacing: 4) {
+            VStack(spacing: PopoverConstants.compactSpacing) {
                 Text("\(devicesWithBattery)")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(PopoverConstants.largeMetricFont)
                     .foregroundColor(DesignTokens.Colors.accent)
 
                 Text("With Battery")
@@ -124,10 +122,8 @@ public struct BluetoothPopoverView: View {
     // MARK: - History Chart Section
 
     private var historyChartSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Connection History")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Connection History")
 
             NetworkSparklineChart(
                 data: dataManager.bluetoothHistory,
@@ -142,10 +138,8 @@ public struct BluetoothPopoverView: View {
     // MARK: - Devices Section
 
     private var devicesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Devices")
-                .font(PopoverConstants.sectionTitleFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Devices")
 
             if dataManager.bluetoothData.connectedDevices.isEmpty {
                 emptyDevicesView
@@ -160,21 +154,14 @@ public struct BluetoothPopoverView: View {
     }
 
     private var emptyDevicesView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "bluetooth.slash")
-                .font(.title2)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-
-            Text(emptyStateText)
-                .font(.caption)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        EmptyStateView(
+            icon: "bluetooth.slash",
+            title: emptyStateText
+        )
     }
 
     private func deviceCard(device: BluetoothDevice) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: PopoverConstants.itemSpacing) {
             // Device icon
             Image(systemName: device.deviceType.icon)
                 .font(.system(size: 18))
@@ -212,7 +199,7 @@ public struct BluetoothPopoverView: View {
     }
 
     private func batteryIndicator(percentage: Int) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: PopoverConstants.iconTextGap) {
             Image(systemName: batteryIcon(percentage))
                 .font(.system(size: 10))
                 .foregroundColor(batteryColor(percentage))
