@@ -225,7 +225,7 @@ public struct SensorsPopoverView: View {
 
                         RoundedRectangle(cornerRadius: 2)
                             .fill(temperatureColor(sensor.value))
-                            .frame(width: geometry.size.width * min(max(0, (sensor.value - min) / (max - min)), 1.0))
+                            .frame(width: geometry.size.width * Swift.min(max(0, (sensor.value - min) / (max - min)), 1.0))
                             .animation(.easeInOut(duration: 0.3), value: sensor.value)
                     }
                 }
@@ -239,7 +239,7 @@ public struct SensorsPopoverView: View {
 
                         RoundedRectangle(cornerRadius: 2)
                             .fill(temperatureColor(sensor.value))
-                            .frame(width: geometry.size.width * min(max(0, sensor.value / 100), 1.0))
+                            .frame(width: geometry.size.width * Swift.min(max(0, sensor.value / 100), 1.0))
                             .animation(.easeInOut(duration: 0.3), value: sensor.value)
                     }
                 }

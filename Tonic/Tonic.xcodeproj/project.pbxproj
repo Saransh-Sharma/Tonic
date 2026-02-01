@@ -80,6 +80,7 @@
 		5A5357C5DE883541B06DB918 /* SparklineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3C46DE36E32036010CE574 /* SparklineChart.swift */; };
 		5D87A6784172ABADB39EDCD7 /* LicenseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D372BD89A8AC64B240F58 /* LicenseManager.swift */; };
 		5F8426996E1A479F3C00002F /* SmartScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F90111EDC83E0217304F9A /* SmartScanView.swift */; };
+		6173D7B01EADE5064A9A9950 /* BluetoothPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E882569213F90767E8CC0BD0 /* BluetoothPopoverView.swift */; };
 		62B6ED547B0CB62A916C1559 /* ResetConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D629B4457B28B9F504D3144E /* ResetConfirmationSheet.swift */; };
 		68CE6DA4DB72D51D1ADDF4F0 /* ServiceErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55EFB8ED26CFD9ADD2D07353 /* ServiceErrorHandler.swift */; };
 		6B41406F9A11868D68B59158 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70C1EEE8128FD748F1C45AB /* NotificationSettingsView.swift */; };
@@ -103,6 +104,8 @@
 		7DABA0E8E8F4772AFFC32DA9 /* SMCReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1BBE2ADA7581875AA3A4EE /* SMCReader.swift */; };
 		82C66E15501D4F6E1EF685EB /* WeatherWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3FA5B76AF6B2BDAA7F529DE /* WeatherWidgetView.swift */; };
 		839D92296CB7CA0D327C0DCF /* PieChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35F8544B1103EE972A3D2FF2 /* PieChartStatusItem.swift */; };
+		83F85D34CC54126ECFA923BB /* SensorsPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2D6DF08B47DD483CCD9890 /* SensorsPopoverView.swift */; };
+		84221AE2DDDCBEA09AB73DB8 /* BatteryPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D966DAF064A9BB7C9F5BB0A /* BatteryPopoverView.swift */; };
 		84E7DBC7CD96AAFB24E40E4C /* BatteryVisualizationStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E9D2A958CFFE464A9E74473 /* BatteryVisualizationStatusItem.swift */; };
 		853FDDFA6D5C529DF3E74E0A /* WiFiMetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9478C2E04B1AA8580B97E2EE /* WiFiMetricsService.swift */; };
 		85CA98ECEFF7066DAB9637DE /* DesignTokensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBFF103C901BA7B56CCA325 /* DesignTokensTests.swift */; };
@@ -127,6 +130,7 @@
 		A5E9C4CA97751505A675C381 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2793C3B16B46521FFAD7A49E /* ErrorView.swift */; };
 		A662D6C6A7564C9398429D0F /* MemoryProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B75BECBC1CDCCE5EDA88FA1 /* MemoryProfileTests.swift */; };
 		A8D1141E3AEE2B4D75A93B75 /* OutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8B2535D04217204DFB105E /* OutlineView.swift */; };
+		A9221A5AB53D243BAB71E900 /* DiskPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B6CA1BB27DD9A58DD08E4D /* DiskPopoverView.swift */; };
 		ACA5EA64921EAB238E9B39F8 /* TachometerWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D51595053920D7D6CFBE165F /* TachometerWidgetView.swift */; };
 		AF5516D7D54D4A8AAC2B059B /* MemoryVisualizationStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900C6BA43F13C644BFC3276B /* MemoryVisualizationStatusItem.swift */; };
 		B001C6E6599F57C868BAFD94 /* LoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3744CDA648BED15C2DCE940C /* LoginItem.swift */; };
@@ -163,6 +167,7 @@
 		D65BC5DA244C8B41528A0BA1 /* StackStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58B75A69CAA0CB20B8E97AC /* StackStatusItem.swift */; };
 		D896763B4F1EB53078D2FBDB /* WidgetColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38BCE5E4FF1CA33C25A7D8EE /* WidgetColors.swift */; };
 		D8D22D0D6E470A57D24B3BA8 /* InterferenceScanResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0644BE3FD9C6E491D365D1 /* InterferenceScanResultsView.swift */; };
+		D91CD9BB07FE5D26011BD93A /* GPUPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F58578D4D646EE427029EBD /* GPUPopoverView.swift */; };
 		DD6A8537BD4BE7D1B53CD77E /* WidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603DE5F764EDC1D8DBFA7D17 /* WidgetDataManager.swift */; };
 		E2CD7EAB16F1DBE33DFCBABA /* LabelWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CA1FFBDF104FE7F73DA4C5 /* LabelWidgetView.swift */; };
 		E322470D3A958F815E2F8FE5 /* BarChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2399186CE3F16CBEFFE6A2A /* BarChartWidgetView.swift */; };
@@ -228,6 +233,7 @@
 		29880206031BF4131E0CAD95 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		2D78B8C9BDFD96B7C93C669C /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
 		2E9D2A958CFFE464A9E74473 /* BatteryVisualizationStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryVisualizationStatusItem.swift; sourceTree = "<group>"; };
+		2F58578D4D646EE427029EBD /* GPUPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUPopoverView.swift; sourceTree = "<group>"; };
 		2FAEE458280DBCEE1369F8A2 /* ProtectedApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedApps.swift; sourceTree = "<group>"; };
 		30B8E5D8772F748896B90BE6 /* DetailedStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatsView.swift; sourceTree = "<group>"; };
 		322ADC71AE1B1026FD7E0DDF /* NetworkQualityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkQualityService.swift; sourceTree = "<group>"; };
@@ -252,6 +258,7 @@
 		482A3EE429FF014DC82F6862 /* DashboardViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewTests.swift; sourceTree = "<group>"; };
 		48F59E5EF6F0130E3C918DE9 /* PrivilegedHelperManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedHelperManager.swift; sourceTree = "<group>"; };
 		4BD7425D72566449BF7E9435 /* WidgetFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFactory.swift; sourceTree = "<group>"; };
+		4D966DAF064A9BB7C9F5BB0A /* BatteryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryPopoverView.swift; sourceTree = "<group>"; };
 		517CD055EB19B91E8DA8C2E7 /* TonicColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicColors.swift; sourceTree = "<group>"; };
 		52A8550B367976B3F86108DF /* HalfCircleGaugeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HalfCircleGaugeView.swift; sourceTree = "<group>"; };
 		52BE85D0A24EE4203135EE9B /* SpeedTestButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestButton.swift; sourceTree = "<group>"; };
@@ -324,6 +331,7 @@
 		A6E816819488BA62BADA45FA /* CoreClusterBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreClusterBarView.swift; sourceTree = "<group>"; };
 		A8303DABE1FD859FB176CBD3 /* WeatherData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherData.swift; sourceTree = "<group>"; };
 		AD2B64BE65F10FE61E5D1F57 /* .gitignore */ = {isa = PBXFileReference; path = .gitignore; sourceTree = "<group>"; };
+		AE2D6DF08B47DD483CCD9890 /* SensorsPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorsPopoverView.swift; sourceTree = "<group>"; };
 		AF08CB12406CFE65EFF93A10 /* DNSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNSService.swift; sourceTree = "<group>"; };
 		AF5A72D1ADB2EF3D5B30C95D /* MaintenanceViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceViewTests.swift; sourceTree = "<group>"; };
 		B20510DFA8C765B38FCAFFD4 /* WiFiInterferenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiInterferenceService.swift; sourceTree = "<group>"; };
@@ -359,6 +367,7 @@
 		D7FF1775480BCD658C46C051 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D93D1B8E09E5991FE9ECC72E /* SystemOptimization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemOptimization.swift; sourceTree = "<group>"; };
 		D99925BE6D826C615C505068 /* PrivilegedHelperProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivilegedHelperProtocol.swift; sourceTree = "<group>"; };
+		D9B6CA1BB27DD9A58DD08E4D /* DiskPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskPopoverView.swift; sourceTree = "<group>"; };
 		DA0644BE3FD9C6E491D365D1 /* InterferenceScanResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterferenceScanResultsView.swift; sourceTree = "<group>"; };
 		DA424C7EEBE876024AD83192 /* NotificationRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRule.swift; sourceTree = "<group>"; };
 		DA84C0E1C7CD1403EB78B1F3 /* WidgetStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusItem.swift; sourceTree = "<group>"; };
@@ -372,6 +381,7 @@
 		E3A4068759566893D1F1BFD3 /* NotificationRuleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRuleEngine.swift; sourceTree = "<group>"; };
 		E44E0F944ACEEA1BE2B9BB79 /* XCTestCase+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "XCTestCase+Helpers.swift"; sourceTree = "<group>"; };
 		E70C1EEE8128FD748F1C45AB /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		E882569213F90767E8CC0BD0 /* BluetoothPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothPopoverView.swift; sourceTree = "<group>"; };
 		EC488A30C81B395210D45C39 /* WidgetCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCustomizationView.swift; sourceTree = "<group>"; };
 		ECD031C35E16CD799FB9C0D2 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		F51826D1DA4E9510FF0B8422 /* NetworkAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkAnimations.swift; sourceTree = "<group>"; };
@@ -695,9 +705,14 @@
 		AABB8146F8276BA95C97011A /* Popovers */ = {
 			isa = PBXGroup;
 			children = (
+				4D966DAF064A9BB7C9F5BB0A /* BatteryPopoverView.swift */,
+				E882569213F90767E8CC0BD0 /* BluetoothPopoverView.swift */,
 				78FD590EFB03F0A06CCF71A3 /* CPUPopoverView.swift */,
+				D9B6CA1BB27DD9A58DD08E4D /* DiskPopoverView.swift */,
+				2F58578D4D646EE427029EBD /* GPUPopoverView.swift */,
 				2269648F4CF95653EC043FB1 /* PopoverConstants.swift */,
 				FB95628FDF7E89061E52192B /* PopoverTemplate.swift */,
+				AE2D6DF08B47DD483CCD9890 /* SensorsPopoverView.swift */,
 			);
 			path = Popovers;
 			sourceTree = "<group>";
@@ -791,18 +806,18 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_258EBA0D-C6DC-4C64-A48C-8176403B2B4F" /* Sources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Sources;
-			sourceTree = "<group>";
-		};
-		"TEMP_F4888603-D3F7-406E-82C4-386F6E29FB15" /* Tonic */ = {
+		"TEMP_7391C03F-D8C2-4B17-B040-B13E54AEA8AE" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Tonic;
+			sourceTree = "<group>";
+		};
+		"TEMP_C698D5BF-DB66-4962-924E-57C7B03B45F7" /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -909,8 +924,10 @@
 				E322470D3A958F815E2F8FE5 /* BarChartWidgetView.swift in Sources */,
 				24895C64160B47CBCF302418 /* BatteryDetailsStatusItem.swift in Sources */,
 				D3A7379BD0C0AA58EE2DC3E3 /* BatteryDetailsWidgetView.swift in Sources */,
+				84221AE2DDDCBEA09AB73DB8 /* BatteryPopoverView.swift in Sources */,
 				84E7DBC7CD96AAFB24E40E4C /* BatteryVisualizationStatusItem.swift in Sources */,
 				2F96A44B55797F892B8AEC40 /* BatteryWidgetView.swift in Sources */,
+				6173D7B01EADE5064A9A9950 /* BluetoothPopoverView.swift in Sources */,
 				B9CEBD307395FC5752981CDB /* BluetoothStatusItem.swift in Sources */,
 				9C144FF9933A58349C1338BF /* CPUPopoverView.swift in Sources */,
 				52187F9C34A5856BFA1F4392 /* CPUWidgetView.swift in Sources */,
@@ -936,6 +953,7 @@
 				BEDB776E7152AADF0D351688 /* DiskAnalysisModels.swift in Sources */,
 				B3DDDC8E829C92AD3E5074CA /* DiskAnalysisView.swift in Sources */,
 				3A277E4F444A061EBAE90A2C /* DiskMapView.swift in Sources */,
+				A9221A5AB53D243BAB71E900 /* DiskPopoverView.swift in Sources */,
 				6C68AD3252BB9E9BF1A644C2 /* DiskSMARTData.swift in Sources */,
 				31292F58662A4F440A8C284A /* DiskScanner.swift in Sources */,
 				18AE91A4E839245A61F5CA42 /* DiskWidgetView.swift in Sources */,
@@ -944,6 +962,7 @@
 				A5E9C4CA97751505A675C381 /* ErrorView.swift in Sources */,
 				3120057A54D88CB501FEB0C2 /* FeedbackService.swift in Sources */,
 				A3232CF53BF501ABE860E3A9 /* FileOperations.swift in Sources */,
+				D91CD9BB07FE5D26011BD93A /* GPUPopoverView.swift in Sources */,
 				E61FEF7AA4AA10ACA6BD6DB1 /* GPUWidgetView.swift in Sources */,
 				8C309EA15378E6BA94D3C640 /* GaugeSegment.swift in Sources */,
 				72CB352CBFEA9B06450751C5 /* GeneralPreferencesSection.swift in Sources */,
@@ -1012,6 +1031,7 @@
 				F4728FD6A18F872976D60C71 /* ScanCategoryScanner.swift in Sources */,
 				CA1A4786FC14B14CCDF78B3A /* ScanResult.swift in Sources */,
 				A36DF9ADDC98F063C1925E53 /* SensorsData.swift in Sources */,
+				83F85D34CC54126ECFA923BB /* SensorsPopoverView.swift in Sources */,
 				6C9460B8F8C1C4BF98CD7E5B /* SensorsStatusItem.swift in Sources */,
 				68CE6DA4DB72D51D1ADDF4F0 /* ServiceErrorHandler.swift in Sources */,
 				1BE0388C63517F954E89FD81 /* SettingsSectionComponents.swift in Sources */,

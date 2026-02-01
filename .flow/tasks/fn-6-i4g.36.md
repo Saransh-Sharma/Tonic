@@ -7,9 +7,8 @@ TBD
 - [ ] TBD
 
 ## Done summary
-TBD
-
+Implemented Stats Master-style GPU popover with dashboard, history chart, and details sections.
 ## Evidence
-- Commits:
+- Commits: 183efeff4a3421cfc7b79242b4aabbc12fc47747
 - Tests:
 - PRs:

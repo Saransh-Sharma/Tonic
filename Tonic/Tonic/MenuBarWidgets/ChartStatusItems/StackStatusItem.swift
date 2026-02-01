@@ -50,9 +50,9 @@ public final class StackStatusItem: WidgetStatusItem {
     public override func createDetailView() -> AnyView {
         switch widgetType {
         case .bluetooth:
-            return AnyView(BluetoothDetailView())
+            return AnyView(BluetoothPopoverView())
         case .sensors:
-            return AnyView(SensorsDetailView())
+            return AnyView(SensorsPopoverView())
         case .clock:
             return AnyView(ClockDetailView())
         default:

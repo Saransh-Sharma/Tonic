@@ -8,6 +8,24 @@
 
 import SwiftUI
 
+// MARK: - DiskVolumeData Hashable Conformance
+
+extension DiskVolumeData: Hashable {
+    public static func == (lhs: DiskVolumeData, rhs: DiskVolumeData) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.name == rhs.name &&
+        lhs.path == rhs.path &&
+        lhs.usedBytes == rhs.usedBytes &&
+        lhs.totalBytes == rhs.totalBytes
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        hasher.combine(path)
+    }
+}
+
 // MARK: - Disk Popover View
 
 /// Complete Stats Master-style Disk popover with:
@@ -260,11 +278,11 @@ public struct DiskPopoverView: View {
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
-                    MiniSparkline(
+                    DiskIOSparkline(
                         data: ioReadHistory,
-                        color: .green,
-                        height: 30
+                        color: .green
                     )
+                    .frame(height: 30)
                 }
                 .frame(maxWidth: .infinity)
 
@@ -292,11 +310,11 @@ public struct DiskPopoverView: View {
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
-                    MiniSparkline(
+                    DiskIOSparkline(
                         data: ioWriteHistory,
-                        color: .orange,
-                        height: 30
+                        color: .orange
                     )
+                    .frame(height: 30)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -491,7 +509,7 @@ public struct DiskPopoverView: View {
     private func diskProcessRow(_ process: ProcessUsage) -> some View {
         HStack(spacing: 8) {
             // App icon if available
-            if let icon = process.icon {
+            if let icon = process.icon() {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 14, height: 14)
@@ -604,17 +622,17 @@ public struct DiskPopoverView: View {
     }
 }
 
-// MARK: - Mini Sparkline Component
+// MARK: - Disk I/O Sparkline Component
 
 /// Mini sparkline for I/O history display
-struct MiniSparkline: View {
+struct DiskIOSparkline: View {
     let data: [Double]
     let color: Color
-    let height: CGFloat
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
+            let height = geometry.size.height
             let maxVal = data.max() ?? 1
             let stepX = width / max(1, CGFloat(data.count - 1))
 
@@ -631,7 +649,6 @@ struct MiniSparkline: View {
             }
             .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
         }
-        .frame(height: height)
     }
 }
 

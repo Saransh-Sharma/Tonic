@@ -68,7 +68,8 @@ public final class LineChartStatusItem: WidgetStatusItem {
 
         // Use Stats Master-style popover for GPU
         if widgetType == .gpu {
-            return AnyView(GPUPopoverView())
+            // TODO: GPUPopoverView needs to be added to Xcode project
+            return AnyView(GPUDetailView())
         }
 
         // Get chart data based on widget type
