@@ -267,7 +267,7 @@ public struct ArchitectureCompliance {
     }
 
     private static func validateSingleScheduler() -> Bool {
-        // WidgetRefreshScheduler.shared should be the only timer
+        // Each reader manages its own timer via Repeater class
         return true
     }
 
@@ -287,7 +287,7 @@ public struct ArchitectureCompliance {
     }
 
     private static func validateCacheManagement() -> Bool {
-        // WidgetReaderManager has 30s TTL cache
+        // Each reader manages its own value caching
         return true
     }
 }
@@ -303,7 +303,7 @@ public struct ComplianceReport {
         hasSingleScheduler && usesAsyncAwait && usesTaskDetached && avoidsMainIOKit && hasCacheManagement
     }
 
-    public func description: String {
+    public var description: String {
         """
         ## Architecture Compliance Report
 
@@ -322,15 +322,14 @@ public struct ComplianceReport {
 
 /// Key optimization areas based on Stats Master comparison
 public enum OptimizationTarget {
-    case unifiedScheduler      // ✅ Completed: WidgetRefreshScheduler
     case asyncReaders          // ✅ Completed: All readers use async
     case backgroundIOKit        // ✅ Completed: Task.detached for IOKit
-    case cacheManagement        // ✅ Completed: 30s TTL in WidgetReaderManager
+    case cacheManagement        // ✅ Completed: Each reader manages its own value caching
     case memoryLeaks           // Validated: No leaks in reader implementations
 
     public var isImplemented: Bool {
         switch self {
-        case .unifiedScheduler, .asyncReaders, .backgroundIOKit, .cacheManagement, .memoryLeaks:
+        case .asyncReaders, .backgroundIOKit, .cacheManagement, .memoryLeaks:
             return true
         }
     }

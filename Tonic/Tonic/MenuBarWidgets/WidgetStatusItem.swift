@@ -53,8 +53,7 @@ public class WidgetStatusItem: ObservableObject {
         logger.info("🔵 Initializing widget: \(widgetType.rawValue), enabled: \(configuration.isEnabled)")
         setupStatusItem()
         setupPopover()
-        // Note: Per-widget timers removed - unified WidgetRefreshScheduler handles data updates
-        // and WidgetDataManager (@Observable) triggers SwiftUI view updates automatically
+        // Note: WidgetDataManager (@Observable) triggers SwiftUI view updates automatically
     }
 
     deinit {

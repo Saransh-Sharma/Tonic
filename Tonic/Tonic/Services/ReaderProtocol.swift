@@ -29,8 +29,7 @@ public enum ReaderState: Sendable {
 /// This protocol is inspired by Stats Master's reader pattern but adapted for
 /// Tonic's modern Swift concurrency model using `@MainActor` and `@Observable`.
 ///
-/// Unlike the simpler `WidgetReader` protocol which focuses on async data fetching,
-/// `Reader` provides full lifecycle management including:
+/// The `Reader` protocol provides full lifecycle management including:
 /// - Configurable update intervals (1-60 seconds)
 /// - Optional readers (can be disabled without error)
 /// - Popup-only readers (only run when widget popup is open)
@@ -63,10 +62,10 @@ public protocol Reader: AnyObject {
     /// The current value from the most recent read operation
     var value: Output? { get }
 
-    /// Update interval in seconds (nil = use global scheduler)
+    /// Update interval in seconds (nil = no automatic polling)
     ///
     /// Valid range: 1.0 to 60.0 seconds
-    /// - When nil: Reader uses the unified WidgetRefreshScheduler
+    /// - When nil: Reader must be manually triggered
     /// - When set: Reader creates its own timer for custom timing
     var interval: TimeInterval? { get set }
 
@@ -131,7 +130,6 @@ public protocol Reader: AnyObject {
     ///
     /// After calling start():
     /// - If `interval` is set: Creates a timer for periodic reads
-    /// - If `interval` is nil: Rely on unified scheduler
     /// - Performs an initial read immediately
     func start()
 
@@ -224,7 +222,7 @@ open class BaseReader<Output: Sendable>: Reader {
     /// The most recent value from read operations
     public private(set) var value: Output?
 
-    /// Update interval in seconds (nil = use unified scheduler)
+    /// Update interval in seconds (nil = no automatic polling)
     public var interval: TimeInterval?
 
     /// Whether this reader is optional (can fail without error)
@@ -264,7 +262,7 @@ open class BaseReader<Output: Sendable>: Reader {
     /// Initialize a new base reader
     ///
     /// - Parameters:
-    ///   - interval: Update interval in seconds (nil for unified scheduler)
+    ///   - interval: Update interval in seconds (nil for no automatic polling)
     ///   - optional: Whether this reader can fail without error
     ///   - popupOnly: Whether this reader only runs when popup is visible
     ///   - historyLimit: Number of history points to track (nil = none)
