@@ -193,8 +193,8 @@ public struct SpeedWidgetView: View {
         HStack(spacing: 6) {
             // Mini chart placeholder - would need history data
             VStack(spacing: 2) {
-                MiniBarChartView(value: min(1, downloadSpeed / 10_000_000), color: config.downloadColor, height: 3)
-                MiniBarChartView(value: min(1, uploadSpeed / 1_000_000), color: config.uploadColor, height: 3)
+                SpeedMiniBarChartView(value: min(1, downloadSpeed / 10_000_000), color: config.downloadColor, height: 3)
+                SpeedMiniBarChartView(value: min(1, uploadSpeed / 1_000_000), color: config.uploadColor, height: 3)
             }
 
             if config.showIcon {
@@ -208,7 +208,11 @@ public struct SpeedWidgetView: View {
     private var connectionIndicator: some View {
         Group {
             switch connectionType {
-            case .wifi:
+            case .none:
+                Image(systemName: "network.slash")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            case .some(.wifi):
                 if let ssid = ssid, !ssid.isEmpty {
                     Image(systemName: "wifi.fill")
                         .font(.system(size: 10))
@@ -218,15 +222,15 @@ public struct SpeedWidgetView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 }
-            case .ethernet:
+            case .some(.ethernet):
                 Image(systemName: "cable.connector")
                     .font(.system(size: 10))
                     .foregroundColor(.green)
-            case .cellular:
+            case .some(.cellular):
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 10))
                     .foregroundColor(.green)
-            case .unknown, .none:
+            case .some(.tethered), .some(.disconnected), .some(.unknown):
                 Image(systemName: "network.slash")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
@@ -277,34 +281,9 @@ public struct SpeedWidgetView: View {
 
 // MARK: - Network Data Extension
 
-public extension NetworkData {
-    var connectionType: ConnectionType {
-        ConnectionType(rawValue: connectionTypeRaw) ?? .unknown
-    }
+// MARK: - Speed Mini Bar Chart
 
-    var connectionTypeRaw: String {
-        // Store raw connection type
-        switch self.connectionType {
-        case .wifi: return "wifi"
-        case .ethernet: return "ethernet"
-        case .cellular: return "cellular"
-        case .unknown: return "unknown"
-        }
-    }
-}
-
-// MARK: - Connection Type
-
-public enum ConnectionType: String, Sendable {
-    case wifi
-    case ethernet
-    case cellular
-    case unknown
-}
-
-// MARK: - Mini Bar Chart (reused from BarChartWidgetView)
-
-struct MiniBarChartView: View {
+struct SpeedMiniBarChartView: View {
     let value: Double
     let color: Color
     let height: CGFloat

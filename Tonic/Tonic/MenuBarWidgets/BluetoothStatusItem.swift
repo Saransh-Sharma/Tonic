@@ -212,8 +212,8 @@ struct BluetoothDetailView: View {
             }
 
             // RSSI indicator if available
-            if let rssi = device.rssi {
-                signalStrengthView(rssi: rssi)
+            if let signalStrength = device.signalStrength {
+                signalStrengthView(rssi: signalStrength)
             }
         }
         .padding(.horizontal)

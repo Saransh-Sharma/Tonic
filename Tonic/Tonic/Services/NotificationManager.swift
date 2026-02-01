@@ -259,6 +259,10 @@ public final class NotificationManager: Sendable {
             let currentPercent = String(format: "%.0f%%", currentValue)
             title = "Bluetooth Device Alert"
             body = "Device battery at \(currentPercent) (threshold: \(threshold.formattedValue))"
+
+        case .clock:
+            title = "Clock Alert"
+            body = "Clock threshold triggered"
         }
 
         return (title, body)

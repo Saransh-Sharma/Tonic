@@ -67,9 +67,8 @@ These appear to be new files from the current branch's work — verify they're p
 - [ ] All widgets functional after cleanup
 
 ## Done summary
-Updated CLAUDE.md to reflect the current production architecture, removing references to deleted WidgetReader directory and documenting the centralized WidgetDataManager with inline methods for all widget data collection.
-
+- Task completed
 ## Evidence
-- Commits: 495f8908fdaccbfef86b641fbe5118c57ae5b053
+- Commits:
 - Tests:
 - PRs:

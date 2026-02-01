@@ -104,16 +104,6 @@ public struct FanReading: Sendable, Codable, Equatable, Identifiable {
         self.mode = mode
     }
 
-    /// Backward-compatible initializer without min/mode
-    public init(id: String, name: String, rpm: Int, maxRPM: Int? = nil) {
-        self.id = id
-        self.name = name
-        self.rpm = rpm
-        self.minRPM = nil
-        self.maxRPM = maxRPM
-        self.mode = nil
-    }
-
     /// Speed percentage (0-100) based on max RPM
     public var speedPercentage: Double? {
         guard let maxRPM = maxRPM, maxRPM > 0 else { return nil }

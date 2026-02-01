@@ -34,6 +34,7 @@
 		1FA2D182C8B6D6959FA076E6 /* PerformanceTestBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708B0E0C76C2170CB1FB733A /* PerformanceTestBase.swift */; };
 		21B03AECEE96B09D155F8D82 /* LabelStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73186C7B364467F4917CD6C0 /* LabelStatusItem.swift */; };
 		24895C64160B47CBCF302418 /* BatteryDetailsStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7E3DDA1E27F27F75EFD8453 /* BatteryDetailsStatusItem.swift */; };
+		25A16E592FB532EE9FE02BC0 /* PopoverConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2269648F4CF95653EC043FB1 /* PopoverConstants.swift */; };
 		26501E4AE66152A6188C5A2C /* WidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFCB4336429AF08DE91FA18 /* WidgetConfiguration.swift */; };
 		275EDD2C067FE80141613FB9 /* NetworkChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9E5F7AD690E9F68C9AB462 /* NetworkChartWidgetView.swift */; };
 		2AB65065EFF1FE12F68F31DA /* InputValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1341573082F2ED7AF28AC9FA /* InputValidation.swift */; };
@@ -165,6 +166,7 @@
 		E7F29D9154042E73EB15C377 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29880206031BF4131E0CAD95 /* MockData.swift */; };
 		E802321FA7EA19A36E9D2642 /* PieChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58E4FD09F1883BB93485A7F3 /* PieChartWidgetView.swift */; };
 		E8D938CCE153F2AB3591B769 /* WidgetHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52FAF36FF0A4CBAC00AAE9A /* WidgetHistoryStore.swift */; };
+		EB52CF5108E611F4F9E50F04 /* PopoverTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB95628FDF7E89061E52192B /* PopoverTemplate.swift */; };
 		EDF6B006B1B584B72EB7307F /* CardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B5538CADBBD95696741C545 /* CardTests.swift */; };
 		F2D2D714A39BCF86915D76FE /* NavigationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F156DD830C199471A3500D /* NavigationModels.swift */; };
 		F3AE82B1D68E8D9741C34DAA /* StackWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5485835B209C72F2AF11C703 /* StackWidgetView.swift */; };
@@ -212,6 +214,7 @@
 		1DD3BBA638AA98EA7AF58C9D /* BarChartStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartStatusItem.swift; sourceTree = "<group>"; };
 		21073846D0943627C4D51AF7 /* WidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStore.swift; sourceTree = "<group>"; };
 		22445D3770863CA4A9D30B6D /* ClockWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockWidgetView.swift; sourceTree = "<group>"; };
+		2269648F4CF95653EC043FB1 /* PopoverConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverConstants.swift; sourceTree = "<group>"; };
 		23E42DB46DD56EBD78B1B931 /* OneViewStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneViewStatusItem.swift; sourceTree = "<group>"; };
 		26D5C4E93D5C85333ADBEDB7 /* Tonic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tonic.swift; sourceTree = "<group>"; };
 		2793C3B16B46521FFAD7A49E /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
@@ -362,6 +365,7 @@
 		F51826D1DA4E9510FF0B8422 /* NetworkAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkAnimations.swift; sourceTree = "<group>"; };
 		F5C8800321689BBE5473D74C /* DiskAnalysisViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisViewTests.swift; sourceTree = "<group>"; };
 		FA26FBEE89EB86978EDA8F16 /* DarkModeThemeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkModeThemeView.swift; sourceTree = "<group>"; };
+		FB95628FDF7E89061E52192B /* PopoverTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverTemplate.swift; sourceTree = "<group>"; };
 		FD347CB2D6CF107A6A913B13 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		FE71A891C8DB36A061CD73FE /* DesignComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignComponents.swift; sourceTree = "<group>"; };
 		FEBB9EF0D778DACD11A8CA65 /* ProcessUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessUsage.swift; sourceTree = "<group>"; };
@@ -663,6 +667,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		AABB8146F8276BA95C97011A /* Popovers */ = {
+			isa = PBXGroup;
+			children = (
+				2269648F4CF95653EC043FB1 /* PopoverConstants.swift */,
+				FB95628FDF7E89061E52192B /* PopoverTemplate.swift */,
+			);
+			path = Popovers;
+			sourceTree = "<group>";
+		};
 		BF5F3F84CC228F0469E6B3DD /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -746,19 +759,20 @@
 				DA84C0E1C7CD1403EB78B1F3 /* WidgetStatusItem.swift */,
 				896871484F0D2EF0C582824C /* ChartStatusItems */,
 				086FF7E2597198DD9D57B959 /* Components */,
+				AABB8146F8276BA95C97011A /* Popovers */,
 				89E9C5C0D6637E8DE33F912E /* Views */,
 			);
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_5236774F-1F53-48E6-9911-23101C513788" /* Sources */ = {
+		"TEMP_71707917-C41A-4285-8A1B-E29E9C8C0C2E" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_6798FAE0-FEC0-4E53-A760-CB5E9E4B9675" /* Tonic */ = {
+		"TEMP_BCFC98CD-10D7-4251-8908-5FF700868C5A" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -951,6 +965,8 @@
 				784F9456E8CC98C3394EB12F /* PermissionManager.swift in Sources */,
 				839D92296CB7CA0D327C0DCF /* PieChartStatusItem.swift in Sources */,
 				E802321FA7EA19A36E9D2642 /* PieChartWidgetView.swift in Sources */,
+				25A16E592FB532EE9FE02BC0 /* PopoverConstants.swift in Sources */,
+				EB52CF5108E611F4F9E50F04 /* PopoverTemplate.swift in Sources */,
 				8E97F67B9254CAD913ED46B5 /* PreferencesView.swift in Sources */,
 				3E294452D17F808EBB96837D /* PrivilegedHelperManager.swift in Sources */,
 				5A000E7413663CB068C6FB41 /* PrivilegedHelperProtocol.swift in Sources */,

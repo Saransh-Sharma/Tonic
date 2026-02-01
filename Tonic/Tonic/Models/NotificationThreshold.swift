@@ -117,6 +117,8 @@ public struct NotificationThreshold: Codable, Identifiable, Sendable, Equatable 
             return String(format: "%.1f°", value)
         case .bluetooth:
             return String(format: "%.0f%%", value)
+        case .clock:
+            return String(format: "%.0f", value)
         }
     }
 }
@@ -186,6 +188,8 @@ extension NotificationThreshold {
             ]
         case .bluetooth:
             return [] // Bluetooth thresholds not typically needed
+        case .clock:
+            return [] // Clock thresholds not typically needed
         }
     }
 }

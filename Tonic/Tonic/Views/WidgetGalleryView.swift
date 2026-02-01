@@ -119,6 +119,9 @@ struct WidgetGalleryView: View {
         case .gpu: return Color(red: 0.75, green: 0.35, blue: 0.95)
         case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
         case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
+        case .sensors: return Color(red: 1.0, green: 0.45, blue: 0.35)
+        case .bluetooth: return Color(red: 0.0, green: 0.48, blue: 1.0)
+        case .clock: return Color(red: 0.55, green: 0.35, blue: 0.95)
         }
     }
 }
@@ -206,6 +209,9 @@ extension WidgetType {
         case .gpu: return "GPU"
         case .battery: return "Bat"
         case .weather: return "Wx"
+        case .sensors: return "Temp"
+        case .bluetooth: return "BT"
+        case .clock: return "Time"
         }
     }
 }

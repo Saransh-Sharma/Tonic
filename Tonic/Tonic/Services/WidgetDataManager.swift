@@ -459,6 +459,102 @@ public struct BatteryData: Sendable {
     }
 }
 
+/// Bluetooth device data for widgets
+public struct BluetoothData: Sendable {
+    public let isBluetoothEnabled: Bool
+    public let connectedDevices: [BluetoothDevice]
+    public let timestamp: Date
+
+    public init(isBluetoothEnabled: Bool = false, connectedDevices: [BluetoothDevice] = [], timestamp: Date = Date()) {
+        self.isBluetoothEnabled = isBluetoothEnabled
+        self.connectedDevices = connectedDevices
+        self.timestamp = timestamp
+    }
+
+    /// Devices with battery information
+    public var devicesWithBattery: [BluetoothDevice] {
+        connectedDevices.filter { $0.primaryBatteryLevel != nil }
+    }
+
+    /// All connected devices (alias for connectedDevices)
+    public var devices: [BluetoothDevice] {
+        connectedDevices
+    }
+
+    /// Empty Bluetooth data
+    public static let empty = BluetoothData()
+}
+
+/// Bluetooth device information
+public struct BluetoothDevice: Sendable, Identifiable {
+    public let id: UUID
+    public let name: String
+    public let deviceType: BluetoothDeviceType
+    public let isConnected: Bool
+    public let isPaired: Bool
+    public let primaryBatteryLevel: Int? // 0-100, nil if no battery
+    public let signalStrength: Int? // 0-100 RSSI
+
+    public init(id: UUID = UUID(), name: String, deviceType: BluetoothDeviceType = .unknown,
+                isConnected: Bool = false, isPaired: Bool = false,
+                primaryBatteryLevel: Int? = nil, signalStrength: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.deviceType = deviceType
+        self.isConnected = isConnected
+        self.isPaired = isPaired
+        self.primaryBatteryLevel = primaryBatteryLevel
+        self.signalStrength = signalStrength
+    }
+
+    /// Battery levels for the device (returns array with primary battery if available)
+    public var batteryLevels: [DeviceBatteryLevel] {
+        guard let level = primaryBatteryLevel else { return [] }
+        return [DeviceBatteryLevel(label: "Battery", percentage: level)]
+    }
+
+    /// Individual battery level for a device component
+    public struct DeviceBatteryLevel: Identifiable {
+        public let id = UUID()
+        public let label: String
+        public let percentage: Int
+
+        public init(label: String, percentage: Int) {
+            self.label = label
+            self.percentage = percentage
+        }
+    }
+}
+
+/// Bluetooth device type
+public enum BluetoothDeviceType: String, Sendable {
+    case unknown
+    case headphones
+    case speaker
+    case keyboard
+    case mouse
+    case trackpad
+    case gameController
+    case watch
+    case phone
+    case tablet
+
+    public var icon: String {
+        switch self {
+        case .headphones: return "headphones"
+        case .speaker: return "hifispeaker"
+        case .keyboard: return "keyboard"
+        case .mouse: return "computermouse"
+        case .trackpad: return "trackpad"
+        case .gameController: return "gamecontroller"
+        case .watch: return "applewatch"
+        case .phone: return "iphone"
+        case .tablet: return "ipad"
+        case .unknown: return "antenna.radiowaves.left.and.right"
+        }
+    }
+}
+
 /// App resource usage
 public struct AppResourceUsage: Sendable, Identifiable {
     public let id: UUID
@@ -482,114 +578,6 @@ public struct AppResourceUsage: Sendable, Identifiable {
 
     public var memoryString: String {
         ByteCountFormatter.string(fromByteCount: Int64(memoryBytes), countStyle: .memory)
-    }
-}
-
-// MARK: - Sensors Data Types
-// NOTE: These are defined here as well since SensorsData.swift is not in the build target
-
-/// Data structure for system sensor readings
-public struct SensorsData: Sendable, Codable, Equatable {
-    public var temperatures: [SensorReading]
-    public var fans: [FanReading]
-    public var voltages: [SensorReading]
-    public var power: [SensorReading]
-
-    public init(
-        temperatures: [SensorReading] = [],
-        fans: [FanReading] = [],
-        voltages: [SensorReading] = [],
-        power: [SensorReading] = []
-    ) {
-        self.temperatures = temperatures
-        self.fans = fans
-        self.voltages = voltages
-        self.power = power
-    }
-
-    /// Empty sensor data
-    public static let empty = SensorsData()
-}
-
-/// Individual sensor reading with name and value
-public struct SensorReading: Sendable, Codable, Equatable, Identifiable {
-    public let id: String
-    public let name: String
-    public let value: Double
-    public let unit: String
-    public let min: Double?
-    public let max: Double?
-
-    public init(
-        id: String,
-        name: String,
-        value: Double,
-        unit: String,
-        min: Double? = nil,
-        max: Double? = nil
-    ) {
-        self.id = id
-        self.name = name
-        self.value = value
-        self.unit = unit
-        self.min = min
-        self.max = max
-    }
-
-    /// Convenience initializer without min/max (backward compatible)
-    public init(id: String, name: String, value: Double, unit: String) {
-        self.id = id
-        self.name = name
-        self.value = value
-        self.unit = unit
-        self.min = nil
-        self.max = nil
-    }
-}
-
-/// Fan sensor reading with RPM
-public struct FanReading: Sendable, Codable, Equatable, Identifiable {
-    public let id: String
-    public let name: String
-    public let rpm: Int
-    public let minRPM: Int?
-    public let maxRPM: Int?
-    public let mode: FanMode?
-
-    public init(id: String, name: String, rpm: Int, minRPM: Int? = nil, maxRPM: Int? = nil, mode: FanMode? = nil) {
-        self.id = id
-        self.name = name
-        self.rpm = rpm
-        self.minRPM = minRPM
-        self.maxRPM = maxRPM
-        self.mode = mode
-    }
-
-    /// Backward-compatible initializer without min/mode
-    public init(id: String, name: String, rpm: Int, maxRPM: Int? = nil) {
-        self.id = id
-        self.name = name
-        self.rpm = rpm
-        self.minRPM = nil
-        self.maxRPM = maxRPM
-        self.mode = nil
-    }
-}
-
-/// Fan operating mode
-public enum FanMode: String, Sendable, Codable {
-    case automatic = "auto"
-    case forced = "forced"
-    case manual = "manual"
-    case unknown = "unknown"
-
-    public var displayName: String {
-        switch self {
-        case .automatic: return "Auto"
-        case .forced: return "Forced"
-        case .manual: return "Manual"
-        case .unknown: return "Unknown"
-        }
     }
 }
 
@@ -705,8 +693,7 @@ public final class WidgetDataManager {
     private var cachedTopProcesses: [AppResourceUsage]?
     private var lastProcessFetchDate: Date?
 
-    // Bluetooth reader
-    private let bluetoothReader = BluetoothReader()
+    // Bluetooth reader (placeholder - BluetoothReader implementation needed)
     private var lastBluetoothUpdate: Date?
     private let bluetoothUpdateInterval: TimeInterval = 10.0  // Bluetooth updates less frequently
 
@@ -2143,10 +2130,12 @@ public final class WidgetDataManager {
 
         var ptr = firstAddr
         while ptr != nil {
-            defer { ptr = ptr?.pointee.ifa_next }
+            let interface = ptr.pointee
+            defer { ptr = interface.ifa_next }
 
-            guard let interface = ptr?.pointee else { continue }
-            let addrFamily = interface.ifa_addr.pointee.sa_family
+            // Safely unwrap ifa_addr - it can be nil for some interfaces
+            guard let addrPtr = interface.ifa_addr else { continue }
+            let addrFamily = addrPtr.pointee.sa_family
 
             // Check for IPv4 address
             if addrFamily == UInt8(AF_INET) {
@@ -2160,7 +2149,7 @@ public final class WidgetDataManager {
                 // Prioritize en0 (typically WiFi or primary ethernet)
                 if name == "en0" || name == "en1" {
                     var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                    getnameinfo(addrPtr, socklen_t(addrPtr.pointee.sa_len),
                                &hostname, socklen_t(hostname.count),
                                nil, socklen_t(0), NI_NUMERICHOST)
                     address = String(cString: hostname)
@@ -3280,6 +3269,70 @@ public final class WidgetDataManager {
 
     // MARK: - Bluetooth Monitoring
 
+    /// Get list of connected Bluetooth devices with battery information
+    private func getBluetoothDevices() -> [BluetoothDevice] {
+        var devices: [BluetoothDevice] = []
+
+        // Try to read from system_profiler SPBluetoothDataType
+        let task = Process()
+        task.launchPath = "/usr/sbin/system_profiler"
+        task.arguments = ["SPBluetoothDataType", "-json"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let bluetoothDict = json["SPBluetoothDataType"] as? [String: Any] {
+
+                // Parse connected devices
+                if let controllerDict = bluetoothDict.first?.value as? [String: Any],
+                   let connectedDevices = controllerDict["device_connected"] as? [[String: Any]] {
+                    for deviceInfo in connectedDevices {
+                        if let name = deviceInfo["device_name"] as? String {
+                            let battery = deviceInfo["device_batteryLevel"] as? Int
+                            devices.append(BluetoothDevice(
+                                name: name,
+                                deviceType: .unknown,
+                                isConnected: true,
+                                isPaired: true,
+                                primaryBatteryLevel: battery
+                            ))
+                        }
+                    }
+                }
+
+                // Also check for device_title for devices that are "connected" but might be in a different format
+                if let controllerDict = bluetoothDict.first?.value as? [String: Any],
+                   let allDevices = controllerDict["device_title"] as? [[String: Any]] {
+                    for deviceInfo in allDevices {
+                        if let name = deviceInfo["device_name"] as? String,
+                           let connectionStatus = deviceInfo["device_connectionStatus"] as? String,
+                           connectionStatus.contains("Connected") {
+                            let battery = deviceInfo["device_batteryLevel"] as? Int
+                            devices.append(BluetoothDevice(
+                                name: name,
+                                deviceType: .unknown,
+                                isConnected: true,
+                                isPaired: true,
+                                primaryBatteryLevel: battery
+                            ))
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Silently fail - Bluetooth not available or permission denied
+        }
+
+        return devices
+    }
+
     private func updateBluetoothData() {
         // Bluetooth updates less frequently than other data sources
         if let lastUpdate = lastBluetoothUpdate,
@@ -3289,25 +3342,21 @@ public final class WidgetDataManager {
 
         lastBluetoothUpdate = Date()
 
-        // Use the Bluetooth reader to get data
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            do {
-                let newData = try await self.bluetoothReader.read()
-                self.bluetoothData = newData
+        // Read bluetooth data inline using IOBluetooth
+        let devices = getBluetoothDevices()
+        let newData = BluetoothData(
+            isBluetoothEnabled: !devices.isEmpty,
+            connectedDevices: devices,
+            timestamp: Date()
+        )
+        self.bluetoothData = newData
 
-                // Check notification thresholds for Bluetooth device batteries
-                // Use the lowest connected device battery level for threshold checking
-                let connectedDeviceBatteries = newData.devicesWithBattery
-                    .filter { $0.isConnected }
-                    .compactMap { $0.primaryBatteryLevel }
-                if let lowestBattery = connectedDeviceBatteries.min() {
-                    NotificationManager.shared.checkThreshold(widgetType: .bluetooth, value: Double(lowestBattery))
-                }
-            } catch {
-                // On error, keep the existing data or set to empty
-                self.logger.warning("Failed to read Bluetooth data: \(error.localizedDescription)")
-            }
+        // Check notification thresholds for Bluetooth device batteries
+        let connectedDeviceBatteries = devices
+            .filter { $0.isConnected }
+            .compactMap { $0.primaryBatteryLevel }
+        if let lowestBattery = connectedDeviceBatteries.min() {
+            NotificationManager.shared.checkThreshold(widgetType: .bluetooth, value: Double(lowestBattery))
         }
     }
 

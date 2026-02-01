@@ -64,7 +64,7 @@ public final class SensorsStatusItem: WidgetStatusItem {
 
 /// Detail view for sensors showing all temperatures and fan speeds
 struct SensorsDetailView: View {
-    @State private var dataManager = WidgetDataManager.shared
+    private var dataManager: WidgetDataManager { WidgetDataManager.shared }
 
     var body: some View {
         VStack(spacing: 16) {

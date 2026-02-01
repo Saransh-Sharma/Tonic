@@ -8,20 +8,6 @@
 
 import SwiftUI
 
-// MARK: - High Contrast Environment Key
-
-struct HighContrastKey: EnvironmentKey {
-    static let defaultValue: Bool = false
-}
-
-extension EnvironmentValues {
-    /// Whether high contrast mode is enabled
-    var isHighContrast: Bool {
-        get { self[HighContrastKey.self] }
-        set { self[HighContrastKey.self] = newValue }
-    }
-}
-
 // MARK: - Design Tokens
 
 /// Design system tokens for consistent UI across the app

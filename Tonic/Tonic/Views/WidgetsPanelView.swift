@@ -416,6 +416,8 @@ struct AddWidgetSheet: View {
         case .battery: return "Battery level and charging status"
         case .sensors: return "Temperature and fan speed readings"
         case .weather: return "Current weather conditions"
+        case .bluetooth: return "Bluetooth device battery levels"
+        case .clock: return "Current time display"
         }
     }
 
@@ -511,7 +513,7 @@ struct ActiveWidgetRow: View {
             .padding(DesignTokens.Spacing.md)
         }
         .background(DesignTokens.Colors.backgroundSecondary)
-        .cornerRadius(DesignTokens.CornerRadius.md)
+        .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }
 
@@ -558,9 +560,9 @@ struct DataSourceCard: View {
             .padding(DesignTokens.Spacing.md)
             .frame(height: 72)
             .background(isHovering ? DesignTokens.Colors.selectedContentBackground : DesignTokens.Colors.backgroundSecondary)
-            .cornerRadius(DesignTokens.CornerRadius.md)
+            .cornerRadius(DesignTokens.CornerRadius.medium)
             .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
+                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
                     .stroke(isEnabled ? DesignTokens.Colors.accent : Color.clear, lineWidth: 2)
             )
         }
@@ -587,7 +589,7 @@ struct CategoryButton: View {
                 .padding(.vertical, DesignTokens.Spacing.xs)
                 .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
                 .foregroundColor(isSelected ? .white : DesignTokens.Colors.textPrimary)
-                .cornerRadius(DesignTokens.CornerRadius.full)
+                .cornerRadius(DesignTokens.CornerRadius.round)
         }
         .buttonStyle(.plain)
     }

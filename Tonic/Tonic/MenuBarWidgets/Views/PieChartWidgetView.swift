@@ -122,10 +122,10 @@ public struct PieChartWidgetView: View {
     }
 }
 
-// MARK: - Donut Chart Variant
+// MARK: - Pie Donut Chart Variant
 
-/// Donut chart with label in center
-public struct DonutChartView: View {
+/// Donut chart with label in center (renamed to avoid conflict)
+public struct PieDonutChartView: View {
     let value: Double
     let size: CGFloat
     let strokeWidth: CGFloat
@@ -192,11 +192,18 @@ public struct SegmentedDonutView: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: strokeWidth)
 
             // Value arcs
-            let total = segments.reduce(0) { $0 + $1.value }
-            var currentAngle = 0.0
+            segmentedArcs
+        }
+        .frame(width: size, height: size)
+    }
 
-            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+    private var segmentedArcs: some View {
+        let total = segments.reduce(0) { $0 + $1.value }
+
+        return Group {
+            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
                 let segmentAngle = (segment.value / max(total, 0.001)) * 360
+                let startAngle = segments.prefix(index).reduce(0.0) { $0 + ($1.value / max(total, 0.001)) * 360 }
 
                 Circle()
                     .trim(from: 0, to: segment.value / max(total, 0.001))
@@ -204,13 +211,10 @@ public struct SegmentedDonutView: View {
                         segment.color,
                         style: StrokeStyle(lineWidth: strokeWidth, lineCap: .butt)
                     )
-                    .rotationEffect(.degrees(-90 + currentAngle))
+                    .rotationEffect(.degrees(-90 + startAngle))
                     .animation(.easeInOut(duration: 0.3), value: segment.value)
-
-                currentAngle += segmentAngle
             }
         }
-        .frame(width: size, height: size)
     }
 }
 
@@ -236,23 +240,23 @@ public struct SegmentedDonutView: View {
         HStack(spacing: 16) {
             PieChartWidgetView(
                 value: 0.92,
-                config: PieChartConfig(colorMode: .dynamic, showLabel: true)
+                config: PieChartConfig(showLabel: true, colorMode: .dynamic)
             )
             PieChartWidgetView(
                 value: 0.35,
-                config: PieChartConfig(colorMode: .dynamic, showLabel: true)
+                config: PieChartConfig(showLabel: true, colorMode: .dynamic)
             )
             PieChartWidgetView(
                 value: 0.12,
-                config: PieChartConfig(colorMode: .dynamic, showLabel: true)
+                config: PieChartConfig(showLabel: true, colorMode: .dynamic)
             )
         }
 
         // Donut charts
         HStack(spacing: 16) {
-            DonutChartView(value: 0.75, colors: (.green, .gray))
-            DonutChartView(value: 0.45, colors: (.blue, .gray))
-            DonutChartView(value: 0.25, colors: (.orange, .gray))
+            PieDonutChartView(value: 0.75, colors: (.green, .gray))
+            PieDonutChartView(value: 0.45, colors: (.blue, .gray))
+            PieDonutChartView(value: 0.25, colors: (.orange, .gray))
         }
 
         // Segmented donut

@@ -210,6 +210,12 @@ struct OneViewWidgetCell: View {
                 return "\(dataManager.bluetoothData.connectedDevices.count)"
             }
             return "Off"
+
+        case .clock:
+            // Return current time
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: Date())
         }
     }
 }
@@ -368,6 +374,11 @@ struct OneViewDetailCard: View {
                 return "\(dataManager.bluetoothData.connectedDevices.count)"
             }
             return "Off"
+
+        case .clock:
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm:ss"
+            return formatter.string(from: Date())
         }
     }
 
@@ -413,6 +424,11 @@ struct OneViewDetailCard: View {
         case .bluetooth:
             let connected = dataManager.bluetoothData.connectedDevices.count
             return "\(connected) connected"
+
+        case .clock:
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE, MMM d"
+            return formatter.string(from: Date())
         }
     }
 
@@ -436,6 +452,9 @@ struct OneViewDetailCard: View {
             return "Temperature sensors"
         case .bluetooth:
             return "Bluetooth devices"
+
+        case .clock:
+            return "Current time"
         }
     }
 }

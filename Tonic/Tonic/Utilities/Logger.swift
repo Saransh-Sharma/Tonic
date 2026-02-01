@@ -18,7 +18,7 @@ struct Logger {
     // MARK: - Logging Levels
 
     /// Severity levels for logging
-    enum Level: Int, CaseIterable, Comparable {
+    enum Level: Int, CaseIterable, Comparable, Codable {
         case debug = 0
         case info = 1
         case warning = 2
@@ -204,7 +204,7 @@ private struct FileLogger {
         return paths.first?.appendingPathComponent("Logs/Tonic")
     }()
 
-    private static let logFileURL: URL? = {
+    static let logFileURL: URL? = {
         guard let directory = logDirectory else { return nil }
         return directory.appendingPathComponent("tonic.log")
     }()

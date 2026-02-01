@@ -307,8 +307,10 @@ public struct DynamicTextWidgetView: View {
                 LabelWidgetView(text: "MEM", fontSize: 10)
                 LabelWidgetView(text: "NET", fontWeight: .bold)
                 LabelWidgetView(
-                    text: "BAT",
-                    backgroundColor: Color.accentColor.opacity(0.2)
+                    config: LabelConfig(
+                        text: "BAT",
+                        backgroundColor: Color.accentColor.opacity(0.2)
+                    )
                 )
             }
         }
@@ -337,10 +339,10 @@ public struct DynamicTextWidgetView: View {
                 StateWidgetView(
                     config: StateConfig(
                         isOn: true,
-                        showLabel: true,
-                        label: "Connected",
                         onColor: .green,
-                        offColor: .red
+                        offColor: .red,
+                        showLabel: true,
+                        label: "Connected"
                     )
                 )
             }

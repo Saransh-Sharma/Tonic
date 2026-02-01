@@ -336,12 +336,6 @@ public struct BatteryDetailsWidgetView: View {
     }
 }
 
-// MARK: - Battery Data Extension
-
-public extension BatteryData {
-    var cycleCount: Int? { nil }
-}
-
 // MARK: - Animated Charging Indicator
 
 @Observable
@@ -426,9 +420,9 @@ public final class ChargingAnimationState {
                         health: .good
                     ),
                     config: BatteryDetailsConfig(
-                        displayMode: .detailed,
                         showHealth: true,
-                        showPowerSource: true
+                        showPowerSource: true,
+                        displayMode: .detailed
                     )
                 )
             }
@@ -451,9 +445,9 @@ public final class ChargingAnimationState {
                         cycleCount: 342
                     ),
                     config: BatteryDetailsConfig(
-                        displayMode: .graphical,
                         showHealth: true,
-                        showCycleCount: true
+                        showCycleCount: true,
+                        displayMode: .graphical
                     )
                 )
             }

@@ -57,6 +57,16 @@ public enum WidgetRefreshInterval: Double, CaseIterable, Identifiable {
         case .sixtySeconds: return "60 seconds"
         }
     }
+
+    /// Convert to data model's WidgetUpdateInterval
+    public func toDataModel() -> WidgetUpdateInterval {
+        switch self {
+        case .oneSecond: return .performance
+        case .twoSeconds: return .balanced
+        case .threeSeconds, .fiveSeconds: return .power
+        case .tenSeconds, .fifteenSeconds, .thirtySeconds, .sixtySeconds: return .power
+        }
+    }
 }
 
 // MARK: - Available Widget Type
@@ -85,7 +95,7 @@ public enum AvailableWidgetType: String, CaseIterable, Identifiable {
     case label = "Label"
     case state = "State"
     case text = "Text"
-    case memory = "Memory Display"
+    case memoryDisplay = "Memory Display"
 
     public var id: String { rawValue }
 
@@ -112,7 +122,7 @@ public enum AvailableWidgetType: String, CaseIterable, Identifiable {
         case .label: return "textformat"
         case .state: return "circlebadge"
         case .text: return "text.alignleft"
-        case .memory: return "memorychip"
+        case .memoryDisplay: return "memorychip"
         }
     }
 
@@ -129,6 +139,27 @@ public enum AvailableWidgetType: String, CaseIterable, Identifiable {
         case .sensors: return .sensors
         case .bluetooth: return .bluetooth
         default: return .cpu  // Fallback for visualization types
+        }
+    }
+
+    /// Convert to data model's VisualizationType
+    public func toVisualizationType() -> VisualizationType {
+        switch self {
+        case .cpu, .memory, .disk, .network, .gpu, .battery, .weather, .sensors, .bluetooth:
+            return .mini  // Default visualization for data sources
+        case .mini: return .mini
+        case .lineChart: return .lineChart
+        case .barChart: return .barChart
+        case .pieChart: return .pieChart
+        case .tachometer: return .tachometer
+        case .stack: return .stack
+        case .speed: return .speed
+        case .networkChart: return .networkChart
+        case .batteryDetails: return .batteryDetails
+        case .label: return .label
+        case .state: return .state
+        case .text: return .text
+        case .memoryDisplay: return .memory
         }
     }
 }
@@ -212,13 +243,29 @@ public enum WidgetConfigColor: String, CaseIterable, Identifiable {
         case .dynamic: return .green  // Will change based on value
         }
     }
+
+    /// Convert to data model's WidgetAccentColor
+    public func toDataModel() -> WidgetAccentColor {
+        switch self {
+        case .accent: return .system
+        case .blue: return .blue
+        case .green: return .green
+        case .orange: return .orange
+        case .red: return .red
+        case .purple: return .purple
+        case .pink: return .pink
+        case .yellow: return .yellow
+        case .monochrome: return .monochrome
+        case .dynamic: return .utilization
+        }
+    }
 }
 
 // MARK: - Widget Configuration Sheet
 
 /// Per-widget configuration sheet with Stats Master feature parity
 public struct WidgetConfigurationSheet: View {
-    @Bindable var config: WidgetConfig
+    @State private var config: WidgetConfig
     @Environment(\.dismiss) private var dismiss
 
     public init(config: WidgetConfig) {
@@ -242,7 +289,6 @@ public struct WidgetConfigurationSheet: View {
             }
             .formStyle(.grouped)
             .navigationTitle(config.name)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -344,12 +390,16 @@ public struct WidgetConfigurationSheet: View {
         // Save to WidgetStore
         let store = WidgetStore.shared
         _ = store.saveConfig(WidgetConfiguration(
-            id: config.id,
-            name: config.name,
-            type: .cpu,
-            displayMode: .iconOnly,
+            type: config.type.toWidgetType(),
+            visualizationType: config.type.toVisualizationType(),
             isEnabled: true,
-            refreshInterval: config.refreshInterval.rawValue
+            position: 0,
+            displayMode: config.displayMode.toDataModel(),
+            showLabel: config.showLabel,
+            valueFormat: .percentage,
+            refreshInterval: config.refreshInterval.toDataModel(),
+            accentColor: config.color.toDataModel(),
+            chartConfig: nil
         ))
     }
 }
@@ -361,7 +411,7 @@ public struct WidgetConfigRow: View {
     @Bindable var config: WidgetConfig
     let onEdit: () -> Void
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: config.type.icon)
                 .foregroundColor(config.color.color)
@@ -387,7 +437,7 @@ public struct WidgetConfigRow: View {
         }
         .padding(DesignTokens.Spacing.sm)
         .background(DesignTokens.Colors.backgroundSecondary)
-        .cornerRadius(DesignTokens.CornerRadius.sm)
+        .cornerRadius(DesignTokens.CornerRadius.small)
     }
 }
 
@@ -400,7 +450,7 @@ public struct WidgetQuickToggle: View {
     let icon: String
     let color: Color
 
-    var body: some View {
+    public var body: some View {
         Toggle(isOn: $isOn) {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 Image(systemName: icon)
@@ -429,12 +479,15 @@ public struct WidgetQuickToggle: View {
     )
 }
 
-#Preview("Widget Config Row") {
+// Temporarily commented out due to ambiguous Preview issue
+/*
+#Preview("Widget Configuration Row") {
     VStack(spacing: 8) {
         WidgetConfigRow(
             config: WidgetConfig(
                 name: "CPU",
                 type: .cpu,
+                displayMode: .iconAndValue,
                 color: .blue
             ),
             onEdit: {}
@@ -444,6 +497,7 @@ public struct WidgetQuickToggle: View {
             config: WidgetConfig(
                 name: "Memory",
                 type: .memory,
+                displayMode: .iconAndValue,
                 color: .purple
             ),
             onEdit: {}
@@ -451,3 +505,4 @@ public struct WidgetQuickToggle: View {
     }
     .padding()
 }
+*/

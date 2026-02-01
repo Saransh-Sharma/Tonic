@@ -10,7 +10,7 @@ import Foundation
 
 /// Comprehensive error enum for Tonic application
 /// Provides localized error messages and recovery suggestions for all error scenarios
-enum TonicError: LocalizedError, Sendable {
+public enum TonicError: LocalizedError, Sendable {
 
     // MARK: - Permission Errors
 
@@ -48,6 +48,12 @@ enum TonicError: LocalizedError, Sendable {
 
     /// Invalid file path
     case invalidFilePath(path: String)
+
+    /// Cleaning operation failed
+    case cleaningFailed(category: String, reason: String)
+
+    /// Full Disk Access required
+    case fullDiskAccessRequired(operation: String)
 
     // MARK: - Scan Errors
 
@@ -123,6 +129,24 @@ enum TonicError: LocalizedError, Sendable {
     /// Invalid URL format
     case invalidURL(url: String)
 
+    /// Empty field (alias for emptyInput for compatibility)
+    case emptyField(fieldName: String)
+
+    /// Field too short
+    case fieldTooShort(fieldName: String, minimum: Int)
+
+    /// Field too long (alias for inputTooLong for compatibility)
+    case fieldTooLong(fieldName: String, maximum: Int)
+
+    /// Not numeric value
+    case notNumeric(fieldName: String)
+
+    /// Invalid format
+    case invalidFormat(fieldName: String, expectedFormat: String)
+
+    /// Validation failed
+    case validationFailed(fieldName: String, reason: String)
+
     // MARK: - System Errors
 
     /// Out of memory
@@ -175,7 +199,7 @@ enum TonicError: LocalizedError, Sendable {
 
     // MARK: - LocalizedError Protocol
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         // Permission Errors
         case .permissionDenied(let type):
@@ -202,6 +226,10 @@ enum TonicError: LocalizedError, Sendable {
             return "Cannot delete \(path): \(reason)"
         case .invalidFilePath(let path):
             return "Invalid file path: \(path)"
+        case .cleaningFailed(let category, let reason):
+            return "Failed to clean \(category): \(reason)"
+        case .fullDiskAccessRequired(let operation):
+            return "Full Disk Access required for \(operation)"
 
         // Scan Errors
         case .scanInterrupted:
@@ -254,6 +282,20 @@ enum TonicError: LocalizedError, Sendable {
             return "Invalid email address: \(email)"
         case .invalidURL(let url):
             return "Invalid URL: \(url)"
+        case .emptyField(let fieldName):
+            return "\(fieldName) cannot be empty"
+        case .fieldTooShort(let fieldName, let minimum):
+            return "\(fieldName) must be at least \(minimum) characters"
+        case .fieldTooLong(let fieldName, let maximum):
+            return "\(fieldName) cannot exceed \(maximum) characters"
+        case .notNumeric(let fieldName):
+            return "\(fieldName) must be a numeric value"
+        case .invalidFormat(let fieldName, let expectedFormat):
+            return "\(fieldName) format is invalid. Expected: \(expectedFormat)"
+        case .validationFailed(let fieldName, let reason):
+            return "\(fieldName) validation failed: \(reason)"
+        case .invalidURL(let url):
+            return "Invalid URL: \(url)"
 
         // System Errors
         case .outOfMemory:
@@ -296,7 +338,7 @@ enum TonicError: LocalizedError, Sendable {
         }
     }
 
-    var recoverySuggestion: String? {
+    public var recoverySuggestion: String? {
         switch self {
         // Permission Errors
         case .permissionDenied(let type):
@@ -321,6 +363,10 @@ enum TonicError: LocalizedError, Sendable {
             return "Close any applications using this file and try again"
         case .invalidFilePath:
             return "Enter a valid file path"
+        case .cleaningFailed:
+            return "Try the cleaning operation again or check permissions"
+        case .fullDiskAccessRequired:
+            return "Grant Full Disk Access permission in System Settings > Security & Privacy > Privacy"
 
         // Scan Errors
         case .scanInterrupted:
@@ -361,9 +407,9 @@ enum TonicError: LocalizedError, Sendable {
             return "Failed to save data. Try again"
 
         // Validation Errors
-        case .emptyInput:
+        case .emptyInput, .emptyField:
             return "This field is required"
-        case .inputTooLong:
+        case .inputTooLong, .fieldTooLong:
             return "Reduce the length of your input"
         case .valueOutOfRange:
             return "Enter a value within the specified range"
@@ -371,6 +417,14 @@ enum TonicError: LocalizedError, Sendable {
             return "Please enter a valid email address"
         case .invalidURL:
             return "Please enter a valid URL"
+        case .fieldTooShort:
+            return "Increase the length of your input"
+        case .notNumeric:
+            return "Enter a numeric value"
+        case .invalidFormat:
+            return "Enter a value in the correct format"
+        case .validationFailed:
+            return "Check your input and try again"
 
         // System Errors
         case .outOfMemory:
@@ -417,6 +471,8 @@ enum TonicError: LocalizedError, Sendable {
         case .insufficientDiskSpace: return "FE005"
         case .cannotDelete: return "FE006"
         case .invalidFilePath: return "FE007"
+        case .cleaningFailed: return "FE008"
+        case .fullDiskAccessRequired: return "FE009"
 
         // Scan Errors (SE)
         case .scanInterrupted: return "SE001"
@@ -447,6 +503,12 @@ enum TonicError: LocalizedError, Sendable {
         case .valueOutOfRange: return "VE004"
         case .invalidEmail: return "VE005"
         case .invalidURL: return "VE006"
+        case .emptyField: return "VE007"
+        case .fieldTooShort: return "VE008"
+        case .fieldTooLong: return "VE009"
+        case .notNumeric: return "VE010"
+        case .invalidFormat: return "VE011"
+        case .validationFailed: return "VE012"
 
         // System Errors (SYS)
         case .outOfMemory: return "SYS001"
@@ -513,13 +575,13 @@ enum TonicError: LocalizedError, Sendable {
 // MARK: - Error Severity
 
 /// Severity level for errors
-enum ErrorSeverity: Int, Comparable {
+public enum ErrorSeverity: Int, Comparable {
     case info = 0
     case warning = 1
     case error = 2
     case critical = 3
 
-    static func < (lhs: ErrorSeverity, rhs: ErrorSeverity) -> Bool {
+    public static func < (lhs: ErrorSeverity, rhs: ErrorSeverity) -> Bool {
         return lhs.rawValue < rhs.rawValue
     }
 

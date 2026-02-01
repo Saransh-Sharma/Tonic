@@ -106,14 +106,16 @@ struct GeneralPreferencesSection: View {
     // MARK: - Actions
 
     private func handleLaunchAtLoginChange(_ enabled: Bool) {
-        do {
-            try updateLaunchAtLoginSetting(enabled)
-        } catch let err as TonicError {
-            error = err
-            launchAtLogin = !enabled
-        } catch {
-            error = .settingsFailed(reason: error.localizedDescription)
-            launchAtLogin = !enabled
+        Task {
+            do {
+                try await updateLaunchAtLoginSetting(enabled)
+            } catch let err as TonicError {
+                self.error = err
+                launchAtLogin = !enabled
+            } catch {
+                self.error = .generic(error)
+                launchAtLogin = !enabled
+            }
         }
     }
 
@@ -128,12 +130,18 @@ struct GeneralPreferencesSection: View {
         }
     }
 
-    private func updateLaunchAtLoginSetting(_ enabled: Bool) throws {
+    private func updateLaunchAtLoginSetting(_ enabled: Bool) async throws {
         let loginItemsManager = LoginItemsManager.shared
+        let bundleURL = Bundle.main.bundleURL
+
         if enabled {
-            try loginItemsManager.addCurrentAppToLoginItems()
+            try await loginItemsManager.addLoginItem(at: bundleURL, hidden: false)
         } else {
-            try loginItemsManager.removeCurrentAppFromLoginItems()
+            // Find and remove the login item
+            let items = loginItemsManager.loginItems
+            if let item = items.first(where: { $0.path == bundleURL }) {
+                try await loginItemsManager.removeLoginItem(item)
+            }
         }
     }
 

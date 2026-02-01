@@ -14,18 +14,18 @@ import SwiftUI
 /// Active widgets section with drag-and-drop reordering
 /// Horizontal scroll layout following Stats Master pattern
 public struct DraggableActiveWidgetsSection: View {
-    @Bindable var viewModel: WidgetPanelViewModel
-    @State private var draggedWidget: ActiveWidget?
+    private var viewModel: WidgetPanelViewModel
+    @State private var draggedWidget: WidgetConfiguration?
 
     public init(viewModel: WidgetPanelViewModel) {
-        self._viewModel = State(initialValue: viewModel)
+        self.viewModel = viewModel
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             sectionHeader
 
-            if viewModel.activeWidgets.isEmpty {
+            if viewModel.activeConfigs.isEmpty {
                 emptyState
             } else {
                 horizontalScroll
@@ -41,7 +41,7 @@ public struct DraggableActiveWidgetsSection: View {
 
             Spacer()
 
-            Text("\(viewModel.activeWidgets.count) widgets")
+            Text("\(viewModel.activeConfigs.count) widgets")
                 .font(.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
         }
@@ -70,7 +70,7 @@ public struct DraggableActiveWidgetsSection: View {
     private var horizontalScroll: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach(viewModel.activeWidgets) { widget in
+                ForEach(viewModel.activeConfigs) { widget in
                     DraggableWidgetCard(
                         widget: widget,
                         isDragging: draggedWidget?.id == widget.id,
@@ -88,10 +88,10 @@ public struct DraggableActiveWidgetsSection: View {
         }
         .frame(height: 120)
         .background(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
                 .fill(DesignTokens.Colors.backgroundTertiary)
         )
-        .cornerRadius(DesignTokens.CornerRadius.md)
+        .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }
 
@@ -99,14 +99,14 @@ public struct DraggableActiveWidgetsSection: View {
 
 /// Individual widget card with drag capability
 public struct DraggableWidgetCard: View {
-    let widget: ActiveWidget
+    let widget: WidgetConfiguration
     let isDragging: Bool
     let onRemove: () -> Void
     let onToggle: () -> Void
 
     @State private var isHovering = false
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
             // Drag handle and icon
             HStack {
@@ -141,7 +141,7 @@ public struct DraggableWidgetCard: View {
             }
 
             // Widget name
-            Text(widget.name)
+            Text(widget.type.displayName)
                 .font(.caption)
                 .foregroundColor(widget.isEnabled ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textTertiary)
 
@@ -156,7 +156,7 @@ public struct DraggableWidgetCard: View {
 
                 Spacer()
 
-                Text("\(widget.order + 1)")
+                Text("\(widget.position + 1)")
                     .font(.caption2)
                     .foregroundColor(DesignTokens.Colors.textTertiary)
             }
@@ -164,11 +164,11 @@ public struct DraggableWidgetCard: View {
         .padding(DesignTokens.Spacing.md)
         .frame(width: 120, height: 100)
         .background(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
                 .fill(DesignTokens.Colors.backgroundSecondary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.md)
+            RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
                 .stroke(
                     widget.isEnabled ? DesignTokens.Colors.accent : DesignTokens.Colors.separator,
                     lineWidth: widget.isEnabled ? 2 : 1
@@ -188,17 +188,17 @@ public struct DraggableWidgetCard: View {
 
 /// A LazyHStack that supports reordering via drag and drop
 public struct ReorderableLazyHStack<Content: View>: View {
-    let items: [ActiveWidget]
-    let content: (ActiveWidget) -> Content
-    @Binding var reorderedItems: [ActiveWidget]
+    let items: [WidgetConfiguration]
+    let content: (WidgetConfiguration) -> Content
+    @Binding var reorderedItems: [WidgetConfiguration]
 
-    @State private var draggedItem: ActiveWidget?
+    @State private var draggedItem: WidgetConfiguration?
     @State private var dragOffset: CGSize = .zero
 
     public init(
-        items: [ActiveWidget],
-        reorderedItems: Binding<[ActiveWidget]>,
-        @ViewBuilder content: @escaping (ActiveWidget) -> Content
+        items: [WidgetConfiguration],
+        reorderedItems: Binding<[WidgetConfiguration]>,
+        @ViewBuilder content: @escaping (WidgetConfiguration) -> Content
     ) {
         self.items = items
         self._reorderedItems = reorderedItems
@@ -251,8 +251,8 @@ public struct ReorderableLazyHStack<Content: View>: View {
 // MARK: - Drop Delegate for Widget Reordering
 
 public struct WidgetDropDelegate: DropDelegate {
-    @Binding var widgets: [ActiveWidget]
-    var draggedWidget: ActiveWidget?
+    @Binding var widgets: [WidgetConfiguration]
+    var draggedWidget: WidgetConfiguration?
 
     public func performDrop(info: DropInfo) -> Bool {
         return true
@@ -296,11 +296,35 @@ public struct InsertionIndicator: View {
 #Preview("Draggable Active Widgets") {
     let viewModel = {
         let vm = WidgetPanelViewModel()
-        vm.activeWidgets = [
-            ActiveWidget(type: .cpu, name: "CPU", isEnabled: true, order: 0),
-            ActiveWidget(type: .memory, name: "Memory", isEnabled: true, order: 1),
-            ActiveWidget(type: .network, name: "Network", isEnabled: true, order: 2),
-            ActiveWidget(type: .disk, name: "Disk", isEnabled: false, order: 3),
+        vm.activeConfigs = [
+            WidgetConfiguration(
+                type: .cpu,
+                visualizationType: .mini,
+                isEnabled: true,
+                position: 0,
+                displayMode: .compact
+            ),
+            WidgetConfiguration(
+                type: .memory,
+                visualizationType: .mini,
+                isEnabled: true,
+                position: 1,
+                displayMode: .compact
+            ),
+            WidgetConfiguration(
+                type: .network,
+                visualizationType: .mini,
+                isEnabled: true,
+                position: 2,
+                displayMode: .compact
+            ),
+            WidgetConfiguration(
+                type: .disk,
+                visualizationType: .mini,
+                isEnabled: false,
+                position: 3,
+                displayMode: .compact
+            ),
         ]
         return vm
     }()

@@ -7,6 +7,30 @@
 
 import Foundation
 
+// MARK: - Global Exception Handler Context
+
+/// Global reference to the crash reporting service for C function pointer callback
+private var crashReportingServiceInstance: CrashReportingService?
+
+/// Shared instance accessor for exception handler
+private final class CrashReportingSharedInstance {
+    static weak var shared: CrashReportingService?
+}
+
+/// C function pointer for uncaught exception handler
+private func CrashReportingExceptionHandler(_ exception: NSException) {
+    // Handle the exception
+    crashReportingServiceInstance?.handleUncaughtException(exception)
+
+    // Call previous handler if it exists
+    if let previousHandler = previousExceptionHandlerPointer {
+        previousHandler(exception)
+    }
+}
+
+/// Storage for previous exception handler (file-scoped for C function access)
+private var previousExceptionHandlerPointer: (@convention(c) (NSException) -> Swift.Void)?
+
 // MARK: - Crash Report
 
 /// A captured crash report
@@ -91,7 +115,6 @@ class CrashReportingService: ObservableObject {
     private let logTag = "CrashReporting"
     private let storageManager: CrashReportStorageManager
 
-    private var previousExceptionHandler: (@convention(c) (NSException) -> Swift.Void)?
     private var systemSignalHandlers: [Int32] = []
 
     // MARK: - Initialization
@@ -119,36 +142,37 @@ class CrashReportingService: ObservableObject {
 
     private func registerUncaughtExceptionHandler() {
         // Store previous handler if exists
-        previousExceptionHandler = NSGetUncaughtExceptionHandler()
+        previousExceptionHandlerPointer = NSGetUncaughtExceptionHandler()
 
-        NSSetUncaughtExceptionHandler { [weak self] exception in
-            self?.handleUncaughtException(exception)
-        }
+        // Store self globally for the C function pointer callback
+        crashReportingServiceInstance = self
+
+        // Set the exception handler using a function pointer
+        NSSetUncaughtExceptionHandler(CrashReportingExceptionHandler)
     }
 
     // MARK: - Exception Handling
 
-    private func handleUncaughtException(_ exception: NSException) {
+    nonisolated internal func handleUncaughtException(_ exception: NSException) {
         let stackTrace = exception.callStackSymbols
-        print("[\(logTag)] Uncaught exception: \(exception.name.rawValue)")
+        let tag = "CrashReporting"
+        print("[\(tag)] Uncaught exception: \(exception.name.rawValue)")
+
+        // Capture diagnostics synchronously
+        let diagnostics = nonisolatedCaptureDiagnostics()
 
         let report = CrashReport(
             exceptionName: exception.name.rawValue,
             exceptionReason: exception.reason,
             stackTrace: stackTrace,
-            diagnostics: captureDiagnostics(),
+            diagnostics: diagnostics,
             userConsent: false
         )
 
-        lastCrashReport = report
+        // Save synchronously to disk
         storageManager.saveCrashReport(report)
 
-        print("[\(logTag)] Crash saved: \(report.id)")
-
-        // Call previous handler if exists
-        if let previousHandler = previousExceptionHandler {
-            previousHandler(exception)
-        }
+        print("[\(tag)] Crash saved: \(report.id)")
     }
 
     // MARK: - Diagnostics Capture
@@ -156,14 +180,55 @@ class CrashReportingService: ObservableObject {
     private func captureDiagnostics() -> CrashDiagnostics {
         let memoryUsage = getMemoryUsage()
         let uptime = ProcessInfo.processInfo.systemUptime
-        let recentLogs = Logger.collectDiagnostics(sinceDate: Date(timeIntervalSinceNow: -300))
+        let logString = Logger.collectDiagnostics(sinceDate: Date(timeIntervalSinceNow: -300))
+        let recentLogs = logString.components(separatedBy: "\n").filter { !$0.isEmpty }
 
         return CrashDiagnostics(
             memoryUsage: memoryUsage,
             uptime: uptime,
             activeViewControllers: [],
-            recentLogs: recentLogs.components(separatedBy: "\n").suffix(10).map { String($0) }
+            recentLogs: recentLogs,
+            capturedAt: Date()
         )
+    }
+
+    /// Non-isolated version of diagnostics capture for use in crash handler
+    private nonisolated func nonisolatedCaptureDiagnostics() -> CrashDiagnostics {
+        let memoryUsage = getNonisolatedMemoryUsage()
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let recentLogs = collectNonisolatedLogs()
+
+        return CrashDiagnostics(
+            memoryUsage: memoryUsage,
+            uptime: uptime,
+            activeViewControllers: [],
+            recentLogs: recentLogs,
+            capturedAt: Date()
+        )
+    }
+
+    // MARK: - Diagnostics Capture (Non-isolated)
+
+    private nonisolated func getNonisolatedMemoryUsage() -> Int64? {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
+
+        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+
+        return kerr == KERN_SUCCESS ? Int64(info.resident_size) : nil
+    }
+
+    private nonisolated func collectNonisolatedLogs() -> [String] {
+        // Return basic diagnostic info instead of trying to access Logger
+        return [
+            "Memory: \(getNonisolatedMemoryUsage() ?? 0) bytes",
+            "Uptime: \(ProcessInfo.processInfo.systemUptime) seconds",
+            "Timestamp: \(Date())"
+        ]
     }
 
     private func getMemoryUsage() -> Int64 {

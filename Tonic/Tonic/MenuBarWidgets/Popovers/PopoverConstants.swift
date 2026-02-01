@@ -10,7 +10,7 @@ import SwiftUI
 
 /// Standardized layout constants for all widget popovers
 /// Based on Stats Master and PRD specifications
-struct PopoverConstants {
+public struct PopoverConstants {
 
     // MARK: - Dimensions
 

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Field Validator Protocol
 
@@ -146,7 +147,7 @@ struct ValidatedTextField: View {
     @Binding var value: String
     let validators: [FieldValidator]
     @State private var validationResult: ValidationResult = .success("")
-    @State private var isFocused = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {

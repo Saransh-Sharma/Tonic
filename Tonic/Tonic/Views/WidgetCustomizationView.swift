@@ -245,9 +245,8 @@ struct WidgetCustomizationView: View {
                 draggedWidget = config.type
                 return NSItemProvider(object: config.type.rawValue as NSString)
             }
-            .onDrop(of: [.text], delegate: WidgetDropDelegate(
+            .onDrop(of: [.text], delegate: WidgetTypeDropDelegate(
                 currentType: config.type,
-                widgets: preferences.enabledWidgets,
                 onDrop: { _ in
                     guard let draggedType = draggedWidget else { return false }
                     preferences.reorderWidgets(move: draggedType, to: config.type)
@@ -507,6 +506,10 @@ struct WidgetCustomizationView: View {
                 return "\(battery)%"
             }
             return "\(dataManager.bluetoothData.connectedDevices.count)"
+        case .clock:
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return formatter.string(from: Date())
         }
     }
 
@@ -521,6 +524,7 @@ struct WidgetCustomizationView: View {
         case .weather: return "Current local temperature."
         case .sensors: return "System temperature and fan sensors."
         case .bluetooth: return "Connected Bluetooth device batteries."
+        case .clock: return "Current local time."
         }
     }
 }
@@ -1057,6 +1061,7 @@ struct WidgetSettingsSheet: View {
             case .weather: return "21°C"
             case .sensors: return "45°C"
             case .bluetooth: return "2 devices"
+            case .clock: return "12:00"
             }
         }
     }
@@ -1287,6 +1292,7 @@ struct WidgetSettingsSheet: View {
         case .weather: return "21°C"
         case .sensors: return "45°C"
         case .bluetooth: return usePercent ? "75%" : "2 devices"
+        case .clock: return "12:00"
         }
     }
 
@@ -1496,15 +1502,15 @@ struct WidgetSettingsSheet: View {
         case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
         case .sensors: return Color(red: 1.0, green: 0.45, blue: 0.35)
         case .bluetooth: return Color(red: 0.0, green: 0.48, blue: 1.0)  // Bluetooth blue
+        case .clock: return Color(red: 0.55, green: 0.35, blue: 0.95)  // Clock purple
         }
     }
 }
 
-// MARK: - Widget Drop Delegate
+// MARK: - Widget Type Drop Delegate
 
-private struct WidgetDropDelegate: DropDelegate {
+private struct WidgetTypeDropDelegate: DropDelegate {
     let currentType: WidgetType
-    let widgets: [WidgetConfiguration]
     let onDrop: (WidgetType) -> Bool
 
     func performDrop(info: DropInfo) -> Bool {

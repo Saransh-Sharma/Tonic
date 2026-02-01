@@ -8,7 +8,7 @@
 //
 
 import Foundation
-import os.log
+import OSLog
 
 /// Performance validation results for widget system
 public struct PerformanceValidation {
@@ -36,7 +36,7 @@ public struct PerformanceValidation {
     }
 
     public var coldStartValid: Bool {
-        tonicStats.coldStartDuration <= baselineStats.coldStartDuration * 1.1
+        tonicStats.coldStartDuration <= Int(Double(baselineStats.coldStartDuration) * 1.1)
     }
 
     public var isValid: Bool {
@@ -131,7 +131,7 @@ public final class PerformanceProfiler {
     public static let shared = PerformanceProfiler()
 
     private var measurements: [String: [Double]] = [:]
-    private let logger = OSLog(subsystem: "com.tonic.performance", category: "Profiler")
+    private let logger = Logger(subsystem: "com.tonic.performance", category: "Profiler")
 
     private init() {}
 
@@ -166,18 +166,23 @@ public final class PerformanceProfiler {
         var threadsCountMemory = threadsCount
 
         let result = withUnsafeMutablePointer(to: &threadsInfo) {
-            return $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+            return $0.withMemoryRebound(to: thread_act_array_t?.self, capacity: 1) {
                 task_threads(mach_task_self_, $0, &threadsCountMemory)
             }
         }
 
         if result == KERN_SUCCESS, let threads = threadsInfo {
-            for index in 0..<threadsCount {
+            for index in 0..<Int(threadsCountMemory) {
                 var threadInfo = thread_basic_info()
                 var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
                 let infoResult = withUnsafeMutablePointer(to: &threadInfo) {
-                    $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                        thread_info(threads[index], THREAD_BASIC_INFO, $0, &threadInfoCount)
+                    $0.withMemoryRebound(to: integer_t.self, capacity: Int(MemoryLayout<thread_basic_info>.stride) / MemoryLayout<integer_t>.size) {
+                        thread_info(
+                            threads[index],
+                            thread_flavor_t(THREAD_BASIC_INFO),
+                            $0,
+                            UnsafeMutablePointer<mach_msg_type_number_t>(mutating: &threadInfoCount)
+                        )
                     }
                 }
 
@@ -187,8 +192,8 @@ public final class PerformanceProfiler {
             }
 
             vm_deallocate(
-                mach_task_self(),
-                vm_address_t(UInt(bitPattern: threadsInfo)),
+                mach_task_self_,
+                vm_address_t(UInt(bitPattern: threads)),
                 vm_size_t(Int(threadsCountMemory) * MemoryLayout<thread_t>.stride)
             )
         }
@@ -202,8 +207,13 @@ public final class PerformanceProfiler {
         var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
 
         let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_, MACH_TASK_BASIC_INFO, $0, &count)
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(MemoryLayout<mach_task_basic_info>.stride) / MemoryLayout<integer_t>.size) {
+                task_info(
+                    mach_task_self_,
+                    task_flavor_t(MACH_TASK_BASIC_INFO),
+                    $0,
+                    &count
+                )
             }
         }
 

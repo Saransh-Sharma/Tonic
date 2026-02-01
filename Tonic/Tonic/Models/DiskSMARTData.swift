@@ -13,8 +13,8 @@ import Foundation
 /// NVMe drive SMART (Self-Monitoring, Analysis and Reporting Technology) data
 /// Provides health and usage information for NVMe SSDs
 public struct NVMeSMARTData: Sendable, Codable, Equatable {
-    /// Current drive temperature in Celsius
-    public let temperature: Double
+    /// Current drive temperature in Celsius (nil if not available)
+    public let temperature: Double?
 
     /// Percentage of drive used (for endurance)
     /// Percentage Used = 100 - (Percentage Remaining)
@@ -42,7 +42,7 @@ public struct NVMeSMARTData: Sendable, Codable, Equatable {
     public let dataWrittenBytes: UInt64?
 
     public init(
-        temperature: Double,
+        temperature: Double? = nil,
         percentageUsed: Double? = nil,
         criticalWarning: Bool = false,
         powerCycles: UInt64 = 0,
@@ -67,7 +67,7 @@ public struct NVMeSMARTData: Sendable, Codable, Equatable {
         if let percentageUsed = percentageUsed, percentageUsed > 90 {
             return .warning
         }
-        if temperature > 80 {
+        if let temp = temperature, temp > 80 {
             return .warning
         }
         return .good

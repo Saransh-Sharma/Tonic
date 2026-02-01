@@ -13,8 +13,8 @@ import SwiftUI
 /// Standalone SwiftUI view that can be used independently of NSStatusItem
 /// Useful for previews and testing
 struct OneViewContentView: View {
-    @ObservedObject private var dataManager = WidgetDataManager.shared
-    @ObservedObject private var preferences = WidgetPreferences.shared
+    @State private var dataManager = WidgetDataManager.shared
+    @State private var preferences = WidgetPreferences.shared
 
     private var enabledWidgets: [WidgetConfiguration] {
         preferences.enabledWidgets.sorted { $0.position < $1.position }
@@ -42,8 +42,8 @@ struct OneViewContentView: View {
 
 /// Grid layout alternative using LazyHGrid for more flexible widget arrangement
 struct OneViewGridLayout: View {
-    @ObservedObject private var preferences = WidgetPreferences.shared
-    @ObservedObject private var dataManager = WidgetDataManager.shared
+    @State private var preferences = WidgetPreferences.shared
+    @State private var dataManager = WidgetDataManager.shared
 
     private let columns = [
         GridItem(.flexible()),
@@ -107,8 +107,8 @@ struct OneViewOverflowIndicator: View {
 
 /// Preview of how OneView appears in the menu bar
 struct OneViewMenuBarPreview: View {
-    @ObservedObject private var dataManager = WidgetDataManager.shared
-    @ObservedObject private var preferences = WidgetPreferences.shared
+    @State private var dataManager = WidgetDataManager.shared
+    @State private var preferences = WidgetPreferences.shared
 
     var body: some View {
         HStack(spacing: 0) {

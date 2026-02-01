@@ -8,10 +8,11 @@
 
 import SwiftUI
 
-// MARK: - Settings Section
+// MARK: - Settings Group Box
 
 /// Container for grouped settings with title and background
-struct SettingsSection<Content: View>: View {
+/// Renamed from SettingsSection to avoid conflict with enum in PreferencesView
+struct SettingsGroupBox<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
 
@@ -464,6 +465,10 @@ struct WidgetPreviewBox: View {
             return "21°"
         case .sensors:
             return "45°C"
+        case .bluetooth:
+            return "2"
+        case .clock:
+            return "12:00"
         }
     }
 
@@ -527,12 +532,12 @@ extension WidgetUpdateInterval {
 
 #Preview("Settings Components") {
     VStack(spacing: 20) {
-        SettingsSection(title: "Update Interval") {
+        SettingsGroupBox(title: "Update Interval") {
             IntervalPicker(selection: .constant(.balanced))
                 .padding()
         }
 
-        SettingsSection(title: "Display") {
+        SettingsGroupBox(title: "Display") {
             ToggleRow(label: "Show percentage", isOn: .constant(true))
             SettingsDivider()
             ToggleRow(label: "Per-core usage", isOn: .constant(false))
