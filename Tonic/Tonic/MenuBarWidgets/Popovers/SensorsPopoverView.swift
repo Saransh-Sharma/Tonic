@@ -294,7 +294,7 @@ public struct SensorsPopoverView: View {
 
                         RoundedRectangle(cornerRadius: 2)
                             .fill(fanColor(fan.rpm, maxRPM: fan.maxRPM))
-                            .frame(width: geometry.size.width * min(Double(fan.rpm) / Double(maxRPM), 1.0))
+                            .frame(width: geometry.size.width * Swift.min(Double(fan.rpm) / Double(maxRPM), 1.0))
                             .animation(.easeInOut(duration: 0.3), value: fan.rpm)
                     }
                 }
@@ -308,7 +308,7 @@ public struct SensorsPopoverView: View {
 
                         RoundedRectangle(cornerRadius: 2)
                             .fill(fanColor(fan.rpm, maxRPM: nil))
-                            .frame(width: geometry.size.width * min(Double(fan.rpm) / 3000, 1.0))
+                            .frame(width: geometry.size.width * Swift.min(Double(fan.rpm) / 3000, 1.0))
                             .animation(.easeInOut(duration: 0.3), value: fan.rpm)
                     }
                 }
