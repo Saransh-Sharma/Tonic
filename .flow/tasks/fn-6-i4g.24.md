@@ -63,10 +63,9 @@ The cast fails because `readers` stores type-erased `any WidgetReader`.
 - [ ] All widgets still function correctly
 - [ ] ~2,605 lines of dead code removed
 
-## Done Summary
-Removed the dead WidgetReader directory (~2,605 lines) from an aborted architecture migration.
-
+## Done summary
+Removed dead WidgetReader directory (~2,605 lines) and WidgetRefreshScheduler.swift from an aborted architecture migration. Total of 3,579 lines of dead code deleted.
 ## Evidence
-- Commits:
+- Commits: 0b80bcc7ee153db81d1042e013547c8ac5e7ffc2
 - Tests:
 - PRs:

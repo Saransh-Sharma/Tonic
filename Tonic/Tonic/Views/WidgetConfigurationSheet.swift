@@ -8,9 +8,11 @@
 
 import SwiftUI
 
-// MARK: - Widget Display Mode
+// MARK: - Widget Display Mode Option
 
-public enum WidgetDisplayMode: String, CaseIterable, Identifiable {
+/// UI-only display mode options for the configuration sheet
+/// Note: This is separate from the data model's WidgetDisplayMode which is Codable
+public enum WidgetDisplayModeOption: String, CaseIterable, Identifiable {
     case iconOnly = "Icon Only"
     case iconAndValue = "Icon + Value"
     case iconValueAndSparkline = "Icon + Value + Sparkline"
@@ -18,6 +20,15 @@ public enum WidgetDisplayMode: String, CaseIterable, Identifiable {
     case detailed = "Detailed"
 
     public var id: String { rawValue }
+
+    /// Convert to the data model's WidgetDisplayMode
+    public func toDataModel() -> WidgetDisplayMode {
+        switch self {
+        case .compact: return .compact
+        case .detailed: return .detailed
+        case .iconOnly, .iconAndValue, .iconValueAndSparkline: return .compact
+        }
+    }
 }
 
 // MARK: - Widget Refresh Interval
@@ -48,6 +59,80 @@ public enum WidgetRefreshInterval: Double, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Available Widget Type
+
+/// Available widget types for the configuration sheet UI
+/// This bridges the UI config model with the data model's WidgetType
+public enum AvailableWidgetType: String, CaseIterable, Identifiable {
+    case cpu = "CPU"
+    case memory = "Memory"
+    case disk = "Disk"
+    case network = "Network"
+    case gpu = "GPU"
+    case battery = "Battery"
+    case weather = "Weather"
+    case sensors = "Sensors"
+    case bluetooth = "Bluetooth"
+    case mini = "Mini"
+    case lineChart = "Line Chart"
+    case barChart = "Bar Chart"
+    case pieChart = "Pie Chart"
+    case tachometer = "Tachometer"
+    case stack = "Stack"
+    case speed = "Speed"
+    case networkChart = "Network Chart"
+    case batteryDetails = "Battery Details"
+    case label = "Label"
+    case state = "State"
+    case text = "Text"
+    case memory = "Memory Display"
+
+    public var id: String { rawValue }
+
+    public var icon: String {
+        switch self {
+        case .cpu: return "cpu"
+        case .memory: return "memorychip"
+        case .disk: return "internaldrive"
+        case .network: return "network"
+        case .gpu: return "cpu"
+        case .battery: return "battery.100"
+        case .weather: return "cloud.sun"
+        case .sensors: return "thermometer"
+        case .bluetooth: return "bluetooth"
+        case .mini: return "circle"
+        case .lineChart: return "chart.xyaxis.line"
+        case .barChart: return "chart.bar.fill"
+        case .pieChart: return "chart.pie.fill"
+        case .tachometer: return "gauge"
+        case .stack: return "stack"
+        case .speed: return "speedometer"
+        case .networkChart: return "network"
+        case .batteryDetails: return "battery.100.bolt"
+        case .label: return "textformat"
+        case .state: return "circlebadge"
+        case .text: return "text.alignleft"
+        case .memory: return "memorychip"
+        }
+    }
+
+    /// Convert to data model's WidgetType
+    public func toWidgetType() -> WidgetType {
+        switch self {
+        case .cpu: return .cpu
+        case .memory: return .memory
+        case .disk: return .disk
+        case .network: return .network
+        case .gpu: return .gpu
+        case .battery: return .battery
+        case .weather: return .weather
+        case .sensors: return .sensors
+        case .bluetooth: return .bluetooth
+        default: return .cpu  // Fallback for visualization types
+        }
+    }
+}
+
 // MARK: - Widget Config Model
 
 @Observable
@@ -56,10 +141,10 @@ public final class WidgetConfig: Sendable {
     public var id: UUID
     public var name: String
     public var type: AvailableWidgetType
-    public var displayMode: WidgetDisplayMode
+    public var displayMode: WidgetDisplayModeOption
     public var showLabel: Bool
     public var showIcon: Bool
-    public var color: WidgetColor
+    public var color: WidgetConfigColor
     public var refreshInterval: WidgetRefreshInterval
     public var historySize: Int  // For charts
     public var scalingMode: ScalingMode
@@ -68,10 +153,10 @@ public final class WidgetConfig: Sendable {
         id: UUID = UUID(),
         name: String,
         type: AvailableWidgetType,
-        displayMode: WidgetDisplayMode = .iconAndValue,
+        displayMode: WidgetDisplayModeOption = .iconAndValue,
         showLabel: Bool = true,
         showIcon: Bool = true,
-        color: WidgetColor = .accent,
+        color: WidgetConfigColor = .accent,
         refreshInterval: WidgetRefreshInterval = .twoSeconds,
         historySize: Int = 60,
         scalingMode: ScalingMode = .linear
@@ -97,9 +182,9 @@ public final class WidgetConfig: Sendable {
     }
 }
 
-// MARK: - Widget Color Options
+// MARK: - Widget Config Color Options
 
-public enum WidgetColor: String, CaseIterable, Identifiable {
+public enum WidgetConfigColor: String, CaseIterable, Identifiable {
     case accent = "Accent"
     case blue = "Blue"
     case green = "Green"
@@ -179,7 +264,7 @@ public struct WidgetConfigurationSheet: View {
     private var displayModeSection: some View {
         Section("Display Mode") {
             Picker("Mode", selection: $config.displayMode) {
-                ForEach(WidgetDisplayMode.allCases) { mode in
+                ForEach(WidgetDisplayModeOption.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
                 }
             }
@@ -193,7 +278,7 @@ public struct WidgetConfigurationSheet: View {
     private var appearanceSection: some View {
         Section("Appearance") {
             Picker("Color", selection: $config.color) {
-                ForEach(WidgetColor.allCases) { color in
+                ForEach(WidgetConfigColor.allCases) { color in
                     HStack {
                         Circle()
                             .fill(color.color)

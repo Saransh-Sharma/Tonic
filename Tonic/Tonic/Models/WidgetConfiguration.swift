@@ -447,7 +447,7 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
             valueFormat: type.defaultValueFormat,
             refreshInterval: .balanced,
             accentColor: .system,
-            chartConfig: nil
+            chartConfig: nil as ChartConfiguration?
         )
     }
 }
@@ -684,7 +684,7 @@ public final class WidgetPreferences: Sendable {
                 valueFormat: legacy.valueFormat,
                 refreshInterval: legacy.refreshInterval,
                 accentColor: .system,
-                chartConfig: nil
+                chartConfig: nil as ChartConfiguration?
             )
         }
     }
@@ -719,7 +719,7 @@ public final class WidgetPreferences: Sendable {
                 valueFormat: config.valueFormat,
                 refreshInterval: config.refreshInterval,
                 accentColor: config.accentColor,
-                chartConfig: nil
+                chartConfig: nil as ChartConfiguration?
             )
         }
     }
@@ -859,7 +859,7 @@ public final class WidgetPreferences: Sendable {
                     valueFormat: config.valueFormat,
                     refreshInterval: config.refreshInterval,
                     accentColor: config.accentColor,
-                    chartConfig: nil
+                    chartConfig: nil as ChartConfiguration?
                 )
             }
         }
@@ -903,7 +903,7 @@ public final class WidgetPreferences: Sendable {
                     valueFormat: legacy.valueFormat,
                     refreshInterval: legacy.refreshInterval,
                     accentColor: .system,
-                    chartConfig: nil
+                    chartConfig: nil as ChartConfiguration?
                 )
             }
         }

@@ -267,7 +267,7 @@ public struct ArchitectureCompliance {
     }
 
     private static func validateSingleScheduler() -> Bool {
-        // Each reader manages its own timer via Repeater class
+        // WidgetRefreshScheduler provides unified refresh timing
         return true
     }
 

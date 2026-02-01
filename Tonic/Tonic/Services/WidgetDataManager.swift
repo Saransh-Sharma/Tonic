@@ -1989,6 +1989,7 @@ public final class WidgetDataManager {
         // Get connection info
         let connectionType = getConnectionType()
         let ssid = getWiFiSSID()
+        let ipAddress = getLocalIPAddress()
 
         // Get enhanced network data
         let wifiDetails = getWiFiDetails()
@@ -2002,6 +2003,7 @@ public final class WidgetDataManager {
             isConnected: isConnected,
             connectionType: connectionType,
             ssid: ssid,
+            ipAddress: ipAddress,
             wifiDetails: wifiDetails,
             publicIP: publicIP,
             connectivity: connectivity,
@@ -2124,6 +2126,49 @@ public final class WidgetDataManager {
             return interface.ssid()
         }
         return nil
+    }
+
+    /// Get local IP address of the primary network interface
+    private func getLocalIPAddress() -> String? {
+        var address: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
+            return nil
+        }
+
+        defer {
+            freeifaddrs(ifaddr)
+        }
+
+        var ptr = firstAddr
+        while ptr != nil {
+            defer { ptr = ptr?.pointee.ifa_next }
+
+            guard let interface = ptr?.pointee else { continue }
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+
+            // Check for IPv4 address
+            if addrFamily == UInt8(AF_INET) {
+                let name = String(cString: interface.ifa_name)
+
+                // Skip loopback and virtual interfaces
+                if name == "lo0" || name.hasPrefix("utun") || name.hasPrefix("awdl") || name.hasPrefix("p2p") {
+                    continue
+                }
+
+                // Prioritize en0 (typically WiFi or primary ethernet)
+                if name == "en0" || name == "en1" {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                               &hostname, socklen_t(hostname.count),
+                               nil, socklen_t(0), NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                }
+            }
+        }
+
+        return address
     }
 
     // MARK: - Enhanced Network Readers
