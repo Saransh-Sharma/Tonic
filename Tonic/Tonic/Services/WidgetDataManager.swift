@@ -702,7 +702,7 @@ public final class WidgetDataManager {
     private var lastProcessFetchDate: Date?
 
     // Bluetooth reader
-    private lazy var bluetoothReader = BluetoothReader()
+    private let bluetoothReader = BluetoothReader()
     private var lastBluetoothUpdate: Date?
     private let bluetoothUpdateInterval: TimeInterval = 10.0  // Bluetooth updates less frequently
 

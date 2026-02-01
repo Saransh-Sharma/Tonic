@@ -157,7 +157,7 @@ final class BluetoothReader: WidgetReader {
         }.value
     }
 
-    private func getBluetoothData() -> BluetoothData {
+    private nonisolated func getBluetoothData() -> BluetoothData {
         var devices: [BluetoothDevice] = []
 
         // Check if Bluetooth is powered on
@@ -216,7 +216,7 @@ final class BluetoothReader: WidgetReader {
 
     // MARK: - Bluetooth Power State
 
-    private func isBluetoothPoweredOn() -> Bool {
+    private nonisolated func isBluetoothPoweredOn() -> Bool {
         // Check Bluetooth power state via IORegistry
         var iterator: io_iterator_t = 0
         let result = IOServiceGetMatchingServices(
@@ -248,7 +248,7 @@ final class BluetoothReader: WidgetReader {
 
     // MARK: - HID Devices (Keyboard, Mouse, Trackpad)
 
-    private func getHIDDevices() -> [BluetoothDevice] {
+    private nonisolated func getHIDDevices() -> [BluetoothDevice] {
         var devices: [BluetoothDevice] = []
 
         guard let ioDevices = fetchIOService("AppleDeviceManagementHIDEventService") else {
@@ -302,7 +302,7 @@ final class BluetoothReader: WidgetReader {
 
     // MARK: - IOBluetooth Paired Devices
 
-    private func getIOBluetoothDevices() -> [BluetoothDevice] {
+    private nonisolated func getIOBluetoothDevices() -> [BluetoothDevice] {
         var devices: [BluetoothDevice] = []
 
         guard let pairedDevices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] else {
@@ -339,7 +339,7 @@ final class BluetoothReader: WidgetReader {
 
     // MARK: - Device Cache (AirPods battery levels)
 
-    private func getDeviceCacheBatteryLevels() -> [BluetoothDevice] {
+    private nonisolated func getDeviceCacheBatteryLevels() -> [BluetoothDevice] {
         var devices: [BluetoothDevice] = []
 
         guard let cache = UserDefaults(suiteName: "/Library/Preferences/com.apple.Bluetooth"),
@@ -400,7 +400,7 @@ final class BluetoothReader: WidgetReader {
 
     // MARK: - Helper Methods
 
-    private func fetchIOService(_ serviceName: String) -> [[String: Any]]? {
+    private nonisolated func fetchIOService(_ serviceName: String) -> [[String: Any]]? {
         var iterator: io_iterator_t = 0
         let result = IOServiceGetMatchingServices(
             kIOMainPortDefault,
@@ -432,7 +432,7 @@ final class BluetoothReader: WidgetReader {
         return devices.isEmpty ? nil : devices
     }
 
-    private func inferDeviceType(from name: String, dict: [String: Any]? = nil, deviceClass: BluetoothClassOfDevice = 0) -> BluetoothDeviceType {
+    private nonisolated func inferDeviceType(from name: String, dict: [String: Any]? = nil, deviceClass: BluetoothClassOfDevice = 0) -> BluetoothDeviceType {
         let lowercaseName = name.lowercased()
 
         // Check name patterns
@@ -472,7 +472,7 @@ final class BluetoothReader: WidgetReader {
         return .other
     }
 
-    private func normalizeAddress(_ address: String) -> String {
+    private nonisolated func normalizeAddress(_ address: String) -> String {
         address.replacingOccurrences(of: ":", with: "-").lowercased()
     }
 }

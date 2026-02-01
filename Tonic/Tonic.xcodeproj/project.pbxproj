@@ -15,6 +15,7 @@
 		28C2997F771B1F82F743126B /* AppResetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0560D938238124CEE7B43CE /* AppResetService.swift */; };
 		2FA425C842ECB7EA6ADAA013 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403765C5F7EA0EBB647FA096 /* ScanResult.swift */; };
 		30302E63635E42A6BEF4640528EA9CCB /* DesignSandboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B0889A1DD4416793EEAA0452204A93 /* DesignSandboxView.swift */; };
+		307457357577B24AC1F7E3E4 /* WidgetReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AEDF83475FA47806B13B7AA /* WidgetReader.swift */; };
 		3120C8460975F3F4DCDB88D1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D36AE4175FE0E33DCA8E15B /* ContentView.swift */; };
 		3899455DE5ECCB46379F5020 /* DesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45718B5A4D93C70D9E7AFAE /* DesignComponents.swift */; };
 		39C3B2C122BE58E8B0F6083B /* ResetConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B805D56C1A68AB8530EFC2 /* ResetConfirmationSheet.swift */; };
@@ -82,6 +83,8 @@
 		EEBF2DCD2F552F065A9D1E8B /* DesignAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031AE8AD2ACAC8AB4A3F1CC5 /* DesignAnimations.swift */; };
 		F09F6EC961B1FEF37D163FD1 /* NavigationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F6121BA6532032529AD6E9 /* NavigationModels.swift */; };
 		F1A2B3C4D5E6F7A8B9C0D1E2 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* DashboardView.swift */; };
+		F3AC95FBFE927F57B784AB1E /* BluetoothStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77404688ED523AF410634B9E /* BluetoothStatusItem.swift */; };
+		F3BDB41922073AEDF2135A33 /* BluetoothReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B46DC556D0D3C624C3219A /* BluetoothReader.swift */; };
 		F7249337013509A8B7DB4F5D /* SystemStatusDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE431E1E8E7782DEFB1B00DC /* SystemStatusDashboard.swift */; };
 		F8CAE468426B3E61E2B2990C /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60203727B4DCE325D1534B06 /* SparkleUpdater.swift */; };
 		FA6760CF97C5FA6E3C2EE572 /* PieChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */; };
@@ -143,6 +146,7 @@
 		4A8D09CB014DDCE666670DC7 /* LineChartWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartWidgetView.swift; path = Views/LineChartWidgetView.swift; sourceTree = "<group>"; };
 		4A8D09CD014DDCE666670DC8 /* BarChartWidgetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = BarChartWidgetView.swift; path = Views/BarChartWidgetView.swift; sourceTree = "<group>"; };
 		4F780DECED89A3E9762E52BF /* AppInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInventoryView.swift; sourceTree = "<group>"; };
+		53B46DC556D0D3C624C3219A /* BluetoothReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BluetoothReader.swift; sourceTree = "<group>"; };
 		54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecommendationGenerator.swift; sourceTree = "<group>"; };
 		55C425CF93E187FC0FAD2D14 /* PieChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PieChartStatusItem.swift; path = ChartStatusItems/PieChartStatusItem.swift; sourceTree = "<group>"; };
 		561387584F1DDAFF11465619 /* TonicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicApp.swift; sourceTree = "<group>"; };
@@ -151,6 +155,7 @@
 		5E01A5BBE461B82F8C2CB874 /* SpeedStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpeedStatusItem.swift; path = ChartStatusItems/SpeedStatusItem.swift; sourceTree = "<group>"; };
 		60203727B4DCE325D1534B06 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		6A4E0DE55BF86910E4ED502E /* StackStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = StackStatusItem.swift; path = ChartStatusItems/StackStatusItem.swift; sourceTree = "<group>"; };
+		6AEDF83475FA47806B13B7AA /* WidgetReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetReader.swift; sourceTree = "<group>"; };
 		6BD96844B37981E628F20497 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		75B31A732F22C7160057934B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		75EFDFB32F224BE200B990DA /* BatteryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryWidgetView.swift; sourceTree = "<group>"; };
@@ -174,6 +179,7 @@
 		75EFDFD62F224CCA00B990DA /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
 		75EFF0022F3000000B990DA /* NotificationThreshold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationThreshold.swift; sourceTree = "<group>"; };
 		75EFF0042F3000100B990DA /* NotificationConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationConfig.swift; sourceTree = "<group>"; };
+		77404688ED523AF410634B9E /* BluetoothStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BluetoothStatusItem.swift; sourceTree = "<group>"; };
 		7A34875894FA7482E6198DBC /* LineChartStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LineChartStatusItem.swift; path = ChartStatusItems/LineChartStatusItem.swift; sourceTree = "<group>"; };
 		7FCEF06D4FDC8D82DC622087 /* MemoryVisualizationStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MemoryVisualizationStatusItem.swift; path = ChartStatusItems/MemoryVisualizationStatusItem.swift; sourceTree = "<group>"; };
 		8946B68F608B4A45E6B7BAEC /* TachometerStatusItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TachometerStatusItem.swift; path = ChartStatusItems/TachometerStatusItem.swift; sourceTree = "<group>"; };
@@ -316,6 +322,16 @@
 			path = Tonic;
 			sourceTree = "<group>";
 		};
+		5990AEE9987675B09ADF68DE /* WidgetReader */ = {
+			isa = PBXGroup;
+			children = (
+				53B46DC556D0D3C624C3219A /* BluetoothReader.swift */,
+				6AEDF83475FA47806B13B7AA /* WidgetReader.swift */,
+			);
+			name = WidgetReader;
+			path = WidgetReader;
+			sourceTree = "<group>";
+		};
 		59A14A5786FE7A105D780BB1 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -366,6 +382,7 @@
 				06BB090FE1CE9F44066FDEF7 /* WidgetFactory.swift */,
 				A66726A2D7892895FDA054AD /* SensorsStatusItem.swift */,
 				A5C7893052B2F84CD31E82CA /* ChartStatusItems */,
+				77404688ED523AF410634B9E /* BluetoothStatusItem.swift */,
 			);
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
@@ -471,6 +488,7 @@
 				9265DC123422CC22EBC0040F /* ScanCategoryScanner.swift */,
 				8C091ED870B78BAB0C534C09 /* HealthScoreCalculator.swift */,
 				54B0821D405EE397E0B85C81 /* RecommendationGenerator.swift */,
+				5990AEE9987675B09ADF68DE /* WidgetReader */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -667,6 +685,9 @@
 				578C87E2E82E55894AD6CC0F /* ColorZones.swift in Sources */,
 				AB32BADA735232966494CA4D /* MemoryVisualizationStatusItem.swift in Sources */,
 				1F1D2A248241A5AE34D551FA /* BatteryVisualizationStatusItem.swift in Sources */,
+				F3AC95FBFE927F57B784AB1E /* BluetoothStatusItem.swift in Sources */,
+				F3BDB41922073AEDF2135A33 /* BluetoothReader.swift in Sources */,
+				307457357577B24AC1F7E3E4 /* WidgetReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

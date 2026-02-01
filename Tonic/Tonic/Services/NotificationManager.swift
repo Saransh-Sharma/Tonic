@@ -254,6 +254,11 @@ public final class NotificationManager: Sendable {
         case .weather:
             title = "Weather Alert"
             body = "Temperature is \(threshold.formattedValue)"
+
+        case .bluetooth:
+            let currentPercent = String(format: "%.0f%%", currentValue)
+            title = "Bluetooth Device Alert"
+            body = "Device battery at \(currentPercent) (threshold: \(threshold.formattedValue))"
         }
 
         return (title, body)

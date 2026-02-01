@@ -47,9 +47,8 @@ struct BluetoothDevice {
 - [ ] No Bluetooth permission dialog triggered on read
 - [ ] Graceful handling when Bluetooth disabled
 ## Done summary
-TBD
-
+Implemented Bluetooth widget data source with BluetoothReader for IORegistry device discovery, BluetoothStatusItem for menu bar display, and integrated with WidgetDataManager. Supports stack, mini, and state visualizations showing connected devices and battery levels.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: cbad35a1a5f4c1e6e58caa9a0ed5acd85ee5ed58
+- Tests: Manual verification - Xcode project needs new files added
 - PRs:

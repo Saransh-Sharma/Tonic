@@ -200,6 +200,16 @@ struct OneViewWidgetCell: View {
                 return String(format: "%.0f", temp.value)
             }
             return "--"
+
+        case .bluetooth:
+            if dataManager.bluetoothData.isBluetoothEnabled {
+                if let device = dataManager.bluetoothData.devicesWithBattery.first,
+                   let battery = device.primaryBatteryLevel {
+                    return "\(battery)%"
+                }
+                return "\(dataManager.bluetoothData.connectedDevices.count)"
+            }
+            return "Off"
         }
     }
 }
@@ -348,6 +358,16 @@ struct OneViewDetailCard: View {
                 return String(format: "%.1f°", temp.value)
             }
             return "--"
+
+        case .bluetooth:
+            if dataManager.bluetoothData.isBluetoothEnabled {
+                if let device = dataManager.bluetoothData.devicesWithBattery.first,
+                   let battery = device.primaryBatteryLevel {
+                    return "\(battery)%"
+                }
+                return "\(dataManager.bluetoothData.connectedDevices.count)"
+            }
+            return "Off"
         }
     }
 
@@ -389,6 +409,10 @@ struct OneViewDetailCard: View {
         case .sensors:
             let count = dataManager.sensorsData.temperatures.count
             return "\(count) sensor\(count == 1 ? "" : "s")"
+
+        case .bluetooth:
+            let connected = dataManager.bluetoothData.connectedDevices.count
+            return "\(connected) connected"
         }
     }
 
@@ -410,6 +434,8 @@ struct OneViewDetailCard: View {
             return "Local conditions"
         case .sensors:
             return "Temperature sensors"
+        case .bluetooth:
+            return "Bluetooth devices"
         }
     }
 }

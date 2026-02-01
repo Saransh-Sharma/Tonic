@@ -501,6 +501,12 @@ struct WidgetCustomizationView: View {
             return "21°C"
         case .sensors:
             return "--"
+        case .bluetooth:
+            if let device = dataManager.bluetoothData.devicesWithBattery.first,
+               let battery = device.primaryBatteryLevel {
+                return "\(battery)%"
+            }
+            return "\(dataManager.bluetoothData.connectedDevices.count)"
         }
     }
 
@@ -514,6 +520,7 @@ struct WidgetCustomizationView: View {
         case .battery: return "Displays charge and time remaining."
         case .weather: return "Current local temperature."
         case .sensors: return "System temperature and fan sensors."
+        case .bluetooth: return "Connected Bluetooth device batteries."
         }
     }
 }
@@ -724,6 +731,7 @@ struct WidgetSettingsSheet: View {
             case .battery: return "3h 20m"
             case .weather: return "21°C"
             case .sensors: return "45°C"
+            case .bluetooth: return "2 devices"
             }
         }
     }
@@ -953,6 +961,7 @@ struct WidgetSettingsSheet: View {
         case .battery: return usePercent ? "85%" : "3h 20m"
         case .weather: return "21°C"
         case .sensors: return "45°C"
+        case .bluetooth: return usePercent ? "75%" : "2 devices"
         }
     }
 
@@ -1161,6 +1170,7 @@ struct WidgetSettingsSheet: View {
         case .battery: return Color(red: 0.19, green: 0.82, blue: 0.35)
         case .weather: return Color(red: 1.0, green: 0.84, blue: 0.04)
         case .sensors: return Color(red: 1.0, green: 0.45, blue: 0.35)
+        case .bluetooth: return Color(red: 0.0, green: 0.48, blue: 1.0)  // Bluetooth blue
         }
     }
 }
