@@ -19,6 +19,7 @@ struct WidgetCustomizationView: View {
     @State private var dataManager = WidgetDataManager.shared
     @State private var selectedWidgetForSettings: WidgetType?
     @State private var showingNotificationSettings = false
+    @State private var dropTargetType: WidgetType?
 
     init() {}
 
@@ -241,16 +242,23 @@ struct WidgetCustomizationView: View {
             .padding(.vertical, DesignTokens.Spacing.sm)
             .padding(.horizontal, DesignTokens.Spacing.md)
             .contentShape(Rectangle())
+            .background(
+                dropTargetType == config.type ?
+                    DesignTokens.Colors.accent.opacity(0.1) : Color.clear
+            )
+            .opacity(draggedWidget == config.type ? 0.5 : 1.0)
             .onDrag {
                 draggedWidget = config.type
                 return NSItemProvider(object: config.type.rawValue as NSString)
             }
             .onDrop(of: [.text], delegate: WidgetTypeDropDelegate(
                 currentType: config.type,
-                onDrop: { _ in
-                    guard let draggedType = draggedWidget else { return false }
-                    preferences.reorderWidgets(move: draggedType, to: config.type)
-                    draggedWidget = nil
+                draggedType: $draggedWidget,
+                dropTargetType: $dropTargetType,
+                onDrop: { draggedType in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        preferences.reorderWidgets(move: draggedType, to: config.type)
+                    }
                     return true
                 }
             ))
@@ -320,12 +328,26 @@ struct WidgetCustomizationView: View {
                         Text("All widgets active")
                             .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                        Text("Drag widgets here to remove")
+                            .font(.caption2)
+                            .foregroundColor(DesignTokens.Colors.textTertiary)
                     }
                     .padding(.vertical, DesignTokens.Spacing.lg)
                     Spacer()
                 }
-                .background(DesignTokens.Colors.backgroundSecondary)
+                .background(draggedWidget != nil ? DesignTokens.Colors.accent.opacity(0.1) : DesignTokens.Colors.backgroundSecondary)
                 .cornerRadius(DesignTokens.CornerRadius.medium)
+                .animation(.easeInOut(duration: 0.2), value: draggedWidget != nil)
+                .onDrop(of: [.text], isTargeted: nil) { _ in
+                    // Allow dropping active widgets here to disable them
+                    guard let draggedType = draggedWidget else { return false }
+                    withAnimation(DesignTokens.Animation.fast) {
+                        preferences.setWidgetEnabled(type: draggedType, enabled: false)
+                    }
+                    draggedWidget = nil
+                    return true
+                }
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(availableTypes.enumerated()), id: \.element) { index, type in
@@ -369,6 +391,10 @@ struct WidgetCustomizationView: View {
             .padding(.vertical, DesignTokens.Spacing.sm)
             .padding(.horizontal, DesignTokens.Spacing.md)
             .contentShape(Rectangle())
+            .background(
+                dropTargetType == type ?
+                    DesignTokens.Colors.accent.opacity(0.1) : Color.clear
+            )
             .onTapGesture {
                 withAnimation(DesignTokens.Animation.fast) {
                     toggleWidget(type)
@@ -378,16 +404,21 @@ struct WidgetCustomizationView: View {
                 draggedWidget = type
                 return NSItemProvider(object: type.rawValue as NSString)
             }
-            .onDrop(of: [.text], isTargeted: nil) { _ in
-                guard let draggedType = draggedWidget else { return false }
-                if preferences.config(for: draggedType)?.isEnabled == false {
+            .onDrop(of: [.text], delegate: AvailableWidgetDropDelegate(
+                currentType: type,
+                draggedType: $draggedWidget,
+                dropTargetType: $dropTargetType,
+                onDrop: { draggedType in
                     withAnimation(DesignTokens.Animation.fast) {
-                        preferences.setWidgetEnabled(type: draggedType, enabled: true)
+                        // If dragging from active list, enable it and add at end
+                        if preferences.config(for: draggedType)?.isEnabled == false {
+                            preferences.setWidgetEnabled(type: draggedType, enabled: true)
+                        }
+                        // If dragging within available list, reorder (not implemented for available)
                     }
+                    return true
                 }
-                draggedWidget = nil
-                return true
-            }
+            ))
 
             // Divider
             if !isLast {
@@ -1511,14 +1542,64 @@ struct WidgetSettingsSheet: View {
 
 private struct WidgetTypeDropDelegate: DropDelegate {
     let currentType: WidgetType
+    let draggedType: Binding<WidgetType?>
+    let dropTargetType: Binding<WidgetType?>
     let onDrop: (WidgetType) -> Bool
 
     func performDrop(info: DropInfo) -> Bool {
+        dropTargetType.wrappedValue = nil
         return onDrop(currentType)
     }
 
     func dropEntered(info: DropInfo) {
-        // Visual feedback handled by hover state
+        if draggedType.wrappedValue != currentType {
+            dropTargetType.wrappedValue = currentType
+            // Trigger drop when dragging over another item
+            if let dragged = draggedType.wrappedValue {
+                _ = onDrop(dragged)
+                draggedType.wrappedValue = currentType // Update to prevent multiple drops
+            }
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetType.wrappedValue == currentType {
+            dropTargetType.wrappedValue = nil
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .move)
+    }
+}
+
+// MARK: - Available Widget Drop Delegate
+
+private struct AvailableWidgetDropDelegate: DropDelegate {
+    let currentType: WidgetType
+    let draggedType: Binding<WidgetType?>
+    let dropTargetType: Binding<WidgetType?>
+    let onDrop: (WidgetType) -> Bool
+
+    func performDrop(info: DropInfo) -> Bool {
+        dropTargetType.wrappedValue = nil
+        return onDrop(currentType)
+    }
+
+    func dropEntered(info: DropInfo) {
+        if draggedType.wrappedValue != currentType {
+            dropTargetType.wrappedValue = currentType
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetType.wrappedValue == currentType {
+            dropTargetType.wrappedValue = nil
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        return DropProposal(operation: .copy)
     }
 }
 
@@ -1537,8 +1618,15 @@ extension WidgetPreferences {
         let movedConfig = widgetConfigs[fromIndex]
         widgetConfigs.remove(at: fromIndex)
 
+        // Calculate adjusted insertion index
+        // When removing from an earlier index, the target index shifts by -1
+        var adjustedToIndex = toIndex
+        if fromIndex < toIndex {
+            adjustedToIndex = toIndex - 1
+        }
+
         // Insert at new position
-        widgetConfigs.insert(movedConfig, at: toIndex)
+        widgetConfigs.insert(movedConfig, at: adjustedToIndex)
 
         // Update all positions
         for (index, _) in widgetConfigs.enumerated() {
@@ -1546,6 +1634,15 @@ extension WidgetPreferences {
         }
 
         saveConfigs()
+
+        // Broadcast change for reactive updates
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .widgetConfigurationDidUpdate,
+                object: nil,
+                userInfo: ["widgetType": "reorder"] // Special marker for reorder
+            )
+        }
     }
 }
 

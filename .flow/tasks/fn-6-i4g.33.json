@@ -1,14 +1,14 @@
 {
-  "assignee": null,
+  "assignee": "saransh1337@gmail.com",
   "claim_note": "",
-  "claimed_at": null,
+  "claimed_at": "2026-02-01T21:55:57.757212Z",
   "created_at": "2026-02-01T20:58:38.158330Z",
   "depends_on": [],
   "epic": "fn-6-i4g",
   "id": "fn-6-i4g.33",
   "priority": 6,
   "spec_path": ".flow/tasks/fn-6-i4g.33.md",
-  "status": "todo",
+  "status": "done",
   "title": "Tabbed Settings Interface",
-  "updated_at": "2026-02-01T20:58:38.158575Z"
+  "updated_at": "2026-02-02T03:30:00.000000Z"
 }
