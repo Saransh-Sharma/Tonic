@@ -146,12 +146,12 @@ CoreClusterBarView(
 - [ ] Empty core arrays handled gracefully
 - [ ] Component works with Intel Macs (no E/P split)
 
-## Done Summary
+## Done summary
 
 Created E/P core grouped bar component with color-coding and labels. Groups cores by type with distinct visual treatment for efficiency vs performance cores.
 
 ## Evidence
 
-- Commits:
-- Tests:
+- Commits: 8cd9bc2ab659e0a5236769b62283a012cc1ba49f
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

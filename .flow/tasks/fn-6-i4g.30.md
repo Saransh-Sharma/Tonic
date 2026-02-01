@@ -249,12 +249,9 @@ HStack(spacing: 20) {
 - [ ] Zero values handled gracefully (no divide-by-zero)
 - [ ] CPU dashboard row displays all three gauges correctly
 
-## Done Summary
-
+## Done summary
 Created reusable gauge components for Stats Master-style dashboard display. CircularGaugeView for multi-segment data (System/User/Idle), HalfCircleGaugeView for single-value gauges (temperature, frequency).
-
 ## Evidence
-
-- Commits:
-- Tests:
+- Commits: 0def1efe77ccb18a2acc04c2e06bd124782fd545
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

@@ -86,14 +86,14 @@ struct ProcessesView: View {
                     // Fill
                     RoundedRectangle(cornerRadius: 2)
                         .fill(barColor)
-                        .frame(width: geometry.size.width * (process.usagePercent / 100))
-                        .animation(.easeInOut(duration: 0.2), value: process.usagePercent)
+                        .frame(width: geometry.size.width * ((process.cpuUsage ?? 0) / 100))
+                        .animation(.easeInOut(duration: 0.2), value: process.cpuUsage)
                 }
             }
             .frame(height: 6)
 
             // Percentage
-            Text("\(Int(process.usagePercent))%")
+            Text("\(Int(process.cpuUsage ?? 0))%")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(DesignTokens.Colors.text)
                 .frame(width: 30, alignment: .trailing)
@@ -101,13 +101,14 @@ struct ProcessesView: View {
     }
 }
 
-// ProcessUsage model (ensure this exists in WidgetDataModels.swift)
-struct ProcessUsage: Identifiable, Sendable {
-    let id = UUID()
-    let pid: Int32
-    let name: String
-    let usagePercent: Double  // CPU %, Memory %, etc.
-}
+// ProcessUsage model - use existing model from Models/ProcessUsage.swift
+// The existing model has:
+// - id: Int32 (PID)
+// - name: String
+// - cpuUsage: Double? (CPU percentage)
+// - memoryUsage: UInt64? (bytes)
+// - diskReadBytes, diskWriteBytes, networkBytes: UInt64?
+// Note: Use process.cpuUsage instead of usagePercent
 
 // Preview
 #if DEBUG
@@ -115,11 +116,11 @@ struct ProcessesView_Previews: PreviewProvider {
     static var previews: some View {
         ProcessesView(
             processes: [
-                .init(pid: 1234, name: "Safari", usagePercent: 45),
-                .init(pid: 5678, name: "Xcode", usagePercent: 28),
-                .init(pid: 9012, name: "Chrome", usagePercent: 18),
-                .init(pid: 3456, name: "Spotify", usagePercent: 8),
-                .init(pid: 7890, name: "Finder", usagePercent: 3)
+                .init(id: 1234, name: "Safari", cpuUsage: 45),
+                .init(id: 5678, name: "Xcode", cpuUsage: 28),
+                .init(id: 9012, name: "Chrome", cpuUsage: 18),
+                .init(id: 3456, name: "Spotify", cpuUsage: 8),
+                .init(id: 7890, name: "Finder", cpuUsage: 3)
             ],
             maxCount: 5,
             barColor: .blue
@@ -178,6 +179,7 @@ ProcessesView(
 ## Done Summary
 
 Created reusable ProcessesView component for displaying top processes across CPU, Memory, Disk, and Network popovers. Configurable count and color, matches Stats Master design.
+<!-- Updated by plan-sync: Use existing ProcessUsage model with cpuUsage property, not usagePercent -->
 
 ## Evidence
 

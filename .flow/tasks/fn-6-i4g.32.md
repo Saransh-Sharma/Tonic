@@ -207,9 +207,9 @@ struct CPUPopoverView: View {
 
     private var loadAverageSection: some View {
         HStack(spacing: 12) {
-            loadItem("1 min", value: dataManager.cpuData.loadAverage[safe: 0])
-            loadItem("5 min", value: dataManager.cpuData.loadAverage[safe: 1])
-            loadItem("15 min", value: dataManager.cpuData.loadAverage[safe: 2])
+            loadItem("1 min", value: dataManager.cpuData.averageLoad?[safe: 0])
+            loadItem("5 min", value: dataManager.cpuData.averageLoad?[safe: 1])
+            loadItem("15 min", value: dataManager.cpuData.averageLoad?[safe: 2])
         }
     }
 
@@ -300,6 +300,7 @@ extension Array {
 ## Done Summary
 
 Created Stats Master-style CPU popover with dashboard gauges, grouped E/P cores, load average display, and details section. Replaced generic PopoverTemplate with widget-specific layout.
+<!-- Updated by plan-sync: Use averageLoad property, not loadAverage -->
 
 ## Evidence
 

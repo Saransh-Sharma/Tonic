@@ -12,7 +12,7 @@ Add missing CPU data fields to achieve Stats Master parity:
 
 1. **Tonic/Tonic/Models/WidgetDataModels.swift** (CPUData struct)
    - Add: `systemUsage`, `userUsage`, `idleUsage`
-   - Add: `uptime`, `loadAverage`
+   - Add: `uptime`, `averageLoad` (note: property is `averageLoad`, not `loadAverage`)
 
 2. **Tonic/Tonic/Services/WidgetDataManager.swift**
    - Refactor `updateCPUData()` to calculate System/User/Idle split
@@ -27,7 +27,8 @@ Add missing CPU data fields to achieve Stats Master parity:
 
 ### Step 1: Update CPUData Model
 ```swift
-// File: Tonic/Tonic/Models/WidgetDataModels.swift
+// File: Tonic/Tonic/Services/WidgetDataManager.swift (CPUData struct)
+// NOTE: CPUData is defined in WidgetDataManager.swift, not WidgetDataModels.swift
 
 public struct CPUData: Sendable {
     // Existing
@@ -47,7 +48,7 @@ public struct CPUData: Sendable {
 
     // NEW: Telemetry
     public let uptime: TimeInterval       // Seconds since boot
-    public let loadAverage: [Double]      // [1min, 5min, 15min]
+    public let averageLoad: [Double]?     // [1min, 5min, 15min] - note: property is averageLoad
 
     public let timestamp: Date
 }
@@ -90,8 +91,9 @@ private func getCPUUsageSplit() -> (system: Double, user: Double, idle: Double) 
 ### Step 3: Add Load Average
 ```swift
 // File: Tonic/Tonic/Services/WidgetDataManager.swift
+// NOTE: Function is named getAverageLoad(), not getLoadAverage()
 
-private func getLoadAverage() -> [Double] {
+private func getAverageLoad() -> [Double]? {
     var loadAverages: [Double] = [0, 0, 0]
     let result = getloadavg(&loadAverages, 3)
     if result == 3 {
@@ -140,8 +142,8 @@ private func updateCPUData() {
     let frequency = getCPUFrequency()
 
     // NEW: Get telemetry
-    let uptime = getUptime()
-    let loadAverage = getLoadAverage()
+    let uptime = getSystemUptime()  // Note: function is getSystemUptime(), not getUptime()
+    let averageLoad = getAverageLoad()  // Note: property is averageLoad, function is getAverageLoad()
 
     let newData = CPUData(
         totalUsage: totalUsage,
@@ -154,7 +156,7 @@ private func updateCPUData() {
         frequency: frequency,
         temperature: temperature,
         uptime: uptime,
-        loadAverage: loadAverage,
+        averageLoad: averageLoad,  // note: property is averageLoad, not loadAverage
         timestamp: Date()
     )
 
@@ -167,19 +169,17 @@ private func updateCPUData() {
 
 - [ ] CPUData contains systemUsage, userUsage, idleUsage
 - [ ] CPUData contains uptime (seconds since boot)
-- [ ] CPUData contains loadAverage [1m, 5m, 15m]
+- [ ] CPUData contains averageLoad [1m, 5m, 15m] - note: property is averageLoad
 - [ ] eCoreUsage contains grouped E-core values
 - [ ] pCoreUsage contains grouped P-core values
 - [ ] frequency is populated with current CPU GHz
 - [ ] temperature is populated and accessible
 - [ ] Data matches Activity Monitor values (±2%)
 
-## Done Summary
-
-Enhanced CPU data layer with System/User/Idle split, uptime tracking, load average, and properly populated E/P core grouping. All telemetry fields now accessible for UI display.
-
+## Done summary
+Enhanced CPU data layer with System/User/Idle split and uptime tracking. Added new fields to CPUData struct (systemUsage, userUsage, idleUsage, uptime) and implemented getCPUUsageSplit() and getSystemUptime() helper methods. Build verified successfully.
+<!-- Updated by plan-sync: Property is averageLoad, not loadAverage. Function is getAverageLoad(), not getLoadAverage(). CPUData is in WidgetDataManager.swift, not WidgetDataModels.swift -->
 ## Evidence
-
-- Commits:
-- Tests:
+- Commits: 348e76d8b84d0d04e8d9426a846e3defeb598660
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:

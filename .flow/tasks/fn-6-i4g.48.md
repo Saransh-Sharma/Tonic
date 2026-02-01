@@ -94,9 +94,9 @@ private var loadAverageSection: some View {
             .foregroundColor(DesignTokens.Colors.textSecondary)
 
         HStack(spacing: 12) {
-            loadItem("1 min", value: dataManager.cpuData.loadAverage[safe: 0])
-            loadItem("5 min", value: dataManager.cpuData.loadAverage[safe: 1])
-            loadItem("15 min", value: dataManager.cpuData.loadAverage[safe: 2])
+            loadItem("1 min", value: dataManager.cpuData.averageLoad?[safe: 0])
+            loadItem("5 min", value: dataManager.cpuData.averageLoad?[safe: 1])
+            loadItem("15 min", value: dataManager.cpuData.averageLoad?[safe: 2])
         }
     }
 }
@@ -208,6 +208,7 @@ extension Array {
 ## Done Summary
 
 Created CPU popover sections: history chart, E/P grouped core bars, color-coded details, load average, and frequency breakdown. Matches Stats Master's complete CPU popup structure.
+<!-- Updated by plan-sync: Use averageLoad property, not loadAverage -->
 
 ## Evidence
 
