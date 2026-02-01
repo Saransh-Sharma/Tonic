@@ -2077,12 +2077,11 @@ public final class WidgetDataManager {
         var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
         while let current = ptr {
             let interface = String(cString: current.pointee.ifa_name)
+            let nextPtr = current.pointee.ifa_next
+            ptr = nextPtr
 
             // Safely unwrap ifa_addr - it can be nil for some interfaces
-            guard let ifa_addr = current.pointee.ifa_addr else {
-                ptr = current.pointee.ifa_next
-                continue
-            }
+            guard let ifa_addr = current.pointee.ifa_addr else { continue }
             let addrFamily = ifa_addr.pointee.sa_family
 
             // Check for active ethernet interfaces (en0, en1, etc.)
@@ -2092,8 +2091,6 @@ public final class WidgetDataManager {
                     hasEthernet = true
                 }
             }
-
-            ptr = current.pointee.ifa_next
         }
 
         return hasEthernet ? .ethernet : .unknown
@@ -2137,10 +2134,14 @@ public final class WidgetDataManager {
         var ptr = firstAddr
         while ptr != nil {
             let interface = ptr.pointee
-            defer { ptr = interface.ifa_next }
 
             // Safely unwrap ifa_addr - it can be nil for some interfaces
-            guard let addrPtr = interface.ifa_addr else { continue }
+            guard let addrPtr = interface.ifa_addr else {
+                ptr = interface.ifa_next
+                continue
+            }
+
+            // Get address family
             let addrFamily = addrPtr.pointee.sa_family
 
             // Check for IPv4 address
@@ -2149,18 +2150,30 @@ public final class WidgetDataManager {
 
                 // Skip loopback and virtual interfaces
                 if name == "lo0" || name.hasPrefix("utun") || name.hasPrefix("awdl") || name.hasPrefix("p2p") {
+                    ptr = interface.ifa_next
                     continue
                 }
 
                 // Prioritize en0 (typically WiFi or primary ethernet)
                 if name == "en0" || name == "en1" {
+                    // Validate sa_len is reasonable before using it
+                    let saLen = Int(addrPtr.pointee.sa_len)
+                    guard saLen >= MemoryLayout<sockaddr>.size && saLen <= 256 else {
+                        ptr = interface.ifa_next
+                        continue
+                    }
+
                     var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(addrPtr, socklen_t(addrPtr.pointee.sa_len),
-                               &hostname, socklen_t(hostname.count),
-                               nil, socklen_t(0), NI_NUMERICHOST)
-                    address = String(cString: hostname)
+                    let result = getnameinfo(addrPtr, socklen_t(saLen),
+                                            &hostname, socklen_t(hostname.count),
+                                            nil, socklen_t(0), NI_NUMERICHOST)
+                    if result == 0 {
+                        address = String(cString: hostname)
+                    }
                 }
             }
+
+            ptr = interface.ifa_next
         }
 
         return address
