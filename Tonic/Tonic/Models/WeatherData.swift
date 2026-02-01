@@ -215,10 +215,12 @@ public struct WeatherLocation: Codable, Sendable, Identifiable, Equatable {
 // MARK: - Temperature Unit
 
 /// Temperature unit preferences
-public enum TemperatureUnit: String, CaseIterable, Codable, Sendable {
+public enum TemperatureUnit: String, CaseIterable, Codable, Sendable, Identifiable {
     case celsius = "celsius"
     case fahrenheit = "fahrenheit"
     case auto = "auto"
+
+    public var id: String { rawValue }
 
     public var displayName: String {
         switch self {

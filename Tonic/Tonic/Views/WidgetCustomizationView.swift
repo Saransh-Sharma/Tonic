@@ -632,6 +632,13 @@ struct WidgetSettingsSheet: View {
                             updateFrequencySelector
                         }
 
+                        // Per-Module Settings Section (Stats Master parity)
+                        if hasModuleSpecificSettings {
+                            PreferenceSection(header: "Module Settings") {
+                                moduleSpecificSettings
+                            }
+                        }
+
                         // Widget Color Section
                         PreferenceSection(header: "Widget Color") {
                             colorSelector
@@ -750,6 +757,535 @@ struct WidgetSettingsSheet: View {
         case .network, .weather, .bluetooth, .clock:
             return false
         }
+    }
+
+    private var hasModuleSpecificSettings: Bool {
+        switch widgetType {
+        case .cpu, .disk, .network, .memory, .sensors, .battery:
+            return true
+        case .gpu, .weather, .bluetooth, .clock:
+            return false
+        }
+    }
+
+    // MARK: - Module-Specific Settings
+
+    /// Per-module settings based on Stats Master's module settings
+    /// Each module type has its own set of configurable options
+    private var moduleSpecificSettings: some View {
+        Group {
+            switch widgetType {
+            case .cpu:
+                cpuModuleSettings
+            case .disk:
+                diskModuleSettings
+            case .network:
+                networkModuleSettings
+            case .memory:
+                memoryModuleSettings
+            case .sensors:
+                sensorsModuleSettings
+            case .battery:
+                batteryModuleSettings
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    // MARK: - CPU Module Settings
+
+    private var cpuModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Show E/P cores toggle
+            cpuShowCoresRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show frequency toggle
+            cpuShowFrequencyRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show temperature toggle
+            cpuShowTemperatureRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show load average toggle
+            cpuShowLoadAvgRow
+        }
+    }
+
+    private var cpuShowCoresRow: some View {
+        PreferenceRow(
+            title: "Show E/P Cores",
+            subtitle: "Display efficiency and performance cores separately",
+            icon: "cpu",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.cpu.showEPCores ?? false },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.cpu.showEPCores = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var cpuShowFrequencyRow: some View {
+        PreferenceRow(
+            title: "Show Frequency",
+            subtitle: "Display CPU frequency in MHz",
+            icon: "gauge",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.cpu.showFrequency ?? false },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.cpu.showFrequency = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var cpuShowTemperatureRow: some View {
+        PreferenceRow(
+            title: "Show Temperature",
+            subtitle: "Display CPU temperature in popover",
+            icon: "thermometer",
+            iconColor: DesignTokens.Colors.warning,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.cpu.showTemperature ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.cpu.showTemperature = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var cpuShowLoadAvgRow: some View {
+        PreferenceRow(
+            title: "Show Load Average",
+            subtitle: "Display 1/5/15 minute load averages",
+            icon: "chart.line.uptrend.xyaxis",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.cpu.showLoadAverage ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.cpu.showLoadAverage = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Disk Module Settings
+
+    private var diskModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Volume selector
+            diskVolumeSelectorRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show SMART toggle
+            diskShowSMARTRow
+        }
+    }
+
+    private var diskVolumeSelectorRow: some View {
+        let availableVolumes = WidgetDataManager.shared.diskVolumes
+        let selectedVolume = config?.moduleSettings.disk.selectedVolume ?? "Auto"
+
+        return PreferenceRow(
+            title: "Volume",
+            subtitle: "Select which disk volume to monitor",
+            icon: "internaldrive",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Menu {
+                Text("Auto")
+                    .tag("Auto")
+                Divider()
+                ForEach(availableVolumes, id: \.name) { volume in
+                    Button(action: {
+                        updateModuleSettings { settings in
+                            settings.disk.selectedVolume = volume.name
+                        }
+                    }) {
+                        HStack {
+                            Text(volume.name)
+                            if selectedVolume == volume.name {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text(selectedVolume)
+                        .font(DesignTokens.Typography.subhead)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+            }
+            .menuStyle(.borderlessButton)
+        }
+    }
+
+    private var diskShowSMARTRow: some View {
+        PreferenceRow(
+            title: "Show SMART Status",
+            subtitle: "Display SMART health information",
+            icon: "checkmark.seal",
+            iconColor: DesignTokens.Colors.success,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.disk.showSMART ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.disk.showSMART = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Network Module Settings
+
+    private var networkModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Interface selector
+            networkInterfaceSelectorRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show public IP toggle
+            networkShowPublicIPRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show WiFi details toggle
+            networkShowWiFiDetailsRow
+        }
+    }
+
+    private var networkInterfaceSelectorRow: some View {
+        let selectedInterface = config?.moduleSettings.network.selectedInterface ?? "Auto"
+
+        return PreferenceRow(
+            title: "Network Interface",
+            subtitle: "Select which network interface to monitor",
+            icon: "network",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Menu {
+                Button("Auto") {
+                    updateModuleSettings { settings in
+                        settings.network.selectedInterface = "Auto"
+                    }
+                }
+                Divider()
+                Button("Wi-Fi") {
+                    updateModuleSettings { settings in
+                        settings.network.selectedInterface = "Wi-Fi"
+                    }
+                }
+                Button("Ethernet") {
+                    updateModuleSettings { settings in
+                        settings.network.selectedInterface = "Ethernet"
+                    }
+                }
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text(selectedInterface)
+                        .font(DesignTokens.Typography.subhead)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+            }
+            .menuStyle(.borderlessButton)
+        }
+    }
+
+    private var networkShowPublicIPRow: some View {
+        PreferenceRow(
+            title: "Show Public IP",
+            subtitle: "Display public IP address in popover",
+            icon: "globe",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.network.showPublicIP ?? false },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.network.showPublicIP = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var networkShowWiFiDetailsRow: some View {
+        PreferenceRow(
+            title: "Show WiFi Details",
+            subtitle: "Display SSID, signal strength, and channel",
+            icon: "wifi",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.network.showWiFiDetails ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.network.showWiFiDetails = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Memory Module Settings
+
+    private var memoryModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Show cache toggle
+            memoryShowCacheRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show wired toggle
+            memoryShowWiredRow
+        }
+    }
+
+    private var memoryShowCacheRow: some View {
+        PreferenceRow(
+            title: "Show Cache",
+            subtitle: "Display cached memory in breakdown",
+            icon: "arrow.triangle.2.circlepath",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.memory.showCache ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.memory.showCache = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var memoryShowWiredRow: some View {
+        PreferenceRow(
+            title: "Show Wired",
+            subtitle: "Display wired memory in breakdown",
+            icon: "lock",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.memory.showWired ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.memory.showWired = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Sensors Module Settings
+
+    private var sensorsModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Show fan speeds toggle
+            sensorsShowFanSpeedsRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Temperature unit selector
+            sensorsTemperatureUnitRow
+        }
+    }
+
+    private var sensorsShowFanSpeedsRow: some View {
+        PreferenceRow(
+            title: "Show Fan Speeds",
+            subtitle: "Display fan RPM readings",
+            icon: "wind",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.sensors.showFanSpeeds ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.sensors.showFanSpeeds = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var sensorsTemperatureUnitRow: some View {
+        let selectedUnit = config?.moduleSettings.sensors.temperatureUnit ?? .celsius
+
+        return PreferenceRow(
+            title: "Temperature Unit",
+            subtitle: "Unit for temperature display",
+            icon: "thermometer",
+            iconColor: DesignTokens.Colors.warning,
+            showDivider: false
+        ) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Button(action: {
+                    updateModuleSettings { settings in
+                        settings.sensors.temperatureUnit = .celsius
+                    }
+                }) {
+                    Text("°C")
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(selectedUnit == .celsius ? .white : DesignTokens.Colors.textPrimary)
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                        .padding(.vertical, DesignTokens.Spacing.xxs)
+                        .background(selectedUnit == .celsius ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    updateModuleSettings { settings in
+                        settings.sensors.temperatureUnit = .fahrenheit
+                    }
+                }) {
+                    Text("°F")
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(selectedUnit == .fahrenheit ? .white : DesignTokens.Colors.textPrimary)
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                        .padding(.vertical, DesignTokens.Spacing.xxs)
+                        .background(selectedUnit == .fahrenheit ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Battery Module Settings
+
+    private var batteryModuleSettings: some View {
+        VStack(spacing: 0) {
+            // Show optimized charging toggle
+            batteryShowOptimizedChargingRow
+
+            Divider()
+                .padding(.leading, DesignTokens.Spacing.md)
+
+            // Show cycle count toggle
+            batteryShowCycleCountRow
+        }
+    }
+
+    private var batteryShowOptimizedChargingRow: some View {
+        PreferenceRow(
+            title: "Show Optimized Charging",
+            subtitle: "Display optimized charging status",
+            icon: "leaf",
+            iconColor: DesignTokens.Colors.success,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.battery.showOptimizedCharging ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.battery.showOptimizedCharging = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var batteryShowCycleCountRow: some View {
+        PreferenceRow(
+            title: "Show Cycle Count",
+            subtitle: "Display battery cycle count",
+            icon: "arrow.clockwise",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.moduleSettings.battery.showCycleCount ?? true },
+                set: { newValue in
+                    updateModuleSettings { settings in
+                        settings.battery.showCycleCount = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Module Settings Update Helper
+
+    /// Helper to update module-specific settings
+    private func updateModuleSettings(_ update: (inout ModuleSettings) -> Void) {
+        var currentSettings = config?.moduleSettings ?? ModuleSettings.default
+        update(&currentSettings)
+        preferences.setWidgetModuleSettings(type: widgetType, settings: currentSettings)
     }
 
     // MARK: - Visualization Type Selector

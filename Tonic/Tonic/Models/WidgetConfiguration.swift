@@ -405,6 +405,147 @@ public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Send
     }
 }
 
+// MARK: - Module Settings
+
+/// Per-module settings for widget-specific configuration options
+/// Based on Stats Master's module settings pattern
+public struct ModuleSettings: Codable, Sendable, Equatable {
+    public var cpu: CPUModuleSettings
+    public var disk: DiskModuleSettings
+    public var network: NetworkModuleSettings
+    public var memory: MemoryModuleSettings
+    public var sensors: SensorsModuleSettings
+    public var battery: BatteryModuleSettings
+
+    /// Default module settings
+    public static let `default` = ModuleSettings()
+
+    public init(
+        cpu: CPUModuleSettings = CPUModuleSettings(),
+        disk: DiskModuleSettings = DiskModuleSettings(),
+        network: NetworkModuleSettings = NetworkModuleSettings(),
+        memory: MemoryModuleSettings = MemoryModuleSettings(),
+        sensors: SensorsModuleSettings = SensorsModuleSettings(),
+        battery: BatteryModuleSettings = BatteryModuleSettings()
+    ) {
+        self.cpu = cpu
+        self.disk = disk
+        self.network = network
+        self.memory = memory
+        self.sensors = sensors
+        self.battery = battery
+    }
+
+    /// Convenience initializer with default values
+    public init() {
+        self.cpu = CPUModuleSettings()
+        self.disk = DiskModuleSettings()
+        self.network = NetworkModuleSettings()
+        self.memory = MemoryModuleSettings()
+        self.sensors = SensorsModuleSettings()
+        self.battery = BatteryModuleSettings()
+    }
+}
+
+// MARK: - CPU Module Settings
+
+public struct CPUModuleSettings: Codable, Sendable, Equatable {
+    public var showEPCores: Bool
+    public var showFrequency: Bool
+    public var showTemperature: Bool
+    public var showLoadAverage: Bool
+
+    public init(
+        showEPCores: Bool = false,
+        showFrequency: Bool = false,
+        showTemperature: Bool = true,
+        showLoadAverage: Bool = true
+    ) {
+        self.showEPCores = showEPCores
+        self.showFrequency = showFrequency
+        self.showTemperature = showTemperature
+        self.showLoadAverage = showLoadAverage
+    }
+}
+
+// MARK: - Disk Module Settings
+
+public struct DiskModuleSettings: Codable, Sendable, Equatable {
+    public var selectedVolume: String
+    public var showSMART: Bool
+
+    public init(
+        selectedVolume: String = "Auto",
+        showSMART: Bool = true
+    ) {
+        self.selectedVolume = selectedVolume
+        self.showSMART = showSMART
+    }
+}
+
+// MARK: - Network Module Settings
+
+public struct NetworkModuleSettings: Codable, Sendable, Equatable {
+    public var selectedInterface: String
+    public var showPublicIP: Bool
+    public var showWiFiDetails: Bool
+
+    public init(
+        selectedInterface: String = "Auto",
+        showPublicIP: Bool = false,
+        showWiFiDetails: Bool = true
+    ) {
+        self.selectedInterface = selectedInterface
+        self.showPublicIP = showPublicIP
+        self.showWiFiDetails = showWiFiDetails
+    }
+}
+
+// MARK: - Memory Module Settings
+
+public struct MemoryModuleSettings: Codable, Sendable, Equatable {
+    public var showCache: Bool
+    public var showWired: Bool
+
+    public init(
+        showCache: Bool = true,
+        showWired: Bool = true
+    ) {
+        self.showCache = showCache
+        self.showWired = showWired
+    }
+}
+
+// MARK: - Sensors Module Settings
+
+public struct SensorsModuleSettings: Codable, Sendable, Equatable {
+    public var showFanSpeeds: Bool
+    public var temperatureUnit: TemperatureUnit
+
+    public init(
+        showFanSpeeds: Bool = true,
+        temperatureUnit: TemperatureUnit = .celsius
+    ) {
+        self.showFanSpeeds = showFanSpeeds
+        self.temperatureUnit = temperatureUnit
+    }
+}
+
+// MARK: - Battery Module Settings
+
+public struct BatteryModuleSettings: Codable, Sendable, Equatable {
+    public var showOptimizedCharging: Bool
+    public var showCycleCount: Bool
+
+    public init(
+        showOptimizedCharging: Bool = true,
+        showCycleCount: Bool = true
+    ) {
+        self.showOptimizedCharging = showOptimizedCharging
+        self.showCycleCount = showCycleCount
+    }
+}
+
 // MARK: - Widget Configuration
 
 /// Configuration for a single menu bar widget
@@ -420,6 +561,7 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
     public var refreshInterval: WidgetUpdateInterval
     public var accentColor: WidgetAccentColor
     public var chartConfig: ChartConfiguration?
+    public var moduleSettings: ModuleSettings
 
     public init(
         id: UUID = UUID(),
@@ -432,7 +574,8 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
         valueFormat: WidgetValueFormat = .percentage,
         refreshInterval: WidgetUpdateInterval = .balanced,
         accentColor: WidgetAccentColor = .system,
-        chartConfig: ChartConfiguration? = nil
+        chartConfig: ChartConfiguration? = nil,
+        moduleSettings: ModuleSettings = ModuleSettings.default
     ) {
         self.id = id
         self.type = type
@@ -445,6 +588,7 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
         self.refreshInterval = refreshInterval
         self.accentColor = accentColor
         self.chartConfig = chartConfig
+        self.moduleSettings = moduleSettings
     }
 
     /// Default configuration for a given widget type
@@ -459,7 +603,8 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
             valueFormat: type.defaultValueFormat,
             refreshInterval: .balanced,
             accentColor: .system,
-            chartConfig: nil as ChartConfiguration?
+            chartConfig: nil as ChartConfiguration?,
+            moduleSettings: ModuleSettings.default
         )
     }
 }
@@ -527,7 +672,7 @@ public final class WidgetPreferences: Sendable {
     // MARK: - Migration Version
 
     /// Current migration version - increment when config structure changes
-    private static let currentMigrationVersion = 2
+    private static let currentMigrationVersion = 3
 
     // MARK: - Properties
 
@@ -645,10 +790,13 @@ public final class WidgetPreferences: Sendable {
 
         // Version 0 -> 1: Migrate from legacy format (iconOnly/iconWithValue/iconWithValueAndSparkline)
         // Version 1 -> 2: Add visualizationType field
+        // Version 2 -> 3: Add moduleSettings field
         if version == 0 {
             return try migrateFromLegacyFormat(data: data)
         } else if version == 1 {
             return try migrateToVersion2(data: data)
+        } else if version == 2 {
+            return try migrateToVersion3(data: data)
         }
 
         return nil
@@ -732,6 +880,44 @@ public final class WidgetPreferences: Sendable {
                 refreshInterval: config.refreshInterval,
                 accentColor: config.accentColor,
                 chartConfig: nil as ChartConfiguration?
+            )
+        }
+    }
+
+    /// Migrate from version 2 to version 3 (add moduleSettings)
+    private static func migrateToVersion3(data: Data) throws -> [WidgetConfiguration] {
+        // Version 2 configs don't have moduleSettings
+        struct PreModuleSettingsConfig: Decodable {
+            let id: UUID
+            var type: WidgetType
+            var isEnabled: Bool
+            var position: Int
+            var displayMode: WidgetDisplayMode
+            var showLabel: Bool
+            var valueFormat: WidgetValueFormat
+            var refreshInterval: WidgetUpdateInterval
+            var accentColor: WidgetAccentColor
+            var visualizationType: VisualizationType
+            var chartConfig: ChartConfiguration?
+        }
+
+        let preModuleConfigs = try JSONDecoder().decode([PreModuleSettingsConfig].self, from: data)
+
+        // Migrate by adding default moduleSettings
+        return preModuleConfigs.map { config in
+            WidgetConfiguration(
+                id: config.id,
+                type: config.type,
+                visualizationType: config.visualizationType,
+                isEnabled: config.isEnabled,
+                position: config.position,
+                displayMode: config.displayMode,
+                showLabel: config.showLabel,
+                valueFormat: config.valueFormat,
+                refreshInterval: config.refreshInterval,
+                accentColor: config.accentColor,
+                chartConfig: config.chartConfig,
+                moduleSettings: ModuleSettings.default
             )
         }
     }
@@ -1016,6 +1202,12 @@ public final class WidgetPreferences: Sendable {
     public func setWidgetChartConfig(type: WidgetType, chartConfig: ChartConfiguration?) {
         updateConfig(for: type) { config in
             config.chartConfig = chartConfig
+        }
+    }
+
+    public func setWidgetModuleSettings(type: WidgetType, settings: ModuleSettings) {
+        updateConfig(for: type) { config in
+            config.moduleSettings = settings
         }
     }
 
