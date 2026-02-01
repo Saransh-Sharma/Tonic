@@ -530,7 +530,12 @@ public final class WidgetCoordinator: ObservableObject {
     /// Single unified view refresh timer (replaces 7 per-widget timers)
     private var viewRefreshTimer: Timer?
 
-    private init() {}
+    /// Observer for configuration change notifications
+    private var configChangeObserver: NSObjectProtocol?
+
+    private init() {
+        setupConfigurationObserver()
+    }
 
     // MARK: - Widget Management
 
@@ -561,6 +566,34 @@ public final class WidgetCoordinator: ObservableObject {
 
         logger.info("✅ WidgetCoordinator started with \(self.activeWidgets.count) active widgets")
         print("✅ [WidgetCoordinator] Started with \(self.activeWidgets.count) active widgets")
+    }
+
+    // MARK: - Configuration Observer
+
+    /// Set up observer for configuration changes
+    private func setupConfigurationObserver() {
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .widgetConfigurationDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleConfigurationChange(notification)
+        }
+        logger.info("📡 Configuration observer registered")
+    }
+
+    /// Handle configuration change notification
+    private func handleConfigurationChange(_ notification: Notification) {
+        guard let widgetType = notification.userInfo?["widgetType"] as? String,
+              let type = WidgetType(rawValue: widgetType) else {
+            // If no specific type or invalid type, refresh all widgets
+            logger.info("🔄 Configuration changed - refreshing all widgets")
+            refreshWidgets()
+            return
+        }
+
+        logger.info("🔄 Configuration changed for \(type.rawValue) - refreshing")
+        refreshWidgets()
     }
 
     /// Refresh widgets based on current preferences and mode
@@ -669,6 +702,12 @@ public final class WidgetCoordinator: ObservableObject {
         viewRefreshTimer?.invalidate()
         viewRefreshTimer = nil
 
+        // Remove configuration observer
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configChangeObserver = nil
+        }
+
         // Remove all status items including OneView
         oneViewStatusItem?.hide()
         oneViewStatusItem = nil
@@ -699,5 +738,12 @@ public final class WidgetCoordinator: ObservableObject {
     /// Get the status item for a specific widget type
     public func widget(for type: WidgetType) -> WidgetStatusItem? {
         activeWidgets[type]
+    }
+
+    deinit {
+        // Clean up observer
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 }

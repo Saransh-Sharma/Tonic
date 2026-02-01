@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T20:58:38.629253Z",
+  "depends_on": [],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.36",
+  "priority": 9,
+  "spec_path": ".flow/tasks/fn-6-i4g.36.md",
+  "status": "todo",
+  "title": "GPU Widget Popover Parity",
+  "updated_at": "2026-02-01T20:58:38.629550Z"
+}

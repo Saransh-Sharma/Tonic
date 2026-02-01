@@ -8,6 +8,14 @@
 
 import SwiftUI
 
+// MARK: - Notifications
+
+extension Notification.Name {
+    /// Posted when widget configuration changes
+    /// UserInfo contains: "widgetType" -> WidgetType
+    static let widgetConfigurationDidUpdate = Notification.Name("tonic.widgetConfigurationDidUpdate")
+}
+
 // MARK: - Widget Type
 
 /// Widget types available in the menu bar monitoring system
@@ -782,6 +790,15 @@ public final class WidgetPreferences: Sendable {
         if let index = widgetConfigs.firstIndex(where: { $0.type == type }) {
             update(&widgetConfigs[index])
             saveConfigs()
+
+            // Broadcast change immediately for reactive updates
+            Task { @MainActor in
+                NotificationCenter.default.post(
+                    name: .widgetConfigurationDidUpdate,
+                    object: nil,
+                    userInfo: ["widgetType": type]
+                )
+            }
         }
     }
 
@@ -793,6 +810,15 @@ public final class WidgetPreferences: Sendable {
             widgetConfigs[index] = config
         }
         saveConfigs()
+
+        // Broadcast change for reactive updates
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .widgetConfigurationDidUpdate,
+                object: nil,
+                userInfo: ["widgetType": WidgetType.cpu] // Send any type - triggers full refresh
+            )
+        }
     }
 
     /// Reset all configurations to defaults

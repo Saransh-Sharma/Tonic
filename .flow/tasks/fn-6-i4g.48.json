@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T21:17:58.829088Z",
+  "depends_on": [],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.48",
+  "priority": 26,
+  "spec_path": ".flow/tasks/fn-6-i4g.48.md",
+  "status": "todo",
+  "title": "CPU Popover Charts Details Load Frequency",
+  "updated_at": "2026-02-01T21:17:58.829281Z"
+}
