@@ -3,7 +3,7 @@
 //  Tonic
 //
 //  Stats Master-style CPU popover with dashboard, charts, and details
-//  Task ID: fn-6-i4g.32
+//  Task ID: fn-6-i4g.32, fn-6-i4g.49
 //
 
 import SwiftUI
@@ -16,6 +16,7 @@ import SwiftUI
 /// - Per-core usage grouped by E/P
 /// - System/User/Idle details
 /// - Load average (1/5/15 min)
+/// - Frequency section (all/E/P cores in GHz)
 /// - Top processes list
 public struct CPUPopoverView: View {
 
@@ -56,6 +57,15 @@ public struct CPUPopoverView: View {
                     loadAverageSection
 
                     Divider()
+
+                    // Frequency Section (Task 48)
+                    if dataManager.cpuData.frequency != nil ||
+                       dataManager.cpuData.eCoreFrequency != nil ||
+                       dataManager.cpuData.pCoreFrequency != nil {
+                        frequencySection
+
+                        Divider()
+                    }
 
                     // Top Processes
                     topProcessesSection
@@ -219,6 +229,49 @@ public struct CPUPopoverView: View {
             Text(String(format: "%.2f", value ?? 0))
                 .font(PopoverConstants.smallValueFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Frequency Section
+
+    /// Detailed frequency section showing all cores, E-cores, and P-cores in GHz
+    private var frequencySection: some View {
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Frequency")
+
+            HStack(spacing: PopoverConstants.itemSpacing) {
+                // All cores frequency
+                if let allFreq = dataManager.cpuData.frequency {
+                    frequencyItem("All", value: allFreq, color: .purple)
+                }
+
+                // E-cores frequency
+                if let eFreq = dataManager.cpuData.eCoreFrequency {
+                    frequencyItem("E-Cores", value: eFreq, color: CoreClusterBarView(eCores: [], pCores: []).eCoreColor)
+                }
+
+                // P-cores frequency
+                if let pFreq = dataManager.cpuData.pCoreFrequency {
+                    frequencyItem("P-Cores", value: pFreq, color: CoreClusterBarView(eCores: [], pCores: []).pCoreColor)
+                }
+            }
+        }
+    }
+
+    private func frequencyItem(_ label: String, value: Double, color: Color) -> some View {
+        VStack(spacing: PopoverConstants.compactSpacing) {
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundColor(color)
+
+            Text(String(format: "%.2f", value))
+                .font(PopoverConstants.smallValueFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Text("GHz")
+                .font(.system(size: 8))
+                .foregroundColor(DesignTokens.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity)
     }

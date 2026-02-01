@@ -362,7 +362,7 @@ public final class ClockStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        return AnyView(ClockDetailView())
+        return AnyView(ClockPopoverView())
     }
 }
 

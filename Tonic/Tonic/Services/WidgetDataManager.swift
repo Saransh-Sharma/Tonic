@@ -94,6 +94,8 @@ public struct CPUData: Sendable {
     public let eCoreUsage: [Double]?       // Efficiency core usage values
     public let pCoreUsage: [Double]?       // Performance core usage values
     public let frequency: Double?          // Current CPU frequency in GHz
+    public let eCoreFrequency: Double?     // Efficiency cores frequency in GHz
+    public let pCoreFrequency: Double?     // Performance cores frequency in GHz
     public let temperature: Double?        // CPU temperature in Celsius
     public let thermalLimit: Bool?         // Whether CPU is being thermally throttled
     public let averageLoad: [Double]?      // 1-minute, 5-minute, 15-minute load averages
@@ -112,6 +114,8 @@ public struct CPUData: Sendable {
         eCoreUsage: [Double]? = nil,
         pCoreUsage: [Double]? = nil,
         frequency: Double? = nil,
+        eCoreFrequency: Double? = nil,
+        pCoreFrequency: Double? = nil,
         temperature: Double? = nil,
         thermalLimit: Bool? = nil,
         averageLoad: [Double]? = nil,
@@ -126,6 +130,8 @@ public struct CPUData: Sendable {
         self.eCoreUsage = eCoreUsage
         self.pCoreUsage = pCoreUsage
         self.frequency = frequency
+        self.eCoreFrequency = eCoreFrequency
+        self.pCoreFrequency = pCoreFrequency
         self.temperature = temperature
         self.thermalLimit = thermalLimit
         self.averageLoad = averageLoad
@@ -143,6 +149,8 @@ public struct CPUData: Sendable {
         self.eCoreUsage = nil
         self.pCoreUsage = nil
         self.frequency = nil
+        self.eCoreFrequency = nil
+        self.pCoreFrequency = nil
         self.temperature = nil
         self.thermalLimit = nil
         self.averageLoad = nil
@@ -862,7 +870,7 @@ public final class WidgetDataManager {
         let (eCores, pCores) = getEPCores(from: perCore)
 
         // Get enhanced CPU data
-        let frequency = getCPUFrequency()
+        let (frequency, eCoreFreq, pCoreFreq) = getCPUFrequency()
         let temperature = getCPUTemperature()
         let thermalLimit = getThermalLimit()
         let averageLoad = getAverageLoad()
@@ -879,6 +887,8 @@ public final class WidgetDataManager {
             eCoreUsage: eCores,
             pCoreUsage: pCores,
             frequency: frequency,
+            eCoreFrequency: eCoreFreq,
+            pCoreFrequency: pCoreFreq,
             temperature: temperature,
             thermalLimit: thermalLimit,
             averageLoad: averageLoad,
@@ -1065,38 +1075,49 @@ public final class WidgetDataManager {
     }
 
     /// Get current CPU frequency in GHz
-    private func getCPUFrequency() -> Double? {
+    /// Returns tuple: (overall frequency, E-core frequency, P-core frequency)
+    private func getCPUFrequency() -> (Double?, Double?, Double?) {
         #if arch(arm64)
         // For Apple Silicon, get base frequency from sysctl
         var frequency: Int64 = 0
         var size = MemoryLayout<Int64>.size
 
+        // Get overall CPU frequency
+        var overallFreq: Double? = nil
         if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
-            return Double(frequency) / 1_000_000_000 // Convert Hz to GHz
+            overallFreq = Double(frequency) / 1_000_000_000 // Convert Hz to GHz
         }
 
-        // Fallback: try getting frequency for each cluster
+        // Get E-core frequency (perflevel0 = efficiency)
         var eFreq: Int64 = 0
-        var pFreq: Int64 = 0
-
-        if sysctlbyname("hw.perflevel0.physicalcpu", &eFreq, &size, nil, 0) == 0,
-           sysctlbyname("hw.perflevel1.physicalcpu", &pFreq, &size, nil, 0) == 0 {
-            // Use P-core frequency as the representative frequency
-            if sysctlbyname("hw.perflevel1.cpufrequency", &pFreq, &size, nil, 0) == 0 {
-                return Double(pFreq) / 1_000_000_000
-            }
+        var eCoreFreq: Double? = nil
+        if sysctlbyname("hw.perflevel0.cpufrequency", &eFreq, &size, nil, 0) == 0 {
+            eCoreFreq = Double(eFreq) / 1_000_000_000 // Convert Hz to GHz
         }
+
+        // Get P-core frequency (perflevel1 = performance)
+        var pFreq: Int64 = 0
+        var pCoreFreq: Double? = nil
+        if sysctlbyname("hw.perflevel1.cpufrequency", &pFreq, &size, nil, 0) == 0 {
+            pCoreFreq = Double(pFreq) / 1_000_000_000 // Convert Hz to GHz
+        }
+
+        // If overall frequency is nil but we have P-core frequency, use P-core as overall
+        let finalOverall = overallFreq ?? pCoreFreq
+
+        return (finalOverall, eCoreFreq, pCoreFreq)
+
         #else
         // Intel Macs - get CPU frequency
         var frequency: Int64 = 0
         var size = MemoryLayout<Int64>.size
 
         if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
-            return Double(frequency) / 1_000_000_000
+            return (Double(frequency) / 1_000_000_000, nil, nil)
         }
         #endif
 
-        return nil
+        return (nil, nil, nil)
     }
 
     /// Get CPU temperature in Celsius

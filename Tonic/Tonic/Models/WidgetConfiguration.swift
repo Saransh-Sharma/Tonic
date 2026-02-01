@@ -520,14 +520,11 @@ public struct MemoryModuleSettings: Codable, Sendable, Equatable {
 
 public struct SensorsModuleSettings: Codable, Sendable, Equatable {
     public var showFanSpeeds: Bool
-    public var temperatureUnit: TemperatureUnit
 
     public init(
-        showFanSpeeds: Bool = true,
-        temperatureUnit: TemperatureUnit = .celsius
+        showFanSpeeds: Bool = true
     ) {
         self.showFanSpeeds = showFanSpeeds
-        self.temperatureUnit = temperatureUnit
     }
 }
 
@@ -688,6 +685,9 @@ public final class WidgetPreferences: Sendable {
     /// Whether to use unified menu bar mode (OneView) instead of individual widgets
     public var unifiedMenuBarMode: Bool
 
+    /// Global temperature unit preference for all widgets (CPU, GPU, Sensors, Battery)
+    public var temperatureUnit: TemperatureUnit
+
     // MARK: - UserDefaults Keys
 
     private enum Keys {
@@ -695,6 +695,7 @@ public final class WidgetPreferences: Sendable {
         static let updateInterval = "tonic.widget.updateInterval"
         static let hasCompletedOnboarding = "tonic.widget.hasCompletedOnboarding"
         static let unifiedMenuBarMode = "tonic.widget.unifiedMenuBarMode"
+        static let temperatureUnit = "tonic.widget.temperatureUnit"
         static let migrationVersion = "tonic.widget.migrationVersion"
         static let backupConfigs = "tonic.widget.configs.backup"
         static let backupTimestamp = "tonic.widget.configs.backupTimestamp"
@@ -706,6 +707,7 @@ public final class WidgetPreferences: Sendable {
         self.updateInterval = .balanced
         self.hasCompletedOnboarding = false
         self.unifiedMenuBarMode = false
+        self.temperatureUnit = .celsius
 
         // Run migration first, before loading configs
         Self.migrateIfNeeded()
@@ -1011,9 +1013,11 @@ public final class WidgetPreferences: Sendable {
     public func resetToDefaults() {
         widgetConfigs = Self.defaultConfigs()
         updateInterval = .balanced
+        temperatureUnit = .celsius
         saveConfigs()
         saveInterval()
         saveOnboarding()
+        saveTemperatureUnit()
     }
 
     // MARK: - Persistence
@@ -1030,6 +1034,12 @@ public final class WidgetPreferences: Sendable {
 
         // Load unified menu bar mode
         unifiedMenuBarMode = UserDefaults.standard.bool(forKey: Keys.unifiedMenuBarMode)
+
+        // Load temperature unit
+        if let unitString = UserDefaults.standard.string(forKey: Keys.temperatureUnit),
+           let unit = TemperatureUnit(rawValue: unitString) {
+            temperatureUnit = unit
+        }
     }
 
     internal func saveConfigs() {
@@ -1139,6 +1149,10 @@ public final class WidgetPreferences: Sendable {
         UserDefaults.standard.set(unifiedMenuBarMode, forKey: Keys.unifiedMenuBarMode)
     }
 
+    private func saveTemperatureUnit() {
+        UserDefaults.standard.set(temperatureUnit.rawValue, forKey: Keys.temperatureUnit)
+    }
+
     // MARK: - Public Setters
 
     public func setUpdateInterval(_ interval: WidgetUpdateInterval) {
@@ -1219,6 +1233,20 @@ public final class WidgetPreferences: Sendable {
     public func toggleUnifiedMenuBarMode() {
         unifiedMenuBarMode.toggle()
         saveUnifiedMenuBarMode()
+    }
+
+    public func setTemperatureUnit(_ unit: TemperatureUnit) {
+        temperatureUnit = unit
+        saveTemperatureUnit()
+
+        // Broadcast change for reactive updates
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .widgetConfigurationDidUpdate,
+                object: nil,
+                userInfo: ["widgetType": "temperatureUnit"]
+            )
+        }
     }
 }
 
