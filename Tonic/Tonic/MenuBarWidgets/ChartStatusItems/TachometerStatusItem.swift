@@ -43,6 +43,11 @@ public final class TachometerStatusItem: WidgetStatusItem {
             return AnyView(CPUPopoverView())
         }
 
+        // Use Stats Master-style popover for GPU
+        if widgetType == .gpu {
+            return AnyView(GPUPopoverView())
+        }
+
         // Use generic popover for other widget types
         let value: Double
         let label: String

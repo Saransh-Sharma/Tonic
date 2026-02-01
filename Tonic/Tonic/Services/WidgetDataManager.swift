@@ -680,6 +680,8 @@ public final class WidgetDataManager {
     // MARK: - Bluetooth Data
 
     public private(set) var bluetoothData: BluetoothData = BluetoothData.empty
+    /// Bluetooth connection count history for chart visualization
+    public private(set) var bluetoothHistory: [Double] = []
 
     /// Weather data (optional, may be nil if location not available)
     public private(set) var weatherData: WeatherData?
@@ -3480,6 +3482,10 @@ public final class WidgetDataManager {
         )
         self.bluetoothData = newData
 
+        // Track connection count history for chart visualization
+        let connectedCount = Double(devices.filter { $0.isConnected }.count)
+        addToHistory(&bluetoothHistory, value: connectedCount, maxPoints: Self.maxHistoryPoints)
+
         // Check notification thresholds for Bluetooth device batteries
         let connectedDeviceBatteries = devices
             .filter { $0.isConnected }
@@ -3524,6 +3530,11 @@ public final class WidgetDataManager {
     /// Get sensors history for chart visualization
     public func getSensorsHistory() -> [Double] {
         sensorsHistory
+    }
+
+    /// Get bluetooth history for chart visualization
+    public func getBluetoothHistory() -> [Double] {
+        bluetoothHistory
     }
 
     /// Get disk history for chart visualization

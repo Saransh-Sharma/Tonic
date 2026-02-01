@@ -243,7 +243,7 @@ public final class BatteryStatusItem: WidgetStatusItem {
     // Uses base WidgetStatusItem.createCompactView() which respects configuration
 
     public override func createDetailView() -> AnyView {
-        AnyView(BatteryDetailView())
+        AnyView(BatteryPopoverView())
     }
 }
 

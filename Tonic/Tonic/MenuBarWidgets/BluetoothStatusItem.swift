@@ -82,7 +82,7 @@ public final class BluetoothStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        return AnyView(BluetoothDetailView())
+        return AnyView(BluetoothPopoverView())
     }
 }
 

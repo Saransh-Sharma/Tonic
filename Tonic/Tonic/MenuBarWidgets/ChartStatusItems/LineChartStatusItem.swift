@@ -66,6 +66,11 @@ public final class LineChartStatusItem: WidgetStatusItem {
             return AnyView(CPUPopoverView())
         }
 
+        // Use Stats Master-style popover for GPU
+        if widgetType == .gpu {
+            return AnyView(GPUPopoverView())
+        }
+
         // Get chart data based on widget type
         let history: [Double]
         let currentValue: Double
