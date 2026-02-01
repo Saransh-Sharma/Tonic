@@ -99,18 +99,15 @@ deinit {
 
 ## Acceptance
 
-- [ ] Changing widget color in settings immediately updates menu bar widget
-- [ ] Changing visualization type immediately reflects in menu bar
-- [ ] Toggling OneView mode immediately reorganizes menu bar items
-- [ ] No app restart required for any configuration change
-- [ ] "Apply" button is optional or removed entirely
+- [x] Changing widget color in settings immediately updates menu bar widget
+- [x] Changing visualization type immediately reflects in menu bar
+- [x] Toggling OneView mode immediately reorganizes menu bar items
+- [x] No app restart required for any configuration change
+- [x] "Apply" button is optional or removed entirely
 
-## Done Summary
-
-Fixed configuration refresh mechanism by adding reactive notification pattern between `WidgetConfiguration` and `WidgetCoordinator`. Configuration changes now propagate immediately without requiring manual apply or app restart.
-
+## Done summary
+- Task completed
 ## Evidence
-
 - Commits:
 - Tests:
 - PRs:

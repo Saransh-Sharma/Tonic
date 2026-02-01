@@ -97,6 +97,13 @@ public struct CPUData: Sendable {
     public let temperature: Double?        // CPU temperature in Celsius
     public let thermalLimit: Bool?         // Whether CPU is being thermally throttled
     public let averageLoad: [Double]?      // 1-minute, 5-minute, 15-minute load averages
+
+    // Enhanced fields for Stats Master parity
+    public let systemUsage: Double         // System CPU usage percentage
+    public let userUsage: Double           // User CPU usage percentage
+    public let idleUsage: Double           // Idle CPU usage percentage
+    public let uptime: TimeInterval        // Seconds since boot
+
     public let timestamp: Date
 
     public init(
@@ -108,6 +115,10 @@ public struct CPUData: Sendable {
         temperature: Double? = nil,
         thermalLimit: Bool? = nil,
         averageLoad: [Double]? = nil,
+        systemUsage: Double = 0,
+        userUsage: Double = 0,
+        idleUsage: Double = 100,
+        uptime: TimeInterval = 0,
         timestamp: Date = Date()
     ) {
         self.totalUsage = totalUsage
@@ -118,6 +129,10 @@ public struct CPUData: Sendable {
         self.temperature = temperature
         self.thermalLimit = thermalLimit
         self.averageLoad = averageLoad
+        self.systemUsage = systemUsage
+        self.userUsage = userUsage
+        self.idleUsage = idleUsage
+        self.uptime = uptime
         self.timestamp = timestamp
     }
 
@@ -131,6 +146,10 @@ public struct CPUData: Sendable {
         self.temperature = nil
         self.thermalLimit = nil
         self.averageLoad = nil
+        self.systemUsage = 0
+        self.userUsage = 0
+        self.idleUsage = 100
+        self.uptime = 0
         self.timestamp = timestamp
     }
 }
@@ -798,6 +817,12 @@ public final class WidgetDataManager {
         let thermalLimit = getThermalLimit()
         let averageLoad = getAverageLoad()
 
+        // Get System/User/Idle split
+        let (systemUsage, userUsage, idleUsage) = getCPUUsageSplit()
+
+        // Get system uptime
+        let uptime = getSystemUptime()
+
         let newCPUData = CPUData(
             totalUsage: usage,
             perCoreUsage: perCore,
@@ -806,7 +831,11 @@ public final class WidgetDataManager {
             frequency: frequency,
             temperature: temperature,
             thermalLimit: thermalLimit,
-            averageLoad: averageLoad
+            averageLoad: averageLoad,
+            systemUsage: systemUsage,
+            userUsage: userUsage,
+            idleUsage: idleUsage,
+            uptime: uptime
         )
 
         // Dispatch property updates to main thread for @Observable
@@ -1152,6 +1181,76 @@ public final class WidgetDataManager {
         }
 
         return nil
+    }
+
+    /// Get CPU usage split (System, User, Idle percentages)
+    private func getCPUUsageSplit() -> (system: Double, user: Double, idle: Double) {
+        // Use host_processor_info to get CPU load info
+        var numCpuInfo: mach_msg_type_number_t = 0
+        var cpuInfo: processor_info_array_t?
+        var numTotalCpu: UInt32 = 0
+
+        let result = host_processor_info(
+            mach_host_self(),
+            PROCESSOR_CPU_LOAD_INFO,
+            &numTotalCpu,
+            &cpuInfo,
+            &numCpuInfo
+        )
+
+        guard result == KERN_SUCCESS, let info = cpuInfo else {
+            return (0, 0, 100)
+        }
+
+        // Sum up all the ticks from all cores
+        var totalUserTicks: UInt64 = 0
+        var totalSystemTicks: UInt64 = 0
+        var totalIdleTicks: UInt64 = 0
+        var totalNiceTicks: UInt64 = 0
+
+        let CPU_STATE_MAX = 4
+        for i in 0..<Int(numTotalCpu) {
+            let base = i * Int(CPU_STATE_MAX)
+            totalUserTicks += UInt64(info[base + Int(CPU_STATE_USER)])
+            totalSystemTicks += UInt64(info[base + Int(CPU_STATE_SYSTEM)])
+            totalIdleTicks += UInt64(info[base + Int(CPU_STATE_IDLE)])
+            totalNiceTicks += UInt64(info[base + Int(CPU_STATE_NICE)])
+        }
+
+        let totalTicks = totalUserTicks + totalSystemTicks + totalIdleTicks + totalNiceTicks
+
+        guard totalTicks > 0 else {
+            return (0, 0, 100)
+        }
+
+        let user = (Double(totalUserTicks + totalNiceTicks) / Double(totalTicks)) * 100.0
+        let system = (Double(totalSystemTicks) / Double(totalTicks)) * 100.0
+        let idle = (Double(totalIdleTicks) / Double(totalTicks)) * 100.0
+
+        return (system, user, idle)
+    }
+
+    /// Get system uptime in seconds (time since boot)
+    private func getSystemUptime() -> TimeInterval {
+        var bootTime = timeval()
+        var mib: [Int32] = [CTL_KERN, KERN_BOOTTIME]
+
+        var len = MemoryLayout<timeval>.stride
+        let result = sysctl(&mib, u_int(mib.count), &bootTime, &len, nil, 0)
+
+        guard result == 0 else {
+            // Fallback to ProcessInfo.uptime if sysctl fails
+            return ProcessInfo.processInfo.systemUptime
+        }
+
+        var now = timeval()
+        var nowLen = MemoryLayout<timeval>.stride
+        gettimeofday(&now, &nowLen)
+
+        let bootTimeInterval = TimeInterval(bootTime.tv_sec) + TimeInterval(bootTime.tv_usec) / 1_000_000.0
+        let nowTimeInterval = TimeInterval(now.tv_sec) + TimeInterval(now.tv_usec) / 1_000_000.0
+
+        return max(0, nowTimeInterval - bootTimeInterval)
     }
 
     // MARK: - Memory Monitoring
