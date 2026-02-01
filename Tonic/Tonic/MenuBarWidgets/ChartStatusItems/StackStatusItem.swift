@@ -33,6 +33,11 @@ public final class StackStatusItem: WidgetStatusItem {
                 )
             )
 
+        case .clock:
+            return AnyView(
+                ClockStackView(configuration: configuration)
+            )
+
         default:
             return AnyView(
                 Text("Stack")
@@ -48,6 +53,8 @@ public final class StackStatusItem: WidgetStatusItem {
             return AnyView(BluetoothDetailView())
         case .sensors:
             return AnyView(SensorsDetailView())
+        case .clock:
+            return AnyView(ClockDetailView())
         default:
             return AnyView(EmptyView())
         }

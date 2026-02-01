@@ -21,6 +21,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
     case battery = "battery"
     case sensors = "sensors"
     case bluetooth = "bluetooth"
+    case clock = "clock"
 
     public var id: String { rawValue }
 
@@ -36,6 +37,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
         case .battery: return "Battery"
         case .sensors: return "Sensors"
         case .bluetooth: return "Bluetooth"
+        case .clock: return "Clock"
         }
     }
 
@@ -51,6 +53,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable {
         case .battery: return "battery.100"
         case .sensors: return "thermometer"
         case .bluetooth: return "wave.3.right"
+        case .clock: return "clock"
         }
     }
 
@@ -352,6 +355,7 @@ public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Send
         case .weather: return Color(nsColor: .systemYellow)
         case .sensors: return Color(nsColor: .systemOrange)
         case .bluetooth: return Color(nsColor: .systemBlue)
+        case .clock: return Color(nsColor: .systemPurple)
         }
     }
 
@@ -460,7 +464,7 @@ extension WidgetType {
             return .percentage
         case .disk, .network:
             return .valueWithUnit
-        case .weather, .sensors, .bluetooth:
+        case .weather, .sensors, .bluetooth, .clock:
             return .valueWithUnit
         }
     }
@@ -471,7 +475,7 @@ extension WidgetType {
     var isDefaultEnabled: Bool {
         switch self {
         case .cpu, .memory, .disk: return true
-        case .gpu, .network, .weather, .battery, .sensors, .bluetooth: return false
+        case .gpu, .network, .weather, .battery, .sensors, .bluetooth, .clock: return false
         }
     }
 }
@@ -565,7 +569,7 @@ public final class WidgetPreferences: Sendable {
     /// Create default widget configurations
     private static func defaultConfigs() -> [WidgetConfiguration] {
         let allTypes: [WidgetType] = [
-            .cpu, .gpu, .memory, .disk, .network, .weather, .battery, .sensors, .bluetooth
+            .cpu, .gpu, .memory, .disk, .network, .weather, .battery, .sensors, .bluetooth, .clock
         ]
 
         return allTypes.enumerated().map { index, type in
@@ -1024,13 +1028,15 @@ extension WidgetType {
             return [.mini, .text, .label]
         case .bluetooth:
             return [.stack, .mini, .state]
+        case .clock:
+            return [.stack, .text, .label]
         }
     }
 
     /// Default visualization for this data source type
     public var defaultVisualization: VisualizationType {
         switch self {
-        case .sensors, .bluetooth: return .stack
+        case .sensors, .bluetooth, .clock: return .stack
         default: return .mini
         }
     }

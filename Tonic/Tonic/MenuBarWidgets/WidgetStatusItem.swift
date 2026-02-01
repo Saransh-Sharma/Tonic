@@ -159,6 +159,8 @@ public class WidgetStatusItem: ObservableObject {
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Sensors: \(dataManager.sensorsData.temperatures.count) temps")
         case .bluetooth:
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Bluetooth: \(dataManager.bluetoothData.connectedDevices.count) connected, enabled: \(dataManager.bluetoothData.isBluetoothEnabled)")
+        case .clock:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Clock: \(ClockPreferences.shared.enabledEntries.count) timezones")
         }
     }
 
@@ -467,6 +469,10 @@ struct WidgetCompactView: View {
                 return "\(connectedCount)"
             }
             return "Off"
+
+        case .clock:
+            // Clock is handled by ClockStatusItem, not WidgetCompactView
+            return "--:--"
         }
     }
 }

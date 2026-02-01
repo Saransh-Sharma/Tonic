@@ -11,6 +11,7 @@
 		00BCC92694079C10044707E2 /* NotificationRuleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A4068759566893D1F1BFD3 /* NotificationRuleEngine.swift */; };
 		00CFF73D689D086FACB143FD /* DockerAndVMCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6EE0C346E0FA7A93C1E712 /* DockerAndVMCleanup.swift */; };
 		01EDB89DCA25725842D3E365 /* RecommendationGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97990D567F2DBC0C55BCF775 /* RecommendationGenerator.swift */; };
+		02D67BDB5ADCE87786D186BA /* ClockWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22445D3770863CA4A9D30B6D /* ClockWidgetView.swift */; };
 		04F60EFBDB81D2EA47011105 /* ActionTableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF649C36C70E9E3210BCB5A /* ActionTableTests.swift */; };
 		08895901DCF945D44DEA4AEC /* NetworkQualityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 322ADC71AE1B1026FD7E0DDF /* NetworkQualityService.swift */; };
 		09B410F0BDD4F59517BC0053 /* DesignSandboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9156C35EA0D5F08F4D362373 /* DesignSandboxView.swift */; };
@@ -159,6 +160,7 @@
 		E2CD7EAB16F1DBE33DFCBABA /* LabelWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CA1FFBDF104FE7F73DA4C5 /* LabelWidgetView.swift */; };
 		E322470D3A958F815E2F8FE5 /* BarChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2399186CE3F16CBEFFE6A2A /* BarChartWidgetView.swift */; };
 		E40F672E1EEE3239E7ADD2F1 /* PreferenceListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B47A4B58EAA8412A0B8653 /* PreferenceListTests.swift */; };
+		E51398CEC7A2D2DC1DC05BFA /* ClockConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95244DF4874C54406E3C1139 /* ClockConfiguration.swift */; };
 		E61FEF7AA4AA10ACA6BD6DB1 /* GPUWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38007A31DE82BEBCC04CF3BB /* GPUWidgetView.swift */; };
 		E7F29D9154042E73EB15C377 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29880206031BF4131E0CAD95 /* MockData.swift */; };
 		E802321FA7EA19A36E9D2642 /* PieChartWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58E4FD09F1883BB93485A7F3 /* PieChartWidgetView.swift */; };
@@ -209,6 +211,7 @@
 		188BD45B65F6D3E5DC8F24E8 /* NetworkWidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetDataManager.swift; sourceTree = "<group>"; };
 		1DD3BBA638AA98EA7AF58C9D /* BarChartStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartStatusItem.swift; sourceTree = "<group>"; };
 		21073846D0943627C4D51AF7 /* WidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStore.swift; sourceTree = "<group>"; };
+		22445D3770863CA4A9D30B6D /* ClockWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockWidgetView.swift; sourceTree = "<group>"; };
 		23E42DB46DD56EBD78B1B931 /* OneViewStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneViewStatusItem.swift; sourceTree = "<group>"; };
 		26D5C4E93D5C85333ADBEDB7 /* Tonic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tonic.swift; sourceTree = "<group>"; };
 		2793C3B16B46521FFAD7A49E /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
@@ -288,6 +291,7 @@
 		9156C35EA0D5F08F4D362373 /* DesignSandboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSandboxView.swift; sourceTree = "<group>"; };
 		941F0753C9DD010CE10A5FAA /* InputValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputValidationTests.swift; sourceTree = "<group>"; };
 		9478C2E04B1AA8580B97E2EE /* WiFiMetricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiMetricsService.swift; sourceTree = "<group>"; };
+		95244DF4874C54406E3C1139 /* ClockConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockConfiguration.swift; sourceTree = "<group>"; };
 		96A8A1804F801E9B47864FEC /* BackgroundActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundActivityManager.swift; sourceTree = "<group>"; };
 		974C59374E306F4BBCC2FAC3 /* AppResetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppResetService.swift; sourceTree = "<group>"; };
 		97990D567F2DBC0C55BCF775 /* RecommendationGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationGenerator.swift; sourceTree = "<group>"; };
@@ -371,6 +375,7 @@
 			children = (
 				13C61C4011581D0A1BC8D7BC /* AppMetadata.swift */,
 				081D7C607412D52AAC3F8C25 /* BackgroundActivityItem.swift */,
+				95244DF4874C54406E3C1139 /* ClockConfiguration.swift */,
 				765BCE13B288AD8DE0A5C822 /* DiskAnalysisModels.swift */,
 				0569C23186B252AFABF47C15 /* DiskSMARTData.swift */,
 				3744CDA648BED15C2DCE940C /* LoginItem.swift */,
@@ -725,6 +730,7 @@
 			children = (
 				A3EE11B3E976DB5E15289E8E /* BatteryWidgetView.swift */,
 				E0E4079B377B941F5C0A417F /* BluetoothStatusItem.swift */,
+				22445D3770863CA4A9D30B6D /* ClockWidgetView.swift */,
 				80894686B2FD7594AFA2A183 /* CPUWidgetView.swift */,
 				9CBE8CE926FCCAC1EC3EAB08 /* DiskWidgetView.swift */,
 				38007A31DE82BEBCC04CF3BB /* GPUWidgetView.swift */,
@@ -745,14 +751,14 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_5FBF05A0-B87F-49A0-B97A-6B5DB191AB63" /* Sources */ = {
+		"TEMP_5236774F-1F53-48E6-9911-23101C513788" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_97F77C29-1AC5-4474-89BE-A838124DB48F" /* Tonic */ = {
+		"TEMP_6798FAE0-FEC0-4E53-A760-CB5E9E4B9675" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -867,6 +873,8 @@
 				2F96A44B55797F892B8AEC40 /* BatteryWidgetView.swift in Sources */,
 				B9CEBD307395FC5752981CDB /* BluetoothStatusItem.swift in Sources */,
 				52187F9C34A5856BFA1F4392 /* CPUWidgetView.swift in Sources */,
+				E51398CEC7A2D2DC1DC05BFA /* ClockConfiguration.swift in Sources */,
+				02D67BDB5ADCE87786D186BA /* ClockWidgetView.swift in Sources */,
 				41607AED588716AE1FDF1E02 /* CloudStorageScanner.swift in Sources */,
 				73043BBCCA017E4792B30836 /* CollectorBin.swift in Sources */,
 				CD5B3666AF6598D878DAA4D4 /* ColorZones.swift in Sources */,
