@@ -619,7 +619,15 @@ public final class WidgetDataManager {
 
     // MARK: - History Constants
 
+    // Performance optimization: Disable debug logging in release builds
+    #if DEBUG
+    private let isDebugLoggingEnabled = true
+    #else
+    private let isDebugLoggingEnabled = false
+    #endif
+
     private func logToFile(_ message: String) {
+        guard isDebugLoggingEnabled else { return }
         let data = "\(Date()): \(message)\n".data(using: .utf8)!
         if FileManager.default.fileExists(atPath: logFile.path) {
             if let handle = try? FileHandle(forWritingTo: logFile) {
@@ -633,6 +641,46 @@ public final class WidgetDataManager {
     }
 
     private static let maxHistoryPoints = 60
+
+    // MARK: - Circular History Buffers
+    // Performance optimization: Use fixed-size arrays instead of removeFirst() to avoid O(n) operations
+
+    /// Circular buffer for efficient history storage
+    private struct CircularBuffer {
+        private var buffer: [Double]
+        private var capacity: Int
+        private var head: Int = 0
+        private var count: Int = 0
+
+        init(capacity: Int) {
+            self.capacity = capacity
+            self.buffer = Array(repeating: 0.0, count: capacity)
+        }
+
+        mutating func add(_ value: Double) {
+            buffer[head] = value
+            head = (head + 1) % capacity
+            count = min(count + 1, capacity)
+        }
+
+        func toArray() -> [Double] {
+            if count < capacity {
+                return Array(buffer.prefix(count))
+            }
+            return Array(buffer.suffix(from: head)) + Array(buffer.prefix(head))
+        }
+    }
+
+    /// Circular buffer for history with O(1) add operation
+    private var cpuCircularBuffer = CircularBuffer(capacity: 60)
+    private var memoryCircularBuffer = CircularBuffer(capacity: 60)
+    private var diskCircularBuffer = CircularBuffer(capacity: 60)
+    private var networkUploadCircularBuffer = CircularBuffer(capacity: 60)
+    private var networkDownloadCircularBuffer = CircularBuffer(capacity: 60)
+    private var gpuCircularBuffer = CircularBuffer(capacity: 60)
+    private var batteryCircularBuffer = CircularBuffer(capacity: 60)
+    private var sensorsCircularBuffer = CircularBuffer(capacity: 60)
+    private var bluetoothCircularBuffer = CircularBuffer(capacity: 60)
 
     // MARK: - CPU Data
 
