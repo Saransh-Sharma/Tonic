@@ -20,6 +20,7 @@ public struct GPUPopoverView: View {
     // MARK: - Properties
 
     @State private var dataManager = WidgetDataManager.shared
+    @State private var temperatureUnit: TemperatureUnit = .celsius
 
     // MARK: - Body
 
@@ -55,6 +56,12 @@ public struct GPUPopoverView: View {
         .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(PopoverConstants.cornerRadius)
+        .onAppear {
+            loadTemperatureUnit()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .widgetConfigurationDidUpdate)) { _ in
+            loadTemperatureUnit()
+        }
     }
 
     // MARK: - Header
@@ -125,7 +132,6 @@ public struct GPUPopoverView: View {
                 if let temperature = dataManager.gpuData.temperature {
                     TemperatureGaugeView(
                         temperature: temperature,
-                        maxTemperature: 100,
                         size: CGSize(width: 80, height: 50),
                         showLabel: true
                     )
@@ -281,8 +287,8 @@ public struct GPUPopoverView: View {
                     IconLabelRow(
                         icon: "thermometer",
                         label: "Temperature",
-                        value: "\(Int(temperature))°C",
-                        valueColor: temperatureColor(temperature)
+                        value: TemperatureConverter.displayString(temperature, unit: temperatureUnit),
+                        valueColor: TemperatureConverter.colorForTemperature(temperature, unit: temperatureUnit)
                     )
                 }
 
@@ -355,12 +361,8 @@ public struct GPUPopoverView: View {
         }
     }
 
-    private func temperatureColor(_ temp: Double) -> Color {
-        switch temp {
-        case 0..<60: return TonicColors.success
-        case 60..<75: return TonicColors.warning
-        default: return TonicColors.error
-        }
+    private func loadTemperatureUnit() {
+        temperatureUnit = WidgetPreferences.shared.temperatureUnit
     }
 
     private func formatBytes(_ bytes: UInt64) -> String {

@@ -21,6 +21,7 @@ public struct BatteryPopoverView: View {
     // MARK: - Properties
 
     @State private var dataManager = WidgetDataManager.shared
+    @State private var temperatureUnit: TemperatureUnit = .celsius
 
     // MARK: - Body
 
@@ -67,6 +68,16 @@ public struct BatteryPopoverView: View {
         .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(PopoverConstants.cornerRadius)
+        .onAppear {
+            loadTemperatureUnit()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .widgetConfigurationDidUpdate)) { _ in
+            loadTemperatureUnit()
+        }
+    }
+
+    private func loadTemperatureUnit() {
+        temperatureUnit = WidgetPreferences.shared.temperatureUnit
     }
 
     // MARK: - Header
@@ -248,7 +259,7 @@ public struct BatteryPopoverView: View {
 
                 // Temperature
                 if let temp = dataManager.batteryData.temperature {
-                    detailRow(label: "Temperature", value: String(format: "%.1f°C", temp))
+                    detailRow(label: "Temperature", value: TemperatureConverter.displayString(temp, unit: temperatureUnit, precision: 1))
                 } else {
                     detailRow(label: "Temperature", value: "Unknown")
                 }

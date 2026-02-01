@@ -214,8 +214,8 @@ public struct WeatherLocation: Codable, Sendable, Identifiable, Equatable {
 
 // MARK: - Temperature Unit
 
-/// Temperature unit preferences
-public enum TemperatureUnit: String, CaseIterable, Codable, Sendable, Identifiable {
+/// Temperature unit preferences for weather
+public enum WeatherTemperatureUnit: String, CaseIterable, Codable, Sendable, Identifiable {
     case celsius = "celsius"
     case fahrenheit = "fahrenheit"
     case auto = "auto"
@@ -235,7 +235,7 @@ public enum TemperatureUnit: String, CaseIterable, Codable, Sendable, Identifiab
 
 extension Double {
     /// Format temperature based on unit preference
-    public func formattedTemperature(unit: TemperatureUnit) -> String {
+    public func formattedTemperature(unit: WeatherTemperatureUnit) -> String {
         let value = switch unit {
         case .celsius: self
         case .fahrenheit: (self * 9/5) + 32

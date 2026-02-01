@@ -40,7 +40,7 @@ public final class WeatherService {
     public private(set) var savedLocations: [WeatherLocation] = []
 
     /// Temperature unit preference
-    public var temperatureUnit: TemperatureUnit = .auto
+    public var temperatureUnit: WeatherTemperatureUnit = .auto
 
     // MARK: - Constants
 
@@ -117,7 +117,7 @@ public final class WeatherService {
     }
 
     /// Set temperature unit
-    public func setTemperatureUnit(_ unit: TemperatureUnit) {
+    public func setTemperatureUnit(_ unit: WeatherTemperatureUnit) {
         temperatureUnit = unit
         UserDefaults.standard.set(unit.rawValue, forKey: Keys.temperatureUnit)
     }
@@ -301,7 +301,7 @@ public final class WeatherService {
     private func loadPreferences() {
         // Load temperature unit
         if let unitString = UserDefaults.standard.string(forKey: Keys.temperatureUnit),
-           let unit = TemperatureUnit(rawValue: unitString) {
+           let unit = WeatherTemperatureUnit(rawValue: unitString) {
             temperatureUnit = unit
         }
 

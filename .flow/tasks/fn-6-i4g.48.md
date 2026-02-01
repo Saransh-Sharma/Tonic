@@ -200,26 +200,21 @@ extension Array {
 
 ## Acceptance
 
-- [ ] Usage history chart displays line graph
-- [ ] Per-core section shows E/P grouped bars with color-coding
-- [ ] Details section shows System/User/Idle with colored dots
-- [ ] Load average shows 1/5/15 min values
-- [ ] Frequency section shows all cores, E-cores, P-cores in GHz
-- [ ] All sections have proper headers and spacing
-- [ ] Section dividers render correctly
-- [ ] Missing data handled gracefully (optional sections hide if no data)
+- [x] Usage history chart displays line graph
+- [x] Per-core section shows E/P grouped bars with color-coding
+- [x] Details section shows System/User/Idle with colored dots
+- [x] Load average shows 1/5/15 min values
+- [x] Frequency section shows all cores, E-cores, P-cores in GHz
+- [x] All sections have proper headers and spacing
+- [x] Section dividers render correctly
+- [x] Missing data handled gracefully (optional sections hide if no data)
 
-## Done Summary
-
+## Done summary
 Created CPU popover sections: history chart, E/P grouped core bars, color-coded details, load average, and frequency breakdown. Matches Stats Master's complete CPU popup structure.
-<!-- Updated by plan-sync: Use averageLoad property, not loadAverage -->
-
 ## Evidence
-
-- Commits:
+- Commits: 0141adfb7bf5f0fe575ef24f410b7cc498c3738c
 - Tests:
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Modules/CPU/popup.swift`

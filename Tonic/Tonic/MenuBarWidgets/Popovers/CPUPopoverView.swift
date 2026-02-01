@@ -23,6 +23,7 @@ public struct CPUPopoverView: View {
     // MARK: - Properties
 
     @State private var dataManager = WidgetDataManager.shared
+    @State private var temperatureUnit: TemperatureUnit = .celsius
 
     // MARK: - Body
 
@@ -77,6 +78,16 @@ public struct CPUPopoverView: View {
         .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(PopoverConstants.cornerRadius)
+        .onAppear {
+            loadTemperatureUnit()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .widgetConfigurationDidUpdate)) { _ in
+            loadTemperatureUnit()
+        }
+    }
+
+    private func loadTemperatureUnit() {
+        temperatureUnit = WidgetPreferences.shared.temperatureUnit
     }
 
     // MARK: - Header
@@ -141,7 +152,6 @@ public struct CPUPopoverView: View {
                 // Temperature gauge
                 TemperatureGaugeView(
                     temperature: dataManager.cpuData.temperature ?? 0,
-                    maxTemperature: 100,
                     size: CGSize(width: 80, height: 50),
                     showLabel: true
                 )

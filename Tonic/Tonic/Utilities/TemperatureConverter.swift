@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 // MARK: - Temperature Unit
 
@@ -41,7 +42,7 @@ public enum TemperatureUnit: String, Sendable, CaseIterable, Identifiable, Codab
         }
     }
 
-    /// Warning threshold for color coding
+    /// Warning threshold for color coding (50°C = 122°F)
     public var warningThreshold: Double {
         switch self {
         case .celsius: return 50
@@ -49,7 +50,7 @@ public enum TemperatureUnit: String, Sendable, CaseIterable, Identifiable, Codab
         }
     }
 
-    /// Critical threshold for color coding
+    /// Critical threshold for color coding (75°C = 167°F)
     public var criticalThreshold: Double {
         switch self {
         case .celsius: return 75
@@ -126,41 +127,6 @@ public struct TemperatureConverter {
             return TonicColors.warning
         default:
             return TonicColors.error
-        }
-    }
-}
-
-// MARK: - SwiftUI Color Helper
-
-import SwiftUI
-
-public extension Color {
-    /// Initialize from TonicColor
-    init(_ tonicColor: TonicColors) {
-        self.init(nsColor: tonicColor.nsColor)
-    }
-}
-
-// MARK: - TonicColors
-
-public enum TonicColors {
-    public static var success: NSColor {
-        NSColor(red: 0.2, green: 0.7, blue: 0.4, alpha: 1.0)
-    }
-
-    public static var warning: NSColor {
-        NSColor(red: 1.0, green: 0.6, blue: 0.0, alpha: 1.0)
-    }
-
-    public static var error: NSColor {
-        NSColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0)
-    }
-
-    var nsColor: NSColor {
-        switch self {
-        case .success: return Self.success
-        case .warning: return Self.warning
-        case .error: return Self.error
         }
     }
 }

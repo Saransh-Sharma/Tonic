@@ -180,43 +180,47 @@ public struct HalfCircleGaugeView: View {
 // MARK: - Temperature Gauge (Convenience)
 
 /// Pre-configured half-circle gauge for temperature display
+/// Uses global temperature unit preference from WidgetPreferences
 public struct TemperatureGaugeView: View {
-    private let temperature: Double
-    private let maxTemperature: Double
+    private let temperature: Double  // Always in Celsius from sensor data
     private let size: CGSize
     private let showLabel: Bool
+    @State private var temperatureUnit: TemperatureUnit = .celsius
 
     public init(
         temperature: Double,
-        maxTemperature: Double = 100,
+        maxTemperature: Double = 100,  // Deprecated: max is now determined by unit
         size: CGSize = CGSize(width: 80, height: 50),
         showLabel: Bool = true
     ) {
         self.temperature = temperature
-        self.maxTemperature = maxTemperature
         self.size = size
         self.showLabel = showLabel
     }
 
     public var body: some View {
-        let tempColor = colorForTemperature(temperature)
+        let unit = temperatureUnit
+        let displayTemp = TemperatureConverter.display(temperature, unit: unit)
+        let tempColor = TemperatureConverter.colorForTemperature(temperature, unit: unit)
 
         HalfCircleGaugeView(
-            value: temperature,
-            maxValue: maxTemperature,
+            value: displayTemp,
+            maxValue: unit.maxTemperature,
             label: showLabel ? "Temp" : nil,
-            unit: "°C",
+            unit: unit.symbol,
             color: tempColor,
             size: size
         )
+        .onAppear {
+            loadTemperatureUnit()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .widgetConfigurationDidUpdate)) { _ in
+            loadTemperatureUnit()
+        }
     }
 
-    private func colorForTemperature(_ temp: Double) -> Color {
-        switch temp {
-        case 0..<50: return TonicColors.success
-        case 50..<75: return TonicColors.warning
-        default: return TonicColors.error
-        }
+    private func loadTemperatureUnit() {
+        temperatureUnit = WidgetPreferences.shared.temperatureUnit
     }
 }
 

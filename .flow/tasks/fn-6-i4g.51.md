@@ -316,16 +316,12 @@ struct AnalogClockView: View {
 - [ ] Popover size: 280x400px
 - [ ] Toggle for digital/analog display
 
-## Done Summary
-
-Created Clock popover with multi-timezone support. Features local time display, date with relative day, world clocks grid, and Calendar app integration. Optional analog clock face included.
-
+## Done summary
+Created Clock popover with multi-timezone support. Features include prominent local time display, full date with relative day indicator, world clocks grid with location/UTC offset/time, and Calendar app integration. Optional analog clock face component included.
 ## Evidence
-
 - Commits:
 - Tests:
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Modules/Clock/popup.swift`

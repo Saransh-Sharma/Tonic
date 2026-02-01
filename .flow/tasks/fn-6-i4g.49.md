@@ -155,16 +155,12 @@ override func showPopover() {
 - [ ] Scroll works if content exceeds height
 - [ ] Popover closes when clicking outside (transient behavior)
 
-## Done Summary
-
-Completed CPU popover integration with all 7 sections: dashboard gauges, history chart, E/P core bars, details, load average, frequency, and top processes. Full parity with Stats Master's CPU popup achieved.
-
+## Done summary
+Added frequency section to CPU popover showing all/E/P cores in GHz with color-coded display matching the core usage section. The section appears between load average and top processes, only when frequency data is available.
 ## Evidence
-
-- Commits:
-- Tests:
+- Commits: 0141adfc6f9cc27d998733422edc4c6477d19ed5
+- Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Modules/CPU/popup.swift`

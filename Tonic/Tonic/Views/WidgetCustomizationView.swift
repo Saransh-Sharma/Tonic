@@ -1148,12 +1148,6 @@ struct WidgetSettingsSheet: View {
         VStack(spacing: 0) {
             // Show fan speeds toggle
             sensorsShowFanSpeedsRow
-
-            Divider()
-                .padding(.leading, DesignTokens.Spacing.md)
-
-            // Temperature unit selector
-            sensorsTemperatureUnitRow
         }
     }
 
@@ -1175,50 +1169,6 @@ struct WidgetSettingsSheet: View {
             ))
             .toggleStyle(.switch)
             .labelsHidden()
-        }
-    }
-
-    private var sensorsTemperatureUnitRow: some View {
-        let selectedUnit = config?.moduleSettings.sensors.temperatureUnit ?? .celsius
-
-        return PreferenceRow(
-            title: "Temperature Unit",
-            subtitle: "Unit for temperature display",
-            icon: "thermometer",
-            iconColor: DesignTokens.Colors.warning,
-            showDivider: false
-        ) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                Button(action: {
-                    updateModuleSettings { settings in
-                        settings.sensors.temperatureUnit = .celsius
-                    }
-                }) {
-                    Text("°C")
-                        .font(DesignTokens.Typography.subhead)
-                        .foregroundColor(selectedUnit == .celsius ? .white : DesignTokens.Colors.textPrimary)
-                        .padding(.horizontal, DesignTokens.Spacing.sm)
-                        .padding(.vertical, DesignTokens.Spacing.xxs)
-                        .background(selectedUnit == .celsius ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
-                        .cornerRadius(DesignTokens.CornerRadius.small)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    updateModuleSettings { settings in
-                        settings.sensors.temperatureUnit = .fahrenheit
-                    }
-                }) {
-                    Text("°F")
-                        .font(DesignTokens.Typography.subhead)
-                        .foregroundColor(selectedUnit == .fahrenheit ? .white : DesignTokens.Colors.textPrimary)
-                        .padding(.horizontal, DesignTokens.Spacing.sm)
-                        .padding(.vertical, DesignTokens.Spacing.xxs)
-                        .background(selectedUnit == .fahrenheit ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
-                        .cornerRadius(DesignTokens.CornerRadius.small)
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 

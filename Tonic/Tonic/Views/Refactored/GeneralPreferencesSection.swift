@@ -17,6 +17,14 @@ struct GeneralPreferencesSection: View {
     @State private var showRestartAlert = false
     @State private var error: TonicError?
 
+    // Temperature unit setting
+    private var temperatureUnit: Binding<TemperatureUnit> {
+        Binding(
+            get: { WidgetPreferences.shared.temperatureUnit },
+            set: { WidgetPreferences.shared.setTemperatureUnit($0) }
+        )
+    }
+
     var body: some View {
         Section("General") {
             // Launch at Login Toggle
@@ -47,6 +55,17 @@ struct GeneralPreferencesSection: View {
                 .pickerStyle(.segmented)
                 .help("How often to check for updates")
             }
+
+            Divider()
+
+            // Temperature Unit
+            Picker("Temperature Unit", selection: temperatureUnit) {
+                ForEach(TemperatureUnit.allCases) { unit in
+                    Text(unit.displayName).tag(unit)
+                }
+            }
+            .pickerStyle(.segmented)
+            .help("Temperature display unit for all widgets (CPU, GPU, Sensors, Battery)")
 
             Divider()
 

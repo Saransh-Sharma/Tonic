@@ -21,6 +21,7 @@ public struct SensorsPopoverView: View {
     // MARK: - Properties
 
     @State private var dataManager = WidgetDataManager.shared
+    @State private var temperatureUnit: TemperatureUnit = .celsius
 
     // MARK: - Body
 
@@ -76,6 +77,12 @@ public struct SensorsPopoverView: View {
         .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         .cornerRadius(PopoverConstants.cornerRadius)
+        .onAppear {
+            loadTemperatureUnit()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .widgetConfigurationDidUpdate)) { _ in
+            loadTemperatureUnit()
+        }
     }
 
     // MARK: - Header
@@ -96,9 +103,9 @@ public struct SensorsPopoverView: View {
 
             // Max temperature display
             if let maxTemp = dataManager.sensorsData.temperatures.map({ $0.value }).max() {
-                Text("\(Int(maxTemp))°C")
+                Text(TemperatureConverter.displayString(maxTemp, unit: temperatureUnit))
                     .font(PopoverConstants.headerValueFont)
-                    .foregroundColor(temperatureColor(maxTemp))
+                    .foregroundColor(TemperatureConverter.colorForTemperature(maxTemp, unit: temperatureUnit))
             }
 
             // Settings button
@@ -126,7 +133,6 @@ public struct SensorsPopoverView: View {
                 if let maxTemp = dataManager.sensorsData.temperatures.map({ $0.value }).max() {
                     TemperatureGaugeView(
                         temperature: maxTemp,
-                        maxTemperature: 100,
                         size: CGSize(width: 90, height: 55),
                         showLabel: true
                     )
@@ -171,8 +177,9 @@ public struct SensorsPopoverView: View {
 
             NetworkSparklineChart(
                 data: dataManager.sensorsHistory,
-                color: temperatureColor(
-                    dataManager.sensorsHistory.last ?? dataManager.sensorsData.temperatures.first?.value ?? 0
+                color: TemperatureConverter.colorForTemperature(
+                    dataManager.sensorsHistory.last ?? dataManager.sensorsData.temperatures.first?.value ?? 0,
+                    unit: temperatureUnit
                 ),
                 height: 70,
                 showArea: true,
@@ -199,7 +206,7 @@ public struct SensorsPopoverView: View {
     private func sensorRow(sensor: SensorReading) -> some View {
         HStack(spacing: PopoverConstants.itemSpacing) {
             // Temperature indicator circle with color
-            IndicatorDot(color: temperatureColor(sensor.value))
+            IndicatorDot(color: TemperatureConverter.colorForTemperature(sensor.value, unit: temperatureUnit))
 
             // Sensor name
             Text(sensor.name)
@@ -216,22 +223,22 @@ public struct SensorsPopoverView: View {
                             .fill(Color.gray.opacity(0.15))
 
                         RoundedRectangle(cornerRadius: PopoverConstants.smallCornerRadius)
-                            .fill(temperatureColor(sensor.value))
+                            .fill(TemperatureConverter.colorForTemperature(sensor.value, unit: temperatureUnit))
                             .frame(width: geometry.size.width * min(max(0, (sensor.value - sensorMin) / (sensorMax - sensorMin)), 1.0))
                             .animation(PopoverConstants.fastAnimation, value: sensor.value)
                     }
                 }
                 .frame(height: PopoverConstants.progressBarHeight)
             } else {
-                // Default progress bar (0-100°C range)
+                // Default progress bar (0-100°C range or 0-212°F range)
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: PopoverConstants.smallCornerRadius)
                             .fill(Color.gray.opacity(0.15))
 
                         RoundedRectangle(cornerRadius: PopoverConstants.smallCornerRadius)
-                            .fill(temperatureColor(sensor.value))
-                            .frame(width: geometry.size.width * Swift.min(max(0, sensor.value / 100), 1.0))
+                            .fill(TemperatureConverter.colorForTemperature(sensor.value, unit: temperatureUnit))
+                            .frame(width: geometry.size.width * Swift.min(max(0, sensor.value / temperatureUnit.maxTemperature), 1.0))
                             .animation(PopoverConstants.fastAnimation, value: sensor.value)
                     }
                 }
@@ -239,9 +246,9 @@ public struct SensorsPopoverView: View {
             }
 
             // Temperature value
-            Text("\(Int(sensor.value))°C")
+            Text(TemperatureConverter.displayString(sensor.value, unit: temperatureUnit))
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(temperatureColor(sensor.value))
+                .foregroundColor(TemperatureConverter.colorForTemperature(sensor.value, unit: temperatureUnit))
                 .frame(width: 35, alignment: .trailing)
         }
     }
@@ -399,15 +406,8 @@ public struct SensorsPopoverView: View {
 
     // MARK: - Helper Methods
 
-    private func temperatureColor(_ value: Double) -> Color {
-        switch value {
-        case 0..<50:
-            return TonicColors.success
-        case 50..<75:
-            return TonicColors.warning
-        default:
-            return TonicColors.error
-        }
+    private func loadTemperatureUnit() {
+        temperatureUnit = WidgetPreferences.shared.temperatureUnit
     }
 
     private func fanColor(_ rpm: Int, maxRPM: Int?) -> Color {

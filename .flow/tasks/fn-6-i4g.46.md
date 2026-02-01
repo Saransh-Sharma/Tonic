@@ -177,17 +177,12 @@ ProcessesView(
 - [ ] Animates smoothly when values change
 - [ ] Process names truncate properly
 
-## Done Summary
-
-Created reusable ProcessesView component for displaying top processes across CPU, Memory, Disk, and Network popovers. Configurable count and color, matches Stats Master design.
-<!-- Updated by plan-sync: Use existing ProcessUsage model with cpuUsage property, not usagePercent -->
-
+## Done summary
+Created reusable ProcessesView component for displaying top processes across CPU, Memory, Disk, and Network popovers. Configurable count (0-15) and bar color, matches Stats Master design.
 ## Evidence
-
-- Commits:
-- Tests:
+- Commits: 0141adfb7bf5f0fe575ef24f410b7cc498c3738c
+- Tests: xcodebuild build (successful)
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**:
