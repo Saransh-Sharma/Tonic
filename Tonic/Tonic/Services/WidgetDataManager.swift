@@ -2076,7 +2076,12 @@ public final class WidgetDataManager {
         var hasEthernet = false
         var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
         while let current = ptr {
-            let interface = String(cString: current.pointee.ifa_name)
+            // ifa_name can be null in some cases - must check before creating String
+            guard let ifa_name = current.pointee.ifa_name else {
+                ptr = current.pointee.ifa_next
+                continue
+            }
+            let interface = String(cString: ifa_name)
             let nextPtr = current.pointee.ifa_next
             ptr = nextPtr
 
@@ -2131,9 +2136,15 @@ public final class WidgetDataManager {
             freeifaddrs(ifaddr)
         }
 
-        var ptr = firstAddr
-        while ptr != nil {
-            let interface = ptr.pointee
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
+        while let current = ptr {
+            let interface = current.pointee
+
+            // ifa_name can be null in some cases - must check before creating String
+            guard let ifa_name = interface.ifa_name else {
+                ptr = interface.ifa_next
+                continue
+            }
 
             // Safely unwrap ifa_addr - it can be nil for some interfaces
             guard let addrPtr = interface.ifa_addr else {
@@ -2146,7 +2157,7 @@ public final class WidgetDataManager {
 
             // Check for IPv4 address
             if addrFamily == UInt8(AF_INET) {
-                let name = String(cString: interface.ifa_name)
+                let name = String(cString: ifa_name)
 
                 // Skip loopback and virtual interfaces
                 if name == "lo0" || name.hasPrefix("utun") || name.hasPrefix("awdl") || name.hasPrefix("p2p") {
