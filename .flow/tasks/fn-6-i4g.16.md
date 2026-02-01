@@ -42,9 +42,8 @@ struct ClockEntry {
 - [ ] Widget updates every second when visible
 - [ ] Default timezone list includes local time + 2-3 common zones
 ## Done summary
-TBD
-
+Implemented Clock Module for multiple timezone display in the menu bar. Added ClockConfiguration model with timezone entries, time format options (12/24 hour), and ClockPreferences for user settings. Created ClockWidgetView with stack/text/label visualizations and detail popover showing all timezones with UTC offset and DST indicators. Updated WidgetConfiguration, WidgetFactory, and related status items to support the new clock widget type.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 3461429d44ca21d2e12f9a4e368dacdf1e330215
+- Tests: xcodebuild -scheme Tonic -configuration Debug build - Clock files compiled successfully with no clock-specific errors
 - PRs:

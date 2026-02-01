@@ -4,6 +4,7 @@
 //
 //  Disk monitoring widget views
 //  Task ID: fn-2.7
+//  Updated: fn-6-i4g.18 - Standardized popover layout
 //
 
 import SwiftUI
@@ -59,6 +60,7 @@ public struct DiskCompactView: View {
 // MARK: - Disk Detail View
 
 /// Detailed popover view for Disk widget
+/// Uses standardized PopoverTemplate for consistent layout
 public struct DiskDetailView: View {
 
     @State private var dataManager = WidgetDataManager.shared
@@ -66,52 +68,24 @@ public struct DiskDetailView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            header
+        PopoverTemplate(
+            icon: PopoverConstants.Icons.disk,
+            title: PopoverConstants.Names.disk,
+            headerValue: primaryDisk.map { "\(Int($0.usagePercentage))%" } ?? "--",
+            headerColor: primaryUsageColor
+        ) {
+            // Primary disk overview
+            primaryDiskSection
 
-            Divider()
+            // All volumes
+            volumesSection
 
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Primary disk overview
-                    primaryDiskSection
+            // I/O activity
+            ioActivitySection
 
-                    // All volumes
-                    volumesSection
-
-                    // I/O activity
-                    ioActivitySection
-
-                    // Per-app usage (placeholder - requires disk usage monitoring)
-                    perAppSection
-                }
-                .padding()
-            }
+            // Per-app usage
+            perAppSection
         }
-        .frame(width: 340, height: 450)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var header: some View {
-        HStack {
-            Image(systemName: "internaldrive.fill")
-                .font(.title2)
-                .foregroundColor(primaryUsageColor)
-
-            Text("Disk Usage")
-                .font(.headline)
-
-            Spacer()
-
-            if let primary = primaryDisk {
-                Text("\(Int(primary.usagePercentage))%")
-                    .font(.system(size: 20, weight: .bold, design: .monospaced))
-                    .foregroundColor(primaryUsageColor)
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var primaryDisk: DiskVolumeData? {
@@ -128,23 +102,17 @@ public struct DiskDetailView: View {
     }
 
     private var primaryDiskSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             if let primary = primaryDisk {
-                HStack(spacing: 16) {
+                HStack(spacing: DesignTokens.Spacing.lg) {
                     // Circular progress
                     ZStack {
-                        Circle()
-                            .stroke(Color(nsColor: .controlBackgroundColor), lineWidth: 10)
-                            .frame(width: 80, height: 80)
-
-                        Circle()
-                            .trim(from: 0, to: primary.usagePercentage / 100)
-                            .stroke(
-                                primaryUsageColor.gradient,
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                            )
-                            .frame(width: 80, height: 80)
-                            .rotationEffect(.degrees(-90))
+                        CircularProgress(
+                            percentage: primary.usagePercentage,
+                            size: 80,
+                            lineWidth: 10,
+                            color: primaryUsageColor
+                        )
 
                         VStack(spacing: 2) {
                             Text("\(Int(primary.usagePercentage))%")
@@ -157,7 +125,7 @@ public struct DiskDetailView: View {
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                         VStack(alignment: .leading, spacing: 4) {
                             Image(systemName: "internaldrive")
                                 .foregroundColor(.secondary)
@@ -201,30 +169,23 @@ public struct DiskDetailView: View {
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
     private var volumesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("All Volumes")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
+        TitledPopoverSection(title: "All Volumes") {
             VStack(spacing: 10) {
                 ForEach(dataManager.diskVolumes) { volume in
                     volumeRow(volume)
                 }
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private func volumeRow(_ volume: DiskVolumeData) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: PopoverConstants.itemSpacing) {
             HStack {
-                HStack(spacing: 8) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
                     Image(systemName: volume.isBootVolume ? "internaldrive.fill" : "externaldrive")
                         .foregroundColor(volume.isBootVolume ? primaryUsageColor : .secondary)
 
@@ -250,47 +211,35 @@ public struct DiskDetailView: View {
             }
 
             // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(nsColor: .separatorColor))
-                        .frame(height: 6)
-
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(colorForUsage(volume.usagePercentage))
-                        .frame(width: max(0, geometry.size.width * (volume.usagePercentage / 100)), height: 6)
-                }
-            }
-            .frame(height: 6)
+            UsageBar(percentage: volume.usagePercentage, color: colorForUsage(volume.usagePercentage), height: 6)
         }
     }
 
     private var ioActivitySection: some View {
-        HStack(spacing: 12) {
-            Image(systemName: dataManager.primaryDiskActivity ? "arrow.left.arrow.right" : "stop.circle")
-                .font(.title2)
-                .foregroundColor(dataManager.primaryDiskActivity ? .blue : .secondary)
+        PopoverSection {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Image(systemName: dataManager.primaryDiskActivity ? "arrow.left.arrow.right" : "stop.circle")
+                    .font(.title2)
+                    .foregroundColor(dataManager.primaryDiskActivity ? .blue : .secondary)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Disk Activity")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Disk Activity")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
 
-                Text(dataManager.primaryDiskActivity ? "I/O in progress" : "Idle")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+                    Text(dataManager.primaryDiskActivity ? "I/O in progress" : "Idle")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
-            Spacer()
+                Spacer()
 
-            if dataManager.primaryDiskActivity {
-                ProgressView()
-                    .scaleEffect(0.8)
+                if dataManager.primaryDiskActivity {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private var perAppSection: some View {
@@ -331,5 +280,4 @@ public final class DiskStatusItem: WidgetStatusItem {
 
 #Preview("Disk Detail") {
     DiskDetailView()
-        .frame(width: 340, height: 450)
 }

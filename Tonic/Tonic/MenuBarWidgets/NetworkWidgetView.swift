@@ -375,11 +375,9 @@ public final class NetworkStatusItem: WidgetStatusItem {
 
 #Preview("Network Detail (Redesigned)") {
     NetworkDetailViewRedesigned()
-        .frame(width: 380, height: 560)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Network Detail (Legacy)") {
     NetworkDetailViewLegacy()
-        .frame(width: 320, height: 400)
 }

@@ -4,6 +4,7 @@
 //
 //  CPU monitoring widget views
 //  Task ID: fn-2.4
+//  Updated: fn-6-i4g.18 - Standardized popover layout
 //
 
 import SwiftUI
@@ -48,6 +49,7 @@ public struct CPUCompactView: View {
 // MARK: - CPU Detail View
 
 /// Detailed popover view for CPU widget
+/// Uses standardized PopoverTemplate for consistent layout
 public struct CPUDetailView: View {
 
     @State private var dataManager = WidgetDataManager.shared
@@ -55,84 +57,36 @@ public struct CPUDetailView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            header
+        PopoverTemplate(
+            icon: PopoverConstants.Icons.cpu,
+            title: PopoverConstants.Names.cpu,
+            headerValue: "\(Int(dataManager.cpuData.totalUsage))%",
+            headerColor: usageColor
+        ) {
+            // Total usage display
+            totalUsageSection
 
-            Divider()
+            // Per-core usage
+            perCoreSection
 
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Total usage display
-                    totalUsageSection
+            // History graph
+            historyGraphSection
 
-                    // Per-core usage
-                    perCoreSection
+            // Top apps
+            topAppsSection
 
-                    // History graph
-                    historyGraphSection
-
-                    // Top apps
-                    topAppsSection
-
-                    // Activity Monitor link
-                    activityMonitorButton
-                }
-                .padding()
-            }
+            // Activity Monitor link
+            ActivityMonitorButton()
         }
-        .frame(width: 320, height: 450)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var activityMonitorButton: some View {
-        Button {
-            NSWorkspace.shared.launchApplication("Activity Monitor")
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 14))
-                Text("Open Activity Monitor")
-                    .font(.subheadline)
-                Spacer()
-                Image(systemName: "arrow.up.forward.square")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var header: some View {
-        HStack {
-            Image(systemName: "cpu.fill")
-                .font(.title2)
-                .foregroundColor(usageColor)
-
-            Text("CPU Usage")
-                .font(.headline)
-
-            Spacer()
-
-            Text("\(Int(dataManager.cpuData.totalUsage))%")
-                .font(.system(size: 20, weight: .bold, design: .monospaced))
-                .foregroundColor(usageColor)
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var totalUsageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             Text("Total Usage")
-                .font(.subheadline)
+                .font(PopoverConstants.sectionTitleFont)
                 .foregroundColor(.secondary)
 
-            HStack(alignment: .lastTextBaseline, spacing: 8) {
+            HStack(alignment: .lastTextBaseline, spacing: DesignTokens.Spacing.sm) {
                 Text("\(Int(dataManager.cpuData.totalUsage))%")
                     .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundColor(usageColor)
@@ -143,47 +97,21 @@ public struct CPUDetailView: View {
             }
 
             // Usage bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                        .frame(height: 8)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(usageColor)
-                        .frame(width: max(0, geometry.size.width * (dataManager.cpuData.totalUsage / 100)), height: 8)
-                }
-            }
-            .frame(height: 8)
+            UsageBar(percentage: dataManager.cpuData.totalUsage, color: usageColor)
         }
     }
 
     private var perCoreSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Per-Core Usage")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            VStack(spacing: 8) {
+        TitledPopoverSection(title: "Per-Core Usage") {
+            VStack(spacing: PopoverConstants.itemSpacing) {
                 ForEach(Array(dataManager.cpuData.perCoreUsage.enumerated()), id: \.offset) { index, usage in
-                    HStack(spacing: 12) {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
                         Text("Core \(index + 1)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(width: 50, alignment: .leading)
 
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .frame(height: 6)
-
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(colorForUsage(usage))
-                                    .frame(width: max(0, geometry.size.width * (usage / 100)), height: 6)
-                            }
-                        }
-                        .frame(height: 6)
+                        UsageBar(percentage: usage, color: colorForUsage(usage), height: 6)
 
                         Text("\(Int(usage))%")
                             .font(.caption)
@@ -193,17 +121,10 @@ public struct CPUDetailView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private var historyGraphSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Usage History")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
+        TitledPopoverSection(title: "Usage History") {
             Chart(dataManager.cpuHistory.enumerated().map { (index, value) in
                 ChartDataPoint(index: index, value: value)
             }) { item in
@@ -243,9 +164,6 @@ public struct CPUDetailView: View {
             .chartXAxis(.hidden)
             .frame(height: 100)
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private var topAppsSection: some View {
@@ -294,5 +212,4 @@ public final class CPUStatusItem: WidgetStatusItem {
 
 #Preview("CPU Detail") {
     CPUDetailView()
-        .frame(width: 320, height: 400)
 }

@@ -4,6 +4,7 @@
 //
 //  GPU monitoring widget views
 //  Task ID: fn-2.5
+//  Updated: fn-6-i4g.18 - Standardized popover layout
 //
 
 import SwiftUI
@@ -42,6 +43,7 @@ public struct GPUCompactView: View {
 // MARK: - GPU Detail View
 
 /// Detailed popover view for GPU widget
+/// Uses standardized PopoverTemplate for consistent layout
 public struct GPUDetailView: View {
 
     @State private var dataManager = WidgetDataManager.shared
@@ -49,58 +51,30 @@ public struct GPUDetailView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            header
+        PopoverTemplate(
+            icon: PopoverConstants.Icons.gpu,
+            title: PopoverConstants.Names.gpu,
+            headerValue: dataManager.gpuData.usagePercentage.map { "\(Int($0))%" },
+            headerColor: .blue
+        ) {
+            if isGPUSupported {
+                // GPU usage
+                gpuUsageSection
 
-            Divider()
-
-            ScrollView {
-                VStack(spacing: 20) {
-                    if isGPUSupported {
-                        // GPU usage
-                        gpuUsageSection
-
-                        // Memory usage
-                        if let memoryPercentage = dataManager.gpuData.memoryUsagePercentage {
-                            gpuMemorySection(memoryPercentage)
-                        }
-
-                        // Temperature
-                        if let temperature = dataManager.gpuData.temperature {
-                            gpuTemperatureSection(temperature)
-                        }
-                    } else {
-                        // Unsupported message
-                        unsupportedSection
-                    }
+                // Memory usage
+                if let memoryPercentage = dataManager.gpuData.memoryUsagePercentage {
+                    gpuMemorySection(memoryPercentage)
                 }
-                .padding()
+
+                // Temperature
+                if let temperature = dataManager.gpuData.temperature {
+                    gpuTemperatureSection(temperature)
+                }
+            } else {
+                // Unsupported message
+                unsupportedSection
             }
         }
-        .frame(width: 300, height: isGPUSupported ? 350 : 200)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var header: some View {
-        HStack {
-            Image(systemName: "video.bubble.left.fill")
-                .font(.title2)
-                .foregroundColor(.blue)
-
-            Text("GPU")
-                .font(.headline)
-
-            Spacer()
-
-            if let usage = dataManager.gpuData.usagePercentage {
-                Text("\(Int(usage))%")
-                    .font(.system(size: 20, weight: .bold, design: .monospaced))
-                    .foregroundColor(.blue)
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var isGPUSupported: Bool {
@@ -112,56 +86,36 @@ public struct GPUDetailView: View {
     }
 
     private var gpuUsageSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("GPU Usage")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
+        TitledPopoverSection(title: "GPU Usage") {
             if let usage = dataManager.gpuData.usagePercentage {
-                HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    Text("\(Int(usage))%")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundColor(.blue)
+                VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+                    HStack(alignment: .lastTextBaseline, spacing: DesignTokens.Spacing.sm) {
+                        Text("\(Int(usage))%")
+                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .foregroundColor(.blue)
 
-                    Text("utilization")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                // Usage bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.blue.gradient)
-                            .frame(width: max(0, geometry.size.width * (usage / 100)), height: 8)
+                        Text("utilization")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                }
-                .frame(height: 8)
 
-                // Info note
-                #if arch(arm64)
-                Text("Apple Silicon integrated GPU")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                #endif
+                    // Usage bar
+                    UsageBar(percentage: usage, color: .blue)
+
+                    // Info note
+                    #if arch(arm64)
+                    Text("Apple Silicon integrated GPU")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    #endif
+                }
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private func gpuMemorySection(_ percentage: Double) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("GPU Memory")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 12) {
+        TitledPopoverSection(title: "GPU Memory") {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 if let used = dataManager.gpuData.usedMemory,
                    let total = dataManager.gpuData.totalMemory {
                     VStack(alignment: .leading, spacing: 4) {
@@ -197,54 +151,39 @@ public struct GPUDetailView: View {
             // Memory bar
             if let used = dataManager.gpuData.usedMemory,
                let total = dataManager.gpuData.totalMemory {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.purple.gradient)
-                            .frame(width: max(0, geometry.size.width * percentage / 100), height: 8)
-                    }
-                }
-                .frame(height: 8)
+                UsageBar(percentage: percentage, color: .purple)
             }
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private func gpuTemperatureSection(_ temperature: Double) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "thermometer")
-                .font(.title2)
-                .foregroundColor(temperatureColor(temperature))
+        PopoverSection {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Image(systemName: "thermometer")
+                    .font(.title2)
+                    .foregroundColor(temperatureColor(temperature))
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Temperature")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Temperature")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
 
-                Text("\(Int(temperature))°C")
+                    Text("\(Int(temperature))°C")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Text(temperatureText(temperature))
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(temperatureColor(temperature))
             }
-
-            Spacer()
-
-            Text(temperatureText(temperature))
-                .font(.caption)
-                .foregroundColor(temperatureColor(temperature))
         }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
 
     private var unsupportedSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.lg) {
             Image(systemName: "info.circle")
                 .font(.system(size: 40))
                 .foregroundColor(.secondary)
@@ -258,7 +197,6 @@ public struct GPUDetailView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding()
     }
 
     private func temperatureColor(_ temp: Double) -> Color {
@@ -310,5 +248,4 @@ public final class GPUStatusItem: WidgetStatusItem {
 
 #Preview("GPU Detail") {
     GPUDetailView()
-        .frame(width: 300, height: 350)
 }
