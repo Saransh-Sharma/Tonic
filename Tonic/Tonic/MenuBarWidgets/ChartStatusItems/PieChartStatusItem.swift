@@ -45,17 +45,19 @@ public final class PieChartStatusItem: WidgetStatusItem {
 
     public override func createDetailView() -> AnyView {
         let dataManager = WidgetDataManager.shared
+
+        // Use Stats Master-style popover for CPU
+        if widgetType == .cpu {
+            return AnyView(CPUPopoverView())
+        }
+
+        // Use generic popover for other widget types
         let value: Double
         let label: String
         let details: String
         let secondaryValue: String?
 
         switch widgetType {
-        case .cpu:
-            value = dataManager.cpuData.totalUsage
-            label = "CPU Usage"
-            details = "\(Int(dataManager.cpuData.totalUsage))% used"
-            secondaryValue = nil
         case .memory:
             value = dataManager.memoryData.usagePercentage
             label = "Memory Usage"

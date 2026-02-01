@@ -63,6 +63,11 @@ public final class BarChartStatusItem: WidgetStatusItem {
     public override func createDetailView() -> AnyView {
         let dataManager = WidgetDataManager.shared
 
+        // Use Stats Master-style popover for CPU
+        if widgetType == .cpu {
+            return AnyView(CPUPopoverView())
+        }
+
         return AnyView(
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -74,8 +79,6 @@ public final class BarChartStatusItem: WidgetStatusItem {
                 }
 
                 switch widgetType {
-                case .cpu:
-                    cpuDetailView(dataManager)
                 case .memory:
                     memoryDetailView(dataManager)
                 default:
@@ -87,68 +90,6 @@ public final class BarChartStatusItem: WidgetStatusItem {
             .padding()
             .frame(width: 250, height: 180)
         )
-    }
-
-    @ViewBuilder
-    private func cpuDetailView(_ dataManager: WidgetDataManager) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Total CPU
-            HStack {
-                Text("Total CPU")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(Int(dataManager.cpuData.totalUsage))%")
-                    .font(.system(.body, design: .monospaced))
-            }
-
-            Divider()
-
-            // Per-core with E/P coloring
-            if !dataManager.cpuData.perCoreUsage.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Per-Core Usage")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    BarChartWidgetView(
-                        data: dataManager.cpuData.perCoreUsage,
-                        config: BarChartConfig(
-                            barWidth: 6,
-                            barSpacing: 2,
-                            colorMode: .ePCores
-                        ),
-                        epCoreData: EPCoreData(
-                            eCores: dataManager.cpuData.eCoreUsage ?? [],
-                            pCores: dataManager.cpuData.pCoreUsage ?? []
-                        )
-                    )
-                    .frame(height: 50)
-                }
-            }
-
-            // E/P legend
-            if dataManager.cpuData.eCoreUsage != nil || dataManager.cpuData.pCoreUsage != nil {
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color(red: 0.37, green: 0.62, blue: 1.0))
-                            .frame(width: 12, height: 12)
-                        Text("E Cores")
-                            .font(.caption2)
-                    }
-                    HStack(spacing: 4) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color(red: 1.0, green: 0.62, blue: 0.04))
-                            .frame(width: 12, height: 12)
-                        Text("P Cores")
-                            .font(.caption2)
-                    }
-                }
-            }
-
-            Spacer()
-        }
     }
 
     @ViewBuilder

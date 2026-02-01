@@ -80,7 +80,7 @@ public struct HalfCircleGaugeView: View {
         minValue: Double = 0,
         label: String? = nil,
         unit: String? = nil,
-        color: Color = DesignTokens.Colors.accent,
+        color: Color = Color.accentColor,
         size: CGSize = CGSize(width: 80, height: 50),
         lineWidth: CGFloat = 10
     ) {

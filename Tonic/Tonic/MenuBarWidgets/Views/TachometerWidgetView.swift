@@ -253,10 +253,10 @@ public struct GaugeView: View {
     }
 }
 
-// MARK: - RPM Gauge (for fans)
+// MARK: - Fan RPM Gauge (for fans)
 
-/// RPM gauge specifically for fan speeds
-public struct RPMGaugeView: View {
+/// RPM gauge specifically for fan speeds - compact circular gauge
+public struct FanRPMGaugeView: View {
     let rpm: Double
     let maxRPM: Double
     let size: CGFloat
@@ -384,9 +384,9 @@ public struct RPMGaugeView: View {
 
         // RPM gauges
         HStack(spacing: 16) {
-            RPMGaugeView(rpm: 1200, maxRPM: 3000, size: 32)
-            RPMGaugeView(rpm: 1850, maxRPM: 3000, size: 32)
-            RPMGaugeView(rpm: 2400, maxRPM: 3000, size: 32)
+            FanRPMGaugeView(rpm: 1200, maxRPM: 3000, size: 32)
+            FanRPMGaugeView(rpm: 1850, maxRPM: 3000, size: 32)
+            FanRPMGaugeView(rpm: 2400, maxRPM: 3000, size: 32)
         }
     }
     .padding()

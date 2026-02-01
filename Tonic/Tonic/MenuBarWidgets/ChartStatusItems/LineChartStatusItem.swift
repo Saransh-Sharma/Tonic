@@ -61,14 +61,16 @@ public final class LineChartStatusItem: WidgetStatusItem {
     public override func createDetailView() -> AnyView {
         let dataManager = WidgetDataManager.shared
 
+        // Use Stats Master-style popover for CPU
+        if widgetType == .cpu {
+            return AnyView(CPUPopoverView())
+        }
+
         // Get chart data based on widget type
         let history: [Double]
         let currentValue: Double
 
         switch widgetType {
-        case .cpu:
-            history = dataManager.getCPUHistory()
-            currentValue = dataManager.cpuData.totalUsage
         case .memory:
             history = dataManager.getMemoryHistory()
             currentValue = dataManager.memoryData.usagePercentage

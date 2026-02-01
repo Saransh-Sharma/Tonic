@@ -147,11 +147,8 @@ CoreClusterBarView(
 - [ ] Component works with Intel Macs (no E/P split)
 
 ## Done summary
-
-Created E/P core grouped bar component with color-coding and labels. Groups cores by type with distinct visual treatment for efficiency vs performance cores.
-
+Created E/P core grouped bar component with color-coding for efficiency (cool blue) and performance (warm orange) CPU cores. Handles Apple Silicon E/P split and Intel Macs gracefully.
 ## Evidence
-
 - Commits: 8cd9bc2ab659e0a5236769b62283a012cc1ba49f
 - Tests: xcodebuild -scheme Tonic -configuration Debug build
 - PRs:
