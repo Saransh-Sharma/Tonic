@@ -23,7 +23,8 @@
 | `Tonic/Tonic/Models/` | Data types and enums |
 | `Tonic/Tonic/Design/` | Design tokens, components, animations |
 | `Tonic/Tonic/MenuBarWidgets/` | Menu bar widget implementations |
-| `Tonic/Tonic/Services/WidgetReader/` | Reader protocol implementations for data sources |
+| `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/` | Chart-based widget status items |
+| `Tonic/Tonic/MenuBarWidgets/Views/` | Chart view components |
 | `Tonic/Tonic/Utilities/` | Helper utilities |
 | `TonicHelperTool/` | Privileged helper for root operations |
 
@@ -36,15 +37,24 @@
 ## Key Services (Singletons)
 
 ```swift
-WidgetPreferences.shared        // Widget configuration
+WidgetPreferences.shared        // Widget configuration (enabled, position, color, mode)
 WidgetCoordinator.shared        // Menu bar widget lifecycle (OneView/Individual mode)
+WidgetDataManager.shared        // Central data source for all widget metrics (@Observable)
 NotificationManager.shared      // Threshold-based notifications
 PermissionManager.shared        // Permission checks
 PrivilegedHelperManager.shared  // Root operations
 CollectorBin.shared             // Deletion staging
 WeatherService.shared           // Weather data
 SparkleUpdater.shared           // App updates
+SMCReader.shared                // SMC sensor readings (temperature, fan, voltage)
 ```
+
+## Key Models
+
+- **WidgetConfiguration.swift**: `WidgetType`, `WidgetDisplayMode`, `WidgetValueFormat`, `WidgetAccentColor`, `WidgetConfiguration`
+- **VisualizationType.swift**: `VisualizationType` (14 visualization types), `ChartConfiguration`, `ScalingMode`
+- **WidgetStatusItem.swift**: Base class for menu bar status items (NSStatusItem wrapper)
+- **WidgetFactory.swift**: Creates status items based on data source + visualization
 
 ## State Management Patterns
 
@@ -120,45 +130,50 @@ Multi-stage system analysis:
 - Development Artifacts, Docker, Xcode
 
 ### 3. System Monitoring (`WidgetDataManager.swift`)
-Real-time metrics via IOKit:
-- CPU usage (per-core available)
-- Memory usage with pressure level
-- Disk usage per volume
-- Network bandwidth
-- GPU (Apple Silicon unified memory)
-- Battery status
+Centralized data manager for all menu bar widget metrics using inline methods:
+- **CPU Data**: Total usage, per-core usage, E-core/P-core breakdown, frequency, temperature, thermal limit, load averages
+- **Memory Data**: Used/total bytes, pressure level, compressed/swap bytes, free memory, swap usage, top processes
+- **Disk Data**: Usage per volume, read/write rates, I/O statistics, SMART data, detailed disk stats
+- **Network Data**: Upload/download bandwidth, WiFi info, IP addresses, interface names
+- **GPU Data**: Usage (Apple Silicon unified memory), dynamic memory allocation
+- **Battery Data**: Level, charging state, time remaining, cycle count, health, temperature, power adapter info
+- **Sensors Data**: Temperature readings via SMC (SMCReader), fan speeds, voltage, power
+- **Bluetooth Data**: Connected devices, battery levels for Bluetooth devices
+- **History Tracking**: Per-widget history (60-120 samples) for charts and sparklines
 
-### 4. Reader Architecture (`WidgetReader.swift`)
-Stats Master-inspired reader pattern for modular data collection:
-- `WidgetReader<T>` protocol: Async data fetching with lifecycle management
-- Reader implementations in `Services/WidgetReader/`:
-  - `CPUReader` - CPU usage with per-core data
-  - `MemoryReader` - Memory usage with pressure levels
-  - `DiskReader` - Disk usage with SMART data
-  - `NetworkReader` - Network bandwidth with WiFi/IP info
-  - `GPUReader` - GPU usage (Apple Silicon unified memory)
-  - `BatteryReader` - Battery status with health metrics
-  - `SensorsReader` - Temperature sensors via SMC
-  - `BluetoothReader` - Bluetooth device batteries via IOBluetooth
-- Features: Configurable intervals, optional readers, popup-only mode, history limits
-- Unified refresh via `WidgetRefreshScheduler` (single timer instead of per-widget timers)
+All data collection is inline within `WidgetDataManager` using `@Observable` pattern for automatic SwiftUI updates.
 
-### 5. Menu Bar Widgets (`WidgetCoordinator`)
+### 4. Menu Bar Widgets (`WidgetCoordinator`)
 Stats Master-parity widget system with flexible visualizations:
-- **Data Sources**: CPU, Memory, Disk, Network, GPU, Battery, Weather, Sensors, Bluetooth (9 types)
-- **Visualization Types**: mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text, memory, battery (14 types)
+- **Data Sources** (9 types): CPU, GPU, Memory, Disk, Network, Battery, Weather, Sensors, Bluetooth
+- **Visualization Types** (14 types): mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text, memory, battery
 - **Display Modes**: Compact (icon+value), Detailed (adds sparkline for mini visualization)
 - **OneView Mode**: Unified menu bar item showing all widgets in a horizontal grid (toggleable)
 - **WidgetFactory**: Creates appropriate status items based on data source + visualization
+- **Chart Components**: `ChartStatusItems/` directory contains specialized status items for each visualization
 - **Notification Thresholds**: Per-widget configurable alerts via `NotificationManager`
-- **Color System**: 30+ color options including utilization-based auto-coloring
+- **Color System**: 30+ color options including utilization-based auto-coloring (green->yellow->orange->red)
 
-### 6. Weather (`WeatherService.swift`)
+Visualization Type Details:
+- **mini**: Icon + value, optional sparkline in detailed mode
+- **lineChart**: Real-time history graph with 60-120 samples
+- **barChart**: Per-core/per-zone bar display
+- **pieChart**: Circular progress indicator
+- **tachometer**: Gauge with needle
+- **stack**: Multiple sensor readings stacked
+- **speed**: Network up/down speed display
+- **networkChart**: Dual-line upload/download chart
+- **batteryDetails**: Extended battery info with health
+- **label/state/text**: Simple text displays
+- **memory**: Two-row used/total memory display
+- **battery**: Battery icon with fill level
+
+### 5. Weather (`WeatherService.swift`)
 - Uses Open-Meteo API (free, no key required)
 - CoreLocation for position
 - Current conditions + 7-day forecast
 
-### 7. Notification System (`NotificationManager.swift`)
+### 6. Notification System (`NotificationManager.swift`)
 Threshold-based alert system for menu bar widgets:
 - **Per-widget thresholds**: CPU, Memory, Disk, GPU, Battery, Network, Sensors
 - **Threshold types**: Greater than, less than, equal to conditions
@@ -220,12 +235,14 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 ## Common Tasks
 
 ### Adding a New Widget
-1. Create widget view in `MenuBarWidgets/` (subclass `WidgetStatusItem`)
-2. Add `WidgetType` case in `Models/WidgetConfiguration.swift` with compatible visualizations
-3. Create reader in `Services/WidgetReader/` (subclass `BaseReader<T>`)
-4. Add data source to `WidgetDataManager` if new metrics needed
-5. Update `WidgetFactory.createWidget()` to handle new type
-6. Add icon and display name to `WidgetType`
+1. Add `WidgetType` case in `Models/WidgetConfiguration.swift` with compatible visualizations
+2. Add data collection methods to `WidgetDataManager` for new metrics
+3. Create chart status item in `MenuBarWidgets/ChartStatusItems/` if new visualization type needed
+4. Update `WidgetFactory.createWidget()` to handle new type
+5. Add icon and display name to `WidgetType`
+6. Update `VisualizationType` enum if adding new visualization
+
+Note: Data collection is centralized in `WidgetDataManager` using inline methods (no separate reader files).
 
 ### Configuring Notification Thresholds
 1. Access via `NotificationManager.shared`

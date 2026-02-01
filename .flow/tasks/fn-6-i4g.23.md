@@ -66,9 +66,8 @@ if let primary = self.diskVolumes.first {
 - [ ] History respects maxHistoryPoints limit
 - [ ] History arrays are properly maintained over time
 
-## Done Summary
-Added history tracking for GPU, Battery, Sensors, and Disk widgets. All 7 widget types with data now track historical values for line chart visualizations.
-
+## Done summary
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

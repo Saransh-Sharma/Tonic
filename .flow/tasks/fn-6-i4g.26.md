@@ -77,9 +77,8 @@ Populate 11 optional data model fields that currently return nil 100% of the tim
 - [ ] All fields display correctly in UI
 - [ ] No performance degradation
 
-## Done Summary
-Populated 11 optional data model fields across CPU, Network, and Battery widgets.
-
+## Done summary
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
