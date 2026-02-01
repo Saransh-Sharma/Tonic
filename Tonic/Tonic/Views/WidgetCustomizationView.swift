@@ -532,6 +532,8 @@ struct WidgetSettingsSheet: View {
     @Bindable var preferences: WidgetPreferences
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingResetAlert = false
+
     private var config: WidgetConfiguration? {
         preferences.config(for: widgetType)
     }
@@ -568,26 +570,53 @@ struct WidgetSettingsSheet: View {
             ScrollView {
                 VStack(spacing: DesignTokens.Spacing.lg) {
                     PreferenceList {
+                        // Visualization Type Section
+                        PreferenceSection(header: "Visualization Type") {
+                            visualizationTypeSelector
+                        }
+
+                        // Display Mode Section
                         PreferenceSection(header: "Display Mode") {
                             displayModeSelector
                         }
 
-                        PreferenceSection(header: "Value Format") {
-                            valueFormatSelector
+                        // Label Toggle Section
+                        PreferenceSection(header: "Label") {
+                            labelToggleRow
                         }
 
+                        // Value Format Section (only show for relevant widget types)
+                        if supportsValueFormat {
+                            PreferenceSection(header: "Value Format") {
+                                valueFormatSelector
+                            }
+                        }
+
+                        // Update Frequency Section
                         PreferenceSection(header: "Update Frequency") {
                             updateFrequencySelector
                         }
 
+                        // Widget Color Section
                         PreferenceSection(header: "Widget Color") {
                             colorSelector
                         }
 
-                        PreferenceSection(header: "Notifications") {
-                            widgetNotificationSettings
+                        // Chart Configuration Section (only show for chart-based visualizations)
+                        if supportsChartConfiguration {
+                            PreferenceSection(header: "Chart Configuration") {
+                                chartConfigurationSection
+                            }
                         }
 
+                        // Notifications Section (only show for notifiable widget types)
+                        if supportsNotifications {
+                            PreferenceSection(header: "Notifications") {
+                                widgetNotificationSettings
+                            }
+                        }
+
+                        // Preview Section
                         PreferenceSection(header: "Preview") {
                             widgetPreview
                         }
@@ -598,8 +627,26 @@ struct WidgetSettingsSheet: View {
 
             Divider()
 
-            // Footer
+            // Footer with Reset, Remove, and Done buttons
             HStack(spacing: DesignTokens.Spacing.md) {
+                // Reset to Defaults button
+                Button {
+                    showingResetAlert = true
+                } label: {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                        .font(DesignTokens.Typography.body)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .background(DesignTokens.Colors.backgroundSecondary)
+                        .cornerRadius(DesignTokens.CornerRadius.medium)
+                }
+                .buttonStyle(.plain)
+                .help("Reset this widget to default settings")
+
+                Spacer()
+
+                // Remove button
                 Button(role: .destructive, action: {
                     withAnimation {
                         preferences.setWidgetEnabled(type: widgetType, enabled: false)
@@ -616,8 +663,7 @@ struct WidgetSettingsSheet: View {
                 }
                 .buttonStyle(.plain)
 
-                Spacer()
-
+                // Done button
                 Button(action: {
                     WidgetCoordinator.shared.refreshWidgets()
                     dismiss()
@@ -634,8 +680,287 @@ struct WidgetSettingsSheet: View {
             }
             .padding(DesignTokens.Spacing.md)
         }
-        .frame(width: 400, height: 600)
+        .frame(width: 450, height: 650)
         .background(DesignTokens.Colors.background)
+        .alert("Reset to Defaults", isPresented: $showingResetAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                resetWidgetToDefaults()
+            }
+        } message: {
+            Text("This will reset all settings for this widget to their default values.")
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    private var supportsValueFormat: Bool {
+        switch widgetType {
+        case .cpu, .memory, .gpu, .battery, .disk:
+            return true
+        case .network, .weather, .sensors, .bluetooth, .clock:
+            return false
+        }
+    }
+
+    private var supportsChartConfiguration: Bool {
+        guard let config = config else { return false }
+        return config.visualizationType.supportsHistory
+    }
+
+    private var supportsNotifications: Bool {
+        switch widgetType {
+        case .cpu, .memory, .disk, .gpu, .battery, .sensors:
+            return true
+        case .network, .weather, .bluetooth, .clock:
+            return false
+        }
+    }
+
+    // MARK: - Visualization Type Selector
+
+    private var visualizationTypeSelector: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text("Choose how this widget displays data")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: DesignTokens.Spacing.xs), count: 3),
+                spacing: DesignTokens.Spacing.xs
+            ) {
+                ForEach(compatibleVisualizations) { visualization in
+                    visualizationTypeButton(visualization)
+                }
+            }
+        }
+    }
+
+    private var compatibleVisualizations: [VisualizationType] {
+        widgetType.compatibleVisualizations
+    }
+
+    private func visualizationTypeButton(_ visualization: VisualizationType) -> some View {
+        let isSelected = config?.visualizationType == visualization
+
+        return Button {
+            withAnimation(DesignTokens.Animation.fast) {
+                preferences.setWidgetVisualization(type: widgetType, visualization: visualization)
+            }
+        } label: {
+            VStack(spacing: DesignTokens.Spacing.xxxs) {
+                Image(systemName: visualization.icon)
+                    .font(.system(size: 14, weight: .semibold))
+
+                Text(visualization.displayName)
+                    .font(DesignTokens.Typography.caption)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, DesignTokens.Spacing.sm)
+            .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+            .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundSecondary)
+            .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+        .help(visualization.description)
+    }
+
+    // MARK: - Label Toggle
+
+    private var labelToggleRow: some View {
+        PreferenceRow(
+            title: "Show Label",
+            subtitle: "Display widget name in menu bar",
+            icon: "textformat",
+            iconColor: DesignTokens.Colors.textSecondary,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.showLabel ?? false },
+                set: { newValue in
+                    withAnimation(DesignTokens.Animation.fast) {
+                        preferences.setWidgetShowLabel(type: widgetType, show: newValue)
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: - Chart Configuration Section
+
+    private var chartConfigurationSection: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            // History Length Slider
+            chartHistoryLengthRow
+
+            // Scale Type Picker
+            chartScaleTypeRow
+
+            // Show Background Toggle
+            chartShowBackgroundRow
+
+            // Show Frame Toggle
+            chartShowFrameRow
+        }
+    }
+
+    private var chartHistoryLengthRow: some View {
+        let currentHistorySize = config?.chartConfig?.historySize ?? ChartConfiguration.default.historySize
+
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            HStack {
+                Text("History Length")
+                    .font(DesignTokens.Typography.subhead)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Spacer()
+
+                Text("\(currentHistorySize) points")
+                    .font(DesignTokens.Typography.caption)
+                    .monospacedDigit()
+                    .foregroundColor(DesignTokens.Colors.accent)
+            }
+
+            Slider(
+                value: Binding(
+                    get: { Double(currentHistorySize) },
+                    set: { newValue in
+                        updateChartConfig { config in
+                            config.historySize = Int(newValue)
+                        }
+                    }
+                ),
+                in: 30...120,
+                step: 10
+            )
+            .accentColor(DesignTokens.Colors.accent)
+
+            HStack {
+                Text("30")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+
+                Spacer()
+
+                Text("120")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textTertiary)
+            }
+        }
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .background(DesignTokens.Colors.backgroundTertiary)
+        .cornerRadius(DesignTokens.CornerRadius.small)
+    }
+
+    private var chartScaleTypeRow: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+            Text("Scale Type")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
+                ForEach(ScalingMode.allCases) { mode in
+                    scaleTypeButton(mode)
+                }
+            }
+        }
+    }
+
+    private func scaleTypeButton(_ mode: ScalingMode) -> some View {
+        let isSelected = config?.chartConfig?.scaling == mode
+
+        return Button {
+            updateChartConfig { config in
+                config.scaling = mode
+            }
+        } label: {
+            Text(mode.displayName)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignTokens.Spacing.xs)
+                .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundTertiary)
+                .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var chartShowBackgroundRow: some View {
+        PreferenceRow(
+            title: "Show Background",
+            subtitle: "Display chart background fill",
+            icon: "square.fill",
+            iconColor: DesignTokens.Colors.textSecondary,
+            showDivider: true
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.chartConfig?.showBackground ?? false },
+                set: { newValue in
+                    updateChartConfig { config in
+                        config.showBackground = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private var chartShowFrameRow: some View {
+        PreferenceRow(
+            title: "Show Frame",
+            subtitle: "Display border around chart",
+            icon: "square",
+            iconColor: DesignTokens.Colors.textSecondary,
+            showDivider: false
+        ) {
+            Toggle("", isOn: Binding(
+                get: { config?.chartConfig?.showFrame ?? false },
+                set: { newValue in
+                    updateChartConfig { config in
+                        config.showFrame = newValue
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+    }
+
+    private func updateChartConfig(_ update: (inout ChartConfiguration) -> Void) {
+        var currentConfig = config?.chartConfig ?? ChartConfiguration.default
+        update(&currentConfig)
+        preferences.setWidgetChartConfig(type: widgetType, chartConfig: currentConfig)
+    }
+
+    // MARK: - Reset to Defaults
+
+    private func resetWidgetToDefaults() {
+        let defaultConfig = WidgetConfiguration.default(for: widgetType, at: config?.position ?? 0)
+        preferences.updateConfig(for: widgetType) { config in
+            config.visualizationType = defaultConfig.visualizationType
+            config.displayMode = defaultConfig.displayMode
+            config.showLabel = defaultConfig.showLabel
+            config.valueFormat = defaultConfig.valueFormat
+            config.refreshInterval = defaultConfig.refreshInterval
+            config.accentColor = defaultConfig.accentColor
+            config.chartConfig = defaultConfig.chartConfig
+        }
+
+        // Also reset notification thresholds for this widget
+        let notificationManager = NotificationManager.shared
+        let thresholds = notificationManager.config.thresholds(for: widgetType)
+        for threshold in thresholds {
+            notificationManager.removeThreshold(id: threshold.id)
+        }
+
+        WidgetCoordinator.shared.refreshWidgets()
     }
 
     private var displayModeSelector: some View {
