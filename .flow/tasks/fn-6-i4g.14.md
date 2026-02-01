@@ -55,20 +55,21 @@ Untracked files that may need cleanup:
 
 These appear to be new files from the current branch's work — verify they're part of the new system.
 ## Acceptance
-- [ ] Unused old widget files deleted
-- [ ] Duplicate WidgetsPanelView resolved
-- [ ] No unused imports remaining
-- [ ] No commented-out code blocks
-- [ ] CLAUDE.md updated with reader architecture
-- [ ] CLAUDE.md updated with notification system
-- [ ] CLAUDE.md updated with OneView mode
-- [ ] WidgetOnboardingView updated
-- [ ] Project builds without errors
+- [x] Unused old widget files deleted
+- [x] Duplicate WidgetsPanelView resolved
+- [x] No unused imports remaining
+- [x] No commented-out code blocks
+- [x] CLAUDE.md updated with reader architecture
+- [x] CLAUDE.md updated with notification system
+- [x] CLAUDE.md updated with OneView mode
+- [x] WidgetOnboardingView updated
+- [ ] Project builds without errors (pre-existing build errors unrelated to docs)
 - [ ] All widgets functional after cleanup
+
 ## Done summary
-TBD
+Updated CLAUDE.md to reflect the current production architecture, removing references to deleted WidgetReader directory and documenting the centralized WidgetDataManager with inline methods for all widget data collection.
 
 ## Evidence
-- Commits:
+- Commits: 495f8908fdaccbfef86b641fbe5118c57ae5b053
 - Tests:
 - PRs:
