@@ -83,6 +83,8 @@ struct CPUPopoverView: View {
                         maxCount: 5,
                         barColor: DesignTokens.Colors.accent
                     )
+```
+<!-- Updated by plan-sync: fn-6-i4g.32 used topCPUApps (AppResourceUsage) with custom processRow implementation, not ProcessesView component -->
                 }
                 .padding()
             }

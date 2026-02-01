@@ -39,14 +39,18 @@ private var historyChartSection: some View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(DesignTokens.Colors.textSecondary)
 
-        LineChartView(
+        NetworkSparklineChart(
             data: dataManager.cpuHistory,
             color: DesignTokens.Colors.accent,
-            showGrid: true
+            height: 70,
+            showArea: true,
+            lineWidth: 1.5
         )
         .frame(height: 70)
     }
 }
+```
+<!-- Updated by plan-sync: fn-6-i4g.32 used NetworkSparklineChart instead of LineChartView -->
 
 // MARK: - Per-Core Section (E/P Grouped)
 

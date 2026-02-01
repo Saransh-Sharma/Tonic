@@ -65,6 +65,7 @@ class SimpleFeedbackManager {
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
+    case modules = "Modules"
     case permissions = "Permissions"
     case helper = "Helper"
     case updates = "Updates"
@@ -76,6 +77,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: return "gearshape.fill"
+        case .modules: return "square.grid.2x2.fill"
         case .permissions: return "hand.raised.fill"
         case .helper: return "wrench.and.screwdriver.fill"
         case .updates: return "arrow.down.circle.fill"
@@ -87,6 +89,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .general: return "Appearance and startup"
+        case .modules: return "Widget configuration"
         case .permissions: return "System access"
         case .helper: return "Advanced features"
         case .updates: return "Software updates"
@@ -189,6 +192,8 @@ struct PreferencesView: View {
                     switch selectedSection {
                     case .general:
                         GeneralSettingsContent()
+                    case .modules:
+                        ModulesSettingsContent()
                     case .permissions:
                         PermissionsSettingsContent()
                     case .helper:
@@ -299,6 +304,7 @@ struct SettingsSectionHeader: View {
     private var sectionSubtitle: String {
         switch section {
         case .general: return "Customize how Tonic looks and behaves"
+        case .modules: return "Configure menu bar widgets"
         case .permissions: return "Manage system permissions for full functionality"
         case .helper: return "Enable advanced system operations"
         case .updates: return "Keep Tonic up to date"

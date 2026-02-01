@@ -8,7 +8,7 @@ Replace current `CPUDetailView` with Stats Master-style dashboard layout. Curren
 
 1. **CREATE**: `Tonic/Tonic/MenuBarWidgets/Popovers/CPUPopoverView.swift`
 2. **MODIFY**: `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/PieChartStatusItem.swift` (to use new popover)
-3. **MODIFY**: `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/MiniChartStatusItem.swift` (to use new popover)
+3. **MODIFY**: `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/LineChartStatusItem.swift` (to use new popover)
 
 ## New Popover Structure
 
@@ -65,19 +65,20 @@ Replace current `CPUDetailView` with Stats Master-style dashboard layout. Curren
 import SwiftUI
 
 struct CPUPopoverView: View {
-    @ObservedObject private var dataManager = WidgetDataManager.shared
 
-    var body: some View {
+    // MARK: - Properties
+
+    @State private var dataManager = WidgetDataManager.shared
+
+    // MARK: - Body
+
+    public var body: some View {
         VStack(spacing: 0) {
             // Header
-            HeaderView(
-                title: "CPU",
-                icon: "cpu.fill",
-                showActivityMonitor: true
-            )
+            headerView
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: PopoverConstants.sectionSpacing) {
                     // Dashboard Section
                     dashboardSection
 
@@ -106,47 +107,94 @@ struct CPUPopoverView: View {
                     // Top Processes
                     topProcessesSection
                 }
-                .padding()
+                .padding(PopoverConstants.horizontalPadding)
+                .padding(.vertical, PopoverConstants.verticalPadding)
             }
         }
-        .frame(width: 320, height: 500)
+        .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .cornerRadius(PopoverConstants.cornerRadius)
+    }
+
+    // MARK: - Header
+
+    private var headerView: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            // Icon
+            Image(systemName: PopoverConstants.Icons.cpu)
+                .font(.title2)
+                .foregroundColor(DesignTokens.Colors.accent)
+
+            // Title
+            Text("CPU")
+                .font(PopoverConstants.headerTitleFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Spacer()
+
+            // Activity Monitor button
+            Button {
+                NSWorkspace.shared.launchApplication("Activity Monitor")
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .font(.system(size: 12))
+                    Text("Activity Monitor")
+                        .font(.system(size: 11))
+                }
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            // Settings button
+            Button {
+                // TODO: Open settings to CPU widget configuration
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.body)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     // MARK: - Dashboard Section
 
     private var dashboardSection: some View {
-        HStack(spacing: 20) {
-            // System/User/Idle pie chart
-            CircularGaugeView(
-                segments: [
-                    (dataManager.cpuData.systemUsage, Color(red: 1, green: 0.3, blue: 0.2)),
-                    (dataManager.cpuData.userUsage, Color(red: 0.2, green: 0.5, blue: 1)),
-                    (dataManager.cpuData.idleUsage, Color.gray.opacity(0.3))
-                ],
-                centerText: "\(Int(dataManager.cpuData.totalUsage))%",
-                centerSubtitle: "Usage"
-            )
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Dashboard")
+                .font(PopoverConstants.sectionTitleFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
 
-            // Temperature gauge
-            HalfCircleGaugeView(
-                value: dataManager.cpuData.temperature ?? 0,
-                maxValue: 100,
-                label: "Temp",
-                unit: "°C",
-                color: temperatureColor(dataManager.cpuData.temperature ?? 0)
-            )
+            HStack(spacing: 20) {
+                // System/User/Idle pie chart
+                CPUCircularGaugeView(
+                    systemUsage: dataManager.cpuData.systemUsage,
+                    userUsage: dataManager.cpuData.userUsage,
+                    idleUsage: dataManager.cpuData.idleUsage,
+                    size: 70
+                )
 
-            // Frequency gauge
-            HalfCircleGaugeView(
-                value: dataManager.cpuData.frequency ?? 0,
-                maxValue: 5.0,
-                label: "Freq",
-                unit: "GHz",
-                color: .purple
-            )
+                // Temperature gauge
+                TemperatureGaugeView(
+                    temperature: dataManager.cpuData.temperature ?? 0,
+                    maxTemperature: 100,
+                    size: CGSize(width: 80, height: 50),
+                    showLabel: true
+                )
+
+                // Frequency gauge
+                FrequencyGaugeView(
+                    frequency: dataManager.cpuData.frequency ?? 0,
+                    maxFrequency: 5.0,
+                    size: CGSize(width: 80, height: 50),
+                    showLabel: true
+                )
+            }
+            .frame(maxWidth: .infinity)
         }
-        .padding(.vertical, 12)
-        .frame(height: 90)
     }
 
     // MARK: - History Chart Section
@@ -157,10 +205,12 @@ struct CPUPopoverView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
-            LineChartView(
+            NetworkSparklineChart(
                 data: dataManager.cpuHistory,
                 color: DesignTokens.Colors.accent,
-                showGrid: true
+                height: 70,
+                showArea: true,
+                lineWidth: 1.5
             )
             .frame(height: 70)
         }
@@ -171,12 +221,15 @@ struct CPUPopoverView: View {
     private var coreUsageSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Per-Core Usage")
-                .font(.system(size: 11, weight: .semibold))
+                .font(PopoverConstants.sectionTitleFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
-            CoreClusterBarView(
-                eCores: (dataManager.cpuData.eCoreUsage ?? []).enumerated().map { ($0, $1) },
-                pCores: (dataManager.cpuData.pCoreUsage ?? []).enumerated().map { ($0, $1) }
+            CoreClusterBarView.fromCPUData(
+                eCoreUsage: dataManager.cpuData.eCoreUsage,
+                pCoreUsage: dataManager.cpuData.pCoreUsage,
+                barHeight: 8,
+                barSpacing: 4,
+                showLabels: true
             )
         }
     }
@@ -185,9 +238,9 @@ struct CPUPopoverView: View {
 
     private var detailsSection: some View {
         HStack(spacing: 16) {
-            detailDot("System", value: dataManager.cpuData.systemUsage, color: .red)
-            detailDot("User", value: dataManager.cpuData.userUsage, color: .blue)
-            detailDot("Idle", value: dataManager.cpuData.idleUsage, color: .gray)
+            detailDot("System", value: dataManager.cpuData.systemUsage, color: Color(red: 1.0, green: 0.3, blue: 0.2))
+            detailDot("User", value: dataManager.cpuData.userUsage, color: Color(red: 0.2, green: 0.5, blue: 1.0))
+            detailDot("Idle", value: dataManager.cpuData.idleUsage, color: Color.gray.opacity(0.3))
         }
     }
 
@@ -199,7 +252,7 @@ struct CPUPopoverView: View {
 
             Text("\(label): \(Int(value))%")
                 .font(.system(size: 10))
-                .foregroundColor(DesignTokens.Colors.text)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
         }
     }
 
@@ -220,8 +273,8 @@ struct CPUPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(String(format: "%.2f", value ?? 0))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(DesignTokens.Colors.text)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundColor(DesignTokens.Colors.textPrimary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -231,22 +284,48 @@ struct CPUPopoverView: View {
     private var topProcessesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Top Processes")
-                .font(.system(size: 11, weight: .semibold))
+                .font(PopoverConstants.sectionTitleFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
-            ForEach(dataManager.cpuProcesses.prefix(5), id: \.pid) { process in
-                processBar(process)
+            if dataManager.topCPUApps.isEmpty {
+                Text("No process data available")
+                    .font(.system(size: 10))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(dataManager.topCPUApps.prefix(5)) { process in
+                        processBar(process)
+                    }
+                }
             }
         }
     }
 
-    private func processBar(_ process: ProcessUsage) -> some View {
+    private func processBar(_ process: AppResourceUsage) -> some View {
         HStack(spacing: 8) {
+            // App icon if available
+            if let icon = process.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 14, height: 14)
+            } else {
+                Image(systemName: "app.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .frame(width: 14, height: 14)
+            }
+
+            // Process name
             Text(process.name)
                 .font(.system(size: 10))
-                .foregroundColor(DesignTokens.Colors.text)
-                .frame(width: 80, alignment: .leading)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+                .frame(width: 70, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
+            // Progress bar
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
@@ -254,37 +333,24 @@ struct CPUPopoverView: View {
 
                     RoundedRectangle(cornerRadius: 2)
                         .fill(DesignTokens.Colors.accent)
-                        .frame(width: geometry.size.width * (process.cpuUsage / 100))
+                        .frame(width: geometry.size.width * min(process.cpuUsage / 100, 1.0))
+                        .animation(.easeInOut(duration: 0.2), value: process.cpuUsage)
                 }
             }
             .frame(height: 6)
 
+            // Percentage
             Text("\(Int(process.cpuUsage))%")
-                .font(.system(size: 9))
+                .font(.system(size: 9, design: .monospaced))
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .frame(width: 30, alignment: .trailing)
         }
     }
 
-    // MARK: - Helpers
-
-    private func temperatureColor(_ temp: Double) -> Color {
-        switch temp {
-        case 0..<50: return .green
-        case 50..<70: return .yellow
-        case 70..<85: return .orange
-        default: return .red
-        }
-    }
-}
-
-// Helper for safe array access
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
 }
 ```
+
+Note: The temperatureColor helper is not needed as TemperatureGaugeView handles its own color coding internally (using TonicColors.success/warning/error based on temperature ranges). The safe array access extension is defined in a separate shared file.
 
 ## Acceptance
 
@@ -295,15 +361,28 @@ extension Array {
 - [ ] Details section shows System/User/Idle with colored dots
 - [ ] Top processes limited to 5 items with progress bars
 - [ ] Header includes Activity Monitor toggle and Settings button
-- [ ] Popover size: 320x500 (matching Stats Master)
+- [ ] Popover size: 280x500 (using PopoverConstants.width)
+- [ ] Uses @State instead of @ObservedObject for dataManager
+- [ ] Uses CPUCircularGaugeView, TemperatureGaugeView, FrequencyGaugeView convenience wrappers
+- [ ] Uses NetworkSparklineChart for history chart
+- [ ] Uses CoreClusterBarView.fromCPUData static method
+- [ ] Uses AppResourceUsage (topCPUApps) instead of ProcessUsage for processes
 
-## Done Summary
-
-Created Stats Master-style CPU popover with dashboard gauges, grouped E/P cores, load average display, and details section. Replaced generic PopoverTemplate with widget-specific layout.
-<!-- Updated by plan-sync: Use averageLoad property, not loadAverage -->
-
+## Done summary
+- Task completed
 ## Evidence
-
 - Commits:
 - Tests:
 - PRs:
+
+## Implementation Notes
+
+The actual implementation differs from the original spec in these ways:
+- Uses `PopoverConstants.width` (280) instead of hardcoded 320
+- Uses `@State` instead of `@ObservedObject` for dataManager
+- Uses convenience wrappers: `CPUCircularGaugeView`, `TemperatureGaugeView`, `FrequencyGaugeView`
+- Uses `NetworkSparklineChart` instead of `LineChartView`
+- Uses `CoreClusterBarView.fromCPUData()` static method instead of enumerated tuples
+- Uses `AppResourceUsage` (from `dataManager.topCPUApps`) instead of `ProcessUsage` (from `dataManager.cpuProcesses`)
+- Includes inline headerView instead of separate HeaderView component
+- Uses `ProcessListWidgetView` component instead of `ProcessesView`

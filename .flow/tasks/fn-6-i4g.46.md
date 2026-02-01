@@ -51,7 +51,7 @@ struct ProcessesView: View {
 
                 // Process list
                 VStack(spacing: 6) {
-                    ForEach(displayedProcesses, id: \.pid) { process in
+                    ForEach(displayedProcesses, id: \.id) { process in
                         processRow(process)
                     }
                 }
@@ -164,6 +164,7 @@ ProcessesView(
     barColor: .orange
 )
 ```
+<!-- Updated by plan-sync: Use ProcessUsage.id instead of .pid for ForEach -->
 
 ## Acceptance
 

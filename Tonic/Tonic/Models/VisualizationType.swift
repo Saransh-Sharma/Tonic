@@ -50,6 +50,26 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         }
     }
 
+    /// Short name for UI buttons
+    public var shortName: String {
+        switch self {
+        case .mini: return "Mini"
+        case .lineChart: return "Line"
+        case .barChart: return "Bar"
+        case .pieChart: return "Pie"
+        case .tachometer: return "Gauge"
+        case .stack: return "Stack"
+        case .speed: return "Speed"
+        case .networkChart: return "Dual"
+        case .batteryDetails: return "Details"
+        case .label: return "Label"
+        case .state: return "State"
+        case .text: return "Text"
+        case .memory: return "Memory"
+        case .battery: return "Battery"
+        }
+    }
+
     /// SF Symbol icon for the visualization
     public var icon: String {
         switch self {

@@ -111,6 +111,7 @@
 		8929DF22E2F6D9DD74D1A463 /* DeepCleanEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0ECBF921A693395FFA7E5C /* DeepCleanEngine.swift */; };
 		8AE3C1269C242EEB5FE87AE8 /* DeepCleanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B81CABA22E93AD44451B46E /* DeepCleanView.swift */; };
 		8C309EA15378E6BA94D3C640 /* GaugeSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219A35B350A521D62C191337 /* GaugeSegment.swift */; };
+		8CF2EB7257310A7267C3C279 /* ModulesSettingsContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4EFF8F1B46B1650AA0A822 /* ModulesSettingsContent.swift */; };
 		8D763ED2ACC900FD6A343AD9 /* WidgetConfigurationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB12226BF3853EDBB0AE71D /* WidgetConfigurationSheet.swift */; };
 		8D971495BF5412A556BDDA8C /* CircularGaugeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBF356F5CF7F4A6E35FF03A4 /* CircularGaugeView.swift */; };
 		8E97F67B9254CAD913ED46B5 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECD031C35E16CD799FB9C0D2 /* PreferencesView.swift */; };
@@ -362,6 +363,7 @@
 		DA424C7EEBE876024AD83192 /* NotificationRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRule.swift; sourceTree = "<group>"; };
 		DA84C0E1C7CD1403EB78B1F3 /* WidgetStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusItem.swift; sourceTree = "<group>"; };
 		DAF967F4AD7B4A5A47B76291 /* NetworkDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDetails.swift; sourceTree = "<group>"; };
+		DD4EFF8F1B46B1650AA0A822 /* ModulesSettingsContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModulesSettingsContent.swift; sourceTree = "<group>"; };
 		DF1D372BD89A8AC64B240F58 /* LicenseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseManager.swift; sourceTree = "<group>"; };
 		DFBFF103C901BA7B56CCA325 /* DesignTokensTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokensTests.swift; sourceTree = "<group>"; };
 		DFE5C86B14193919871BD65D /* MemoryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWidgetView.swift; sourceTree = "<group>"; };
@@ -431,6 +433,14 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		18FC03C9DBC63425495A088F /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				DD4EFF8F1B46B1650AA0A822 /* ModulesSettingsContent.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		1DB3E7E91981E442C369FF80 /* PerformanceTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -474,6 +484,7 @@
 				2D78B8C9BDFD96B7C93C669C /* WidgetOnboardingView.swift */,
 				7240B22691C5F22256423B6B /* WidgetsPanelView.swift */,
 				3E9C718477AB9BDB3360C093 /* Refactored */,
+				18FC03C9DBC63425495A088F /* Settings */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -780,14 +791,14 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_BA89AED0-555B-4C80-8A93-E0F28A11F0E2" /* Sources */ = {
+		"TEMP_258EBA0D-C6DC-4C64-A48C-8176403B2B4F" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_F9347FF8-A720-4D84-9AA9-D0EC3AA5B274" /* Tonic */ = {
+		"TEMP_F4888603-D3F7-406E-82C4-386F6E29FB15" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -955,6 +966,7 @@
 				AF5516D7D54D4A8AAC2B059B /* MemoryVisualizationStatusItem.swift in Sources */,
 				6F6D07822BD1FE900C12E240 /* MemoryWidgetView.swift in Sources */,
 				C590BB13C354D692CF68ECB5 /* MenuBarController.swift in Sources */,
+				8CF2EB7257310A7267C3C279 /* ModulesSettingsContent.swift in Sources */,
 				F2D2D714A39BCF86915D76FE /* NavigationModels.swift in Sources */,
 				40FD9F6CF98966E28820F843 /* NetworkAnimations.swift in Sources */,
 				1727F78B0204C6120F2E17C5 /* NetworkChartStatusItem.swift in Sources */,
