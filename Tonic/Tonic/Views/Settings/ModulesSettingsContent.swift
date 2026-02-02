@@ -51,16 +51,16 @@ struct ModulesSettingsContent: View {
             ScrollView {
                 VStack(spacing: DesignTokens.Spacing.xxxs) {
                     ForEach(WidgetType.allCases) { module in
-                        ModuleListItem(
-                            module: module,
-                            isEnabled: preferences.config(for: module)?.isEnabled ?? false,
-                            isSelected: selectedModule == module
-                        )
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                selectedModule = module
-                            }
+                        Button {
+                            selectedModule = module
+                        } label: {
+                            ModuleListItem(
+                                module: module,
+                                isEnabled: preferences.config(for: module)?.isEnabled ?? false,
+                                isSelected: selectedModule == module
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, DesignTokens.Spacing.xs)
