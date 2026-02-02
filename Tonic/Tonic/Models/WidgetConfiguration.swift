@@ -410,6 +410,13 @@ public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Send
 
 // MARK: - Module Settings
 
+/// Protocol for module-specific settings configuration
+public protocol ModuleSettingsConfig {
+    var displayName: String { get }
+    var icon: String { get }
+    var widgetType: WidgetType { get }
+}
+
 /// Per-module settings for widget-specific configuration options
 /// Based on Stats Master's module settings pattern
 public struct ModuleSettings: Codable, Sendable, Equatable {
@@ -448,105 +455,158 @@ public struct ModuleSettings: Codable, Sendable, Equatable {
         self.sensors = SensorsModuleSettings()
         self.battery = BatteryModuleSettings()
     }
+
+    /// Get all module settings as an array of ModuleSettingsConfig
+    public var allModules: [any ModuleSettingsConfig] {
+        [cpu, disk, network, memory, sensors, battery]
+    }
 }
 
 // MARK: - CPU Module Settings
 
-public struct CPUModuleSettings: Codable, Sendable, Equatable {
+public struct CPUModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showEPCores: Bool
     public var showFrequency: Bool
     public var showTemperature: Bool
     public var showLoadAverage: Bool
+    public var updateInterval: TimeInterval
+    public var topProcessCount: Int
 
     public init(
         showEPCores: Bool = false,
         showFrequency: Bool = false,
         showTemperature: Bool = true,
-        showLoadAverage: Bool = true
+        showLoadAverage: Bool = true,
+        updateInterval: TimeInterval = 1.0,
+        topProcessCount: Int = 8
     ) {
         self.showEPCores = showEPCores
         self.showFrequency = showFrequency
         self.showTemperature = showTemperature
         self.showLoadAverage = showLoadAverage
+        self.updateInterval = updateInterval
+        self.topProcessCount = max(3, min(20, topProcessCount))
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "CPU" }
+    public var icon: String { "cpu" }
+    public var widgetType: WidgetType { .cpu }
 }
 
 // MARK: - Disk Module Settings
 
-public struct DiskModuleSettings: Codable, Sendable, Equatable {
+public struct DiskModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var selectedVolume: String
     public var showSMART: Bool
+    public var updateInterval: TimeInterval
+    public var topProcessCount: Int
 
     public init(
         selectedVolume: String = "Auto",
-        showSMART: Bool = true
+        showSMART: Bool = true,
+        updateInterval: TimeInterval = 2.0,
+        topProcessCount: Int = 8
     ) {
         self.selectedVolume = selectedVolume
         self.showSMART = showSMART
+        self.updateInterval = updateInterval
+        self.topProcessCount = max(3, min(20, topProcessCount))
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Disk" }
+    public var icon: String { "internaldrive" }
+    public var widgetType: WidgetType { .disk }
 }
 
 // MARK: - Network Module Settings
 
-public struct NetworkModuleSettings: Codable, Sendable, Equatable {
+public struct NetworkModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var selectedInterface: String
     public var showPublicIP: Bool
     public var showWiFiDetails: Bool
     public var topProcessCount: Int
+    public var updateInterval: TimeInterval
 
     public init(
         selectedInterface: String = "Auto",
         showPublicIP: Bool = false,
         showWiFiDetails: Bool = true,
-        topProcessCount: Int = 8
+        topProcessCount: Int = 8,
+        updateInterval: TimeInterval = 1.0
     ) {
         self.selectedInterface = selectedInterface
         self.showPublicIP = showPublicIP
         self.showWiFiDetails = showWiFiDetails
         self.topProcessCount = max(3, min(20, topProcessCount))
+        self.updateInterval = updateInterval
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Network" }
+    public var icon: String { "wifi" }
+    public var widgetType: WidgetType { .network }
 }
 
 // MARK: - Memory Module Settings
 
-public struct MemoryModuleSettings: Codable, Sendable, Equatable {
+public struct MemoryModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showCache: Bool
     public var showWired: Bool
+    public var updateInterval: TimeInterval
+    public var topProcessCount: Int
 
     public init(
         showCache: Bool = true,
-        showWired: Bool = true
+        showWired: Bool = true,
+        updateInterval: TimeInterval = 1.0,
+        topProcessCount: Int = 8
     ) {
         self.showCache = showCache
         self.showWired = showWired
+        self.updateInterval = updateInterval
+        self.topProcessCount = max(3, min(20, topProcessCount))
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Memory" }
+    public var icon: String { "memorychip" }
+    public var widgetType: WidgetType { .memory }
 }
 
 // MARK: - Sensors Module Settings
 
-public struct SensorsModuleSettings: Codable, Sendable, Equatable {
+public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showFanSpeeds: Bool
     public var fanControlMode: FanControlMode
     public var saveFanSpeed: Bool
     public var syncFanControl: Bool
     public var hasAcknowledgedFanWarning: Bool
+    public var updateInterval: TimeInterval
 
     public init(
         showFanSpeeds: Bool = true,
         fanControlMode: FanControlMode = .auto,
         saveFanSpeed: Bool = false,
         syncFanControl: Bool = true,
-        hasAcknowledgedFanWarning: Bool = false
+        hasAcknowledgedFanWarning: Bool = false,
+        updateInterval: TimeInterval = 1.0
     ) {
         self.showFanSpeeds = showFanSpeeds
         self.fanControlMode = fanControlMode
         self.saveFanSpeed = saveFanSpeed
         self.syncFanControl = syncFanControl
         self.hasAcknowledgedFanWarning = hasAcknowledgedFanWarning
+        self.updateInterval = updateInterval
     }
 
     /// Fan control mode for manual fan speed adjustment
-    public enum FanControlMode: String, CaseIterable, Codable {
+    public enum FanControlMode: String, CaseIterable, Codable, Sendable {
         case auto = "auto"
         case manual = "manual"
         case system = "system"
@@ -567,27 +627,36 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable {
             }
         }
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Sensors" }
+    public var icon: String { "thermometer" }
+    public var widgetType: WidgetType { .sensors }
 }
 
 // MARK: - Battery Module Settings
 
-public struct BatteryModuleSettings: Codable, Sendable, Equatable {
+public struct BatteryModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showOptimizedCharging: Bool
     public var showCycleCount: Bool
     public var timeFormat: TimeFormat
+    public var updateInterval: TimeInterval
 
     public init(
         showOptimizedCharging: Bool = true,
         showCycleCount: Bool = true,
-        timeFormat: TimeFormat = .short
+        timeFormat: TimeFormat = .short,
+        updateInterval: TimeInterval = 5.0
     ) {
         self.showOptimizedCharging = showOptimizedCharging
         self.showCycleCount = showCycleCount
         self.timeFormat = timeFormat
+        self.updateInterval = updateInterval
     }
 
     /// Time format for battery time remaining display
-    public enum TimeFormat: String, CaseIterable, Codable {
+    public enum TimeFormat: String, CaseIterable, Codable, Sendable {
         case short = "short"    // "2h 30m" or "45min"
         case long = "long"      // "2 hours 30 minutes" or "45 minutes"
 
@@ -598,6 +667,12 @@ public struct BatteryModuleSettings: Codable, Sendable, Equatable {
             }
         }
     }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Battery" }
+    public var icon: String { "battery.100" }
+    public var widgetType: WidgetType { .battery }
 }
 
 // MARK: - Widget Configuration
