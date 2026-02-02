@@ -63,9 +63,13 @@ public struct FanControlView: View {
         .onAppear {
             loadSettings()
             initializeFanSpeeds()
+            checkThermalThreshold()
         }
         .onChange(of: currentMode) { _, newValue in
             handleModeChange(newValue)
+        }
+        .onChange(of: dataManager.sensorsData.temperatures) { _, _ in
+            checkThermalThreshold()
         }
         .alert("Manual Fan Control", isPresented: $showWarningDialog) {
             Button("Cancel", role: .cancel) {
@@ -197,10 +201,22 @@ public struct FanControlView: View {
         Important:
         • Setting fans too low may cause overheating
         • High temperatures will automatically switch back to Auto mode
-        • Fan speeds will reset to Auto when Tonic quits
+        • Actual fan speed control requires the privileged helper (task fn-8-v3b.13)
 
         Are you sure you want to enable manual fan control?
         """
+    }
+
+    /// Check thermal threshold and auto-switch to auto mode if exceeded
+    private func checkThermalThreshold() {
+        guard let maxTemp = dataManager.sensorsData.temperatures.map(\.value).max() else {
+            return
+        }
+
+        if maxTemp >= thermalThreshold && currentMode == .manual {
+            // Auto-switch to auto mode for safety
+            applyModeChange(.auto)
+        }
     }
 
     private func loadSettings() {
@@ -272,15 +288,16 @@ public struct FanControlView: View {
         // Clamp speed between 0 and 100
         let clampedSpeed = max(0, min(100, speed))
 
-        // TODO: Send fan speed command to privileged helper (task fn-8-v3b.13)
-        // For now, store the speed for when helper is available
+        // NOTE: Actual SMC fan control requires privileged helper (task fn-8-v3b.13)
+        // The helper will expose SMC write commands via XPC
+        // For now, store the speed value for UI display and persistence
         fanSpeeds[fanId] = clampedSpeed
 
         // Save speed if preference is enabled
         let saveSpeed = WidgetPreferences.shared.widgetConfigs
             .first(where: { $0.type == .sensors })?.moduleSettings.sensors.saveFanSpeed ?? false
         if saveSpeed {
-            // TODO: Persist per-fan speeds
+            // TODO: Persist per-fan speeds to UserDefaults
         }
     }
 
@@ -292,8 +309,9 @@ public struct FanControlView: View {
     }
 
     private func restoreAutoFanControl() {
-        // TODO: Send auto mode command to privileged helper (task fn-8-v3b.13)
-        // This will restore SMC's automatic fan control
+        // NOTE: Restoring auto mode requires privileged helper (task fn-8-v3b.13)
+        // The helper will send SMC command to re-enable automatic fan control
+        // This is a safety-critical operation and must go through the privileged helper
     }
 
     // MARK: - Initializer
