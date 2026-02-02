@@ -38,7 +38,8 @@ public struct DiskPopoverView: View {
     @State private var dataManager = WidgetDataManager.shared
     @State private var isProcessesExpanded: Bool = true
 
-    // Configurable top process count (TODO: Connect to DiskModuleSettings when available)
+    // Configurable top process count
+    // TODO: fn-8-v3b.15 - Connect to DiskModuleSettings.topProcessCount when ModuleSettings is implemented
     private var topProcessCount: Int { 8 }
 
     // MARK: - Computed Properties
@@ -47,7 +48,11 @@ public struct DiskPopoverView: View {
         dataManager.diskVolumes.first { $0.isBootVolume } ?? dataManager.diskVolumes.first
     }
 
-    // Use shared history from WidgetDataManager
+    // Use shared history from WidgetDataManager (boot volume only)
+    // NOTE: Current implementation tracks shared history for the boot volume.
+    // Per-volume history tracking would require separate circular buffers per volume,
+    // which is a more significant change to WidgetDataManager.
+    // Future enhancement: Add volume-specific history tracking for multi-volume systems.
     private var diskReadHistory: [Double] {
         dataManager.diskReadHistory
     }
@@ -140,6 +145,11 @@ public struct DiskPopoverView: View {
     }
 
     // MARK: - Top Processes Section
+
+    // MARK: - Top Processes Section
+    // NOTE: Process I/O shows cumulative bytes (diskReadBytes/diskWriteBytes from proc_pid_rusage).
+    // Future enhancement: Track per-process deltas over time to display I/O rates (bytes/sec).
+    // This would require maintaining process state across samples in WidgetDataManager.
 
     private var topProcessesSection: some View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
