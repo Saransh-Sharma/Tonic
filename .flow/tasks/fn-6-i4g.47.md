@@ -116,15 +116,15 @@ struct CPUPopoverView: View {
 - [ ] Works with temperature unit toggle (°C/°F from Task 35a)
 
 ## Done summary
+CPU Popover Dashboard Section Implementation
 
 Created CPU popover dashboard section with 3 gauges: System/User/Idle pie chart, temperature half-gauge, frequency half-gauge. Matches Stats Master's 90px height layout.
 
+The implementation was already present in CPUPopoverView.swift. Added frame height of 90px to match Stats Master parity. Also fixed multiple build errors in ProcessUsage, ProcessDisplayable, and PopoverConstants.
 ## Evidence
-
 - Commits: 0648814bbc539e6b412fbaa9f638cd5ada62d4da
 - Tests: xcodebuild -scheme Tonic -configuration Debug build -destination 'platform=macOS'
 - PRs:
-
 ## Reference Implementation
 
 **Stats Master**: `stats-master/Modules/CPU/popup.swift`

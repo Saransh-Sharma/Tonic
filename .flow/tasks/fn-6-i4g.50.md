@@ -142,7 +142,7 @@ HalfCircleGaugeView(
 - [ ] Temperature color coding still works (green/yellow/orange/red based on unit)
 - [ ] Unit symbol (°C/°F) displays correctly
 
-## Done Summary
+## Done summary
 
 Added global temperature unit toggle to General settings. Toggle persists via @AppStorage and applies to all temperature displays across CPU, GPU, Sensors, and Battery widgets. TemperatureConverter helper provides conversion and display formatting.
 

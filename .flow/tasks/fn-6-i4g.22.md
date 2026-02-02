@@ -60,7 +60,7 @@ if let lowestBattery = newData.devicesWithBattery
 - [ ] Notifications respect Do Not Disturb (if configured)
 - [ ] All 8 widget types now have notification integration
 
-## Done Summary
+## Done summary
 Added notification threshold checking for Network and Bluetooth widgets, completing 100% notification coverage across all 8 widget types.
 
 ## Evidence
