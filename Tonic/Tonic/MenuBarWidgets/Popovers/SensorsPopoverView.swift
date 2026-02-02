@@ -51,6 +51,13 @@ public struct SensorsPopoverView: View {
                         Divider()
                     }
 
+                    // Fan Control Section (integrated from FanControlView)
+                    if !dataManager.sensorsData.fans.isEmpty {
+                        fanControlSection
+
+                        Divider()
+                    }
+
                     // Fan Section
                     if !dataManager.sensorsData.fans.isEmpty {
                         fansSection
@@ -408,6 +415,25 @@ public struct SensorsPopoverView: View {
 
     private func loadTemperatureUnit() {
         temperatureUnit = WidgetPreferences.shared.temperatureUnit
+    }
+
+    // MARK: - Fan Control Section
+
+    /// Fan control section with mode selector and per-fan sliders
+    /// Only shown when showFanSpeeds setting is enabled
+    @ViewBuilder
+    private var fanControlSection: some View {
+        // Check if fan speeds should be shown from settings
+        let showFanSpeeds = WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.showFanSpeeds ?? true
+
+        if showFanSpeeds {
+            VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+                PopoverSectionHeader(title: "Fan Control", icon: "fan.badge.gearshape")
+
+                FanControlView()
+            }
+        }
     }
 
     private func fanColor(_ rpm: Int, maxRPM: Int?) -> Color {
