@@ -1,0 +1,436 @@
+{
+  "created_at": "2026-02-02T12:34:15.053051Z",
+  "epic": {
+    "data": {
+      "branch_name": "fn-8-v3b",
+      "created_at": "2026-02-02T12:29:00.791625Z",
+      "default_impl": null,
+      "default_review": null,
+      "default_sync": null,
+      "depends_on_epics": [],
+      "id": "fn-8-v3b",
+      "next_task": 1,
+      "plan_review_status": "unknown",
+      "plan_reviewed_at": null,
+      "spec_path": ".flow/specs/fn-8-v3b.md",
+      "status": "open",
+      "title": "Stats Master Popover Parity \u2014 Layout, Components, and Settings",
+      "updated_at": "2026-02-02T12:30:33.906725Z"
+    },
+    "spec": "# Stats Master Popover Parity \u2014 Layout, Components, and Settings\n\n## Overview\n\nAchieve full functional and layout parity between Stats Master and Tonic popover views. This epic standardizes popover dimensions (280px width, 9/11/13pt fonts), increases chart history to 180 points, adds missing data fields and visual components (pressure gauge, fan control, per-GPU architecture), and implements a comprehensive tabbed settings UI.\n\n**Scope:** 8 popover types (CPU, GPU, Memory, Disk, Network, Battery, Sensors, Bluetooth) + global layout standards + tabbed settings architecture.\n\n**Estimated Duration:** 17-25 days across 5 phases.\n\n---\n\n## Stakeholder Impact\n\n### End Users\n- **New Features:** Fan control with manual/auto/system modes, memory pressure gauge, per-GPU monitoring, battery electrical metrics\n- **Visual Consistency:** All popovers will have uniform 280px width, standardized row heights, and matching fonts\n- **Improved Data:** 180-point chart history (3x current) for better trend visualization\n- **Enhanced Configuration:** Tabbed settings UI with per-module controls\n\n### Developers\n- **New Components:** `PressureGaugeView`, `FanControlView`, `PerGpuContainer`, `PerDiskContainer`, `CombinedCPUChartView`\n- **Updated Data Layer:** Enhanced `WidgetDataManager` with new properties for all widget types\n- **Settings Protocol:** `ModuleSettings` protocol for consistent configuration across modules\n- **SMC Integration:** Fan control via `TonicHelperTool` XPC connection\n\n---\n\n## Scope\n\n### In Scope\n- Layout standardization (280px width, 9/11/13pt fonts, standardized row heights)\n- Chart history increase to 180 points\n- Missing data fields (CPU: scheduler limit, speed limit, uptime; Memory: pressure, swap, fields; GPU: render/tiler, metadata; Disk: I/O stats, processes; Battery: electrical metrics)\n- New visual components (pressure gauge, fan control UI, per-GPU/disk containers)\n- Tabbed settings UI (Module, Widgets, Popup, Notifications tabs)\n- Menu bar refresh bug fix\n\n### Out of Scope\n- Weather popover (different data source, already complete)\n- Clock popover (simple, no changes needed)\n- Settings UI for OneView mode (covered in existing epics)\n- New widget types (covered in existing epics)\n\n---\n\n## Approach\n\n### Phase 1: Foundation (Layout + Constants)\n1. Update `PopoverConstants.swift` with exact Stats Master font sizes (9/11/13pt) and spacing (10px margins)\n2. Increase `WidgetDataManager.maxHistoryPoints` from 60 to 180\n3. Standardize section heights across all popovers (dashboard: 90px, header: 22px, detail: 16px, process: 22px)\n\n### Phase 2: Critical Components\n1. Create `PressureGaugeView.swift` (3-color arc: green 0-50%, yellow 50-80%, red 80-100%)\n2. Create `MemoryPopoverView.swift` using pressure gauge as primary visual\n3. Update `CPUPopoverView.swift` with missing fields (scheduler limit, speed limit, uptime)\n\n### Phase 3: Per-Device Architecture\n1. Create `PerGpuContainer.swift` with 4 gauges + 4 charts + expandable details\n2. Create `PerDiskContainer.swift` with dual-line read/write charts\n3. Add top processes sections to disk popover\n\n### Phase 4: Fan Control (Major Feature)\n1. Create `FanControlView.swift` (~450 lines) with per-fan sliders\n2. Implement fan mode enum (auto/manual/system) in `SensorsModuleSettings`\n3. Add SMC write commands to `TonicHelperTool`\n4. Create safety model (warning dialog, auto-restore on quit, thermal limits)\n\n### Phase 5: Settings Architecture\n1. Create `TabbedSettingsView.swift` with segmented tab switcher (540\u00d7480 layout)\n2. Implement `ModuleSettings` protocol\n3. Create per-module settings views\n4. Extract notifications settings to dedicated tab\n\n### Phase 6: Battery + Polish\n1. Add electrical metrics to `BatteryPopoverView` (amperage, voltage, power)\n2. Add capacity breakdown (current/max/designed)\n3. Implement multi-battery support for Bluetooth\n4. Fix menu bar refresh bug (`setNeedsDisplay`, `display()`, view recreation)\n\n---\n\n## Architecture\n\n### Data Flow\n\n```\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                         NSStatusItem                            \u2502\n\u2502                    (WidgetStatusItem)                           \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                            \u2502 click\n                            \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                          NSPopover                              \u2502\n\u2502                        280px \u00d7 dynamic                          \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510  \u2502\n\u2502  \u2502                    Popover Header                         \u2502  \u2502\n\u2502  \u2502              (Title + Settings Button)                    \u2502  \u2502\n\u2502  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524  \u2502\n\u2502  \u2502                    Dashboard (90px)                       \u2502  \u2502\n\u2502  \u2502              (Gauges + Primary Metrics)                   \u2502  \u2502\n\u2502  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524  \u2502\n\u2502  \u2502                   Charts (120px)                          \u2502  \u2502\n\u2502  \u2502          (Line/Bar/Dual-Line - 180 points)                \u2502  \u2502\n\u2502  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524  \u2502\n\u2502  \u2502                  Details Section                          \u2502  \u2502\n\u2502  \u2502              (PopoverDetailRows)                          \u2502  \u2502\n\u2502  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524  \u2502\n\u2502  \u2502                 Processes Section                         \u2502  \u2502\n\u2502  \u2502              (ProcessRows - 22px each)                    \u2502  \u2502\n\u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                            \u2502 @Observable\n                            \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                    WidgetDataManager                             \u2502\n\u2502                 (@Observable, Singleton)                        \u2502\n\u2502  \u2022 cpuHistory: [Double] (180 points)                            \u2502\n\u2502  \u2022 memoryHistory: [Double] (180 points)                         \u2502\n\u2502  \u2022 CircularBuffer for O(1) append                               \u2502\n\u2502  \u2022 Inline data collection methods                               \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                            \u2502 IOKit, sysctl, proc_pid_rusage\n                            \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                     System APIs                                  \u2502\n\u2502  \u2022 IOKit (SMC, GPU, Disk)                                       \u2502\n\u2502  \u2022 CoreWLAN (Network)                                           \u2502\n\u2502  \u2022 IOKit.ps (Memory, CPU)                                       \u2502\n\u2502  \u2022 TonicHelperTool (SMC writes for fan control)                 \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```\n\n### New Component Hierarchy\n\n```\nMenuBarWidgets/\n\u251c\u2500\u2500 Popovers/\n\u2502   \u251c\u2500\u2500 PopoverConstants.swift (UPDATE: fonts, spacing)\n\u2502   \u251c\u2500\u2500 PopoverTemplate.swift (reuse existing)\n\u2502   \u251c\u2500\u2500 CPUPopoverView.swift (UPDATE: add fields)\n\u2502   \u251c\u2500\u2500 MemoryPopoverView.swift (CREATE: new)\n\u2502   \u251c\u2500\u2500 GPUPopoverView.swift (UPDATE: per-GPU)\n\u2502   \u251c\u2500\u2500 DiskPopoverView.swift (UPDATE: per-disk)\n\u2502   \u251c\u2500\u2500 NetworkPopoverView.swift (UPDATE: DNS, WiFi)\n\u2502   \u251c\u2500\u2500 BatteryPopoverView.swift (UPDATE: electrical)\n\u2502   \u251c\u2500\u2500 SensorsPopoverView.swift (UPDATE: fan control)\n\u2502   \u2514\u2500\u2500 BluetoothPopoverView.swift (UPDATE: multi-battery)\n\u251c\u2500\u2500 Components/\n\u2502   \u251c\u2500\u2500 PressureGaugeView.swift (CREATE)\n\u2502   \u251c\u2500\u2500 FanControlView.swift (CREATE)\n\u2502   \u251c\u2500\u2500 PerGpuContainer.swift (CREATE)\n\u2502   \u251c\u2500\u2500 PerDiskContainer.swift (CREATE)\n\u2502   \u2514\u2500\u2500 CombinedCPUChartView.swift (CREATE)\n\u2514\u2500\u2500 Settings/\n    \u251c\u2500\u2500 TabbedSettingsView.swift (CREATE)\n    \u251c\u2500\u2500 ModuleSettingsView.swift (CREATE)\n    \u251c\u2500\u2500 PopupSettingsView.swift (CREATE)\n    \u2514\u2500\u2500 NotificationsSettingsView.swift (CREATE)\n```\n\n---\n\n## Alternatives Considered\n\n### Chart History Size\n| Option | Pros | Cons | Decision |\n|--------|------|------|----------|\n| 60 points (current) | Fast, low memory | Limited trend visibility | \u274c Not Stats Master parity |\n| 120 points | Medium history | Still half of Stats Master | \u274c Not parity |\n| **180 points** | Full Stats Master parity | 3x memory, 3x render time | \u2705 **Chosen** |\n| 360 points | Even better history | Diminishing returns, slower | \u274c Overkill |\n\n### Memory Pressure Visualization\n| Option | Pros | Cons | Decision |\n|--------|------|------|----------|\n| Text label | Simple, native | Low visual impact | \u274c Not Stats Master parity |\n| Progress bar | Standard UI | Doesn't match Stats Master | \u274c Not parity |\n| **3-color arc gauge** | Exact Stats Master parity | Custom component needed | \u2705 **Chosen** |\n| SwiftUI Gauge | Native, simple | Different visual style | \u274c Not exact parity |\n\n### Fan Control Safety\n| Option | Pros | Cons | Decision |\n|--------|------|------|----------|\n| No safety | Simple | Dangerous, could damage hardware | \u274c Unsafe |\n| Warning only | Easy to implement | User could ignore, no protection | \u274c Insufficient |\n| **Warning + thermal auto-switch** | Balanced safety, clear UX | More complex | \u2705 **Chosen** |\n| Hard limits | Maximum safety | Frustrating for power users | \u274c Too restrictive |\n\n---\n\n## Risks and Mitigations\n\n| Risk | Probability | Impact | Mitigation |\n|------|-------------|--------|------------|\n| Fan control causes system instability | HIGH | HIGH | Warning dialog, thermal auto-switch, auto-restore on quit |\n| Memory popover doesn't exist | HIGH | MEDIUM | Create from scratch using `CPUPopoverView` template |\n| Multi-GPU data unavailable | MEDIUM | LOW | Graceful degradation to single GPU view |\n| Chart history increase affects performance | LOW | LOW | Profile, optimize if needed (circular buffer already O(1)) |\n| SMC write permissions denied | MEDIUM | HIGH | Clear error UI, helper tool install prompt |\n| DNS enumeration fails | LOW | LOW | Display \"Unknown\" fallback |\n| GPU per-metric data varies by hardware | MEDIUM | LOW | Defensive coding, optional fields with `?` |\n\n---\n\n## Non-Functional Targets\n\n- **Performance:** 180-point chart redraws must maintain 60 FPS\n- **Memory:** Circular buffer implementation limits memory growth (180 \u00d7 8 bytes \u00d7 ~10 arrays = ~14 KB)\n- **Safety:** Fan control cannot damage hardware (thermal limits, auto-restore)\n- **Accessibility:** All gauges and charts must have VoiceOver labels\n- **Compatibility:** macOS 14.0+ (Sonoma), Apple Silicon for GPU features\n\n---\n\n## Rollout Plan\n\n### Week 1: Foundation\n- Update `PopoverConstants` with Stats Master measurements\n- Increase chart history to 180 points\n- Create `PressureGaugeView` component\n- Create `MemoryPopoverView` with pressure gauge\n\n### Week 2-3: Core Popovers\n- CPU popover enhancements (missing fields)\n- GPU per-GPU architecture foundation\n- Network popover polish (DNS, WiFi tooltip)\n\n### Week 4-5: Advanced Features\n- GPU per-container with 4 gauges + 4 charts\n- Disk popover with dual-line charts + processes\n- Battery electrical measurements\n\n### Week 6-7: Fan Control\n- `FanControlView` component (~450 lines)\n- SMC write integration via `TonicHelperTool`\n- Safety model implementation\n- Settings UI for fan modes\n\n### Week 8: Settings Architecture\n- Tabbed settings container\n- Module settings protocol\n- Per-module settings views\n\n### Week 9: Polish\n- Menu bar refresh bug fix\n- Multi-battery Bluetooth support\n- Documentation updates\n- Final testing\n\n---\n\n## Testing Strategy\n\n### Visual Parity Testing\n- Side-by-side screenshots of each popover against Stats Master\n- Pixel measurements for width, heights, spacing\n- Font size verification (9/11/13pt)\n\n### Functional Testing\n- Fan control: Manual mode, auto restore, thermal switch\n- Memory pressure: Gauge colors match pressure levels\n- Multi-GPU: Graceful fallback on single GPU systems\n- Disk hot-plug: No crash when volume ejected\n\n### Performance Testing\n- Profile 180-point chart rendering\n- Measure memory usage with full history\n- Test popover open/close latency\n\n### Edge Case Testing\n- No swap configured \u2192 hide swap section\n- No Bluetooth permissions \u2192 show permission request\n- Desktop Mac (no battery) \u2192 show empty state\n- SMC unavailable \u2192 hide fan controls\n\n---\n\n## Quick Commands\n\n```bash\n# Build and run for visual testing\nxcodebuild -scheme Tonic -configuration Debug build\nopen build/Debug/Tonic.app\n\n# Measure popover width (should be 280)\n# Use Simulator Debug \u2192 Show View Frames\n\n# Test fan control safety\n# 1. Open Sensors popover\n# 2. Switch to Manual mode\n# 3. Verify warning dialog appears\n# 4. Set fan speed\n# 5. Trigger thermal condition\n# 6. Verify auto-switch back to auto\n\n# Test chart history\n# In LLDB: po WidgetDataManager.shared.cpuHistory.count\n# Should equal 180 after 3 minutes (1 sample/second)\n\n# Run unit tests (when added)\nxcodebuild test -scheme Tonic -destination 'platform=macOS'\n\n# Profile performance\nInstruments \u2192 Time Profiler \u2192 Filter by \"Popover\"\n```\n\n---\n\n## Acceptance Criteria\n\n### Phase 1: Layout Parity\n- [ ] All popovers are exactly 280px wide\n- [ ] Dashboard sections are exactly 90px tall\n- [ ] Section headers are exactly 22px tall\n- [ ] Detail rows are exactly 16px tall\n- [ ] Process rows are exactly 22px tall\n- [ ] Font sizes are 9pt (small), 11pt (medium), 13pt (large)\n- [ ] Margins are 10px (not 16px from DesignTokens)\n- [ ] Chart history is 180 points for all widgets\n\n### Phase 2: Critical Visual Components\n- [ ] `PressureGaugeView` displays green (0-50%), yellow (50-80%), red (80-100%)\n- [ ] Needle rotates correctly based on pressure percentage\n- [ ] Center text shows pressure level or percentage\n- [ ] `MemoryPopoverView.swift` exists and uses pressure gauge as primary visual\n- [ ] CPU popover shows scheduler limit, speed limit, uptime\n- [ ] CPU popover colors match per-core E/P colors\n\n### Phase 3: Per-Device Architecture\n- [ ] `PerGpuContainer` shows 4 gauges (temp, util, render, tiler)\n- [ ] `PerGpuContainer` shows 4 line charts (one per metric)\n- [ ] GPU popover has expandable details panel\n- [ ] `PerDiskContainer` shows dual-line read/write chart\n- [ ] Disk popover shows top processes with I/O\n- [ ] Disk popover shows I/O statistics (ops, bytes, time)\n\n### Phase 4: Fan Control\n- [ ] `FanControlView` has per-fan sliders\n- [ ] Fan modes work: auto, manual, system\n- [ ] Warning dialog appears on first manual mode use\n- [ ] Fan speeds auto-restore to auto on app quit\n- [ ] Thermal limit triggers auto-switch back to auto\n- [ ] Fan controls are hidden if SMC unavailable\n- [ ] Fan settings persist in `SensorsModuleSettings`\n\n### Phase 5: Settings Architecture\n- [ ] `TabbedSettingsView` shows 4 tabs: Module, Widgets, Popup, Notifications\n- [ ] Tabbed settings container is 540\u00d7480\n- [ ] Module tab shows per-module settings views\n- [ ] Popup tab has global keyboard shortcut, chart history duration, scaling mode\n- [ ] Per-metric color pickers work\n\n### Phase 6: Battery + Polish\n- [ ] Battery popover shows amperage (mA)\n- [ ] Battery popover shows voltage (V)\n- [ ] Battery popover shows power (W = V \u00d7 A)\n- [ ] Battery popover shows capacity breakdown (current/max/designed)\n- [ ] Bluetooth popover supports multiple battery levels per device\n- [ ] Menu bar widget refresh works immediately after config change\n- [ ] Network popover shows DNS servers\n- [ ] Network popover WiFi tooltip shows RSSI, noise, band, width\n\n### Documentation\n- [ ] CLAUDE.md updated with new popover patterns\n- [ ] Design.md updated with new component documentation\n- [ ] README.md updated with new feature descriptions\n\n---\n\n## Open Questions\n\n1. **Fan Control Permission Model:** Should fan control require explicit user acknowledgment of risks? (Answered: Yes, warning dialog on first use)\n\n2. **Chart History Migration:** How to handle existing user data when increasing from 60-120 to 180 points? (Answered: Discard old history, arrays auto-populate to 180)\n\n3. **Memory Pressure Calculation:** Use `DISPATCH_MEMORYPRESSURE_*` or custom logic? (Answered: Use dispatch source for events, fallback to pageouts calculation)\n\n4. **GPU Multi-GPU Support:** How to test without multi-GPU hardware? (Answered: Defensive coding, graceful degradation to single GPU)\n\n5. **Expanded Section Persistence:** Should expanded GPU/disk details persist across popover close? (Answered: No, reset to collapsed on each open)\n\n6. **Popover Data Refresh Rate:** How frequently should data update while popover is open? (Answered: Use existing `WidgetDataManager` polling interval, observe via `@Observable`)\n\n7. **Settings Button Integration:** Where should settings button navigate? (Answered: Open `TabbedSettingsView` as sheet from popover)\n\n---\n\n## References\n\n- **Stats Master reference:** `stats-master/Modules/*/popup.swift`\n- **Existing spec:** `.flow/specs/fn-7-stats-master-popover-parity.md`\n- **Design tokens:** `Tonic/Tonic/Design/DesignTokens.swift`\n- **Popover templates:** `Tonic/Tonic/MenuBarWidgets/Popovers/PopoverTemplate.swift`\n- **Widget data manager:** `Tonic/Tonic/Services/WidgetDataManager.swift`\n- **Widget configuration:** `Tonic/Tonic/Models/WidgetConfiguration.swift`\n\n### Dependency Epics\n- **fn-4-as7** (UI/UX Redesign): Follow design tokens and component patterns\n- **fn-5-v8r** (Stats Master Parity): Builds on existing widget architecture\n- **fn-6-i4g** (Extended Parity): Uses working data layer and configuration system\n"
+  },
+  "epic_id": "fn-8-v3b",
+  "schema_version": 2,
+  "tasks": [
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:47.840240Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.1",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.1.md",
+        "status": "todo",
+        "title": "Update PopoverConstants with Stats Master measurements",
+        "updated_at": "2026-02-02T12:31:44.126475Z"
+      },
+      "id": "fn-8-v3b.1",
+      "runtime": null,
+      "spec": "# fn-8-v3b.1 Update PopoverConstants with Stats Master measurements\n\n## Description\nUpdate `PopoverConstants.swift` to match exact Stats Master measurements for layout parity.\n\n**Size:** S\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/PopoverConstants.swift`\n\n## Approach\n\nFollow Stats Master baseline measurements:\n- Width: 280px (already set, verify)\n- Dashboard height: 90px\n- Header row height: 22px\n- Detail row height: 16px\n- Process row height: 22px\n- Fonts: 9pt (small), 11pt (medium), 13pt (large)\n- Margins: 10px (currently using `DesignTokens.Spacing.sm` which is 16px)\n\nAdd new constants:\n```swift\npublic struct FontSizes {\n    public static let small: CGFloat = 9\n    public static let medium: CGFloat = 11\n    public static let large: CGFloat = 13\n}\n\npublic struct StatsMasterSpacing {\n    public static let margins: CGFloat = 10\n    public static let separatorHeight: CGFloat = 22\n}\n```\n\n## Key Context\n\nThe `PopoverConstants` file currently uses `DesignTokens.Spacing.sm` (16pt) for margins. Stats Master uses 10px margins. This affects actual content width calculation.\n\nCurrent width at line ~20: `public static let width: CGFloat = 280` - verify this is correct.\n## Acceptance\n- [ ] Font sizes constant added: 9pt, 11pt, 13pt\n- [ ] StatsMasterSpacing added with 10px margins\n- [ ] Section heights defined: dashboard 90px, header 22px, detail 16px, process 22px\n- [ ] All popovers reference these constants (not hardcoded values)\n- [ ] Popover width verified as 280px\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.674503Z",
+        "depends_on": [
+          "fn-8-v3b.1"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.10",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.10.md",
+        "status": "todo",
+        "title": "Add electrical metrics to BatteryPopoverView",
+        "updated_at": "2026-02-02T12:33:50.091550Z"
+      },
+      "id": "fn-8-v3b.10",
+      "runtime": null,
+      "spec": "# fn-8-v3b.10 Add electrical metrics to BatteryPopoverView\n\n## Description\nAdd electrical measurement fields (amperage, voltage, power) and capacity breakdown to `BatteryPopoverView.swift`.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/BatteryPopoverView.swift`\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (add battery data)\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (add time format setting)\n\n## Approach\n\n1. Update `BatteryData` struct to add:\n   ```swift\n   public let amperage: Double?           // mA (negative = charging, positive = discharging)\n   public let voltage: Double?             // V\n   public let batteryPower: Double?       // W (calculated: voltage \u00d7 amperage / 1000)\n   public let designedCapacity: UInt64?   // mAh (design capacity)\n   public let chargingCurrent: Double?    // Adapter current in mA\n   public let chargingVoltage: Double?    // Adapter voltage in V\n   ```\n\n2. Add electrical metrics section to `BatteryPopoverView`:\n   - Amperage (mA)\n   - Voltage (V)\n   - Power (W, calculated)\n\n3. Add adapter section (if charging):\n   - Adapter current\n   - Adapter voltage\n\n4. Add capacity breakdown:\n   - Format: \"current / maximum / designed mAh\"\n\n5. Add time format preference to `BatteryModuleSettings`:\n   ```swift\n   public enum TimeFormat: String, CaseIterable, Codable {\n       case short = \"short\"    // \"2h 30m\"\n       case long = \"long\"      // \"2 hours 30 minutes\"\n   }\n   public var timeFormat: TimeFormat = .short\n   ```\n\n## Key Context\n\nBattery data comes from IOKit `IOPMPowerSource` API:\n- `kIOPMPSCurrentCapacity` (current mAh)\n- `kIOPMPSMaxCapacity` (max mAh)\n- `kIOPMPSDesignCapacity` (design mAh)\n- `kIOPMPSAmperage` (mA)\n- `kIOPMPSCurrent` (mA, adapter)\n- `kIOPMPSCapacity` (mWh, for voltage calculation)\n\nPower calculation: `power = (voltage \u00d7 amperage) / 1000` for watts.\n\nAmperage is negative when charging, positive when discharging.\n## Acceptance\n- [ ] BatteryData has amperage, voltage, power, designedCapacity\n- [ ] BatteryData has adapter current and voltage\n- [ ] BatteryPopoverView shows electrical metrics section\n- [ ] BatteryPopoverView shows adapter section (when charging)\n- [ ] BatteryPopoverView shows capacity breakdown (current/max/designed)\n- [ ] Power calculated correctly (W = V \u00d7 A / 1000)\n- [ ] Time format preference works (short/long)\n- [ ] Desktop Macs (no battery) show empty state\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.764704Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.11",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.11.md",
+        "status": "todo",
+        "title": "Create FanControlView with sliders and modes",
+        "updated_at": "2026-02-02T12:33:08.693016Z"
+      },
+      "id": "fn-8-v3b.11",
+      "runtime": null,
+      "spec": "# fn-8-v3b.11 Create FanControlView with sliders and modes\n\n## Description\nCreate `FanControlView.swift` component with per-fan sliders, mode selection, and safety features (~450 lines).\n\n**Size:** L (split into M)\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Components/FanControlView.swift` (NEW, ~450 lines)\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (add fan control settings)\n\n## Approach\n\nCreate a comprehensive fan control UI with:\n\n1. **Mode selector:** Segmented control (Auto / Manual / System)\n2. **Per-fan controls:**\n   - Fan name label\n   - Min speed label (left)\n   - Max speed label (right)\n   - Slider for speed control\n   - Current speed display\n3. **Safety features:**\n   - Warning dialog on first manual mode use\n   - Thermal auto-switch (if temp exceeds threshold, revert to auto)\n   - Auto-restore to auto on app quit\n\n4. **Settings to add to `SensorsModuleSettings`:**\n   ```swift\n   public enum FanControlMode: String, CaseIterable, Codable {\n       case auto = \"auto\"\n       case manual = \"manual\"\n       case system = \"system\"\n   }\n   public var fanControlMode: FanControlMode = .auto\n   public var saveFanSpeed: Bool = false\n   public var syncFanControl: Bool = true\n   public var hasAcknowledgedFanWarning: Bool = false\n   ```\n\nReference Stats Master's fan control implementation (~450 lines of UI).\n\n## Key Context\n\nSMC fan control requires privileged helper. Speed values typically 0-100 (percentage) or actual RPM (6000+ max).\n\nFan data comes from `SMCReader.shared.fans` array with:\n- `fanId: Int`\n- `name: String`\n- `currentSpeed: Int`\n- `minSpeed: Int`\n- `maxSpeed: Int`\n\nSMC writes require `TonicHelperTool` XPC connection (task 13).\n## Acceptance\n- [ ] FanControlView.swift created with mode selector\n- [ ] Per-fan sliders show min/max labels and current speed\n- [ ] Mode switcher: Auto / Manual / System\n- [ ] Warning dialog appears on first manual mode use\n- [ ] Fan speed changes update SMC in real-time\n- [ ] Thermal limit triggers auto-switch to auto mode\n- [ ] Fan settings persist in SensorsModuleSettings\n- [ ] Fans sync when syncFanControl is enabled\n- [ ] Component handles missing fan data gracefully\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.857451Z",
+        "depends_on": [
+          "fn-8-v3b.1",
+          "fn-8-v3b.11",
+          "fn-8-v3b.13"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.12",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.12.md",
+        "status": "todo",
+        "title": "Update SensorsPopoverView with fan control integration",
+        "updated_at": "2026-02-02T12:33:51.090866Z"
+      },
+      "id": "fn-8-v3b.12",
+      "runtime": null,
+      "spec": "# fn-8-v3b.12 Update SensorsPopoverView with fan control integration\n\n## Description\nUpdate `SensorsPopoverView.swift` to integrate `FanControlView` and show fan controls.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/SensorsPopoverView.swift` (~437 lines)\n\n## Approach\n\n1. Integrate `FanControlView` into sensors popover:\n   - Add after temperature readings section\n   - Hide if `SMCReader.shared.isAvailable == false`\n   - Hide if `SensorsModuleSettings.showFanSpeeds == false`\n\n2. Update sensors list layout:\n   - Temperature readings (existing)\n   - Fan control section (NEW)\n   - Other sensors (voltage, power) as applicable\n\n3. Add \"Fan Control\" section header with icon\n\n4. Ensure proper state management:\n   - Fan mode changes update SMC\n   - SMC updates reflected in UI via `@Observable`\n   - Handle SMC write failures gracefully\n\n## Key Context\n\nCurrent `SensorsPopoverView` shows temperature readings using `TempGauge` components.\n\nFan control should be a distinct section below temperature readings.\n\nIf SMC is unavailable (Intel Mac without SMC sensors, or permission denied), hide fan control section entirely with no empty state.\n\nReference Stats Master's Sensors popup at `stats-master/Modules/Sensors/popup.swift`.\n## Acceptance\n- [ ] FanControlView integrated into SensorsPopoverView\n- [ ] Fan control section appears after temperature readings\n- [ ] Fan controls hidden when SMC unavailable\n- [ ] Fan controls respect showFanSpeeds setting\n- [ ] Fan mode changes persist in settings\n- [ ] UI updates reactively when fan speed changes\n- [ ] Proper spacing and section header for fan control\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.949108Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.13",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.13.md",
+        "status": "todo",
+        "title": "Add SMC write commands to TonicHelperTool",
+        "updated_at": "2026-02-02T12:33:09.113370Z"
+      },
+      "id": "fn-8-v3b.13",
+      "runtime": null,
+      "spec": "# fn-8-v3b.13 Add SMC write commands to TonicHelperTool\n\n## Description\nAdd SMC write commands to `TonicHelperTool` for fan control functionality.\n\n**Size:** M\n\n**Files:**\n- `TonicHelperTool/` (helper tool source)\n- `Tonic/Tonic/Utilities/PrivilegedHelperManager.swift` (XPC client)\n\n## Approach\n\n1. Add new XPC command to helper tool:\n   ```swift\n   case setFanSpeed(fanId: Int, speed: Int)\n   case setFanMode(mode: FanMode)\n   ```\n\n2. Implement SMC write in helper:\n   - Use `SMCService` or direct SMC key writes\n   - Fan speed keys: `F0Md` (fan mode), `F0Tx` (fan target speed)\n   - Return success/failure status\n\n3. Add client methods in `PrivilegedHelperManager`:\n   ```swift\n   func setFanSpeed(_ fanId: Int, speed: Int) async throws\n   func setFanMode(_ mode: FanMode) async throws\n   ```\n\n4. Handle errors:\n   - Helper not installed\n   - Permission denied\n   - Invalid fan ID\n   - Invalid speed range\n\n## Key Context\n\nSMC (System Management Controller) keys for fans:\n- `F0Md` - Fan mode (0=auto, 1=forced/manual)\n- `F0Tx` - Fan target speed (RPM)\n- `F1Md`, `F1Tx` - Fan 1, etc.\n\nHelper tool requires:\n- `com.apple.developer.driverkit` entitlement (if using DriverKit)\n- Or `com.apple.security.cs.disable-library-validation` for development\n\nFan speed values are typically RPM, not percentage. Need to map slider 0-100% to min-max RPM range.\n\nReference: `SMCReader.swift` for existing SMC read patterns.\n## Acceptance\n- [ ] TonicHelperTool has setFanSpeed command\n- [ ] TonicHelperTool has setFanMode command\n- [ ] PrivilegedHelperManager exposes setFanSpeed/setFanMode methods\n- [ ] SMC writes succeed for valid fan IDs and speeds\n- [ ] Errors handled: helper not installed, permission denied, invalid values\n- [ ] Fan speed maps correctly from percentage to RPM\n- [ ] Fan mode changes persist across app restart\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.040165Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.14",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.14.md",
+        "status": "todo",
+        "title": "Create TabbedSettingsView container",
+        "updated_at": "2026-02-02T12:33:09.325936Z"
+      },
+      "id": "fn-8-v3b.14",
+      "runtime": null,
+      "spec": "# fn-8-v3b.14 Create TabbedSettingsView container\n\n## Description\nCreate `TabbedSettingsView.swift` with segmented tab switcher for Stats Master-style settings UI (540\u00d7480 layout).\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Settings/TabbedSettingsView.swift` (NEW)\n- `Tonic/Tonic/MenuBarWidgets/Settings/ModuleSettingsView.swift` (NEW)\n- `Tonic/Tonic/MenuBarWidgets/Settings/PopupSettingsView.swift` (NEW)\n- `Tonic/Tonic/MenuBarWidgets/Settings/NotificationsSettingsView.swift` (NEW)\n\n## Approach\n\nCreate a tabbed settings container with:\n\n1. **Segmented tab switcher:** 4 tabs (Module, Widgets, Popup, Notifications)\n2. **Content area:** 540\u00d7480 fixed size\n3. **Tab views:**\n   - ModuleSettingsView: Per-module settings\n   - WidgetsView: Existing (move from current location)\n   - PopupSettingsView: Global popup settings\n   - NotificationsSettingsView: Notification settings (extract from current)\n\n4. **Presentation:** Sheet from popover settings button\n\n5. **Layout pattern:**\n   ```\n   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n   \u2502  [Module|Widgets|Popup|Notify] \u2502 \u2190 Segmented control\n   \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n   \u2502                                 \u2502\n   \u2502      Tab Content View           \u2502\n   \u2502      (540\u00d7480 content)         \u2502\n   \u2502                                 \u2502\n   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n   ```\n\n## Key Context\n\nStats Master uses 540\u00d7480 for settings window. Popover settings button currently has `// TODO: Open settings` comment.\n\nTab views should use SwiftUI `TabView` with `.tabViewStyle(.segmented)` for native segmented control appearance.\n\nExisting settings are in `WidgetsPanelView.swift`. This should be refactored into the new tabbed structure.\n## Acceptance\n- [ ] TabbedSettingsView.swift created with 4 tabs\n- [ ] Segmented tab switcher displays correctly\n- [ ] Content area is 540\u00d7480 fixed size\n- [ ] ModuleSettingsView, PopupSettingsView, NotificationsSettingsView created\n- [ ] Settings sheet opens from popover settings button\n- [ ] Tab state persists across session\n- [ ] All tabs use standardized spacing and typography\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.129787Z",
+        "depends_on": [
+          "fn-8-v3b.14"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.15",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.15.md",
+        "status": "todo",
+        "title": "Implement ModuleSettings protocol and views",
+        "updated_at": "2026-02-02T12:33:51.181699Z"
+      },
+      "id": "fn-8-v3b.15",
+      "runtime": null,
+      "spec": "# fn-8-v3b.15 Implement ModuleSettings protocol and views\n\n## Description\nImplement `ModuleSettings` protocol and create per-module settings views for CPU, GPU, Memory, Disk, Network, Battery, Sensors, Bluetooth.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (add protocol)\n- `Tonic/Tonic/MenuBarWidgets/Settings/ModuleSettingsView.swift` (implement)\n- Individual module settings views (create)\n\n## Approach\n\n1. Create `ModuleSettings` protocol:\n   ```swift\n   protocol ModuleSettings {\n       var displayName: String { get }\n       var icon: String { get }\n       var settingsView: any View { get }\n   }\n   ```\n\n2. Extend existing module settings structs to conform:\n   - `CPUModuleSettings`\n   - `GPUModuleSettings`\n   - `MemoryModuleSettings`\n   - `DiskModuleSettings`\n   - `NetworkModuleSettings`\n   - `BatteryModuleSettings`\n   - `SensorsModuleSettings`\n   - `BluetoothModuleSettings`\n\n3. Create per-module settings views with:\n   - Update interval slider\n   - Top process count (3-20)\n   - Visualization options\n   - Module-specific toggles\n\n4. `ModuleSettingsView` implementation:\n   - List of all modules\n   - Tap to expand module settings\n   - Save on change\n\n## Key Context\n\nExisting `ModuleSettings` structs already exist in `WidgetConfiguration.swift` but lack UI.\n\nStats Master exposes these settings categories per module:\n- Update intervals (main + processes)\n- Top process count\n- Visualization splits\n- Base units\n- Text widget variables\n- Per-metric toggles\n- Sensor selection lists\n- Fan behavior controls\n- ICMP host config (network)\n- Data reset intervals\n\nStart with essential settings: update interval, top process count, fan mode (sensors), time format (battery).\n## Acceptance\n- [ ] ModuleSettings protocol defined\n- [ ] All 8 module settings structs conform to protocol\n- [ ] ModuleSettingsView shows list of modules\n- [ ] Tapping module shows its settings view\n- [ ] Update interval setting works for all modules\n- [ ] Top process count setting works (3-20 range)\n- [ ] Fan mode setting works (sensors module)\n- [ ] Time format setting works (battery module)\n- [ ] Settings persist immediately on change\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.222072Z",
+        "depends_on": [
+          "fn-8-v3b.14"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.16",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.16.md",
+        "status": "todo",
+        "title": "Create PopupSettingsView with global settings",
+        "updated_at": "2026-02-02T12:33:51.271846Z"
+      },
+      "id": "fn-8-v3b.16",
+      "runtime": null,
+      "spec": "# fn-8-v3b.16 Create PopupSettingsView with global settings\n\n## Description\nCreate `PopupSettingsView.swift` with global popover settings: keyboard shortcut, chart history duration, scaling mode, color pickers.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Settings/PopupSettingsView.swift` (NEW)\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (add popup settings)\n\n## Approach\n\nCreate popup settings with:\n\n1. **Global keyboard shortcut:** Recorder for opening widget popover\n2. **Chart history duration:** Slider (60-300 seconds, default 180)\n3. **Scaling mode:** Segmented control (None / Auto / Fixed)\n4. **Fixed scale value:** Slider when scaling mode is Fixed\n5. **Per-metric color pickers:** List of metrics with ColorPicker\n\nAdd to `WidgetConfiguration`:\n```swift\npublic struct PopupSettings: Codable, Sendable, Equatable {\n    public var keyboardShortcut: String?\n    public var chartHistoryDuration: Int  // seconds\n    public var scalingMode: ScalingMode\n    public var fixedScaleValue: Double\n    public var metricColors: [String: Color]  // metric name -> color\n}\n\npublic enum ScalingMode: String, CaseIterable, Codable {\n    case none = \"none\"\n    case auto = \"auto\"\n    case fixed = \"fixed\"\n}\n```\n\n## Key Context\n\nStats Master allows per-metric color customization. Tonic has 32+ widget colors including auto-coloring based on utilization.\n\nColor picker implementation:\n- Use SwiftUI `ColorPicker` with `.supportsOpacity(false)`\n- Bind to popup settings dictionary\n\nKeyboard shortcut:\n- Use `NSEventRecorder` or custom hotkey recorder\n- Global shortcut monitoring via `NSEvent.addGlobalMonitorForEvents`\n\nChart history duration controls how many seconds of data are kept (180 seconds = 180 samples at 1 Hz).\n## Acceptance\n- [ ] PopupSettingsView created with all settings\n- [ ] Keyboard shortcut recorder works\n- [ ] Chart history duration slider (60-300 seconds)\n- [ ] Scaling mode selector (None/Auto/Fixed)\n- [ ] Fixed scale value appears when mode is Fixed\n- [ ] Per-metric color pickers show and update\n- [ ] Settings persist in WidgetPreferences\n- [ ] Changes apply immediately to all popovers\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.316024Z",
+        "depends_on": [
+          "fn-8-v3b.1"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.17",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.17.md",
+        "status": "todo",
+        "title": "Update NetworkPopoverView with DNS and WiFi details",
+        "updated_at": "2026-02-02T12:33:50.273995Z"
+      },
+      "id": "fn-8-v3b.17",
+      "runtime": null,
+      "spec": "# fn-8-v3b.17 Update NetworkPopoverView with DNS and WiFi details\n\n## Description\nUpdate `NetworkPopoverView.swift` to add DNS servers field and extended WiFi tooltip (RSSI, noise, band, width).\n\n**Size:** S\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/NetworkPopoverView.swift` (~547 lines)\n\n## Approach\n\n1. Add DNS servers field:\n   - Show in interface section\n   - Expandable with toggle button\n   - Read from `/etc/resolv.conf` or `res_ninit()`\n   - Format: comma-separated list\n\n2. Add extended WiFi tooltip:\n   - RSSI (signal strength in dBm)\n   - Noise level (dBm)\n   - Channel number\n   - Band (2.4 GHz / 5 GHz / 6 GHz)\n   - Channel width (20/40/80/160 MHz)\n\n3. Add configurable process count for network processes:\n   - From `NetworkModuleSettings.topProcessCount`\n   - Default to 8, range 3-20\n\n## Key Context\n\nWiFi data comes from `CWInterface` (CoreWLAN framework):\n- `rssi()` - signal strength\n- `noise()` - noise level\n- `channel()` - channel info with band and width\n- `ssid()` - network name\n\nDNS servers from system configuration:\n- `SCDynamicStoreCopyConsoleUser` or read `/etc/resolv.conf`\n- Fallback to \"Unknown\" if unavailable\n\nNetworkPopoverView already has comprehensive stats at ~547 lines. Just need to add these specific fields.\n\nReference: Stats Master Network module at `stats-master/Modules/Net/popup.swift`.\n## Acceptance\n- [ ] DNS servers field shows in interface section\n- [ ] DNS section expands/collapses via toggle\n- [ ] Extended WiFi tooltip shows RSSI, noise, channel, band, width\n- [ ] WiFi tooltip appears on hover over WiFi info\n- [ ] Top network processes count is configurable\n- [ ] Process count setting persists in NetworkModuleSettings\n- [ ] Missing DNS/WiFi data shows \"Unknown\" fallback\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.409373Z",
+        "depends_on": [
+          "fn-8-v3b.1"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.18",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.18.md",
+        "status": "todo",
+        "title": "Add multi-battery support to BluetoothPopoverView",
+        "updated_at": "2026-02-02T12:33:50.365022Z"
+      },
+      "id": "fn-8-v3b.18",
+      "runtime": null,
+      "spec": "# fn-8-v3b.18 Add multi-battery support to BluetoothPopoverView\n\n## Description\nUpdate `BluetoothPopoverView.swift` to support multiple battery levels per device (case, left, right) for AirPods-style devices.\n\n**Size:** S\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/BluetoothPopoverView.swift`\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (update Bluetooth device model)\n\n## Approach\n\n1. Update `BluetoothDevice` model to support multiple batteries:\n   ```swift\n   public struct BluetoothDevice {\n       public let name: String\n       public let batteryLevels: [BatteryLevel]  // Multiple per device\n       public let isConnected: Bool\n   }\n\n   public struct BatteryLevel {\n       public let component: String  // \"Case\", \"Left\", \"Right\"\n       public let percentage: Int\n   }\n   ```\n\n2. Update `BluetoothPopoverView` to:\n   - Show all battery levels for each device\n   - Display component labels (Case, Left, Right)\n   - Use mini battery icons or gauges for each component\n\n3. Layout for AirPods:\n   - Device name\n   - Row of 3 battery indicators: [Case] [Left] [Right]\n\n## Key Context\n\nCurrent implementation shows single battery per device.\n\nBluetooth battery data comes from `IOBluetooth` framework or `CoreBluetooth`.\n- `IOBluetoothDevice` has `batteryLevel` property (single value)\n- For multiple batteries, need to query battery service of each device\n\nFallback: If only single battery available, show single value.\n\nStats Master supports this for AirPods Pro/Max with case and individual earbud battery levels.\n## Acceptance\n- [ ] BluetoothDevice model has batteryLevels array\n- [ ] BatteryLevel struct has component and percentage\n- [ ] BluetoothPopoverView shows all battery levels\n- [ ] Component labels display (Case, Left, Right)\n- [ ] Multiple batteries display in horizontal row\n- [ ] Single battery devices display correctly (backward compatible)\n- [ ] Missing battery data shows \"\u2014\" or appropriate indicator\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.504230Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.19",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.19.md",
+        "status": "todo",
+        "title": "Fix menu bar refresh bug in WidgetStatusItem",
+        "updated_at": "2026-02-02T12:33:40.701459Z"
+      },
+      "id": "fn-8-v3b.19",
+      "runtime": null,
+      "spec": "# fn-8-v3b.19 Fix menu bar refresh bug in WidgetStatusItem\n\n## Description\nFix menu bar refresh bug in `WidgetStatusItem.swift` where `objectWillChange.send()` doesn't force NSView redraw.\n\n**Size:** S\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift`\n\n## Approach\n\nUpdate `updateConfiguration` method to force immediate NSView refresh:\n\n```swift\npublic func updateConfiguration(_ newConfig: WidgetConfiguration) {\n    configuration = newConfig\n    objectWillChange.send()\n\n    // Force immediate NSView refresh\n    DispatchQueue.main.async {\n        if let statusItem = self.statusItem {\n            let button = statusItem.button\n            button?.window?.contentView?.setNeedsDisplay(button?.bounds ?? .zero)\n            button?.window?.contentView?.displayIfNeeded()\n            self.updateCompactView()  // Recreate view\n        }\n    }\n}\n```\n\nKey fix: Call `setNeedsDisplay`, `displayIfNeeded`, and recreate the hosted SwiftUI view.\n\n## Key Context\n\nBug: When widget configuration changes (color, mode, etc.), menu bar item doesn't update visually until next refresh cycle.\n\nRoot cause: SwiftUI `objectWillChange.send()` notifies observers but doesn't force NSView to redraw immediately.\n\nSolution: Force NSView redraw and recreate the hosted SwiftUI view.\n\nThis is a known issue with NSStatusItem + SwiftUI hosting view integration.\n## Acceptance\n- [ ] updateConfiguration calls setNeedsDisplay on NSView\n- [ ] updateConfiguration calls displayIfNeeded on NSView\n- [ ] updateConfiguration recreates hosted SwiftUI view\n- [ ] Menu bar item updates immediately on config change\n- [ ] Color changes apply instantly\n- [ ] Mode changes apply instantly\n- [ ] No lag or delay in visual update\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:47.936719Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.2",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.2.md",
+        "status": "todo",
+        "title": "Increase chart history to 180 points in WidgetDataManager",
+        "updated_at": "2026-02-02T12:31:44.341416Z"
+      },
+      "id": "fn-8-v3b.2",
+      "runtime": null,
+      "spec": "# fn-8-v3b.2 Increase chart history to 180 points in WidgetDataManager\n\n## Description\nIncrease chart history from 60 points to 180 points across all widgets in `WidgetDataManager.swift` for Stats Master parity.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (~3711 lines)\n- All chart components that reference maxHistoryPoints\n\n## Approach\n\n1. Update `maxHistoryPoints` constant at line ~651 from 60 to 180\n2. Update `CircularBuffer` initialization sizes for all widget types\n3. Verify history arrays sync correctly with new size\n4. Profile memory usage (180 \u00d7 8 bytes \u00d7 10 arrays \u2248 14 KB)\n\nCurrent circular buffer implementation at line ~656 provides O(1) add operation, so scaling to 180 should not impact performance.\n\nHistory tracking exists for:\n- cpuHistory (line 696)\n- memoryHistory (line 704)\n- diskHistory (line 711)\n- networkUploadHistory / networkDownloadHistory (line 718-719)\n- gpuHistory (line 733)\n- batteryHistory (line 738)\n- sensorsHistory (line 743)\n- bluetoothHistory (line 749)\n\n## Key Context\n\nThe `connectivityHistory` at line 728 has a separate limit of 90 - this should remain unchanged as it's specific to the grid visualization.\n\nNo migration needed - arrays auto-populate to 180 on app restart.\n## Acceptance\n- [ ] maxHistoryPoints constant changed from 60 to 180\n- [ ] All widget circular buffers initialized to 180\n- [ ] History access methods return correct 180-point arrays\n- [ ] Memory usage under 20 KB for all history arrays\n- [ ] No performance regression in chart rendering\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:49.596534Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.20",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.20.md",
+        "status": "todo",
+        "title": "Update CLAUDE.md with popover architecture documentation",
+        "updated_at": "2026-02-02T12:33:40.910780Z"
+      },
+      "id": "fn-8-v3b.20",
+      "runtime": null,
+      "spec": "# fn-8-v3b.20 Update CLAUDE.md with popover architecture documentation\n\n## Description\nUpdate CLAUDE.md and Design.md with new popover architecture patterns, fan control documentation, and new component references.\n\n**Size:** S\n\n**Files:**\n- `CLAUDE.md`\n- `Tonic/docs/Design.md` (if exists, or create)\n- `README.md`\n\n## Approach\n\n1. Update CLAUDE.md:\n   - Add new components to Key Components section\n   - Document fan control architecture and SMC integration\n   - Add pressure gauge documentation\n   - Update settings architecture section\n   - Document popover constants and measurements\n\n2. Update Design.md:\n   - Add new gauge types (PressureGaugeView, HalfCircleGaugeView)\n   - Document new container components (PerGpuContainer, PerDiskContainer)\n   - Add chart components (DualLineChartView, CombinedCPUChartView)\n   - Document FanControlView with sliders and modes\n\n3. Update README.md:\n   - Enhance menu bar widgets section with new features\n   - Add fan control capabilities\n   - Mention memory pressure gauge\n   - Document multi-GPU monitoring\n   - Add battery electrical metrics\n\n## Key Context\n\nDocumentation gaps identified by docs-gap-scout:\n- Popover architecture patterns\n- Fan control additions\n- New data properties in WidgetDataManager\n- Settings UI changes\n\nFollow existing documentation format and style.\n## Acceptance\n- [ ] CLAUDE.md updated with new popover patterns\n- [ ] CLAUDE.md documents fan control architecture\n- [ ] CLAUDE.md lists new components with file locations\n- [ ] Design.md updated with new gauge types\n- [ ] Design.md updated with new container components\n- [ ] README.md enhanced with new feature descriptions\n- [ ] All code references include file paths and line numbers\n- [ ] Documentation follows existing format and style\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.030083Z",
+        "depends_on": [],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.3",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.3.md",
+        "status": "todo",
+        "title": "Create PressureGaugeView component",
+        "updated_at": "2026-02-02T12:31:44.545922Z"
+      },
+      "id": "fn-8-v3b.3",
+      "runtime": null,
+      "spec": "# fn-8-v3b.3 Create PressureGaugeView component\n\n## Description\nCreate `PressureGaugeView.swift` component for memory pressure visualization matching Stats Master's 3-color arc gauge.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Components/PressureGaugeView.swift` (NEW, ~150 lines)\n\n## Approach\n\nCreate a SwiftUI view with:\n\n1. **Size:** 80\u00d780px frame\n2. **Three-segment arc:**\n   - Green arc: 0-50% pressure (normal)\n   - Yellow arc: 50-80% pressure (warning)\n   - Red arc: 80-100% pressure (critical)\n3. **Needle:** Rotates based on pressure percentage\n4. **Center text:** Shows pressure level or percentage\n5. **Input:** `pressureLevel: MemoryPressure` enum and `pressurePercentage: Double` (0-100)\n\nUse `TrimmedPath` and `rotationEffect` for arc segments. Use `ZStack` to layer needle over arcs.\n\nReference: Similar to existing `CPUCircularGaugeView` at `Tonic/Tonic/MenuBarWidgets/Views/CPUCircularGaugeView.swift` but with 3 segments instead of 1.\n\n## Key Context\n\nMemory pressure comes from `WidgetDataManager.memoryData.pressure` enum.\nPressure percentage should be calculated from `pressureValue` (0-100 scale).\n\nColor values should use DesignTokens:\n- Green: `DesignTokens.Colors.success` or `.green`\n- Yellow: `DesignTokens.Colors.warning` or `.yellow`\n- Red: `DesignTokens.Colors.error` or `.red`\n## Acceptance\n- [ ] PressureGaugeView.swift created in Components directory\n- [ ] View renders at 80\u00d780px size\n- [ ] Green arc shows for 0-50% pressure\n- [ ] Yellow arc shows for 50-80% pressure\n- [ ] Red arc shows for 80-100% pressure\n- [ ] Needle rotates correctly based on percentage\n- [ ] Center text displays pressure percentage\n- [ ] Component uses @Observable pattern for reactive updates\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.122605Z",
+        "depends_on": [
+          "fn-8-v3b.1",
+          "fn-8-v3b.2",
+          "fn-8-v3b.3"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.4",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.4.md",
+        "status": "todo",
+        "title": "Create MemoryPopoverView with pressure gauge",
+        "updated_at": "2026-02-02T12:33:50.727479Z"
+      },
+      "id": "fn-8-v3b.4",
+      "runtime": null,
+      "spec": "# fn-8-v3b.4 Create MemoryPopoverView with pressure gauge\n\n## Description\nCreate `MemoryPopoverView.swift` using pressure gauge as the primary visual element. This file does not currently exist.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/MemoryPopoverView.swift` (NEW, ~300 lines)\n\n## Approach\n\nFollow the pattern from `CPUPopoverView.swift` (~330 lines) as a template.\n\nStructure:\n1. **Dashboard section (90px):** PressureGaugeView as primary visual + key metrics\n2. **Chart section (120px):** Line chart showing 180-point memory history\n3. **Details section:** 6 fields - Used, Wired, Active, Compressed, Free, Total\n4. **Swap section:** Swap used / Swap size (hide if swapTotalBytes == 0)\n5. **Processes section (22px \u00d7 n):** Top memory-consuming processes\n\nUse `PopoverTemplate.swift` components:\n- `PopoverSection` for section containers\n- `PopoverDetailRow` for key-value displays\n- `ProcessRow` for process list\n\n## Key Context\n\n`WidgetDataManager.memoryData` already has:\n- usedBytes, totalBytes\n- pressure: MemoryPressure enum\n- compressedBytes, swapBytes\n- Enhanced properties (optional): freeBytes, swapTotalBytes, swapUsedBytes, pressureValue, topProcesses\n\nNeed to add missing properties to `MemoryData` struct if not present:\n- `activeBytes: UInt64`\n- `freeBytes: UInt64`\n- `swapTotalBytes: UInt64`\n- `swapUsedBytes: UInt64`\n- `pressureValue: Double?` (0-100 scale)\n\nUpdate data collection in `WidgetDataManager.swift` around line ~1400 (memory data section).\n## Acceptance\n- [ ] MemoryPopoverView.swift created following CPUPopoverView pattern\n- [ ] PressureGaugeView integrated as dashboard primary visual\n- [ ] Line chart shows 180-point memory history\n- [ ] Details section shows: Used, Wired, Active, Compressed, Free, Total (6 fields)\n- [ ] Swap section shows used/total (hidden if not configured)\n- [ ] Processes section shows top memory consumers\n- [ ] Popover width is 280px\n- [ ] All sections use standardized row heights\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.216263Z",
+        "depends_on": [
+          "fn-8-v3b.1"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.5",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.5.md",
+        "status": "todo",
+        "title": "Add missing CPU fields and enhance CPUPopoverView",
+        "updated_at": "2026-02-02T12:33:49.821334Z"
+      },
+      "id": "fn-8-v3b.5",
+      "runtime": null,
+      "spec": "# fn-8-v3b.5 Add missing CPU fields and enhance CPUPopoverView\n\n## Description\nAdd missing CPU data fields (scheduler limit, speed limit, uptime) to `CPUPopoverView.swift` and `WidgetDataManager.swift` for Stats Master parity.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/CPUPopoverView.swift` (~330 lines)\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (update CPUData struct)\n\n## Approach\n\n1. Update `CPUData` struct in WidgetDataManager (around line 91) to add:\n   ```swift\n   public let schedulerLimit: Double?\n   public let speedLimit: Double?\n   ```\n\n2. Update CPU data collection (around line 900) to fetch:\n   - Scheduler limit from sysctl `hw.cpufrequency_max` vs current\n   - Speed limit from CPU power management\n   - Uptime is already in `CPUData` at line 107\n\n3. Add detail rows in `CPUPopoverView.swift` details section (after line 213):\n   - Scheduler Limit (if available) - orange color\n   - Speed Limit (if available) - red color\n   - Uptime display (formatted as \"X days, Y hours, Z minutes\")\n\n4. Standardize per-core colors across dashboard gauges and charts:\n   - E-core: Light blue `Color(red: 0.4, green: 0.6, blue: 0.8)`\n   - P-core: Dark blue `Color(red: 0.2, green: 0.4, blue: 0.8)`\n\n## Key Context\n\nThe uptime field already exists in `CPUData` (line 107) but may not be displayed in the popover.\n\nUptime formatting helper:\n```swift\nfunc formatUptime(_ seconds: TimeInterval) -> String {\n    let days = Int(seconds) / 86400\n    let hours = Int(seconds) % 86400 / 3600\n    let minutes = Int(seconds) % 3600 / 60\n    if days > 0 { return \"\\(days)d \\(hours)h \\(minutes)m\" }\n    if hours > 0 { return \"\\(hours)h \\(minutes)m\" }\n    return \"\\(minutes)m\"\n}\n```\n\nCPU frequency limit data comes from `sysctl hw.cpufrequency` for current and `hw.cpufrequency_max` for max.\n## Acceptance\n- [ ] CPUData struct has schedulerLimit and speedLimit properties\n- [ ] CPU data collection fetches scheduler and speed limits\n- [ ] CPUPopoverView displays Scheduler Limit (if available)\n- [ ] CPUPopoverView displays Speed Limit (if available)\n- [ ] CPUPopoverView displays formatted uptime\n- [ ] Per-core colors match E-core/P-core consistently\n- [ ] New fields use correct color coding (orange, red)\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.307251Z",
+        "depends_on": [
+          "fn-8-v3b.2"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.6",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.6.md",
+        "status": "todo",
+        "title": "Create PerGpuContainer with gauges and charts",
+        "updated_at": "2026-02-02T12:33:50.545954Z"
+      },
+      "id": "fn-8-v3b.6",
+      "runtime": null,
+      "spec": "# fn-8-v3b.6 Create PerGpuContainer with gauges and charts\n\n## Description\nCreate `PerGpuContainer.swift` component for per-GPU visualization with 4 gauges and 4 charts, matching Stats Master's multi-GPU architecture.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Components/PerGpuContainer.swift` (NEW, ~300 lines)\n- `Tonic/Tonic/MenuBarWidgets/Components/HalfCircleGaugeView.swift` (may need update)\n\n## Approach\n\nCreate a container view that represents a single GPU with:\n\n1. **Title bar (24px):** GPU model name, Status indicator (6x6 dot), \"DETAILS\" button\n2. **Circles Row (50px):** 4 half-circle gauges horizontal\n   - Temperature gauge\n   - Utilization gauge\n   - Render utilization gauge (NEW)\n   - Tiler utilization gauge (NEW)\n3. **Charts Row (60px):** 4 mini line charts horizontal\n   - Temperature history\n   - Utilization history\n   - Render history\n   - Tiler history\n4. **Details Panel:** Expandable grid showing:\n   - Vendor, Model, Cores, Status, Fan speed\n   - Core clock, Memory clock\n   - Current values for all 4 metrics\n\nEach gauge: 50\u00d750px with 10px margins.\n\nUse existing `HalfCircleGaugeView` if available, or create as helper.\n\n## Key Context\n\nStats Master's GPU popup at `stats-master/Modules/GPU/popup.swift` (18,377 lines) is the reference.\n\nMulti-GPU systems are rare on Apple Silicon (typically only Mac Pro with multiple MPX modules, or Intel Macs with discrete + integrated). Implementation should gracefully degrade to single GPU.\n\nGPU data from `WidgetDataManager.gpuData` needs enhancement for:\n- `renderUtilization: Double?`\n- `tilerUtilization: Double?`\n- `coreClock: Double?`\n- `memoryClock: Double?`\n- `fanSpeed: Int?`\n- `vendor: String?`\n- `cores: Int?`\n## Acceptance\n- [ ] PerGpuContainer.swift created with title bar, gauges row, charts row\n- [ ] 4 gauges display: Temperature, Utilization, Render, Tiler\n- [ ] 4 line charts display 120-point history per metric\n- [ ] Details panel expands/collapses on DETAILS button\n- [ ] Status indicator dot shows GPU state\n- [ ] Component uses standardized heights (title: 24px, gauges: 50px, charts: 60px)\n- [ ] Handles missing GPU data gracefully (optional fields)\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.398378Z",
+        "depends_on": [
+          "fn-8-v3b.1",
+          "fn-8-v3b.6"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.7",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.7.md",
+        "status": "todo",
+        "title": "Update GPUPopoverView with per-GPU architecture",
+        "updated_at": "2026-02-02T12:33:50.819385Z"
+      },
+      "id": "fn-8-v3b.7",
+      "runtime": null,
+      "spec": "# fn-8-v3b.7 Update GPUPopoverView with per-GPU architecture\n\n## Description\nUpdate `GPUPopoverView.swift` to use `PerGpuContainer` for each GPU, enabling multi-GPU support.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/GPUPopoverView.swift` (~378 lines)\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (add GPU data properties)\n\n## Approach\n\n1. Update `GPUData` struct to add per-metric history:\n   ```swift\n   public let renderHistory: [Double]\n   public let tilerHistory: [Double]\n   public let temperatureHistory: [Double]\n   public let utilizationHistory: [Double]\n   ```\n\n2. Add missing properties for display:\n   ```swift\n   public let renderUtilization: Double?\n   public let tilerUtilization: Double?\n   public let coreClock: Double?\n   public let memoryClock: Double?\n   public let fanSpeed: Int?\n   public let vendor: String?\n   public let cores: Int?\n   ```\n\n3. Refactor `GPUPopoverView` to:\n   - Loop through GPUs array (if multiple) or show single GPU\n   - Use `PerGpuContainer` for each GPU\n   - Stack vertically with spacing\n\n4. Handle single GPU case gracefully (most Macs)\n\n## Key Context\n\nCurrent `GPUPopoverView` shows combined view. Stats Master shows per-GPU containers.\n\nApple Silicon GPU metrics come from Metal framework `MTLCreateSystemDefaultDevice()` and `IORegistry` for power stats.\n\nIntel Macs may have no GPU data or only integrated Intel GPU - show empty state or \"unsupported\" message.\n\nReference: Stats Master GPU module at `stats-master/Modules/GPU/popup.swift` for data collection patterns.\n## Acceptance\n- [ ] GPUData struct has render/tiler utilization and history\n- [ ] GPUData has metadata: coreClock, memoryClock, fanSpeed, vendor, cores\n- [ ] GPUPopoverView uses PerGpuContainer for each GPU\n- [ ] Multiple GPUs stack vertically\n- [ ] Single GPU displays correctly (most common case)\n- [ ] Intel Macs without GPU show appropriate empty state\n- [ ] All 4 metrics show in gauges and charts\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.490392Z",
+        "depends_on": [
+          "fn-8-v3b.2"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.8",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.8.md",
+        "status": "todo",
+        "title": "Create PerDiskContainer with dual-line charts",
+        "updated_at": "2026-02-02T12:33:50.636658Z"
+      },
+      "id": "fn-8-v3b.8",
+      "runtime": null,
+      "spec": "# fn-8-v3b.8 Create PerDiskContainer with dual-line charts\n\n## Description\nCreate `PerDiskContainer.swift` component for per-disk visualization with dual-line read/write charts.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Components/PerDiskContainer.swift` (NEW, ~200 lines)\n\n## Approach\n\nCreate a container view that represents a single disk with:\n\n1. **Title bar:** Disk name + used percentage badge\n2. **Chart section:** Dual-line chart (120px height)\n   - Blue line: Read rate\n   - Red line: Write rate\n   - 180 points history each\n3. **Details section:** Expandable grid with:\n   - Total capacity, Used, Free\n   - Read rate, Write rate\n   - I/O operations count\n   - I/O timing stats (read time, write time)\n\nUse SwiftUI `Charts` framework or existing dual-line chart component.\n\nFollow Stats Master's per-disk popup pattern from `stats-master/Modules/Disks/popup.swift`.\n\n## Key Context\n\nNeed dual-line chart component. Options:\n1. Use SwiftUI Charts `LineMark` with two series\n2. Create custom `DualLineChartView` using `Path` and `Shape`\n\nReference existing `NetworkDualLineChartView` pattern in `NetworkPopoverView.swift` for dual-line implementation.\n\nDisk data from `WidgetDataManager.diskData` needs:\n- `readHistory: [Double]` (180 points)\n- `writeHistory: [Double]` (180 points)\n- `operationReads: UInt64`\n- `operationWrites: UInt64`\n- `readTime: TimeInterval`\n- `writeTime: TimeInterval`\n## Acceptance\n- [ ] PerDiskContainer.swift created with title bar and dual-line chart\n- [ ] Dual-line chart shows read (blue) and write (red)\n- [ ] Chart displays 180 points of history\n- [ ] Details section shows capacity, rates, I/O counts, timing\n- [ ] Details panel expands/collapses\n- [ ] Used percentage badge colors correctly (green/yellow/red)\n- [ ] Handles missing I/O timing data gracefully\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-02T12:30:48.582533Z",
+        "depends_on": [
+          "fn-8-v3b.1",
+          "fn-8-v3b.8"
+        ],
+        "epic": "fn-8-v3b",
+        "id": "fn-8-v3b.9",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-8-v3b.9.md",
+        "status": "todo",
+        "title": "Update DiskPopoverView with I/O stats and processes",
+        "updated_at": "2026-02-02T12:33:50.909932Z"
+      },
+      "id": "fn-8-v3b.9",
+      "runtime": null,
+      "spec": "# fn-8-v3b.9 Update DiskPopoverView with I/O stats and processes\n\n## Description\nUpdate `DiskPopoverView.swift` to use `PerDiskContainer` for each disk and add top processes section.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Popovers/DiskPopoverView.swift`\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (add disk I/O data)\n\n## Approach\n\n1. Update `DiskVolumeData` to add:\n   ```swift\n   public let readHistory: [Double]\n   public let writeHistory: [Double]\n   public let operationReads: UInt64\n   public let operationWrites: UInt64\n   public let readTime: TimeInterval\n   public let writeTime: TimeInterval\n   public let topProcesses: [ProcessUsage]  // with disk I/O\n   ```\n\n2. Update `ProcessUsage` struct to include disk metrics:\n   ```swift\n   public let diskReadBytes: UInt64\n   public let diskWriteBytes: UInt64\n   ```\n\n3. Refactor `DiskPopoverView` to:\n   - Use `PerDiskContainer` for each volume\n   - Add top processes section with disk I/O columns\n   - Configurable process count (default 8, from `DiskModuleSettings.topProcessCount`)\n\n4. Handle disk hot-plug: Use `@State` to track available volumes\n\n## Key Context\n\nDisk I/O data comes from `proc_pid_rusage` for per-process stats (already imported at line 22).\n\nFor system-wide disk stats, use IOKit `IOBlockStorageDriver` statistics keys:\n- `kIOBlockStorageDriverStatisticsBytesReadKey`\n- `kIOBlockStorageDriverStatisticsBytesWrittenKey`\n- `kIOBlockStorageDriverStatisticsReadsKey`\n- `kIOBlockStorageDriverStatisticsWritesKey`\n- `kIOBlockStorageDriverStatisticsTotalReadTimeKey`\n- `kIOBlockStorageDriverStatisticsTotalWriteTimeKey`\n\nProcess list should show: Process Name, Read Rate, Write Rate (formatted).\n## Acceptance\n- [ ] DiskVolumeData has read/write history arrays (180 points)\n- [ ] DiskVolumeData has I/O operations count and timing stats\n- [ ] DiskPopoverView uses PerDiskContainer for each volume\n- [ ] Top processes section shows process name, read rate, write rate\n- [ ] Process count configurable via DiskModuleSettings\n- [ ] Disk hot-plug handled (no crash on volume ejection)\n- [ ] Multiple volumes stack vertically\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    }
+  ]
+}

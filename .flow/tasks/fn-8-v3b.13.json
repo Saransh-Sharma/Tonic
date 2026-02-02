@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-02T12:30:48.949108Z",
+  "depends_on": [],
+  "epic": "fn-8-v3b",
+  "id": "fn-8-v3b.13",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-8-v3b.13.md",
+  "status": "todo",
+  "title": "Add SMC write commands to TonicHelperTool",
+  "updated_at": "2026-02-02T12:33:09.113370Z"
+}

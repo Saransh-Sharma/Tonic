@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-02T12:30:48.398378Z",
+  "depends_on": [
+    "fn-8-v3b.1",
+    "fn-8-v3b.6"
+  ],
+  "epic": "fn-8-v3b",
+  "id": "fn-8-v3b.7",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-8-v3b.7.md",
+  "status": "todo",
+  "title": "Update GPUPopoverView with per-GPU architecture",
+  "updated_at": "2026-02-02T12:33:50.819385Z"
+}
