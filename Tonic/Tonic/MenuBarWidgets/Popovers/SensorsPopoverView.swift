@@ -52,7 +52,8 @@ public struct SensorsPopoverView: View {
                     }
 
                     // Fan Control Section (integrated from FanControlView)
-                    if !dataManager.sensorsData.fans.isEmpty {
+                    // Only show when SMC is available and fans are present
+                    if !dataManager.sensorsData.fans.isEmpty && SMCReader.shared.isAvailable {
                         fanControlSection
 
                         Divider()
