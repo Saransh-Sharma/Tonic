@@ -675,6 +675,60 @@ public struct BatteryModuleSettings: Codable, Sendable, Equatable, ModuleSetting
     public var widgetType: WidgetType { .battery }
 }
 
+// MARK: - Popup Settings
+
+/// Global popover settings for all widgets
+public struct PopupSettings: Codable, Sendable, Equatable {
+    public var keyboardShortcut: String?
+    public var chartHistoryDuration: Int  // seconds (60-300)
+    public var scalingMode: ScalingMode
+    public var fixedScaleValue: Double
+    public var useAutoColors: Bool
+    public var primaryColor: String  // hex color
+    public var popoverWidth: Double
+
+    public init(
+        keyboardShortcut: String? = nil,
+        chartHistoryDuration: Int = 180,
+        scalingMode: ScalingMode = .auto,
+        fixedScaleValue: Double = 100,
+        useAutoColors: Bool = true,
+        primaryColor: String = "#007AFF",
+        popoverWidth: Double = 280
+    ) {
+        self.keyboardShortcut = keyboardShortcut
+        self.chartHistoryDuration = max(60, min(300, chartHistoryDuration))
+        self.scalingMode = scalingMode
+        self.fixedScaleValue = fixedScaleValue
+        self.useAutoColors = useAutoColors
+        self.primaryColor = primaryColor
+        self.popoverWidth = popoverWidth
+    }
+
+    /// Chart scaling mode
+    public enum ScalingMode: String, CaseIterable, Codable, Sendable {
+        case none = "none"
+        case auto = "auto"
+        case fixed = "fixed"
+
+        public var displayName: String {
+            switch self {
+            case .none: return "None"
+            case .auto: return "Auto"
+            case .fixed: return "Fixed"
+            }
+        }
+
+        public var icon: String {
+            switch self {
+            case .none: return "arrow.up.left.and.arrow.down.right"
+            case .auto: return "arrow.left.and.right.righttriangle.left.righttriangle.right"
+            case .fixed: return "aspectratio"
+            }
+        }
+    }
+}
+
 // MARK: - Widget Configuration
 
 /// Configuration for a single menu bar widget

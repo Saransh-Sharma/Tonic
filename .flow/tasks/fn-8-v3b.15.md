@@ -70,8 +70,7 @@ Start with essential settings: update interval, top process count, fan mode (sen
 - [ ] Time format setting works (battery module)
 - [ ] Settings persist immediately on change
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
