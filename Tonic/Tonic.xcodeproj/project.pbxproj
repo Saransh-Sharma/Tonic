@@ -67,6 +67,7 @@
 		40FD9F6CF98966E28820F843 /* NetworkAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51826D1DA4E9510FF0B8422 /* NetworkAnimations.swift */; };
 		41607AED588716AE1FDF1E02 /* CloudStorageScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB24064E09B6A2D10BA27AB2 /* CloudStorageScanner.swift */; };
 		4258754285124719113D8398 /* WidgetStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA84C0E1C7CD1403EB78B1F3 /* WidgetStatusItem.swift */; };
+		42D2054403347221C2B1E9B3 /* TabbedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0AE5ABB0BC270AF0ACF6831 /* TabbedSettingsView.swift */; };
 		4333EC102CA7BCD6C35C270A /* AccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABE5C7CDF376F20F90C688A /* AccessibilityTests.swift */; };
 		4410B0D4E8D60A121CC61567 /* MemoryPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0236746456028CE94139C80B /* MemoryPopoverView.swift */; };
 		46DF284C284A5BFB36834DE1 /* NetworkWidgetDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188BD45B65F6D3E5DC8F24E8 /* NetworkWidgetDataManager.swift */; };
@@ -399,6 +400,7 @@
 		DF1D372BD89A8AC64B240F58 /* LicenseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseManager.swift; sourceTree = "<group>"; };
 		DFBFF103C901BA7B56CCA325 /* DesignTokensTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokensTests.swift; sourceTree = "<group>"; };
 		DFE5C86B14193919871BD65D /* MemoryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWidgetView.swift; sourceTree = "<group>"; };
+		E0AE5ABB0BC270AF0ACF6831 /* TabbedSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabbedSettingsView.swift; sourceTree = "<group>"; };
 		E0C7FF26A8B324D9CE5FDF51 /* MetricRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricRowTests.swift; sourceTree = "<group>"; };
 		E0E4079B377B941F5C0A417F /* BluetoothStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothStatusItem.swift; sourceTree = "<group>"; };
 		E3A4068759566893D1F1BFD3 /* NotificationRuleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRuleEngine.swift; sourceTree = "<group>"; };
@@ -669,6 +671,14 @@
 			path = ServiceTests;
 			sourceTree = "<group>";
 		};
+		787DB9277011D759E12FA9D2 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				E0AE5ABB0BC270AF0ACF6831 /* TabbedSettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		86D260826182AA2BCA577978 /* ViewTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -837,23 +847,31 @@
 				896871484F0D2EF0C582824C /* ChartStatusItems */,
 				086FF7E2597198DD9D57B959 /* Components */,
 				AABB8146F8276BA95C97011A /* Popovers */,
+				787DB9277011D759E12FA9D2 /* Settings */,
 				89E9C5C0D6637E8DE33F912E /* Views */,
 			);
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_89CCC066-3284-442A-B5E0-B1139ABEAF50" /* Sources */ = {
+		"TEMP_1FD44C94-BB9D-4111-86F1-EAD4B9B5BB83" /* Tonic */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Tonic;
+			sourceTree = "<group>";
+		};
+		"TEMP_6C4F8D54-6E41-4754-8C23-EC116D9D55DC" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_988B132C-D9C8-460B-B557-E6135ADDD04A" /* Tonic */ = {
+		"TEMP_F5F80B7B-EA6F-4533-A606-4150FEAB1864" /* MenuBarWidgets */ = {
 			isa = PBXGroup;
 			children = (
 			);
-			path = Tonic;
+			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1096,6 +1114,7 @@
 				170D848FBB38BD96786BC899 /* SystemEnums.swift in Sources */,
 				7017941384A4FFCCB75A6936 /* SystemOptimization.swift in Sources */,
 				1CB2CA4C0BC9DA3A90CFA276 /* SystemStatusDashboard.swift in Sources */,
+				42D2054403347221C2B1E9B3 /* TabbedSettingsView.swift in Sources */,
 				34248CE9F7BC7D10636E1199 /* TachometerStatusItem.swift in Sources */,
 				ACA5EA64921EAB238E9B39F8 /* TachometerWidgetView.swift in Sources */,
 				6A3B4891F9AD8D5091070EF3 /* TemperatureConverter.swift in Sources */,

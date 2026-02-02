@@ -57,8 +57,7 @@ Reference: `SMCReader.swift` for existing SMC read patterns.
 - [ ] Fan speed maps correctly from percentage to RPM
 - [ ] Fan mode changes persist across app restart
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
