@@ -21,9 +21,21 @@ public struct PopupSettingsView: View {
         return (try? JSONEncoder().encode(defaults)) ?? Data()
     }()
 
-    @State private var settings: PopupSettings = .default
+    @State private var settings: PopupSettings = PopupSettings()
     @State private var showingColorPicker = false
     @State private var selectedColorIndex: Int = 0
+
+    // Metrics that can have custom colors
+    private let availableMetrics: [(name: String, key: String, icon: String)] = [
+        ("CPU", "cpu", "cpu"),
+        ("GPU", "gpu", "tv"),
+        ("Memory", "memory", "memorychip"),
+        ("Disk", "disk", "internaldrive"),
+        ("Network", "network", "wifi"),
+        ("Battery", "battery", "battery.100"),
+        ("Sensors", "sensors", "thermometer"),
+        ("Bluetooth", "bluetooth", "bluetooth"),
+    ]
 
     // Predefined colors for easy selection
     private let colorOptions: [(name: String, hex: String)] = [
@@ -113,10 +125,9 @@ public struct PopupSettingsView: View {
                         .font(DesignTokens.Typography.subhead)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
 
-                    Button("Record Shortcut...") {
-                        // TODO: Implement keyboard shortcut recorder
-                        // For now, just set a placeholder
-                        settings.keyboardShortcut = "space"
+                    Button("Set Shortcut...") {
+                        // Placeholder - full implementation requires global hotkey registration
+                        settings.keyboardShortcut = "Cmd+Shift+T"
                     }
                     .buttonStyle(.plain)
                     .font(DesignTokens.Typography.caption)
@@ -130,7 +141,7 @@ public struct PopupSettingsView: View {
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(DesignTokens.CornerRadius.medium)
 
-            Text("Press a key combination to open widget popovers from anywhere")
+            Text("Global shortcut to open widget popovers from anywhere")
                 .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textTertiary)
         }
@@ -214,7 +225,7 @@ public struct PopupSettingsView: View {
     }
 
     private var colorOptionsSection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("Color Options")
                 .font(DesignTokens.Typography.subheadEmphasized)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
@@ -250,6 +261,46 @@ public struct PopupSettingsView: View {
                         Text(settings.primaryColor)
                             .font(DesignTokens.Typography.monoCaption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+
+                Divider()
+
+                // Per-metric color picker
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    Text("Per-Metric Colors")
+                        .font(DesignTokens.Typography.subhead)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                    ForEach(availableMetrics, id: \.key) { metric in
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Image(systemName: metric.icon)
+                                .font(.system(size: 14))
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                                .frame(width: 24)
+
+                            Text(metric.name)
+                                .font(DesignTokens.Typography.subhead)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                            Spacer()
+
+                            ColorPicker("", selection: Binding(
+                                get: {
+                                    if let hex = settings.metricColors[metric.key] {
+                                        return Color(hex: hex) ?? DesignTokens.Colors.accent
+                                    }
+                                    return DesignTokens.Colors.accent
+                                },
+                                set: { newColor in
+                                    settings.metricColors[metric.key] = newColor.toHex()
+                                }
+                            ))
+                            .labelsHidden()
+                            .supportsOpacity(false)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))

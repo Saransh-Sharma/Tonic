@@ -59,8 +59,7 @@ Chart history duration controls how many seconds of data are kept (180 seconds =
 - [ ] Settings persist in WidgetPreferences
 - [ ] Changes apply immediately to all popovers
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

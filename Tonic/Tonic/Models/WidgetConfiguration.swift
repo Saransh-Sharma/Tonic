@@ -686,6 +686,10 @@ public struct PopupSettings: Codable, Sendable, Equatable {
     public var useAutoColors: Bool
     public var primaryColor: String  // hex color
     public var popoverWidth: Double
+    public var metricColors: [String: String]  // metric name -> hex color
+
+    /// Default popup settings
+    public static let `default` = PopupSettings()
 
     public init(
         keyboardShortcut: String? = nil,
@@ -694,15 +698,39 @@ public struct PopupSettings: Codable, Sendable, Equatable {
         fixedScaleValue: Double = 100,
         useAutoColors: Bool = true,
         primaryColor: String = "#007AFF",
-        popoverWidth: Double = 280
+        popoverWidth: Double = 280,
+        metricColors: [String: String] = [:]
     ) {
         self.keyboardShortcut = keyboardShortcut
         self.chartHistoryDuration = max(60, min(300, chartHistoryDuration))
         self.scalingMode = scalingMode
-        self.fixedScaleValue = fixedScaleValue
+        self.fixedScaleValue = max(10, min(200, fixedScaleValue))
         self.useAutoColors = useAutoColors
         self.primaryColor = primaryColor
-        self.popoverWidth = popoverWidth
+        self.popoverWidth = max(240, min(400, popoverWidth))
+        self.metricColors = metricColors
+    }
+
+    // Custom decoding to clamp values
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.keyboardShortcut = try container.decodeIfPresent(String.self, forKey: .keyboardShortcut)
+        let chartHistoryDuration = try container.decodeIfPresent(Int.self, forKey: .chartHistoryDuration) ?? 180
+        self.chartHistoryDuration = max(60, min(300, chartHistoryDuration))
+        self.scalingMode = try container.decodeIfPresent(ScalingMode.self, forKey: .scalingMode) ?? .auto
+        let fixedScaleValue = try container.decodeIfPresent(Double.self, forKey: .fixedScaleValue) ?? 100
+        self.fixedScaleValue = max(10, min(200, fixedScaleValue))
+        self.useAutoColors = try container.decodeIfPresent(Bool.self, forKey: .useAutoColors) ?? true
+        self.primaryColor = try container.decodeIfPresent(String.self, forKey: .primaryColor) ?? "#007AFF"
+        let popoverWidth = try container.decodeIfPresent(Double.self, forKey: .popoverWidth) ?? 280
+        self.popoverWidth = max(240, min(400, popoverWidth))
+        self.metricColors = try container.decodeIfPresent([String: String].self, forKey: .metricColors) ?? [:]
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case keyboardShortcut, chartHistoryDuration, scalingMode
+        case fixedScaleValue, useAutoColors, primaryColor
+        case popoverWidth, metricColors
     }
 
     /// Chart scaling mode
