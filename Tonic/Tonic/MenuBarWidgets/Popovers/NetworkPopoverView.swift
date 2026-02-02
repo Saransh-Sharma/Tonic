@@ -2,174 +2,142 @@
 //  NetworkPopoverView.swift
 //  Tonic
 //
-//  Complete Stats Master-style Network popover with:
-//  - Dashboard (Downloading/Uploading with large values)
-//  - Usage history dual-line chart (red/blue)
-//  - Connectivity history grid (30x3 green/red)
-//  - Details (total upload/download, status, internet, latency, jitter)
-//  - Interface (name, status, MAC, SSID, standard, channel, speed, DNS)
-//  - Address (local IP, public IPv4/IPv6 with country codes)
-//  - Top processes
+//  Stats Master-style Network popup using SwiftUI
+//  Refactored for visual parity with Stats Master's AppKit implementation
 //
 
 import SwiftUI
 
+// MARK: - Network Popover State
+
+@MainActor
+@Observable
+private class NetworkPopoverState {
+    var downloadValue: String = "0"
+    var downloadUnit: String = "B/s"
+    var downloadIsActive: Bool = false
+    var uploadValue: String = "0"
+    var uploadUnit: String = "B/s"
+    var uploadIsActive: Bool = false
+    var totalUploadValue: String = "0"
+    var totalDownloadValue: String = "0"
+}
+
 // MARK: - Network Popover View
 
-/// Complete Stats Master-style network popover
+/// Stats Master-style network popover with exact visual parity
 public struct NetworkPopoverView: View {
 
     // MARK: - Properties
 
-    @State private var dataManager = WidgetDataManager.shared
+    @State private var state = NetworkPopoverState()
+    private var dataManager: WidgetDataManager { WidgetDataManager.shared }
 
-    // Colors matching Stats Master
-    private let downloadColor = Color(red: 0.2, green: 0.5, blue: 1.0)  // Blue
-    private let uploadColor = Color(red: 1.0, green: 0.3, blue: 0.2)     // Red
+    // Colors using NSColor for exact matching
+    private let downloadColor = Color(nsColor: NSColor(red: 0.2, green: 0.5, blue: 1.0, alpha: 1.0))
+    private let uploadColor = Color(nsColor: NSColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0))
+    private let textColor = Color(nsColor: .textColor)
+    private let secondaryTextColor = Color(nsColor: .secondaryLabelColor)
+    private let greenStatus = Color(nsColor: .systemGreen)
+    private let redStatus = Color(nsColor: .systemRed)
 
     // MARK: - Body
 
     public var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Dashboard Section (90pt height)
-                    dashboardSection
-                        .frame(height: 90)
-
-                    // Usage History Chart Section
-                    chartSection
-
-                    // Connectivity History Grid Section
-                    connectivitySection
-
-                    // Details Section
-                    detailsSection
-
-                    // Interface Section
-                    interfaceSection
-
-                    // Address Section
-                    addressSection
-
-                    // Top Processes Section
-                    processesSection
-                }
-            }
+            dashboardSection
+            chartSection
+            connectivitySection
+            detailsSection
+            interfaceSection
+            addressSection
+            processesSection
         }
-        .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
+        .frame(width: 280)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            updateData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NetworkDataUpdated"))) { _ in
+            updateData()
+        }
     }
 
-    // MARK: - Dashboard Section
+    // MARK: - Dashboard Section (90pt)
 
-    /// Top section with Downloading/Uploading large value displays
-    /// Matches Stats Master's 90pt height dashboard with centered values
     private var dashboardSection: some View {
         HStack(spacing: 0) {
-            // Download side (left half)
-            halfBox(
+            // Download side
+            halfDashboard(
                 title: "Downloading",
-                value: formattedSpeedValue(dataManager.networkData.downloadBytesPerSecond),
-                unit: formattedSpeedUnit(dataManager.networkData.downloadBytesPerSecond),
+                value: state.downloadValue,
+                unit: state.downloadUnit,
                 color: downloadColor,
-                isActive: dataManager.networkData.downloadBytesPerSecond > 0
+                isActive: state.downloadIsActive
             )
+            .frame(width: 140, height: 90)
 
-            // Upload side (right half)
-            halfBox(
+            // Upload side
+            halfDashboard(
                 title: "Uploading",
-                value: formattedSpeedValue(dataManager.networkData.uploadBytesPerSecond),
-                unit: formattedSpeedUnit(dataManager.networkData.uploadBytesPerSecond),
+                value: state.uploadValue,
+                unit: state.uploadUnit,
                 color: uploadColor,
-                isActive: dataManager.networkData.uploadBytesPerSecond > 0
+                isActive: state.uploadIsActive
             )
+            .frame(width: 140, height: 90)
         }
+        .frame(height: 90)
     }
 
-    private func halfBox(title: String, value: String, unit: String, color: Color, isActive: Bool) -> some View {
-        GeometryReader { geometry in
-            let boxWidth = geometry.size.width / 2
+    private func halfDashboard(title: String, value: String, unit: String, color: Color, isActive: Bool) -> some View {
+        ZStack {
+            VStack(spacing: 0) {
+                // Value + unit (top)
+                HStack(spacing: 5) {
+                    Text(value)
+                        .font(Font.system(size: 26, weight: .light))
+                        .foregroundColor(textColor)
+                        .frame(width: valueWidth(value: value), alignment: .trailing)
+                        .fixedSize()
 
-            ZStack {
-                // Value + Unit (top centered)
-                VStack(spacing: 0) {
-                    HStack(spacing: 5) {
-                        Text(value)
-                            .font(.system(size: 26, weight: .light))
-                            .foregroundColor(DesignTokens.Colors.textPrimary)
-                            .frame(width: valueWidth(value: value), alignment: .trailing)
-
-                        Text(unit)
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundColor(.secondary)
-                            .frame(width: unitWidth(unit: unit), alignment: .leading)
-                    }
-                    .frame(height: 30)
-
-                    Spacer()
-
-                    // Title + Indicator (bottom centered)
-                    HStack(spacing: 8) {
-                        // Color indicator block (12x12)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(isActive ? color : Color.gray.opacity(0.3))
-                            .frame(width: 12, height: 12)
-
-                        Text(title)
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(height: 15)
+                    Text(unit)
+                        .font(Font.system(size: 13, weight: .light))
+                        .foregroundColor(secondaryTextColor)
+                        .frame(width: unitWidth(unit: unit), alignment: .leading)
+                        .fixedSize()
                 }
-                .frame(width: boxWidth)
-                .position(x: boxWidth / 2, y: geometry.size.height / 2)
+                .frame(height: 30)
+
+                Spacer()
+
+                // Title + indicator (bottom)
+                HStack(spacing: 8) {
+                    // Color indicator (12x12 rounded square)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isActive ? color : Color(nsColor: .systemGray).opacity(0.3))
+                        .frame(width: 12, height: 12)
+
+                    Text(title)
+                        .font(Font.system(size: 12))
+                        .foregroundColor(secondaryTextColor)
+                }
+                .frame(height: 15)
             }
         }
     }
 
-    private func valueWidth(value: String) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 26, weight: .light)
-        return (value as NSString).size(withAttributes: [.font: font]).width + 5
-    }
+    // MARK: - Chart Section (90pt = 22pt header + 68pt chart)
 
-    private func unitWidth(unit: String) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 13, weight: .light)
-        return (unit as NSString).size(withAttributes: [.font: font]).width + 5
-    }
-
-    private func formattedSpeedValue(_ bytesPerSecond: Double) -> String {
-        if bytesPerSecond < 1024 {
-            return "\(Int(bytesPerSecond))"
-        } else if bytesPerSecond < 1024 * 1024 {
-            return String(format: "%.1f", bytesPerSecond / 1024)
-        } else {
-            return String(format: "%.2f", bytesPerSecond / (1024 * 1024))
-        }
-    }
-
-    private func formattedSpeedUnit(_ bytesPerSecond: Double) -> String {
-        if bytesPerSecond < 1024 {
-            return "B/s"
-        } else if bytesPerSecond < 1024 * 1024 {
-            return "KB/s"
-        } else {
-            return "MB/s"
-        }
-    }
-
-    // MARK: - Chart Section
-
-    /// Dual-line chart for download/upload history (90pt height)
     private var chartSection: some View {
         VStack(spacing: 0) {
-            // Section header (22pt)
+            // Header (22pt)
             sectionHeader("Usage history")
 
-            // Chart container (68pt)
+            // Chart (68pt)
             ZStack {
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(nsColor: .lightGray).opacity(0.1))
 
                 DualLineChartView(
                     downloadData: dataManager.networkDownloadHistory,
@@ -183,18 +151,17 @@ public struct NetworkPopoverView: View {
         .frame(height: 90)
     }
 
-    // MARK: - Connectivity Section
+    // MARK: - Connectivity Section (30pt = 22pt header + 8pt chart)
 
-    /// Grid chart for connectivity history (30pt height)
     private var connectivitySection: some View {
         VStack(spacing: 0) {
-            // Section header (22pt)
+            // Header (22pt)
             sectionHeader("Connectivity history")
 
-            // Grid container (8pt)
+            // Grid (8pt)
             ZStack {
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(nsColor: .lightGray).opacity(0.1))
 
                 ConnectivityGridView(
                     isConnected: dataManager.networkData.isConnected,
@@ -207,344 +174,274 @@ public struct NetworkPopoverView: View {
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .frame(height: 22)
+        Text(title)
+            .font(Font.system(size: 11))
+            .foregroundColor(secondaryTextColor)
+            .frame(height: 22, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 0)
     }
 
     // MARK: - Details Section
 
-    /// Details: Total upload/download, Status, Internet, Latency, Jitter
-    /// With reset button in header
     private var detailsSection: some View {
         VStack(spacing: 0) {
             // Header with reset button (22pt)
-            HStack {
-                Text("Details")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                // Reset button
-                Button {
-                    resetTotalUsage()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Reset")
+            headerWithButton("Details") {
+                resetTotalUsage()
             }
-            .frame(height: 22)
 
-            // Total upload row (16pt)
-            detailRowWithColor(
-                title: "Total upload:",
-                value: formattedTotalBytes(dataManager.totalUploadBytes),
-                color: uploadColor
-            )
+            // Rows (16pt each)
+            detailColorRow(title: "Total upload:", value: state.totalUploadValue, color: uploadColor)
+            detailColorRow(title: "Total download:", value: state.totalDownloadValue, color: downloadColor)
+            detailRow(title: "Status:", value: dataManager.networkData.isConnected ? "UP" : "DOWN", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
+            detailRow(title: "Internet connection:", value: dataManager.networkData.isConnected ? "Connected" : "Disconnected", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
 
-            // Total download row (16pt)
-            detailRowWithColor(
-                title: "Total download:",
-                value: formattedTotalBytes(dataManager.totalDownloadBytes),
-                color: downloadColor
-            )
-
-            // Status row (16pt)
-            detailRow(
-                title: "Status:",
-                value: dataManager.networkData.isConnected ? "UP" : "DOWN",
-                color: dataManager.networkData.isConnected ? .green : .red
-            )
-
-            // Internet connection row (16pt)
-            detailRow(
-                title: "Internet connection:",
-                value: dataManager.networkData.isConnected ? "Connected" : "Disconnected",
-                color: dataManager.networkData.isConnected ? .green : .red
-            )
-
-            // Latency row (16pt)
             if let connectivity = dataManager.networkData.connectivity {
-                detailRow(
-                    title: "Latency:",
-                    value: "\(Int(connectivity.latency)) ms"
-                )
-
-                // Jitter row (16pt)
+                detailRow(title: "Latency:", value: "\(Int(connectivity.latency)) ms", color: textColor)
                 if connectivity.jitter > 0 {
-                    detailRow(
-                        title: "Jitter:",
-                        value: "\(Int(connectivity.jitter)) ms"
-                    )
+                    detailRow(title: "Jitter:", value: "\(Int(connectivity.jitter)) ms", color: textColor)
                 }
             } else {
-                detailRow(title: "Latency:", value: "Unknown")
-                detailRow(title: "Jitter:", value: "Unknown")
+                detailRow(title: "Latency:", value: "Unknown", color: textColor)
+                detailRow(title: "Jitter:", value: "Unknown", color: textColor)
             }
         }
     }
 
-    private func detailRow(title: String, value: String, color: Color = DesignTokens.Colors.textPrimary, help: String? = nil) -> some View {
+    private func detailRow(title: String, value: String, color: Color) -> some View {
         HStack(spacing: 0) {
             Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(Font.system(size: 11))
+                .foregroundColor(secondaryTextColor)
                 .frame(width: 120, alignment: .leading)
 
             Spacer()
 
             Text(value)
-                .font(.system(size: 11, weight: .semibold))
+                .font(Font.system(size: 11, weight: .semibold))
                 .foregroundColor(color)
+                .frame(width: 160, alignment: .trailing)
         }
         .frame(height: 16)
-        .help(help ?? "")
     }
 
-    private func detailRowWithColor(title: String, value: String, color: Color) -> some View {
+    private func detailColorRow(title: String, value: String, color: Color) -> some View {
         HStack(spacing: 0) {
-            // Color indicator
+            // Color indicator (6x6)
             RoundedRectangle(cornerRadius: 3)
                 .fill(color)
                 .frame(width: 6, height: 6)
 
             Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(Font.system(size: 11))
+                .foregroundColor(secondaryTextColor)
                 .frame(width: 114, alignment: .leading)
 
             Spacer()
 
             Text(value)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(DesignTokens.Colors.textPrimary)
+                .font(Font.system(size: 11, weight: .semibold))
+                .foregroundColor(textColor)
+                .frame(width: 160, alignment: .trailing)
         }
         .frame(height: 16)
     }
 
     // MARK: - Interface Section
 
-    /// Interface: Interface name, Status, Physical address, Network, Standard, Channel, Speed, DNS
-    /// With details toggle button
     private var interfaceSection: some View {
         VStack(spacing: 0) {
-            // Header with details toggle (22pt)
-            HStack {
-                Text("Interface")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                // Details toggle button
-                Button {
-                    // TODO: Toggle interface details visibility
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Details")
+            // Header with details button (22pt)
+            headerWithButton("Interface") {
+                // Toggle details
             }
-            .frame(height: 22)
 
-            // Interface row (16pt)
-            detailRow(
-                title: "Interface:",
-                value: interfaceDisplayName
-            )
+            detailRow(title: "Interface:", value: interfaceValue, color: textColor)
+            detailRow(title: "Status:", value: dataManager.networkData.isConnected ? "UP" : "DOWN", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
+            detailRow(title: "Physical address:", value: macAddressValue, color: textColor)
 
-            // Status row (16pt)
-            detailRow(
-                title: "Status:",
-                value: dataManager.networkData.isConnected ? "UP" : "DOWN",
-                color: dataManager.networkData.isConnected ? .green : .red
-            )
-
-            // Physical address (MAC) row (16pt)
-            detailRow(
-                title: "Physical address:",
-                value: macAddress,
-                color: DesignTokens.Colors.textPrimary
-            )
-            .textSelection(.enabled)
-
-            // WiFi rows (only if WiFi is connected)
             if dataManager.networkData.connectionType == .wifi,
                let wifi = dataManager.networkData.wifiDetails {
-                // Network (SSID) row (16pt)
-                let ssidValue = wifi.ssid + (wifi.rssi > -100 ? " (\(wifi.rssi))" : "")
-                detailRow(title: "Network:", value: ssidValue)
-
-                // Standard row (16pt) - shown when details enabled
-                detailRow(title: "Standard:", value: wifi.security)
-
-                // Channel row (16pt) - shown when details enabled
-                let channelValue = "\(wifi.channel) (2.4 GHz)"
-                detailRow(
-                    title: "Channel:",
-                    value: channelValue,
-                    help: "RSSI: \(wifi.rssi) dBm\nChannel number: \(wifi.channel)\nChannel band: 2.4 GHz\nChannel width: 20 MHz"
-                )
-
-                // Speed row (16pt) - shown when details enabled
-                detailRow(title: "Speed:", value: interfaceSpeed)
+                detailRow(title: "Network:", value: "\(wifi.ssid) (\(wifi.rssi))", color: textColor)
+                detailRow(title: "Standard:", value: wifi.security, color: textColor)
+                detailRow(title: "Channel:", value: "\(wifi.channel) (2.4 GHz)", color: textColor)
+                detailRow(title: "Speed:", value: "1000baseT", color: textColor)
             }
         }
     }
 
-    private var interfaceDisplayName: String {
-        // Format: "en0" - TODO: Add country code if available
-        return "en0"
+    private var interfaceValue: String {
+        "en0"
     }
 
-    private var macAddress: String {
-        // TODO: Get actual MAC address from interface
-        return "XX:XX:XX:XX:XX:XX"
-    }
-
-    private var interfaceSpeed: String {
-        // TODO: Get actual interface speed
-        return "1000baseT"
+    private var macAddressValue: String {
+        "XX:XX:XX:XX:XX:XX"
     }
 
     // MARK: - Address Section
 
-    /// Address: Local IP, Public IPv4, Public IPv6
-    /// With refresh button
     private var addressSection: some View {
         VStack(spacing: 0) {
             // Header with refresh button (22pt)
-            HStack {
-                Text("Address")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                // Refresh button
-                Button {
-                    // TODO: Trigger public IP refresh
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Refresh")
+            headerWithButton("Address") {
+                // Refresh public IP
             }
-            .frame(height: 22)
 
-            // Local IP row (16pt)
-            detailRow(
-                title: "Local IP:",
-                value: dataManager.networkData.ipAddress ?? "Unknown",
-                color: .blue
-            )
-            .textSelection(.enabled)
+            detailRow(title: "Local IP:", value: dataManager.networkData.ipAddress ?? "Unknown", color: Color(nsColor: .systemBlue))
 
-            // Public IPv4 row (16pt) - shown when available
             if let publicIP = dataManager.networkData.publicIP {
-                let ipv4Value = publicIP.ipAddress + (publicIP.country.map { " (\($0))" } ?? "")
-                detailRow(
-                    title: "Public IP:",
-                    value: ipv4Value,
-                    color: .blue
-                )
-                .textSelection(.enabled)
-            }
-
-            // Public IPv6 row (14pt, smaller font) - shown when available
-            if let ipv6 = ipv6Address {
-                detailRowIPv6(
-                    title: "Public IP:",
-                    value: ipv6
-                )
+                let ipValue = publicIP.ipAddress + (publicIP.country.map { " (\($0))" } ?? "")
+                detailRow(title: "Public IP:", value: ipValue, color: Color(nsColor: .systemBlue))
             }
         }
-    }
-
-    // Placeholder for IPv6 - would need actual implementation
-    private var ipv6Address: String? {
-        nil  // TODO: Implement IPv6 detection
-    }
-
-    // IPv6 row with smaller font
-    private func detailRowIPv6(title: String, value: String) -> some View {
-        HStack(spacing: 0) {
-            Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
-                .frame(width: 120, alignment: .leading)
-
-            Spacer()
-
-            Text(value)
-                .font(.system(size: 7, weight: .semibold))
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-                .offset(y: -1)
-        }
-        .frame(height: 14)
     }
 
     // MARK: - Processes Section
 
-    /// Top processes with Downloading/Uploading columns
     private var processesSection: some View {
         VStack(spacing: 0) {
-            // Section header (22pt)
+            // Header (22pt)
             sectionHeader("Top processes")
 
             // Process list
             if let processes = dataManager.networkData.topProcesses, !processes.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(processes.prefix(8)) { process in
-                        NetworkProcessRow(
-                            process: process,
-                            downloadColor: downloadColor,
-                            uploadColor: uploadColor
-                        )
+                        processRow(process)
                     }
                 }
             } else {
-                // Empty state
                 VStack(spacing: 8) {
                     Text("No process data available")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(Font.system(size: 11))
+                        .foregroundColor(secondaryTextColor)
                 }
                 .frame(height: 50)
             }
         }
     }
 
-    // MARK: - Helper Methods
+    private func processRow(_ process: ProcessNetworkUsage) -> some View {
+        HStack(spacing: 0) {
+            // Icon placeholder (16pt)
+            Image(systemName: "app.fill")
+                .font(.system(size: 10))
+                .foregroundColor(secondaryTextColor)
+                .frame(width: 16)
 
-    private func formattedTotalBytes(_ bytes: Int64) -> String {
+            // Name (90pt)
+            Text(process.name)
+                .font(Font.system(size: 11))
+                .foregroundColor(textColor)
+                .frame(width: 90, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer()
+
+            // Download (60pt)
+            Text(formattedBytes(process.downloadBytes))
+                .font(Font.system(size: 11))
+                .foregroundColor(downloadColor)
+                .frame(width: 60, alignment: .trailing)
+
+            // Upload (60pt)
+            Text(formattedBytes(process.uploadBytes))
+                .font(Font.system(size: 11))
+                .foregroundColor(uploadColor)
+                .frame(width: 60, alignment: .trailing)
+        }
+        .frame(height: 22)
+    }
+
+    // MARK: - Header with Button
+
+    private func headerWithButton(_ title: String, action: @escaping () -> Void) -> some View {
+        ZStack {
+            Text(title)
+                .font(Font.system(size: 11))
+                .foregroundColor(secondaryTextColor)
+                .frame(height: 22, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 0)
+
+            HStack {
+                Spacer()
+                Button(action: action) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(nsColor: .lightGray))
+                }
+                .buttonStyle(.plain)
+                .frame(width: 18, height: 18)
+            }
+        }
+        .frame(height: 22)
+    }
+
+    // MARK: - Data Updates
+
+    private func updateData() {
+        let networkData = dataManager.networkData
+
+        // Update speed
+        let downloadTuple = speedTuple(networkData.downloadBytesPerSecond)
+        state.downloadValue = downloadTuple.value
+        state.downloadUnit = downloadTuple.unit
+        state.downloadIsActive = networkData.downloadBytesPerSecond > 0
+
+        let uploadTuple = speedTuple(networkData.uploadBytesPerSecond)
+        state.uploadValue = uploadTuple.value
+        state.uploadUnit = uploadTuple.unit
+        state.uploadIsActive = networkData.uploadBytesPerSecond > 0
+
+        // Update totals
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        state.totalUploadValue = formatter.string(fromByteCount: dataManager.totalUploadBytes)
+        state.totalDownloadValue = formatter.string(fromByteCount: dataManager.totalDownloadBytes)
+    }
+
+    private func speedTuple(_ bytesPerSecond: Double) -> (value: String, unit: String) {
+        if bytesPerSecond < 1024 {
+            return ("\(Int(bytesPerSecond))", "B/s")
+        } else if bytesPerSecond < 1024 * 1024 {
+            return (String(format: "%.1f", bytesPerSecond / 1024), "KB/s")
+        } else {
+            return (String(format: "%.2f", bytesPerSecond / (1024 * 1024)), "MB/s")
+        }
+    }
+
+    private func valueWidth(value: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 26, weight: .light)
+        return (value as NSString).size(withAttributes: [.font: font]).width + 5
+    }
+
+    private func unitWidth(unit: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 13, weight: .light)
+        return (unit as NSString).size(withAttributes: [.font: font]).width + 5
+    }
+
+    private func formattedBytes(_ bytes: UInt64) -> String {
+        if bytes < 1024 {
+            return "\(bytes) B/s"
+        } else if bytes < 1024 * 1024 {
+            return String(format: "%.1f K/s", Double(bytes) / 1024)
+        } else {
+            return String(format: "%.2f M/s", Double(bytes) / (1024 * 1024))
+        }
     }
 
     private func resetTotalUsage() {
-        NotificationCenter.default.post(name: Notification.Name.resetTotalNetworkUsage, object: nil)
+        NotificationCenter.default.post(name: .resetTotalNetworkUsage, object: nil)
+        updateData()
     }
 }
 
 // MARK: - Dual Line Chart View
 
-/// Dual-line chart for download/upload history (68pt height)
-/// Matches Stats Master's NetworkChartView
 struct DualLineChartView: View {
     let downloadData: [Double]
     let uploadData: [Double]
@@ -557,16 +454,14 @@ struct DualLineChartView: View {
             let height = geometry.size.height
 
             ZStack {
-                // Download line (blue)
                 if !downloadData.isEmpty {
                     linePath(for: downloadData, width: width, height: height)
-                        .stroke(downloadColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                        .stroke(downloadColor, lineWidth: 1.5)
                 }
 
-                // Upload line (red)
                 if !uploadData.isEmpty {
                     linePath(for: uploadData, width: width, height: height)
-                        .stroke(uploadColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                        .stroke(uploadColor, lineWidth: 1.5)
                 }
             }
         }
@@ -581,7 +476,6 @@ struct DualLineChartView: View {
         let displayData = Array(data.suffix(maxPoints))
 
         guard let maxVal = displayData.max(), maxVal > 0 else {
-            // Flat line at bottom
             path.move(to: CGPoint(x: 0, y: height - 1))
             path.addLine(to: CGPoint(x: width, y: height - 1))
             return path
@@ -592,7 +486,7 @@ struct DualLineChartView: View {
         for (index, value) in displayData.enumerated() {
             let x = CGFloat(index) * stepX
             let normalizedY = 1 - (value / maxVal)
-            let y = normalizedY * (height - 2) + 1  // Padding
+            let y = normalizedY * (height - 2) + 1
 
             if index == 0 {
                 path.move(to: CGPoint(x: x, y: y))
@@ -607,8 +501,6 @@ struct DualLineChartView: View {
 
 // MARK: - Connectivity Grid View
 
-/// Grid of colored squares showing connectivity status history
-/// Matches Stats Master's GridChartView (30 columns x 3 rows = 90 cells)
 struct ConnectivityGridView: View {
     let isConnected: Bool
     let history: [Bool]
@@ -625,11 +517,10 @@ struct ConnectivityGridView: View {
                 columns: Array(repeating: GridItem(.fixed(cellWidth), spacing: 0), count: columns),
                 spacing: 0
             ) {
-                // Display current status + history (90 data points = 30x3 grid)
                 ForEach(0..<(columns * rows), id: \.self) { index in
                     let status = statusForIndex(index)
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(status ? Color.green : Color.red.opacity(0.5))
+                        .fill(status ? Color(nsColor: .systemGreen) : Color(nsColor: .systemRed).opacity(0.5))
                         .frame(width: cellWidth - 1, height: cellHeight - 1)
                 }
             }
@@ -639,67 +530,11 @@ struct ConnectivityGridView: View {
 
     private func statusForIndex(_ index: Int) -> Bool {
         if index == 0 {
-            // First cell shows current status
             return isConnected
         } else if index - 1 < history.count {
-            // Remaining cells show history
             return history.reversed()[index - 1]
         } else {
-            // Fill remaining with current status
             return isConnected
-        }
-    }
-}
-
-// MARK: - Network Process Row
-
-/// Row showing network process with download/upload speeds
-/// Matches Stats Master's ProcessesView layout
-struct NetworkProcessRow: View {
-    let process: ProcessNetworkUsage
-    let downloadColor: Color
-    let uploadColor: Color
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // App icon placeholder (16pt)
-            Image(systemName: "app.fill")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-                .frame(width: 16)
-
-            // Process name (variable width)
-            Text(process.name)
-                .font(.system(size: 11))
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 90, alignment: .leading)
-                .lineLimit(1)
-                .truncationMode(.tail)
-
-            Spacer()
-
-            // Download speed (fixed width)
-            Text(formattedBytes(process.downloadBytes))
-                .font(.system(size: 11))
-                .foregroundColor(downloadColor)
-                .frame(width: 60, alignment: .trailing)
-
-            // Upload speed (fixed width)
-            Text(formattedBytes(process.uploadBytes))
-                .font(.system(size: 11))
-                .foregroundColor(uploadColor)
-                .frame(width: 60, alignment: .trailing)
-        }
-        .frame(height: 22)
-    }
-
-    private func formattedBytes(_ bytes: UInt64) -> String {
-        if bytes < 1024 {
-            return "\(bytes) B/s"
-        } else if bytes < 1024 * 1024 {
-            return String(format: "%.1f K/s", Double(bytes) / 1024)
-        } else {
-            return String(format: "%.2f M/s", Double(bytes) / (1024 * 1024))
         }
     }
 }

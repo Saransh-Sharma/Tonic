@@ -26,6 +26,7 @@ public final class SpeedStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
+        // Use SwiftUI NetworkPopoverView
         return AnyView(NetworkPopoverView())
     }
 

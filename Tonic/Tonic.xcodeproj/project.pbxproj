@@ -827,14 +827,14 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_370BAD17-0B80-4397-BFB4-A570937340FD" /* Sources */ = {
+		"TEMP_289EB4F7-FCC9-4F88-848B-AEAD23047AB4" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_9F978BCC-32FB-4329-848D-640057EE4D69" /* Tonic */ = {
+		"TEMP_29150D41-D935-4167-852C-7E6E2DBF9652" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
