@@ -2361,8 +2361,23 @@ public final class WidgetDataManager {
             let timeDelta = now.timeIntervalSince(last.timestamp)
 
             if timeDelta > 0 {
-                uploadRate = Double(stats.bytesOut - last.upload) / timeDelta
-                downloadRate = Double(stats.bytesIn - last.download) / timeDelta
+                // Handle counter wrap-around (when current < last, assume reset or wrap)
+                let uploadDelta: UInt64
+                if stats.bytesOut >= last.upload {
+                    uploadDelta = stats.bytesOut - last.upload
+                } else {
+                    uploadDelta = stats.bytesOut // Counter reset, use current value
+                }
+
+                let downloadDelta: UInt64
+                if stats.bytesIn >= last.download {
+                    downloadDelta = stats.bytesIn - last.download
+                } else {
+                    downloadDelta = stats.bytesIn // Counter reset, use current value
+                }
+
+                uploadRate = Double(uploadDelta) / timeDelta
+                downloadRate = Double(downloadDelta) / timeDelta
             }
 
             isConnected = (stats.bytesIn != last.download || stats.bytesOut != last.upload) || timeDelta < 5.0
