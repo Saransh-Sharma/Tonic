@@ -11,7 +11,7 @@ import AppKit
 
 /// Per-process resource usage information
 /// Used for process monitoring UI and detailed stats
-public struct ProcessUsage: Identifiable, Sendable {
+public struct ProcessUsage: Identifiable, Sendable, Hashable {
     public let id: Int32  // PID
     public let name: String
     public let iconData: Data?  // Raw icon data (NSImage is not Sendable)
@@ -42,7 +42,7 @@ public struct ProcessUsage: Identifiable, Sendable {
     }
 
     /// Recover NSImage from stored data (convenience for UI)
-    public func icon() -> NSImage? {
+    public var icon: NSImage? {
         guard let iconData = iconData else { return nil }
         return NSImage(data: iconData)
     }

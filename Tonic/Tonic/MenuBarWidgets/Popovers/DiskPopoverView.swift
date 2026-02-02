@@ -505,7 +505,7 @@ public struct DiskPopoverView: View {
     private func diskProcessRow(_ process: ProcessUsage) -> some View {
         HStack(spacing: 8) {
             // App icon if available
-            if let icon = process.icon() {
+            if let icon = process.icon {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 14, height: 14)

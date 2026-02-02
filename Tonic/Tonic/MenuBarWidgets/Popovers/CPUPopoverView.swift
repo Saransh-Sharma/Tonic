@@ -166,6 +166,7 @@ public struct CPUPopoverView: View {
             }
             .frame(maxWidth: .infinity)
         }
+        .frame(height: 90) // Stats Master parity: 90px dashboard height
     }
 
     // MARK: - History Chart Section

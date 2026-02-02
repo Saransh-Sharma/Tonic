@@ -447,7 +447,7 @@ struct AnyProcess: Identifiable {
     init(_ process: ProcessUsage) {
         self.id = String(process.id)
         self.name = process.name
-        self.icon = process.icon()
+        self.icon = process.icon
         self.cpuUsage = process.cpuUsage
         self.memoryBytes = process.memoryUsage
         self.networkBytes = process.networkBytes

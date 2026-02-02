@@ -583,7 +583,7 @@ public enum BluetoothDeviceType: String, Sendable {
 }
 
 /// App resource usage
-public struct AppResourceUsage: Sendable, Identifiable {
+public struct AppResourceUsage: Sendable, Identifiable, Hashable {
     public let id: UUID
     public let name: String
     public let bundleIdentifier: String?

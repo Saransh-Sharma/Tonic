@@ -52,7 +52,7 @@ public struct ProcessesView: View {
     var maxCount: Int = 5
 
     /// Color for the progress bars
-    var barColor: Color = DesignTokens.Colors.accent
+    var barColor: Color = Color.accentColor
 
     /// Whether to show percentage values
     var showPercentage: Bool = true
@@ -75,7 +75,7 @@ public struct ProcessesView: View {
 
                 // Process list
                 VStack(spacing: PopoverConstants.compactSpacing) {
-                    ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { _, process in
+                    ForEach(displayedProcesses, id: \.processId) { process in
                         ProcessRow(
                             name: process.name,
                             icon: process.icon,
@@ -112,7 +112,8 @@ public struct ProcessesView: View {
 // MARK: - Process Displayable Protocol
 
 /// Protocol that allows both ProcessUsage and AppResourceUsage to work with ProcessesView
-public protocol ProcessDisplayable: Identifiable {
+public protocol ProcessDisplayable {
+    var processId: String { get }
     var name: String { get }
     var icon: NSImage? { get }
     var usageValue: Double { get }
@@ -121,8 +122,8 @@ public protocol ProcessDisplayable: Identifiable {
 // MARK: - ProcessUsage Conformance
 
 extension ProcessUsage: ProcessDisplayable {
-    public var icon: NSImage? {
-        icon()
+    public var processId: String {
+        String(id)
     }
 
     public var usageValue: Double {
@@ -133,6 +134,10 @@ extension ProcessUsage: ProcessDisplayable {
 // MARK: - AppResourceUsage Conformance
 
 extension AppResourceUsage: ProcessDisplayable {
+    public var processId: String {
+        id.uuidString
+    }
+
     public var usageValue: Double {
         cpuUsage
     }
@@ -153,7 +158,7 @@ extension ProcessesView {
         appProcesses: [AppResourceUsage],
         title: String = "Top Processes",
         maxCount: Int = 5,
-        barColor: Color = DesignTokens.Colors.accent,
+        barColor: Color = Color.accentColor,
         showPercentage: Bool = true
     ) {
         self.processes = appProcesses
@@ -174,7 +179,7 @@ extension ProcessesView {
         processes: [ProcessUsage],
         title: String = "Top Processes",
         maxCount: Int = 5,
-        barColor: Color = DesignTokens.Colors.accent,
+        barColor: Color = Color.accentColor,
         showPercentage: Bool = true
     ) {
         self.processes = processes

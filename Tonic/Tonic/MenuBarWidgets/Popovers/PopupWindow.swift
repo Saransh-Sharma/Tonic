@@ -393,7 +393,7 @@ extension NSHostingView: PopupContent {
 /// Matches the Stats Master appearance with frosted glass effect
 public class PopupBackgroundView: NSVisualEffectView {
 
-    public init(frame: NSRect) {
+    public override init(frame: NSRect) {
         super.init(frame: frame)
 
         // Setup visual effect
@@ -414,7 +414,7 @@ public class PopupBackgroundView: NSVisualEffectView {
     }
 
     private func updateBackgroundColor() {
-        let isDark = NSApp.effectiveAppearance.name.contains(.darkAqua)
+        let isDark = NSApp.effectiveAppearance.name == NSAppearance.Name.darkAqua
 
         // Semi-transparent background
         if isDark {

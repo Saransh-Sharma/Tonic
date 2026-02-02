@@ -26,7 +26,7 @@ public struct AnalogClockView: View {
     var showSecondHand: Bool = true
 
     /// Accent color for the clock
-    var accentColor: Color = DesignTokens.Colors.accent
+    var accentColor: Color = Color.accentColor
 
     // MARK: - Body
 
@@ -157,7 +157,7 @@ public struct AnalogClockView: View {
 
     // MARK: - Initialization
 
-    public init(date: Date, size: CGFloat = 120, showSecondHand: Bool = true, accentColor: Color = DesignTokens.Colors.accent) {
+    public init(date: Date, size: CGFloat = 120, showSecondHand: Bool = true, accentColor: Color = Color.accentColor) {
         self.date = date
         self.size = size
         self.showSecondHand = showSecondHand
