@@ -3109,16 +3109,29 @@ public final class WidgetDataManager {
             let isCharging = currentState == kIOPSACPowerValue
             let isCharged = info[kIOPSIsChargedKey] as? Bool ?? false
 
-            let capacity = info[kIOPSCurrentCapacityKey] as? Int ?? 0
-            let maxCapacity = info[kIOPSMaxCapacityKey] as? Int ?? 100
+            // IOPS key meanings:
+            // - kIOPSCurrentCapacityKey: current capacity in mAh
+            // - kIOPSMaxCapacityKey: maximum capacity in mAh
+            // - kIOPSDesignCapacityKey: design capacity in mAh
+            // Percentage is calculated as (current / max) * 100
+            let currentCapacitymAh = info[kIOPSCurrentCapacityKey] as? Int
+            let maxCapacitymAh = info[kIOPSMaxCapacityKey] as? Int
+            let designCapacitymAh = info[kIOPSDesignCapacityKey] as? Int
+
+            // Calculate percentage from current/max mAh
+            let capacityPercent: Int
+            if let current = currentCapacitymAh, let maxCap = maxCapacitymAh, maxCap > 0 {
+                capacityPercent = Int((Double(current) / Double(maxCap)) * 100.0)
+            } else {
+                capacityPercent = 0
+            }
 
             let timeToEmpty = info[kIOPSTimeToEmptyKey] as? Int
 
             // Battery health
-            let designCapacity = info[kIOPSDesignCapacityKey] as? Int
             let health: BatteryHealth
-            if let design = designCapacity, design > 0 {
-                let healthPercent = Double(maxCapacity) / Double(design) * 100
+            if let maxCap = maxCapacitymAh, let designCap = designCapacitymAh, designCap > 0 {
+                let healthPercent = Double(maxCap) / Double(designCap) * 100
                 if healthPercent > 80 {
                     health = .good
                 } else if healthPercent > 60 {
@@ -3145,21 +3158,11 @@ public final class WidgetDataManager {
             // Get electrical metrics from IOKit
             let amperage = getBatteryAmperage()
             let voltage = getBatteryVoltage()
-            let designedCapacity = getBatteryDesignedCapacity()
+            let designedCapacity = getBatteryDesignedCapacity()  // Gets from IOKit AppleSmartBattery
 
-            // Calculate actual capacity values in mAh
-            // IOPS provides capacity as percentage (0-100), maxCapacity as relative percent
-            // To get mAh: current mAh = (current% / 100) * (designCapacity * maxCapacity% / 100)
-            var currentCapacitymAh: UInt64? = nil
-            var maxCapacitymAh: UInt64? = nil
-
-            if let design = designedCapacity {
-                // maxCapacity is a percentage relative to design capacity
-                // e.g., if design is 5000 mAh and maxCapacity is 98%, actual max is 4900 mAh
-                maxCapacitymAh = UInt64(Double(design) * Double(maxCapacity) / 100.0)
-                currentCapacitymAh = UInt64(Double(design) * Double(capacity) / 100.0)
-            }
-
+            // Use IOPS capacity values directly (mAh)
+            let currentCapacity: UInt64? = currentCapacitymAh.flatMap { UInt64($0) }
+            let maxCapacity: UInt64? = maxCapacitymAh.flatMap { UInt64($0) }
             let chargingCurrent = getChargingCurrent()
             let chargingVoltage = getChargingVoltage()
 
@@ -3174,7 +3177,7 @@ public final class WidgetDataManager {
                 isPresent: true,
                 isCharging: isCharging,
                 isCharged: isCharged,
-                chargePercentage: Double(capacity),
+                chargePercentage: Double(capacityPercent),
                 estimatedMinutesRemaining: timeToEmpty,
                 health: health,
                 cycleCount: cycleCount,
@@ -3185,8 +3188,8 @@ public final class WidgetDataManager {
                 voltage: voltage,
                 batteryPower: batteryPower,
                 designedCapacity: designedCapacity,
-                currentCapacity: currentCapacitymAh,
-                maxCapacity: maxCapacitymAh,
+                currentCapacity: currentCapacity,
+                maxCapacity: maxCapacity,
                 chargingCurrent: chargingCurrent,
                 chargingVoltage: chargingVoltage
             )
@@ -3196,12 +3199,12 @@ public final class WidgetDataManager {
                 self.batteryData = newBatteryData
 
                 // Performance optimization: Use circular buffer for O(1) history add
-                self.batteryCircularBuffer.add(Double(capacity))
+                self.batteryCircularBuffer.add(Double(capacityPercent))
                 self.batteryHistory = self.batteryCircularBuffer.toArray()
 
                 // Check notification thresholds (only when not charging to avoid spam)
                 if !isCharging {
-                    NotificationManager.shared.checkThreshold(widgetType: .battery, value: Double(capacity))
+                    NotificationManager.shared.checkThreshold(widgetType: .battery, value: Double(capacityPercent))
                 }
             }
             return
