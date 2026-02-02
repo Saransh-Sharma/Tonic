@@ -198,48 +198,36 @@ public class WidgetStatusItem: ObservableObject {
             // Widget was disabled
             logger.info("🔄 Widget disabled, removing status item")
             removeStatusItem()
-        } else {
+        } else if isVisible, let button = statusItem?.button {
             // Configuration changed - force view refresh
+            // Early return if not visible or no button (avoid work for hidden widgets)
             objectWillChange.send()
 
-            // Recreate the compact view with new configuration
-            let compactView = createCompactView()
-            anyHostingController = NSHostingController(rootView: compactView)
-
-            // Update the button's view
-            if let button = statusItem?.button, let hostedView = anyHostingController?.view {
-                hostedView.translatesAutoresizingMaskIntoConstraints = false
-                button.subviews.forEach { $0.removeFromSuperview() }
-                button.addSubview(hostedView)
-
-                NSLayoutConstraint.activate([
-                    hostedView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                    hostedView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                    hostedView.topAnchor.constraint(equalTo: button.topAnchor),
-                    hostedView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
-                ])
-
-                logger.info("✅ View updated successfully for \(self.widgetType.rawValue)")
-            } else {
-                logger.warning("⚠️ Could not update view - button or hostedView is nil for \(self.widgetType.rawValue)")
-            }
+            // Use centralized view update method
+            updateCompactView()
 
             // Update width based on display mode
             updateWidth()
 
             // Force NSView redraw - fixes menu bar refresh bug where objectWillChange.send()
             // doesn't trigger NSView to update properly
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self, let button = self.statusItem?.button else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
 
-                // Force redraw of the button's view hierarchy
-                button.window?.contentView?.setNeedsDisplay(button.bounds)
-                button.window?.contentView?.displayIfNeeded()
+                // Force redraw of the button in its own coordinate space
+                button.setNeedsDisplay(button.bounds)
+                button.displayIfNeeded()
 
                 // Also force redraw the button's subviews directly
                 for subview in button.subviews {
                     subview.setNeedsDisplay(subview.bounds)
                     subview.displayIfNeeded()
+                }
+
+                // Force window content view to redraw if available
+                if let contentView = button.window?.contentView {
+                    contentView.setNeedsDisplay(contentView.bounds)
+                    contentView.displayIfNeeded()
                 }
 
                 self.logger.debug("🔄 Forced NSView redraw for \(self.widgetType.rawValue)")
@@ -310,21 +298,29 @@ public class WidgetStatusItem: ObservableObject {
 
     /// Refresh the widget display with latest data
     public func refresh() {
+        guard let button = statusItem?.button else { return }
+
         objectWillChange.send()
         updateCompactView()
 
         // Force NSView redraw - ensures menu bar updates with latest data
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let button = self.statusItem?.button else { return }
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
 
-            // Force redraw of the button's view hierarchy
-            button.window?.contentView?.setNeedsDisplay(button.bounds)
-            button.window?.contentView?.displayIfNeeded()
+            // Force redraw of the button in its own coordinate space
+            button.setNeedsDisplay(button.bounds)
+            button.displayIfNeeded()
 
             // Also force redraw the button's subviews directly
             for subview in button.subviews {
                 subview.setNeedsDisplay(subview.bounds)
                 subview.displayIfNeeded()
+            }
+
+            // Force window content view to redraw if available
+            if let contentView = button.window?.contentView {
+                contentView.setNeedsDisplay(contentView.bounds)
+                contentView.displayIfNeeded()
             }
         }
     }
@@ -621,23 +617,33 @@ public final class WidgetCoordinator: ObservableObject {
 
     /// Handle configuration change notification
     /// Performance optimization: Debounce rapid configuration changes
-    private func handleConfigurationChange(_ notification: Notification) {
+    private nonisolated func handleConfigurationChange(_ notification: Notification) {
         // Invalidate existing debounce timer
-        configChangeDebounceTimer?.invalidate()
+        Task { @MainActor [weak self] in
+            self?.configChangeDebounceTimer?.invalidate()
 
-        // Schedule debounced refresh (100ms delay to batch rapid changes)
-        configChangeDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-            guard let widgetType = notification.userInfo?["widgetType"] as? String,
-                  let type = WidgetType(rawValue: widgetType) else {
-                // If no specific type or invalid type, refresh all widgets
-                self.logger.info("🔄 Configuration changed - refreshing all widgets")
-                self.refreshWidgets()
-                return
+            // Extract widget type early to avoid Sendable issues
+            let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
+            let widgetType = widgetTypeRaw.flatMap { WidgetType(rawValue: $0) }
+
+            // Schedule debounced refresh (100ms delay to batch rapid changes)
+            await MainActor.run { [weak self] in
+                self?.configChangeDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
+                    // Hop to main actor for refreshWidgets call
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+
+                        if widgetType == nil {
+                            // If no specific type or invalid type, refresh all widgets
+                            self.logger.info("🔄 Configuration changed - refreshing all widgets")
+                            self.refreshWidgets()
+                        } else {
+                            self.logger.info("🔄 Configuration changed for \(widgetType!.rawValue) - refreshing")
+                            self.refreshWidgets()
+                        }
+                    }
+                }
             }
-
-            self.logger.info("🔄 Configuration changed for \(type.rawValue) - refreshing")
-            self.refreshWidgets()
         }
     }
 

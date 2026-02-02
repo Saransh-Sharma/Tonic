@@ -49,8 +49,7 @@ This is a known issue with NSStatusItem + SwiftUI hosting view integration.
 - [ ] Mode changes apply instantly
 - [ ] No lag or delay in visual update
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

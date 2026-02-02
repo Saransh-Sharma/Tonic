@@ -22,7 +22,7 @@ extension Notification.Name {
 // MARK: - Widget Type
 
 /// Widget types available in the menu bar monitoring system
-public enum WidgetType: String, CaseIterable, Identifiable, Codable {
+public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
     case cpu = "cpu"
     case gpu = "gpu"
     case memory = "memory"
