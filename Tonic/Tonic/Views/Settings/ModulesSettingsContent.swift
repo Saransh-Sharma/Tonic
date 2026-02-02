@@ -28,6 +28,7 @@ struct ModulesSettingsContent: View {
 
             // Module-specific settings
             moduleSettingsDetail
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedModule)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.background)
@@ -82,6 +83,7 @@ struct ModulesSettingsContent: View {
                     preferences: preferences
                 )
                 .id(selectedModule) // Force view refresh on module change
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         } else {
             Text("Select a module to configure")
