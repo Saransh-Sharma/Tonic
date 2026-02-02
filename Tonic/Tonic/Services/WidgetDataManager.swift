@@ -2045,16 +2045,15 @@ public final class WidgetDataManager {
                     totalWriteOps += writeOps
                 }
                 // Try to get timing data (IORegistry returns milliseconds, convert to nanoseconds)
+                // Keys are defined in IOKit/storage/IOBlockStorageDriver.h:
+                //   kIOBlockStorageDriverStatisticsReadTimeKey = "Read Time"
+                //   kIOBlockStorageDriverStatisticsWriteTimeKey = "Write Time"
                 // Note: Availability depends on macOS version and disk controller type
-                if let readTimeVal = stats["Total read time"] as? UInt64 {
+                if let readTimeVal = stats["Read Time"] as? UInt64 {
                     totalReadTime += readTimeVal * 1_000_000  // Convert ms to ns
-                } else if let readTimeVal = stats["Read Time"] as? UInt64 {
-                    totalReadTime += readTimeVal * 1_000_000
                 }
-                if let writeTimeVal = stats["Total write time"] as? UInt64 {
+                if let writeTimeVal = stats["Write Time"] as? UInt64 {
                     totalWriteTime += writeTimeVal * 1_000_000  // Convert ms to ns
-                } else if let writeTimeVal = stats["Write Time"] as? UInt64 {
-                    totalWriteTime += writeTimeVal * 1_000_000
                 }
             }
         }
