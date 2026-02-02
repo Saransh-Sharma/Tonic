@@ -1921,6 +1921,23 @@ public final class WidgetDataManager {
             return (nil, nil, nil, nil)
         }
 
+        // Guard against unsigned underflow when counters wrap or reset
+        // If current < previous, it means the counter wrapped or a different device was observed
+        guard currentStats.readBytes >= previous.readBytes,
+              currentStats.writeBytes >= previous.writeBytes,
+              currentStats.readOperations >= previous.readOperations,
+              currentStats.writeOperations >= previous.writeOperations else {
+            // Counter wrapped or changed - reset snapshot and return nil for this interval
+            lastDiskStats = DiskIOStatsSnapshot(
+                readBytes: currentStats.readBytes,
+                writeBytes: currentStats.writeBytes,
+                readOperations: currentStats.readOperations,
+                writeOperations: currentStats.writeOperations,
+                timestamp: now
+            )
+            return (nil, nil, nil, nil)
+        }
+
         let readBytesDelta = currentStats.readBytes - previous.readBytes
         let writeBytesDelta = currentStats.writeBytes - previous.writeBytes
         let readOpsDelta = currentStats.readOperations - previous.readOperations

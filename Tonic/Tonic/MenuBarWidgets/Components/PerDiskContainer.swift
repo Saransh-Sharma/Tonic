@@ -225,10 +225,39 @@ public struct PerDiskContainer: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: PopoverConstants.compactSpacing) {
-                detailItem("Temperature", value: "\(smart.temperature)°C", color: PopoverConstants.temperatureColor(Double(smart.temperature)))
-                detailItem("Available Spare", value: "\(smart.availableSpare)%")
-                detailItem("Critical Warn", value: smart.criticalWarning ? "Yes" : "No", color: smart.criticalWarning ? .red : .green)
-                detailItem("Media Errors", value: "\(smart.mediaErrors)")
+                // Temperature (optional)
+                if let temp = smart.temperature {
+                    detailItem("Temperature", value: "\(Int(temp))°C", color: PopoverConstants.temperatureColor(temp))
+                } else {
+                    detailItem("Temperature", value: "N/A")
+                }
+
+                // Percentage used (optional)
+                if let pctUsed = smart.percentageUsed {
+                    let usedColor = pctUsed > 90 ? .red : (pctUsed > 75 ? .orange : .green)
+                    detailItem("Used", value: "\(Int(pctUsed))%", color: usedColor)
+                } else {
+                    detailItem("Used", value: "N/A")
+                }
+
+                // Critical warning
+                detailItem("Critical", value: smart.criticalWarning ? "Yes" : "No", color: smart.criticalWarning ? .red : .green)
+
+                // Power-on hours
+                detailItem("Power On", value: smart.powerOnTimeString)
+
+                // Power cycles
+                detailItem("Cycles", value: smart.powerCycles > 0 ? "\(smart.powerCycles)" : "N/A")
+
+                // Data read (optional)
+                if let dataRead = smart.dataReadString {
+                    detailItem("Data Read", value: dataRead)
+                }
+
+                // Data written (optional)
+                if let dataWritten = smart.dataWrittenString {
+                    detailItem("Data Written", value: dataWritten)
+                }
             }
         }
     }
@@ -272,7 +301,7 @@ public struct PerDiskContainer: View {
 // MARK: - Disk Dual Line Chart View
 
 /// Dual-line chart for disk read/write rates
-/// Matches the pattern from NetworkPopoverView's DualLineChartView
+/// Uses shared max value for proper visual comparison between read and write
 struct DiskDualLineChartView: View {
     let readData: [Double]
     let writeData: [Double]
@@ -284,39 +313,42 @@ struct DiskDualLineChartView: View {
             let width = geometry.size.width
             let height = geometry.size.height
 
+            // Compute shared max for both series to enable visual comparison
+            let maxPoints = 180
+            let displayRead = Array(readData.suffix(maxPoints))
+            let displayWrite = Array(writeData.suffix(maxPoints))
+            let sharedMax = max(displayRead.max() ?? 0, displayWrite.max() ?? 0, 0.1)
+
             ZStack {
-                if !readData.isEmpty {
-                    linePath(for: readData, width: width, height: height)
+                if !displayRead.isEmpty {
+                    linePath(for: displayRead, width: width, height: height, maxValue: sharedMax)
                         .stroke(readColor, lineWidth: 1.5)
                 }
 
-                if !writeData.isEmpty {
-                    linePath(for: writeData, width: width, height: height)
+                if !displayWrite.isEmpty {
+                    linePath(for: displayWrite, width: width, height: height, maxValue: sharedMax)
                         .stroke(writeColor, lineWidth: 1.5)
                 }
             }
         }
     }
 
-    private func linePath(for data: [Double], width: CGFloat, height: CGFloat) -> Path {
+    private func linePath(for data: [Double], width: CGFloat, height: CGFloat, maxValue: Double) -> Path {
         var path = Path()
 
         guard !data.isEmpty else { return path }
 
-        let maxPoints = 180
-        let displayData = Array(data.suffix(maxPoints))
-
-        guard let maxVal = displayData.max(), maxVal > 0 else {
+        guard maxValue > 0 else {
             path.move(to: CGPoint(x: 0, y: height - 1))
             path.addLine(to: CGPoint(x: width, y: height - 1))
             return path
         }
 
-        let stepX = width / max(1, CGFloat(displayData.count - 1))
+        let stepX = width / max(1, CGFloat(data.count - 1))
 
-        for (index, value) in displayData.enumerated() {
+        for (index, value) in data.enumerated() {
             let x = CGFloat(index) * stepX
-            let normalizedY = 1 - (value / maxVal)
+            let normalizedY = 1 - (value / maxValue)
             let y = normalizedY * (height - 4) + 2  // Small padding
 
             if index == 0 {
@@ -346,9 +378,12 @@ struct DiskDualLineChartView: View {
                 isActive: true,
                 smartData: NVMeSMARTData(
                     temperature: 45,
-                    availableSpare: 95,
+                    percentageUsed: 25,
                     criticalWarning: false,
-                    mediaErrors: 0
+                    powerCycles: 420,
+                    powerOnHours: 8760,
+                    dataReadBytes: 2_000_000_000_000,
+                    dataWrittenBytes: 1_500_000_000_000
                 ),
                 readIOPS: 1250,
                 writeIOPS: 840,
