@@ -68,6 +68,13 @@ public struct CPUPopoverView: View {
                         Divider()
                     }
 
+                    // CPU Info Section (Task fn-8-v3b.5)
+                    if hasCPUInfoData {
+                        cpuInfoSection
+
+                        Divider()
+                    }
+
                     // Top Processes
                     topProcessesSection
                 }
@@ -310,6 +317,86 @@ public struct CPUPopoverView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - CPU Info Section (Task fn-8-v3b.5)
+
+    /// CPU Info section with Scheduler Limit, Speed Limit, and Uptime
+    private var cpuInfoSection: some View {
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "CPU Info")
+
+            HStack(spacing: PopoverConstants.itemSpacing) {
+                // Scheduler Limit (if available)
+                if let schedulerLimit = dataManager.cpuData.schedulerLimit {
+                    cpuInfoItem("Scheduler", value: schedulerLimit, color: .orange)
+                }
+
+                // Speed Limit (if available)
+                if let speedLimit = dataManager.cpuData.speedLimit {
+                    cpuInfoItem("Speed", value: speedLimit, color: .red)
+                }
+
+                // Uptime (always available if we have data)
+                if dataManager.cpuData.uptime > 0 {
+                    uptimeItem
+                }
+            }
+        }
+    }
+
+    private func cpuInfoItem(_ label: String, value: Double, color: Color) -> some View {
+        VStack(spacing: PopoverConstants.compactSpacing) {
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundColor(color)
+
+            Text("\(Int(value))%")
+                .font(PopoverConstants.smallValueFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Text("Limit")
+                .font(.system(size: 8))
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var uptimeItem: some View {
+        VStack(spacing: PopoverConstants.compactSpacing) {
+            Text("Uptime")
+                .font(.system(size: 9))
+                .foregroundColor(.green)
+
+            Text(formatUptime(dataManager.cpuData.uptime))
+                .font(PopoverConstants.smallValueFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Computed Properties
+
+    private var hasCPUInfoData: Bool {
+        return (dataManager.cpuData.schedulerLimit != nil) ||
+               (dataManager.cpuData.speedLimit != nil) ||
+               (dataManager.cpuData.uptime > 0)
+    }
+
+    // MARK: - Formatting Helpers
+
+    private func formatUptime(_ seconds: TimeInterval) -> String {
+        let days = Int(seconds) / 86400
+        let hours = Int(seconds) % 86400 / 3600
+        let minutes = Int(seconds) % 3600 / 60
+
+        if days > 0 {
+            return "\(days)d \(hours)h"
+        } else if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
         }
     }
 }

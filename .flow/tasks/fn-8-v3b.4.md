@@ -50,8 +50,7 @@ Update data collection in `WidgetDataManager.swift` around line ~1400 (memory da
 - [ ] Popover width is 280px
 - [ ] All sections use standardized row heights
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

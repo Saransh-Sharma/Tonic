@@ -45,8 +45,7 @@ Current width at line ~20: `public static let width: CGFloat = 280` - verify thi
 - [ ] All popovers reference these constants (not hardcoded values)
 - [ ] Popover width verified as 280px
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

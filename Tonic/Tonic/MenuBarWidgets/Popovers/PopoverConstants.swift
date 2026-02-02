@@ -24,6 +24,29 @@ public struct PopoverConstants {
     /// Standard header height
     public static let headerHeight: CGFloat = 44
 
+    // MARK: - Stats Master Layout Constants
+
+    /// Font sizes matching Stats Master (9pt small, 11pt medium, 13pt large)
+    public struct FontSizes {
+        public static let small: CGFloat = 9     // Stats Master: fontSmall
+        public static let medium: CGFloat = 11    // Stats Master: fontMedium
+        public static let large: CGFloat = 13     // Stats Master: fontLarge
+    }
+
+    /// Section heights matching Stats Master layout
+    public struct SectionHeights {
+        public static let dashboard: CGFloat = 90    // Dashboard section height
+        public static let header: CGFloat = 22       // Section header row height
+        public static let detail: CGFloat = 16        // Detail row height
+        public static let process: CGFloat = 22       // Process row height
+    }
+
+    /// Spacing matching Stats Master layout
+    public struct StatsMasterSpacing {
+        public static let margins: CGFloat = 10           // Content margins
+        public static let separatorHeight: CGFloat = 22   // Section separator height
+    }
+
     // MARK: - Spacing (using DesignTokens 8-point grid)
 
     /// Spacing between major sections
@@ -35,11 +58,11 @@ public struct PopoverConstants {
     /// Compact spacing for tight rows
     public static let compactSpacing: CGFloat = DesignTokens.Spacing.xxxs // 4pt
 
-    /// Horizontal padding for content
-    public static let horizontalPadding: CGFloat = DesignTokens.Spacing.sm  // 16pt
+    /// Horizontal padding for content (Stats Master parity: 10px)
+    public static let horizontalPadding: CGFloat = 10
 
-    /// Vertical padding for content
-    public static let verticalPadding: CGFloat = DesignTokens.Spacing.sm    // 16pt
+    /// Vertical padding for content (Stats Master parity: 10px)
+    public static let verticalPadding: CGFloat = 10
 
     /// Icon text gap in HStacks
     public static let iconTextGap: CGFloat = DesignTokens.Spacing.xxxs    // 4pt

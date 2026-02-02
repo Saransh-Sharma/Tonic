@@ -55,8 +55,7 @@ Reference: Stats Master GPU module at `stats-master/Modules/GPU/popup.swift` for
 - [ ] Intel Macs without GPU show appropriate empty state
 - [ ] All 4 metrics show in gauges and charts
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

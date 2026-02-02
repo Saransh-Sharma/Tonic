@@ -105,6 +105,8 @@ public struct CPUData: Sendable {
     public let userUsage: Double           // User CPU usage percentage
     public let idleUsage: Double           // Idle CPU usage percentage
     public let uptime: TimeInterval        // Seconds since boot
+    public let schedulerLimit: Double?     // Max CPU scheduler limit
+    public let speedLimit: Double?         // CPU speed limit percentage
 
     public let timestamp: Date
 
@@ -123,6 +125,8 @@ public struct CPUData: Sendable {
         userUsage: Double = 0,
         idleUsage: Double = 100,
         uptime: TimeInterval = 0,
+        schedulerLimit: Double? = nil,
+        speedLimit: Double? = nil,
         timestamp: Date = Date()
     ) {
         self.totalUsage = totalUsage
@@ -139,6 +143,8 @@ public struct CPUData: Sendable {
         self.userUsage = userUsage
         self.idleUsage = idleUsage
         self.uptime = uptime
+        self.schedulerLimit = schedulerLimit
+        self.speedLimit = speedLimit
         self.timestamp = timestamp
     }
 
@@ -158,6 +164,8 @@ public struct CPUData: Sendable {
         self.userUsage = 0
         self.idleUsage = 100
         self.uptime = 0
+        self.schedulerLimit = nil
+        self.speedLimit = nil
         self.timestamp = timestamp
     }
 }
@@ -173,6 +181,7 @@ public struct MemoryData: Sendable {
 
     // Enhanced properties for Stats Master parity
     public let freeBytes: UInt64?                      // Calculated free memory
+    public let activeBytes: UInt64?                    // Active memory pages
     public let swapTotalBytes: UInt64?                 // Total swap space available
     public let swapUsedBytes: UInt64?                  // Actual swap space used
     public let pressureValue: Double?                  // Memory pressure on 0-100 scale
@@ -186,6 +195,7 @@ public struct MemoryData: Sendable {
         compressedBytes: UInt64 = 0,
         swapBytes: UInt64 = 0,
         freeBytes: UInt64? = nil,
+        activeBytes: UInt64? = nil,
         swapTotalBytes: UInt64? = nil,
         swapUsedBytes: UInt64? = nil,
         pressureValue: Double? = nil,
@@ -198,6 +208,7 @@ public struct MemoryData: Sendable {
         self.compressedBytes = compressedBytes
         self.swapBytes = swapBytes
         self.freeBytes = freeBytes
+        self.activeBytes = activeBytes
         self.swapTotalBytes = swapTotalBytes
         self.swapUsedBytes = swapUsedBytes
         self.pressureValue = pressureValue
@@ -216,6 +227,7 @@ public struct MemoryData: Sendable {
         self.timestamp = timestamp
         // Enhanced properties default to nil for backward compatibility
         self.freeBytes = nil
+        self.activeBytes = nil
         self.swapTotalBytes = nil
         self.swapUsedBytes = nil
         self.pressureValue = nil
@@ -419,12 +431,46 @@ public struct GPUData: Sendable {
     public let temperature: Double? // Celsius
     public let timestamp: Date
 
-    public init(usagePercentage: Double? = nil, usedMemory: UInt64? = nil,
-                totalMemory: UInt64? = nil, temperature: Double? = nil, timestamp: Date = Date()) {
+    // Enhanced properties for Stats Master parity (fn-8-v3b.6)
+    public let renderUtilization: Double?   // GPU render engine utilization
+    public let tilerUtilization: Double?    // GPU tiler engine utilization
+    public let coreClock: Double?           // GPU core clock in MHz
+    public let memoryClock: Double?         // GPU memory clock in MHz
+    public let fanSpeed: Int?               // GPU fan speed in RPM
+    public let vendor: String?              // GPU vendor name
+    public let model: String?               // GPU model name
+    public let cores: Int?                  // Number of GPU cores
+    public let isActive: Bool?              // Whether GPU is currently active
+
+    public init(
+        usagePercentage: Double? = nil,
+        usedMemory: UInt64? = nil,
+        totalMemory: UInt64? = nil,
+        temperature: Double? = nil,
+        renderUtilization: Double? = nil,
+        tilerUtilization: Double? = nil,
+        coreClock: Double? = nil,
+        memoryClock: Double? = nil,
+        fanSpeed: Int? = nil,
+        vendor: String? = nil,
+        model: String? = nil,
+        cores: Int? = nil,
+        isActive: Bool? = nil,
+        timestamp: Date = Date()
+    ) {
         self.usagePercentage = usagePercentage
         self.usedMemory = usedMemory
         self.totalMemory = totalMemory
         self.temperature = temperature
+        self.renderUtilization = renderUtilization
+        self.tilerUtilization = tilerUtilization
+        self.coreClock = coreClock
+        self.memoryClock = memoryClock
+        self.fanSpeed = fanSpeed
+        self.vendor = vendor
+        self.model = model
+        self.cores = cores
+        self.isActive = isActive
         self.timestamp = timestamp
     }
 
@@ -648,7 +694,8 @@ public final class WidgetDataManager {
         }
     }
 
-    private static let maxHistoryPoints = 60
+    // Stats Master parity: 180 points for better trend visualization
+    private static let maxHistoryPoints = 180
 
     // MARK: - Circular History Buffers
     // Performance optimization: Use fixed-size arrays instead of removeFirst() to avoid O(n) operations
@@ -680,15 +727,15 @@ public final class WidgetDataManager {
     }
 
     /// Circular buffer for history with O(1) add operation
-    private var cpuCircularBuffer = CircularBuffer(capacity: 60)
-    private var memoryCircularBuffer = CircularBuffer(capacity: 60)
-    private var diskCircularBuffer = CircularBuffer(capacity: 60)
-    private var networkUploadCircularBuffer = CircularBuffer(capacity: 60)
-    private var networkDownloadCircularBuffer = CircularBuffer(capacity: 60)
-    private var gpuCircularBuffer = CircularBuffer(capacity: 60)
-    private var batteryCircularBuffer = CircularBuffer(capacity: 60)
-    private var sensorsCircularBuffer = CircularBuffer(capacity: 60)
-    private var bluetoothCircularBuffer = CircularBuffer(capacity: 60)
+    private var cpuCircularBuffer = CircularBuffer(capacity: 180)
+    private var memoryCircularBuffer = CircularBuffer(capacity: 180)
+    private var diskCircularBuffer = CircularBuffer(capacity: 180)
+    private var networkUploadCircularBuffer = CircularBuffer(capacity: 180)
+    private var networkDownloadCircularBuffer = CircularBuffer(capacity: 180)
+    private var gpuCircularBuffer = CircularBuffer(capacity: 180)
+    private var batteryCircularBuffer = CircularBuffer(capacity: 180)
+    private var sensorsCircularBuffer = CircularBuffer(capacity: 180)
+    private var bluetoothCircularBuffer = CircularBuffer(capacity: 180)
 
     // MARK: - CPU Data
 

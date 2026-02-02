@@ -57,8 +57,7 @@ CPU frequency limit data comes from `sysctl hw.cpufrequency` for current and `hw
 - [ ] Per-core colors match E-core/P-core consistently
 - [ ] New fields use correct color coding (orange, red)
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

@@ -56,8 +56,7 @@ GPU data from `WidgetDataManager.gpuData` needs enhancement for:
 - [ ] Component uses standardized heights (title: 24px, gauges: 50px, charts: 60px)
 - [ ] Handles missing GPU data gracefully (optional fields)
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

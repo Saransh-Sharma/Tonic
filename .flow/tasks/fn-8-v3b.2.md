@@ -40,8 +40,7 @@ No migration needed - arrays auto-populate to 180 on app restart.
 - [ ] Memory usage under 20 KB for all history arrays
 - [ ] No performance regression in chart rendering
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

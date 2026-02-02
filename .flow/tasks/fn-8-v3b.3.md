@@ -44,8 +44,7 @@ Color values should use DesignTokens:
 - [ ] Center text displays pressure percentage
 - [ ] Component uses @Observable pattern for reactive updates
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
