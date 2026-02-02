@@ -78,6 +78,11 @@ public struct FanControlView: View {
         .padding(.vertical, PopoverConstants.verticalPadding)
         .onAppear {
             loadSettings()
+            // Revert to auto mode if helper is not available
+            if currentMode == .manual && !isHelperAvailable {
+                currentMode = .auto
+                saveSettings()
+            }
             initializeFanSpeeds()
             checkThermalThreshold()
         }
@@ -212,23 +217,29 @@ public struct FanControlView: View {
 
     private var helperNotAvailableNotice: some View {
         HStack(spacing: PopoverConstants.compactSpacing) {
-            Image(systemName: "info.circle.fill")
-                .foregroundColor(.blue)
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("SMC Control Not Available")
+                Text("Manual Mode Unavailable")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                Text("Fan speed changes will take effect after the privileged helper is installed (task fn-8-v3b.13).")
+                Text("The privileged helper tool is required for manual fan control. This will be available after task fn-8-v3b.13 is completed.")
                     .font(.system(size: 9))
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
 
             Spacer()
+
+            Button("Return to Auto") {
+                currentMode = .auto
+            }
+            .font(.system(size: 9))
+            .buttonStyle(.bordered)
         }
         .padding(PopoverConstants.compactSpacing)
-        .background(Color.blue.opacity(0.1))
+        .background(Color.orange.opacity(0.1))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
@@ -284,6 +295,15 @@ public struct FanControlView: View {
     }
 
     private func handleModeChange(_ newMode: SensorsModuleSettings.FanControlMode) {
+        // Prevent manual mode if helper is not available
+        if newMode == .manual && !isHelperAvailable {
+            // Show alert and revert to auto mode
+            DispatchQueue.main.async {
+                self.currentMode = .auto
+            }
+            return
+        }
+
         // Get current warning acknowledged status
         let hasAcknowledged = WidgetPreferences.shared.widgetConfigs
             .first(where: { $0.type == .sensors })?.moduleSettings.sensors.hasAcknowledgedFanWarning ?? false
