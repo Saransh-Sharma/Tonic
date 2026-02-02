@@ -722,7 +722,7 @@ struct WidgetSettingsSheet: View {
             }
             .padding(DesignTokens.Spacing.md)
         }
-        .frame(width: 450, height: 650)
+        .frame(minWidth: 450, idealWidth: 500, minHeight: 600, idealHeight: 700)
         .background(DesignTokens.Colors.background)
         .alert("Reset to Defaults", isPresented: $showingResetAlert) {
             Button("Cancel", role: .cancel) {}

@@ -67,4 +67,19 @@ extension Color {
             opacity: Double(a) / 255
         )
     }
+
+    /// Convert Color to hex string
+    func toHex() -> String {
+        #if os(macOS)
+        guard let components = NSColor(self).usingColorSpace(.deviceRGB) else {
+            return "#000000"
+        }
+        let r = Int(components.redComponent * 255)
+        let g = Int(components.greenComponent * 255)
+        let b = Int(components.blueComponent * 255)
+        return String(format: "#%02X%02X%02X", r, g, b)
+        #else
+        return "#000000"
+        #endif
+    }
 }
