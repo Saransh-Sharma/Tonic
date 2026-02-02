@@ -37,12 +37,10 @@ public struct FanControlView: View {
     @State private var pendingMode: SensorsModuleSettings.FanControlMode = .manual
 
     // Privileged helper availability check
-    // Uses SMC availability as a proxy - the helper requires SMC access
-    // Full helper availability check will be added in fn-8-v3b.13
+    // Uses PrivilegedHelperManager to check if SMC writes are available
+    // SMC writes may work directly on Apple Silicon, or require helper on Intel
     private var isHelperAvailable: Bool {
-        // For now, return false to indicate SMC writes are not yet available
-        // In fn-8-v3b.13, this will check for the privileged helper XPC connection
-        return false
+        return PrivilegedHelperManager.shared.isFanControlAvailable
     }
 
     private let thermalThreshold: Double = 85.0  // Celsius

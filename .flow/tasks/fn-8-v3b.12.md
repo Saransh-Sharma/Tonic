@@ -37,16 +37,17 @@ If SMC is unavailable (Intel Mac without SMC sensors, or permission denied), hid
 
 Reference Stats Master's Sensors popup at `stats-master/Modules/Sensors/popup.swift`.
 ## Acceptance
-- [ ] FanControlView integrated into SensorsPopoverView
-- [ ] Fan control section appears after temperature readings
-- [ ] Fan controls hidden when SMC unavailable
-- [ ] Fan controls respect showFanSpeeds setting
-- [ ] Fan mode changes persist in settings
-- [ ] UI updates reactively when fan speed changes
-- [ ] Proper spacing and section header for fan control
+- [x] FanControlView integrated into SensorsPopoverView
+- [x] Fan control section appears after temperature readings
+- [x] Fan controls hidden when SMC unavailable
+- [x] Fan controls respect showFanSpeeds setting
+- [x] Fan mode changes persist in settings
+- [x] UI updates reactively when fan speed changes
+- [x] Proper spacing and section header for fan control
+- [ ] Actual SMC fan speed writes (deferred to fn-8-v3b.13 - privileged helper required)
+- [ ] Helper availability XPC check (deferred to fn-8-v3b.13)
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

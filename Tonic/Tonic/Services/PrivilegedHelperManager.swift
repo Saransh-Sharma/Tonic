@@ -306,4 +306,78 @@ public final class PrivilegedHelperManager: NSObject {
 
         return Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
     }
+
+    // MARK: - Fan Control Methods
+
+    /// Set fan operating mode (auto/manual) via privileged helper
+    /// - Parameters:
+    ///   - fanId: Fan index (0-based)
+    ///   - mode: Desired fan mode
+    /// - Returns: True if operation succeeded
+    public func setFanMode(_ fanId: Int, mode: FanMode) async throws -> Bool {
+        guard isHelperConnected else {
+            throw PrivilegedHelperError.communicationFailed("Not connected to helper")
+        }
+
+        // Map FanMode to SMC value
+        let smcModeValue: Int
+        switch mode {
+        case .automatic:
+            smcModeValue = 0
+        case .forced, .manual:
+            smcModeValue = 1
+        case .unknown:
+            throw PrivilegedHelperError.operationFailed("Invalid fan mode")
+        }
+
+        // Validate fan ID
+        guard fanId >= 0, fanId < 10 else {
+            throw PrivilegedHelperError.operationFailed("Invalid fan ID: \(fanId)")
+        }
+
+        // Try direct SMC write first (may work on Apple Silicon without root)
+        let directSuccess = SMCReader.shared.setFanMode(fanId, mode: mode)
+        if directSuccess {
+            return true
+        }
+
+        // If direct write failed, try via helper (when helper tool is implemented)
+        // For now, return error - helper tool SMC methods coming in future update
+        throw PrivilegedHelperError.operationFailed("SMC write requires elevated privileges. Fan control via helper tool will be available in a future update.")
+    }
+
+    /// Set fan target speed in RPM via privileged helper
+    /// - Parameters:
+    ///   - fanId: Fan index (0-based)
+    ///   - rpm: Target RPM value (will be clamped to valid range)
+    /// - Returns: True if operation succeeded
+    public func setFanSpeed(_ fanId: Int, rpm: Int) async throws -> Bool {
+        guard isHelperConnected else {
+            throw PrivilegedHelperError.communicationFailed("Not connected to helper")
+        }
+
+        // Validate fan ID
+        guard fanId >= 0, fanId < 10 else {
+            throw PrivilegedHelperError.operationFailed("Invalid fan ID: \(fanId)")
+        }
+
+        // Clamp RPM to reasonable range
+        let clampedRPM = max(0, min(6000, rpm))
+
+        // Try direct SMC write first (may work on Apple Silicon without root)
+        let directSuccess = SMCReader.shared.setFanSpeed(fanId, rpm: clampedRPM)
+        if directSuccess {
+            return true
+        }
+
+        // If direct write failed, try via helper (when helper tool is implemented)
+        // For now, return error - helper tool SMC methods coming in future update
+        throw PrivilegedHelperError.operationFailed("SMC write requires elevated privileges. Fan control via helper tool will be available in a future update.")
+    }
+
+    /// Check if fan control operations are available
+    /// - Returns: True if either direct SMC write or helper-based control is available
+    public var isFanControlAvailable: Bool {
+        return SMCReader.shared.canWrite
+    }
 }

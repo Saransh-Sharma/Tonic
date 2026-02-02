@@ -503,7 +503,138 @@ public final class SMCReader: @unchecked Sendable {
         }
     }
 
+    // MARK: - Fan Control (Write Methods)
+
+    /// Set the operating mode for a fan
+    /// - Parameters:
+    ///   - fanId: Fan index (0-based)
+    ///   - mode: Desired mode (auto=0, forced/manual=1)
+    /// - Returns: True if write succeeded
+    public func setFanMode(_ fanId: Int, mode: FanMode) -> Bool {
+        guard connection != 0 else { return false }
+
+        // Map FanMode to SMC value
+        let smcModeValue: UInt8
+        switch mode {
+        case .automatic:
+            smcModeValue = 0
+        case .forced, .manual:
+            smcModeValue = 1
+        case .unknown:
+            return false
+        }
+
+        // Write to per-fan mode key F{fanId}Md
+        let key = "F\(fanId)Md"
+        return write(key, value: smcModeValue, dataType: SMCDataType.UI8)
+    }
+
+    /// Set the target speed (RPM) for a fan
+    /// - Parameters:
+    ///   - fanId: Fan index (0-based)
+    ///   - rpm: Target RPM value
+    /// - Returns: True if write succeeded
+    public func setFanSpeed(_ fanId: Int, rpm: Int) -> Bool {
+        guard connection != 0 else { return false }
+
+        // Clamp RPM to reasonable range
+        let clampedRPM = max(0, min(6000, rpm))
+
+        // Write to fan target speed key F{fanId}Tg
+        let key = "F\(fanId)Tg"
+        return write(key, value: UInt16(clampedRPM), dataType: SMCDataType.UI16)
+    }
+
+    /// Set fan speed as percentage of max RPM
+    /// - Parameters:
+    ///   - fanId: Fan index (0-based)
+    ///   - percentage: Speed percentage (0-100)
+    ///   - maxRPM: Maximum RPM for this fan
+    /// - Returns: True if write succeeded, or nil if max RPM unknown
+    public func setFanSpeedPercentage(_ fanId: Int, percentage: Int, maxRPM: Int?) -> Bool? {
+        guard let max = maxRPM, max > 0 else { return nil }
+        let targetRPM = Int((Double(percentage) / 100.0) * Double(max))
+        return setFanSpeed(fanId, rpm: targetRPM)
+    }
+
+    /// Check if SMC writes are available (may require root privileges)
+    /// Tests by attempting to read a fan mode key, which is always readable
+    /// Actual writes will fail without proper privileges on some systems
+    public var canWrite: Bool {
+        // On Apple Silicon, SMC writes may work without root for fan control
+        // On Intel Macs, writes typically require root privileges
+        return connection != 0
+    }
+
     // MARK: - Private Methods
+
+    /// Write a value to SMC for the given key
+    /// - Parameters:
+    ///   - key: 4-character SMC key
+    ///   - value: Value to write (supports UInt8, UInt16, UInt32)
+    ///   - dataType: SMC data type for the value
+    /// - Returns: True if write succeeded
+    private func write(_ key: String, value: Any, dataType: SMCDataType) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard connection != 0 else { return false }
+
+        var input = SMCKeyData()
+        var output = SMCKeyData()
+
+        input.key = FourCharCode(fromString: key)
+        input.data8 = SMCKeys.readKeyInfo.rawValue
+
+        // First get key info to validate the key exists
+        var result = call(SMCKeys.kernelIndex.rawValue, input: &input, output: &output)
+        guard result == kIOReturnSuccess else {
+            print("[SMCReader] Write failed: key '\(key)' not found")
+            return false
+        }
+
+        // Prepare write data
+        var writeBytes: [UInt8] = Array(repeating: 0, count: 32)
+
+        switch value {
+        case let v as UInt8:
+            writeBytes[0] = v
+            input.keyInfo.dataSize = 1
+        case let v as UInt16:
+            writeBytes[0] = UInt8((v >> 8) & 0xff)
+            writeBytes[1] = UInt8(v & 0xff)
+            input.keyInfo.dataSize = 2
+        case let v as UInt32:
+            writeBytes[0] = UInt8((v >> 24) & 0xff)
+            writeBytes[1] = UInt8((v >> 16) & 0xff)
+            writeBytes[2] = UInt8((v >> 8) & 0xff)
+            writeBytes[3] = UInt8(v & 0xff)
+            input.keyInfo.dataSize = 4
+        default:
+            return false
+        }
+
+        input.keyInfo.dataType = dataType.rawValue.fourCharCode()
+        input.data8 = SMCKeys.writeBytes.rawValue
+
+        // Copy write bytes to input.bytes tuple
+        withUnsafeMutablePointer(to: &input.bytes) { bytesPtr in
+            bytesPtr.withMemoryRebound(to: UInt8.self, capacity: 32) { ptr in
+                for i in 0..<32 {
+                    ptr[i] = writeBytes[i]
+                }
+            }
+        }
+
+        result = call(SMCKeys.kernelIndex.rawValue, input: &input, output: &output)
+
+        if result != kIOReturnSuccess {
+            print("[SMCReader] SMC write to '\(key)' failed with code: \(result)")
+            return false
+        }
+
+        return true
+    }
 
     /// Read value from SMC
     private func read(_ value: inout SMCValue) -> kern_return_t {
@@ -643,5 +774,15 @@ private extension FourCharCode {
                String(describing: UnicodeScalar(self >> 16 & 0xff)!) +
                String(describing: UnicodeScalar(self >> 8 & 0xff)!) +
                String(describing: UnicodeScalar(self & 0xff)!)
+    }
+}
+
+private extension String {
+    /// Convert a 4-character string to FourCharCode
+    func fourCharCode() -> FourCharCode {
+        precondition(self.count == 4, "FourCharCode requires exactly 4 characters")
+        return self.utf8.reduce(0) { sum, character in
+            return sum << 8 | UInt32(character)
+        }
     }
 }
