@@ -523,11 +523,46 @@ public struct MemoryModuleSettings: Codable, Sendable, Equatable {
 
 public struct SensorsModuleSettings: Codable, Sendable, Equatable {
     public var showFanSpeeds: Bool
+    public var fanControlMode: FanControlMode
+    public var saveFanSpeed: Bool
+    public var syncFanControl: Bool
+    public var hasAcknowledgedFanWarning: Bool
 
     public init(
-        showFanSpeeds: Bool = true
+        showFanSpeeds: Bool = true,
+        fanControlMode: FanControlMode = .auto,
+        saveFanSpeed: Bool = false,
+        syncFanControl: Bool = true,
+        hasAcknowledgedFanWarning: Bool = false
     ) {
         self.showFanSpeeds = showFanSpeeds
+        self.fanControlMode = fanControlMode
+        self.saveFanSpeed = saveFanSpeed
+        self.syncFanControl = syncFanControl
+        self.hasAcknowledgedFanWarning = hasAcknowledgedFanWarning
+    }
+
+    /// Fan control mode for manual fan speed adjustment
+    public enum FanControlMode: String, CaseIterable, Codable {
+        case auto = "auto"
+        case manual = "manual"
+        case system = "system"
+
+        public var displayName: String {
+            switch self {
+            case .auto: return "Auto"
+            case .manual: return "Manual"
+            case .system: return "System"
+            }
+        }
+
+        public var icon: String {
+            switch self {
+            case .auto: return "fan.badges.automatic"
+            case .manual: return "fan.badge.gearshape"
+            case .system: return "gearshape.2"
+            }
+        }
     }
 }
 

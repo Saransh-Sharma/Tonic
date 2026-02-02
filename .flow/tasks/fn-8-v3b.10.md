@@ -66,8 +66,7 @@ Amperage is negative when charging, positive when discharging.
 - [ ] Time format preference works (short/long)
 - [ ] Desktop Macs (no battery) show empty state
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
