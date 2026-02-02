@@ -23,6 +23,12 @@ public struct SensorsPopoverView: View {
     @State private var dataManager = WidgetDataManager.shared
     @State private var temperatureUnit: TemperatureUnit = .celsius
 
+    /// Whether to show fan control section based on settings
+    private var shouldShowFanControl: Bool {
+        WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.showFanSpeeds ?? true
+    }
+
     // MARK: - Body
 
     public var body: some View {
@@ -52,8 +58,8 @@ public struct SensorsPopoverView: View {
                     }
 
                     // Fan Control Section (integrated from FanControlView)
-                    // Only show when SMC is available and fans are present
-                    if !dataManager.sensorsData.fans.isEmpty && SMCReader.shared.isAvailable {
+                    // Only show when SMC is available, fans are present, and showFanSpeeds is enabled
+                    if !dataManager.sensorsData.fans.isEmpty && SMCReader.shared.isAvailable && shouldShowFanControl {
                         fanControlSection
 
                         Divider()
@@ -421,19 +427,12 @@ public struct SensorsPopoverView: View {
     // MARK: - Fan Control Section
 
     /// Fan control section with mode selector and per-fan sliders
-    /// Only shown when showFanSpeeds setting is enabled
-    @ViewBuilder
+    /// Gated by shouldShowFanControl, SMC availability, and fans presence at call site
     private var fanControlSection: some View {
-        // Check if fan speeds should be shown from settings
-        let showFanSpeeds = WidgetPreferences.shared.widgetConfigs
-            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.showFanSpeeds ?? true
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Fan Control", icon: "fan.badge.gearshape")
 
-        if showFanSpeeds {
-            VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
-                PopoverSectionHeader(title: "Fan Control", icon: "fan.badge.gearshape")
-
-                FanControlView()
-            }
+            FanControlView()
         }
     }
 
