@@ -194,6 +194,14 @@ public struct PerDiskContainer: View {
                 ])
             }
 
+            // I/O timing section (if available)
+            if let readTime = diskData.readTime, let writeTime = diskData.writeTime {
+                detailsSection("I/O Timing", items: [
+                    ("Read Time", formattedTime(readTime)),
+                    ("Write Time", formattedTime(writeTime))
+                ])
+            }
+
             // SMART data section (if available)
             if let smart = diskData.smartData {
                 smartDataSection(smart)
@@ -294,6 +302,18 @@ public struct PerDiskContainer: View {
             return String(format: "%.2f MB/s", bytesPerSecond / (1024 * 1024))
         } else {
             return String(format: "%.2f GB/s", bytesPerSecond / (1024 * 1024 * 1024))
+        }
+    }
+
+    private func formattedTime(_ timeMs: TimeInterval) -> String {
+        // timeMs is in milliseconds from IOKit timing stats
+        if timeMs < 1 {
+            return "< 1 ms"
+        } else if timeMs < 1000 {
+            return "\(Int(timeMs)) ms"
+        } else {
+            let seconds = timeMs / 1000
+            return String(format: "%.2f s", seconds)
         }
     }
 }

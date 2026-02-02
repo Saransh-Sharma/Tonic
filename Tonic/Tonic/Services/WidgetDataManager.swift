@@ -270,6 +270,8 @@ public struct DiskVolumeData: Sendable, Identifiable {
     public let writeIOPS: Double?                  // Write operations per second
     public let readBytesPerSecond: Double?         // Read throughput (bytes/sec)
     public let writeBytesPerSecond: Double?        // Write throughput (bytes/sec)
+    public let readTime: TimeInterval?             // Total read time (milliseconds from IOKit)
+    public let writeTime: TimeInterval?            // Total write time (milliseconds from IOKit)
     public let topProcesses: [ProcessUsage]?       // Top disk I/O processes
 
     public init(name: String, path: String, usedBytes: UInt64, totalBytes: UInt64,
@@ -277,6 +279,7 @@ public struct DiskVolumeData: Sendable, Identifiable {
                 smartData: NVMeSMARTData? = nil,
                 readIOPS: Double? = nil, writeIOPS: Double? = nil,
                 readBytesPerSecond: Double? = nil, writeBytesPerSecond: Double? = nil,
+                readTime: TimeInterval? = nil, writeTime: TimeInterval? = nil,
                 topProcesses: [ProcessUsage]? = nil,
                 timestamp: Date = Date()) {
         self.id = UUID()
@@ -292,6 +295,8 @@ public struct DiskVolumeData: Sendable, Identifiable {
         self.writeIOPS = writeIOPS
         self.readBytesPerSecond = readBytesPerSecond
         self.writeBytesPerSecond = writeBytesPerSecond
+        self.readTime = readTime
+        self.writeTime = writeTime
         self.topProcesses = topProcesses
         self.timestamp = timestamp
     }
@@ -1807,7 +1812,7 @@ public final class WidgetDataManager {
         ]
 
         // Get enhanced disk stats (IOPS, activity rates)
-        let (readIOPS, writeIOPS, readBps, writeBps) = getDiskIORates()
+        let (readIOPS, writeIOPS, readBps, writeBps, readTime, writeTime) = getDiskIORates()
 
         // Get SMART data for the boot volume (typically NVMe on modern Macs)
         let bootVolumeSMART = getNVMeSMARTData()
@@ -1844,6 +1849,8 @@ public final class WidgetDataManager {
                     writeIOPS: isBoot ? writeIOPS : nil,
                     readBytesPerSecond: isBoot ? readBps : nil,
                     writeBytesPerSecond: isBoot ? writeBps : nil,
+                    readTime: isBoot ? readTime : nil,
+                    writeTime: isBoot ? writeTime : nil,
                     topProcesses: isBoot ? topDiskProcesses : nil,
                     timestamp: now
                 ))
@@ -1893,12 +1900,14 @@ public final class WidgetDataManager {
         let writeBytes: UInt64
         let readOperations: UInt64
         let writeOperations: UInt64
+        let readTime: UInt64        // Total read time in nanoseconds
+        let writeTime: UInt64       // Total write time in nanoseconds
         let timestamp: Date
     }
 
     /// Get disk I/O rates (IOPS and throughput) using delta calculation
-    /// Returns: (readIOPS, writeIOPS, readBytesPerSecond, writeBytesPerSecond)
-    private func getDiskIORates() -> (Double?, Double?, Double?, Double?) {
+    /// Returns: (readIOPS, writeIOPS, readBytesPerSecond, writeBytesPerSecond, readTimeMs, writeTimeMs)
+    private func getDiskIORates() -> (Double?, Double?, Double?, Double?, TimeInterval?, TimeInterval?) {
         let currentStats = getDetailedDiskIOStats()
         let now = Date()
 
@@ -1911,14 +1920,16 @@ public final class WidgetDataManager {
                 writeBytes: currentStats.writeBytes,
                 readOperations: currentStats.readOperations,
                 writeOperations: currentStats.writeOperations,
+                readTime: currentStats.readTime,
+                writeTime: currentStats.writeTime,
                 timestamp: now
             )
-            return (nil, nil, nil, nil)
+            return (nil, nil, nil, nil, nil, nil)
         }
 
         let timeDelta = now.timeIntervalSince(previous.timestamp)
         guard timeDelta > 0 else {
-            return (nil, nil, nil, nil)
+            return (nil, nil, nil, nil, nil, nil)
         }
 
         // Guard against unsigned underflow when counters wrap or reset
@@ -1926,27 +1937,37 @@ public final class WidgetDataManager {
         guard currentStats.readBytes >= previous.readBytes,
               currentStats.writeBytes >= previous.writeBytes,
               currentStats.readOperations >= previous.readOperations,
-              currentStats.writeOperations >= previous.writeOperations else {
+              currentStats.writeOperations >= previous.writeOperations,
+              currentStats.readTime >= previous.readTime,
+              currentStats.writeTime >= previous.writeTime else {
             // Counter wrapped or changed - reset snapshot and return nil for this interval
             lastDiskStats = DiskIOStatsSnapshot(
                 readBytes: currentStats.readBytes,
                 writeBytes: currentStats.writeBytes,
                 readOperations: currentStats.readOperations,
                 writeOperations: currentStats.writeOperations,
+                readTime: currentStats.readTime,
+                writeTime: currentStats.writeTime,
                 timestamp: now
             )
-            return (nil, nil, nil, nil)
+            return (nil, nil, nil, nil, nil, nil)
         }
 
         let readBytesDelta = currentStats.readBytes - previous.readBytes
         let writeBytesDelta = currentStats.writeBytes - previous.writeBytes
         let readOpsDelta = currentStats.readOperations - previous.readOperations
         let writeOpsDelta = currentStats.writeOperations - previous.writeOperations
+        let readTimeDelta = currentStats.readTime - previous.readTime
+        let writeTimeDelta = currentStats.writeTime - previous.writeTime
 
         let readIOPS = Double(readOpsDelta) / timeDelta
         let writeIOPS = Double(writeOpsDelta) / timeDelta
         let readBps = Double(readBytesDelta) / timeDelta
         let writeBps = Double(writeBytesDelta) / timeDelta
+
+        // Convert nanoseconds to milliseconds for timing stats
+        let readTimeMs = readTimeDelta > 0 ? TimeInterval(readTimeDelta) / 1_000_000 : nil
+        let writeTimeMs = writeTimeDelta > 0 ? TimeInterval(writeTimeDelta) / 1_000_000 : nil
 
         // Update snapshot for next iteration
         lastDiskStats = DiskIOStatsSnapshot(
@@ -1954,18 +1975,22 @@ public final class WidgetDataManager {
             writeBytes: currentStats.writeBytes,
             readOperations: currentStats.readOperations,
             writeOperations: currentStats.writeOperations,
+            readTime: currentStats.readTime,
+            writeTime: currentStats.writeTime,
             timestamp: now
         )
 
-        return (readIOPS, writeIOPS, readBps, writeBps)
+        return (readIOPS, writeIOPS, readBps, writeBps, readTimeMs, writeTimeMs)
     }
 
-    /// Detailed disk I/O statistics including operation counts
+    /// Detailed disk I/O statistics including operation counts and timing
     private struct DetailedDiskStats {
         let readBytes: UInt64
         let writeBytes: UInt64
         let readOperations: UInt64
         let writeOperations: UInt64
+        let readTime: UInt64      // Total read time in nanoseconds
+        let writeTime: UInt64     // Total write time in nanoseconds
     }
 
     /// Get detailed disk I/O statistics from IORegistry
@@ -1974,13 +1999,18 @@ public final class WidgetDataManager {
         var totalWriteBytes: UInt64 = 0
         var totalReadOps: UInt64 = 0
         var totalWriteOps: UInt64 = 0
+        var totalReadTime: UInt64 = 0  // Total read time in nanoseconds
+        var totalWriteTime: UInt64 = 0 // Total write time in nanoseconds
 
         // Match IOKit services for block storage drivers
         let matchingDict = IOServiceMatching(kIOBlockStorageDriverClass)
         var serviceIterator: io_iterator_t = 0
         let result = IOServiceGetMatchingServices(kIOMainPortDefault, matchingDict, &serviceIterator)
         guard result == KERN_SUCCESS else {
-            return DetailedDiskStats(readBytes: 0, writeBytes: 0, readOperations: 0, writeOperations: 0)
+            return DetailedDiskStats(
+                readBytes: 0, writeBytes: 0, readOperations: 0, writeOperations: 0,
+                readTime: 0, writeTime: 0
+            )
         }
 
         defer { IOObjectRelease(serviceIterator) }
@@ -2014,6 +2044,17 @@ public final class WidgetDataManager {
                 } else if let writeOps = stats["kIOBlockStorageDriverStatisticsWritesKey"] as? UInt64 {
                     totalWriteOps += writeOps
                 }
+                // Try to get timing data (milliseconds from IOKit, stored as nanoseconds)
+                if let readTimeVal = stats["Latency (Read)"] as? UInt64 {
+                    totalReadTime += readTimeVal * 1_000_000  // Convert ms to ns
+                } else if let readTimeVal = stats["kIOBlockStorageDriverStatisticsReadTimeKey"] as? UInt64 {
+                    totalReadTime += readTimeVal
+                }
+                if let writeTimeVal = stats["Latency (Write)"] as? UInt64 {
+                    totalWriteTime += writeTimeVal * 1_000_000  // Convert ms to ns
+                } else if let writeTimeVal = stats["kIOBlockStorageDriverStatisticsWriteTimeKey"] as? UInt64 {
+                    totalWriteTime += writeTimeVal
+                }
             }
         }
 
@@ -2021,7 +2062,9 @@ public final class WidgetDataManager {
             readBytes: totalReadBytes,
             writeBytes: totalWriteBytes,
             readOperations: totalReadOps,
-            writeOperations: totalWriteOps
+            writeOperations: totalWriteOps,
+            readTime: totalReadTime,
+            writeTime: totalWriteTime
         )
     }
 
