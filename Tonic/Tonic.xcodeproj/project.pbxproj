@@ -127,6 +127,7 @@
 		9C144FF9933A58349C1338BF /* CPUPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78FD590EFB03F0A06CCF71A3 /* CPUPopoverView.swift */; };
 		9F2094692E716FF2991EBADC /* InputValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941F0753C9DD010CE10A5FAA /* InputValidationTests.swift */; };
 		A022C2651A382D6E16B28FB4 /* OnboardingTourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41639B9795E04724383E3747 /* OnboardingTourView.swift */; };
+		A043A951C3E4A0B273DD2AD5 /* NetworkPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608BFEE8997D05EBF0B20C9A /* NetworkPopoverView.swift */; };
 		A3232CF53BF501ABE860E3A9 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F36DAA12172861F80710E3 /* FileOperations.swift */; };
 		A36DF9ADDC98F063C1925E53 /* SensorsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B6E49E735E35DD2100F2F5B /* SensorsData.swift */; };
 		A5024D40A1838DA7490EF875 /* NetworkDetailViewRedesigned.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C6777EC4E9123E47053137 /* NetworkDetailViewRedesigned.swift */; };
@@ -278,6 +279,7 @@
 		5B75BECBC1CDCCE5EDA88FA1 /* MemoryProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryProfileTests.swift; sourceTree = "<group>"; };
 		600CC141B037B23320257A01 /* ViewRenderPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewRenderPerformanceTests.swift; sourceTree = "<group>"; };
 		603DE5F764EDC1D8DBFA7D17 /* WidgetDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataManager.swift; sourceTree = "<group>"; };
+		608BFEE8997D05EBF0B20C9A /* NetworkPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPopoverView.swift; sourceTree = "<group>"; };
 		61973F65CA75606E1B50BBAC /* ScanCategoryScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCategoryScanner.swift; sourceTree = "<group>"; };
 		6418976A2B4B6781E55788BD /* ActionTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTable.swift; sourceTree = "<group>"; };
 		661FE3BAE847C1FD4A6025AF /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -726,6 +728,7 @@
 				D9B6CA1BB27DD9A58DD08E4D /* DiskPopoverView.swift */,
 				2F58578D4D646EE427029EBD /* GPUPopoverView.swift */,
 				EF0FCF1FBDD94E7474653A35 /* HeaderView.swift */,
+				608BFEE8997D05EBF0B20C9A /* NetworkPopoverView.swift */,
 				2269648F4CF95653EC043FB1 /* PopoverConstants.swift */,
 				FB95628FDF7E89061E52192B /* PopoverTemplate.swift */,
 				730E17099307E49073F98D40 /* PopupWindow.swift */,
@@ -824,18 +827,18 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_4CEAB2DB-722C-49B7-9EFC-6C6E62C01C6B" /* Tonic */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Tonic;
-			sourceTree = "<group>";
-		};
-		"TEMP_BF07C6F1-47B7-492A-AD67-20E3A9F13997" /* Sources */ = {
+		"TEMP_370BAD17-0B80-4397-BFB4-A570937340FD" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		"TEMP_9F978BCC-32FB-4329-848D-640057EE4D69" /* Tonic */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Tonic;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1015,6 +1018,7 @@
 				6BD4A995C6098C614BDF92A7 /* NetworkDetails.swift in Sources */,
 				FE0EDE1A9727C22B40C2247A /* NetworkMetricRow.swift in Sources */,
 				D20D4E664D65365611018855 /* NetworkMetricsModels.swift in Sources */,
+				A043A951C3E4A0B273DD2AD5 /* NetworkPopoverView.swift in Sources */,
 				08895901DCF945D44DEA4AEC /* NetworkQualityService.swift in Sources */,
 				568450DF86E7F975A1801440 /* NetworkSectionCard.swift in Sources */,
 				46DF284C284A5BFB36834DE1 /* NetworkWidgetDataManager.swift in Sources */,

@@ -26,75 +26,7 @@ public final class SpeedStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        let dataManager = WidgetDataManager.shared
-        let networkData = dataManager.networkData
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: widgetType.icon)
-                        .foregroundColor(.blue)
-                    Text("Network Speed")
-                        .font(.headline)
-                    Spacer()
-                }
-
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.down")
-                                .foregroundColor(.cyan)
-                            Text("Download")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Text(formatSpeed(networkData.downloadBytesPerSecond))
-                            .font(.system(.body, design: .monospaced))
-                    }
-
-                    VStack(alignment: .leading) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.up")
-                                .foregroundColor(.green)
-                            Text("Upload")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Text(formatSpeed(networkData.uploadBytesPerSecond))
-                            .font(.system(.body, design: .monospaced))
-                    }
-                }
-
-                Divider()
-
-                // Show connection info if available
-                if let ssid = networkData.ssid {
-                    HStack {
-                        Text("Network:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(ssid)
-                            .font(.caption)
-                        Spacer()
-                    }
-                }
-
-                if let ip = networkData.ipAddress {
-                    HStack {
-                        Text("IP Address:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(ip)
-                            .font(.system(.caption, design: .monospaced))
-                        Spacer()
-                    }
-                }
-
-                Spacer()
-            }
-            .padding()
-            .frame(width: 220, height: 160)
-        )
+        return AnyView(NetworkPopoverView())
     }
 
     private func formatSpeed(_ bytesPerSecond: Double) -> String {

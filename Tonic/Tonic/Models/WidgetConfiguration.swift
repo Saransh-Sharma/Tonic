@@ -14,6 +14,9 @@ extension Notification.Name {
     /// Posted when widget configuration changes
     /// UserInfo contains: "widgetType" -> WidgetType
     static let widgetConfigurationDidUpdate = Notification.Name("tonic.widgetConfigurationDidUpdate")
+
+    /// Posted to reset total network usage statistics
+    static let resetTotalNetworkUsage = Notification.Name("tonic.resetTotalNetworkUsage")
 }
 
 // MARK: - Widget Type

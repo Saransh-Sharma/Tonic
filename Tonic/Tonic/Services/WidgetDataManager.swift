@@ -718,6 +718,15 @@ public final class WidgetDataManager {
     public private(set) var networkUploadHistory: [Double] = []
     public private(set) var networkDownloadHistory: [Double] = []
 
+    /// Cumulative upload bytes since last reset (for Details section)
+    public private(set) var totalUploadBytes: Int64 = 0
+
+    /// Cumulative download bytes since last reset (for Details section)
+    public private(set) var totalDownloadBytes: Int64 = 0
+
+    /// Connectivity status history for grid visualization (bool array)
+    public private(set) var connectivityHistory: [Bool] = []
+
     // MARK: - GPU Data
 
     public private(set) var gpuData: GPUData = GPUData()
@@ -784,7 +793,24 @@ public final class WidgetDataManager {
 
     // MARK: - Initialization
 
-    private init() {}
+    private init() {
+        // Register for reset network usage notification
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleResetTotalNetworkUsage),
+            name: .resetTotalNetworkUsage,
+            object: nil
+        )
+    }
+
+    /// Handle reset total network usage notification
+    @objc private func handleResetTotalNetworkUsage() {
+        resetTotalNetworkUsage()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     // MARK: - Public Methods
 
@@ -2178,11 +2204,22 @@ public final class WidgetDataManager {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.networkData = newNetworkData
+
             // Performance optimization: Use circular buffers for O(1) history add
             self.networkUploadCircularBuffer.add(uploadRate / 1024) // KB/s
             self.networkDownloadCircularBuffer.add(downloadRate / 1024)
             self.networkUploadHistory = self.networkUploadCircularBuffer.toArray()
             self.networkDownloadHistory = self.networkDownloadCircularBuffer.toArray()
+
+            // Update cumulative totals (for Details section)
+            self.totalUploadBytes += Int64(max(0, uploadRate))
+            self.totalDownloadBytes += Int64(max(0, downloadRate))
+
+            // Update connectivity history (for grid visualization)
+            self.connectivityHistory.append(isConnected)
+            if self.connectivityHistory.count > 90 {
+                self.connectivityHistory.removeFirst()
+            }
 
             // Check notification thresholds for network speed (total in MB/s)
             let totalSpeedMBps = (uploadRate + downloadRate) / 1_000_000
@@ -3616,6 +3653,15 @@ public final class WidgetDataManager {
     /// Get network download history for chart visualization
     public func getNetworkDownloadHistory() -> [Double] {
         networkDownloadHistory
+    }
+
+    /// Reset total network usage statistics (called from Network popover reset button)
+    public func resetTotalNetworkUsage() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.totalUploadBytes = 0
+            self.totalDownloadBytes = 0
+        }
     }
 
     /// Get CPU history for chart visualization
