@@ -47,7 +47,7 @@ struct NotificationSettingsView: View {
             // Footer
             footerSection
         }
-        .frame(minWidth: 500, idealWidth: 550, minHeight: 650, idealHeight: 700)
+        .frame(width: 500, height: 650)
         .background(DesignTokens.Colors.background)
         .alert("Notification Permission", isPresented: $showingPermissionAlert) {
             Button("Cancel", role: .cancel) {}
