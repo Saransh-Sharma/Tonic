@@ -173,6 +173,7 @@
 		D3A7379BD0C0AA58EE2DC3E3 /* BatteryDetailsWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45F84E5F91AF880DD5D0C4C5 /* BatteryDetailsWidgetView.swift */; };
 		D42D1E3402EFC92DA609D7A2 /* LineChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC81E5AAF009D9BCE4CBADAB /* LineChartStatusItem.swift */; };
 		D48CC1B9650390DF2CCDA82B /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0FCF1FBDD94E7474653A35 /* HeaderView.swift */; };
+		D4F225B4CFCF00ED1FD49D16 /* PerDiskContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F18F556491B5C996948DA37 /* PerDiskContainer.swift */; };
 		D65BC5DA244C8B41528A0BA1 /* StackStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58B75A69CAA0CB20B8E97AC /* StackStatusItem.swift */; };
 		D896763B4F1EB53078D2FBDB /* WidgetColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38BCE5E4FF1CA33C25A7D8EE /* WidgetColors.swift */; };
 		D8D22D0D6E470A57D24B3BA8 /* InterferenceScanResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0644BE3FD9C6E491D365D1 /* InterferenceScanResultsView.swift */; };
@@ -247,6 +248,7 @@
 		29880206031BF4131E0CAD95 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		2D78B8C9BDFD96B7C93C669C /* WidgetOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetOnboardingView.swift; sourceTree = "<group>"; };
 		2E9D2A958CFFE464A9E74473 /* BatteryVisualizationStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryVisualizationStatusItem.swift; sourceTree = "<group>"; };
+		2F18F556491B5C996948DA37 /* PerDiskContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerDiskContainer.swift; sourceTree = "<group>"; };
 		2F58578D4D646EE427029EBD /* GPUPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUPopoverView.swift; sourceTree = "<group>"; };
 		2FAEE458280DBCEE1369F8A2 /* ProtectedApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedApps.swift; sourceTree = "<group>"; };
 		30B8E5D8772F748896B90BE6 /* DetailedStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatsView.swift; sourceTree = "<group>"; };
@@ -458,6 +460,7 @@
 				F51826D1DA4E9510FF0B8422 /* NetworkAnimations.swift */,
 				83EFFE76713484BB951B8F62 /* NetworkMetricRow.swift */,
 				66F12325BCF64531EF06A35B /* NetworkSectionCard.swift */,
+				2F18F556491B5C996948DA37 /* PerDiskContainer.swift */,
 				1A96FD9F271D9BFAB094A7B5 /* PerGpuContainer.swift */,
 				8B3C46DE36E32036010CE574 /* SparklineChart.swift */,
 				52BE85D0A24EE4203135EE9B /* SpeedTestButton.swift */,
@@ -836,18 +839,18 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_3B75B742-0CDC-47D9-B46D-452A5B00CA65" /* Sources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Sources;
-			sourceTree = "<group>";
-		};
-		"TEMP_7FB3AE95-9192-4146-B6CF-B294529B281F" /* Tonic */ = {
+		"TEMP_07322C4A-1D29-4E3A-B0E6-F9C709269B4B" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Tonic;
+			sourceTree = "<group>";
+		};
+		"TEMP_6C91F8FA-A905-4D35-87E0-36C86011D93A" /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1047,6 +1050,7 @@
 				B0E58806ABFB16084EF7F2C3 /* OneViewContentView.swift in Sources */,
 				FE780D76BB22447B05FB3D63 /* OneViewStatusItem.swift in Sources */,
 				A8D1141E3AEE2B4D75A93B75 /* OutlineView.swift in Sources */,
+				D4F225B4CFCF00ED1FD49D16 /* PerDiskContainer.swift in Sources */,
 				61C84040CC50FF8A11A966CD /* PerGpuContainer.swift in Sources */,
 				33C4CFC99316FEB856F0895E /* PerformanceOptimizations.swift in Sources */,
 				355BD8A9E2770F7E4C304986 /* PerformanceValidation.swift in Sources */,

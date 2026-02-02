@@ -242,14 +242,14 @@ public struct PerDiskContainer: View {
 
                 // Percentage used (optional)
                 if let pctUsed = smart.percentageUsed {
-                    let usedColor = pctUsed > 90 ? .red : (pctUsed > 75 ? .orange : .green)
+                    let usedColor = pctUsed > 90 ? Color.red : (pctUsed > 75 ? Color.orange : Color.green)
                     detailItem("Used", value: "\(Int(pctUsed))%", color: usedColor)
                 } else {
                     detailItem("Used", value: "N/A")
                 }
 
                 // Critical warning
-                detailItem("Critical", value: smart.criticalWarning ? "Yes" : "No", color: smart.criticalWarning ? .red : .green)
+                detailItem("Critical", value: smart.criticalWarning ? "Yes" : "No", color: smart.criticalWarning ? Color.red : Color.green)
 
                 // Power-on hours
                 detailItem("Power On", value: smart.powerOnTimeString)
