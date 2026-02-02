@@ -3146,8 +3146,20 @@ public final class WidgetDataManager {
             let amperage = getBatteryAmperage()
             let voltage = getBatteryVoltage()
             let designedCapacity = getBatteryDesignedCapacity()
-            let currentCapacity = UInt64(capacity)
-            let maxCapacityVal = UInt64(maxCapacity)
+
+            // Calculate actual capacity values in mAh
+            // IOPS provides capacity as percentage (0-100), maxCapacity as relative percent
+            // To get mAh: current mAh = (current% / 100) * (designCapacity * maxCapacity% / 100)
+            var currentCapacitymAh: UInt64? = nil
+            var maxCapacitymAh: UInt64? = nil
+
+            if let design = designedCapacity {
+                // maxCapacity is a percentage relative to design capacity
+                // e.g., if design is 5000 mAh and maxCapacity is 98%, actual max is 4900 mAh
+                maxCapacitymAh = UInt64(Double(design) * Double(maxCapacity) / 100.0)
+                currentCapacitymAh = UInt64(Double(design) * Double(capacity) / 100.0)
+            }
+
             let chargingCurrent = getChargingCurrent()
             let chargingVoltage = getChargingVoltage()
 
@@ -3173,8 +3185,8 @@ public final class WidgetDataManager {
                 voltage: voltage,
                 batteryPower: batteryPower,
                 designedCapacity: designedCapacity,
-                currentCapacity: currentCapacity,
-                maxCapacity: maxCapacityVal,
+                currentCapacity: currentCapacitymAh,
+                maxCapacity: maxCapacitymAh,
                 chargingCurrent: chargingCurrent,
                 chargingVoltage: chargingVoltage
             )
