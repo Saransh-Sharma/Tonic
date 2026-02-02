@@ -14,7 +14,7 @@ extension DiskVolumeData: Hashable {
     public static func == (lhs: DiskVolumeData, rhs: DiskVolumeData) -> Bool {
         lhs.id == rhs.id &&
         lhs.name == rhs.name &&
-        lhs.path == lhs.path &&
+        lhs.path == rhs.path &&
         lhs.usedBytes == rhs.usedBytes &&
         lhs.totalBytes == rhs.totalBytes
     }
@@ -37,6 +37,9 @@ public struct DiskPopoverView: View {
 
     @State private var dataManager = WidgetDataManager.shared
     @State private var isProcessesExpanded: Bool = true
+
+    // Configurable top process count (TODO: Connect to DiskModuleSettings when available)
+    private var topProcessCount: Int { 8 }
 
     // MARK: - Computed Properties
 
@@ -170,7 +173,7 @@ public struct DiskPopoverView: View {
                         Divider()
 
                         // Process rows
-                        ForEach(processes.prefix(8)) { process in
+                        ForEach(processes.prefix(topProcessCount)) { process in
                             diskProcessRow(process)
                         }
                     }
@@ -197,15 +200,15 @@ public struct DiskPopoverView: View {
 
             Spacer()
 
-            Text("Read")
+            Text("Read (Total)")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(Color.green)
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
 
-            Text("Write")
+            Text("Write (Total)")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(Color.orange)
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
         }
     }
 
@@ -238,12 +241,12 @@ public struct DiskPopoverView: View {
                 Text(formatByteCount(readBytes))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(Color.green)
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 70, alignment: .trailing)
             } else {
                 Text("--")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 70, alignment: .trailing)
             }
 
             // Write bytes (cumulative)
@@ -251,12 +254,12 @@ public struct DiskPopoverView: View {
                 Text(formatByteCount(writeBytes))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(Color.orange)
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 70, alignment: .trailing)
             } else {
                 Text("--")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 60, alignment: .trailing)
+                    .frame(width: 70, alignment: .trailing)
             }
         }
     }

@@ -57,8 +57,7 @@ Process list should show: Process Name, Read Rate, Write Rate (formatted).
 - [ ] Disk hot-plug handled (no crash on volume ejection)
 - [ ] Multiple volumes stack vertically
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
