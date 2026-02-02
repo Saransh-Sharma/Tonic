@@ -536,13 +536,29 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable {
 public struct BatteryModuleSettings: Codable, Sendable, Equatable {
     public var showOptimizedCharging: Bool
     public var showCycleCount: Bool
+    public var timeFormat: TimeFormat
 
     public init(
         showOptimizedCharging: Bool = true,
-        showCycleCount: Bool = true
+        showCycleCount: Bool = true,
+        timeFormat: TimeFormat = .short
     ) {
         self.showOptimizedCharging = showOptimizedCharging
         self.showCycleCount = showCycleCount
+        self.timeFormat = timeFormat
+    }
+
+    /// Time format for battery time remaining display
+    public enum TimeFormat: String, CaseIterable, Codable {
+        case short = "short"    // "2h 30m" or "45min"
+        case long = "long"      // "2 hours 30 minutes" or "45 minutes"
+
+        public var displayName: String {
+            switch self {
+            case .short: return "Short (2h 30m)"
+            case .long: return "Long (2 hours 30 minutes)"
+            }
+        }
     }
 }
 

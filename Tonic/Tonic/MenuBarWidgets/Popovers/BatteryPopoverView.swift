@@ -22,6 +22,7 @@ public struct BatteryPopoverView: View {
 
     @State private var dataManager = WidgetDataManager.shared
     @State private var temperatureUnit: TemperatureUnit = .celsius
+    @State private var timeFormat: BatteryModuleSettings.TimeFormat = .short
 
     // MARK: - Body
 
@@ -30,24 +31,29 @@ public struct BatteryPopoverView: View {
             // Header
             headerView
 
-            ScrollView {
-                VStack(spacing: PopoverConstants.sectionSpacing) {
-                    // Dashboard Section
-                    dashboardSection
+            // Empty state for desktop Macs without battery
+            if !dataManager.batteryData.isPresent {
+                emptyStateView
+                    .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: PopoverConstants.sectionSpacing) {
+                        // Dashboard Section
+                        dashboardSection
 
-                    Divider()
+                        Divider()
 
-                    // History Chart
-                    historyChartSection
+                        // History Chart
+                        historyChartSection
 
-                    Divider()
+                        Divider()
 
-                    // Details Section
-                    detailsSection
+                        // Details Section
+                        detailsSection
 
-                    Divider()
+                        Divider()
 
-                    // Battery Info Section
+                        // Battery Info Section
                     batteryInfoSection
 
                     // Electrical Metrics Section
@@ -67,6 +73,7 @@ public struct BatteryPopoverView: View {
                 .padding(PopoverConstants.horizontalPadding)
                 .padding(.vertical, PopoverConstants.verticalPadding)
             }
+            }  // End else block
         }
         .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -81,6 +88,34 @@ public struct BatteryPopoverView: View {
 
     private func loadTemperatureUnit() {
         temperatureUnit = WidgetPreferences.shared.temperatureUnit
+
+        // Find a battery widget config to read time format preference
+        if let batteryWidget = WidgetPreferences.shared.widgetConfigs.first(where: { $0.type == .battery }) {
+            timeFormat = batteryWidget.moduleSettings.battery.timeFormat
+        } else {
+            // Default if no battery widget configured
+            timeFormat = .short
+        }
+    }
+
+    // MARK: - Empty State View
+
+    private var emptyStateView: some View {
+        VStack(spacing: PopoverConstants.sectionSpacing) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 48))
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Text("No Battery")
+                .font(PopoverConstants.sectionTitleFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Text("This Mac does not have a battery.")
+                .font(PopoverConstants.detailLabelFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(PopoverConstants.horizontalPadding)
     }
 
     // MARK: - Header
@@ -426,12 +461,31 @@ public struct BatteryPopoverView: View {
     }
 
     private func timeString(from minutes: Int) -> String {
-        if minutes < 60 {
-            return "\(minutes)min"
-        } else {
-            let hours = minutes / 60
-            let mins = minutes % 60
-            return mins > 0 ? "\(hours)h \(mins)m" : "\(hours)h"
+        switch timeFormat {
+        case .short:
+            // Short format: "2h 30m" or "45min"
+            if minutes < 60 {
+                return "\(minutes)min"
+            } else {
+                let hours = minutes / 60
+                let mins = minutes % 60
+                return mins > 0 ? "\(hours)h \(mins)m" : "\(hours)h"
+            }
+        case .long:
+            // Long format: "2 hours 30 minutes" or "45 minutes"
+            if minutes < 60 {
+                return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+            } else {
+                let hours = minutes / 60
+                let mins = minutes % 60
+                if mins > 0 {
+                    let hourStr = hours == 1 ? "1 hour" : "\(hours) hours"
+                    let minStr = mins == 1 ? "1 minute" : "\(mins) minutes"
+                    return "\(hourStr) \(minStr)"
+                } else {
+                    return hours == 1 ? "1 hour" : "\(hours) hours"
+                }
+            }
         }
     }
 }

@@ -500,13 +500,13 @@ public struct BatteryData: Sendable {
 
     // Electrical metrics
     public let amperage: Double?           // mA (negative = charging, positive = discharging)
-    public let voltage: Double?             // V
-    public let batteryPower: Double?       // W (calculated: voltage × |amperage| / 1000000)
+    public let voltage: Double?             // V (from IOKit mV / 1000)
+    public let batteryPower: Double?       // W (calculated: voltage × |amperage| / 1000)
     public let designedCapacity: UInt64?   // mAh (design capacity from IOKit)
     public let currentCapacity: UInt64?    // mAh (current capacity)
     public let maxCapacity: UInt64?        // mAh (maximum capacity)
-    public let chargingCurrent: Double?    // Adapter current in mA
-    public let chargingVoltage: Double?    // Adapter voltage in mV
+    public let chargingCurrent: Double?    // Adapter current in mA (estimated from wattage)
+    public let chargingVoltage: Double?    // Adapter voltage in V (estimated from wattage)
 
     public let timestamp: Date
 
