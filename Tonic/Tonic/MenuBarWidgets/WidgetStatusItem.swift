@@ -227,6 +227,24 @@ public class WidgetStatusItem: ObservableObject {
             // Update width based on display mode
             updateWidth()
 
+            // Force NSView redraw - fixes menu bar refresh bug where objectWillChange.send()
+            // doesn't trigger NSView to update properly
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self, let button = self.statusItem?.button else { return }
+
+                // Force redraw of the button's view hierarchy
+                button.window?.contentView?.setNeedsDisplay(button.bounds)
+                button.window?.contentView?.displayIfNeeded()
+
+                // Also force redraw the button's subviews directly
+                for subview in button.subviews {
+                    subview.setNeedsDisplay(subview.bounds)
+                    subview.displayIfNeeded()
+                }
+
+                self.logger.debug("🔄 Forced NSView redraw for \(self.widgetType.rawValue)")
+            }
+
             logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), color=\(newConfig.accentColor.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
         }
     }
@@ -294,6 +312,21 @@ public class WidgetStatusItem: ObservableObject {
     public func refresh() {
         objectWillChange.send()
         updateCompactView()
+
+        // Force NSView redraw - ensures menu bar updates with latest data
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let button = self.statusItem?.button else { return }
+
+            // Force redraw of the button's view hierarchy
+            button.window?.contentView?.setNeedsDisplay(button.bounds)
+            button.window?.contentView?.displayIfNeeded()
+
+            // Also force redraw the button's subviews directly
+            for subview in button.subviews {
+                subview.setNeedsDisplay(subview.bounds)
+                subview.displayIfNeeded()
+            }
+        }
     }
 }
 

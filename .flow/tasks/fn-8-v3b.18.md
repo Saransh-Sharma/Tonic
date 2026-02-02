@@ -54,8 +54,7 @@ Stats Master supports this for AirPods Pro/Max with case and individual earbud b
 - [ ] Single battery devices display correctly (backward compatible)
 - [ ] Missing battery data shows "—" or appropriate indicator
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:
