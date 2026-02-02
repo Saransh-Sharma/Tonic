@@ -51,8 +51,7 @@ Disk data from `WidgetDataManager.diskData` needs:
 - [ ] Used percentage badge colors correctly (green/yellow/red)
 - [ ] Handles missing I/O timing data gracefully
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

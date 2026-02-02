@@ -730,6 +730,8 @@ public final class WidgetDataManager {
     private var cpuCircularBuffer = CircularBuffer(capacity: 180)
     private var memoryCircularBuffer = CircularBuffer(capacity: 180)
     private var diskCircularBuffer = CircularBuffer(capacity: 180)
+    private var diskReadCircularBuffer = CircularBuffer(capacity: 180)  // Per-disk read rate history
+    private var diskWriteCircularBuffer = CircularBuffer(capacity: 180) // Per-disk write rate history
     private var networkUploadCircularBuffer = CircularBuffer(capacity: 180)
     private var networkDownloadCircularBuffer = CircularBuffer(capacity: 180)
     private var gpuCircularBuffer = CircularBuffer(capacity: 180)
@@ -756,6 +758,8 @@ public final class WidgetDataManager {
     public private(set) var diskVolumes: [DiskVolumeData] = []
     public private(set) var primaryDiskActivity: Bool = false
     public private(set) var diskHistory: [Double] = []
+    public private(set) var diskReadHistory: [Double] = []   // Read rate history (bytes/sec)
+    public private(set) var diskWriteHistory: [Double] = []  // Write rate history (bytes/sec)
 
     // MARK: - Network Data
 
@@ -1866,6 +1870,15 @@ public final class WidgetDataManager {
                 // Performance optimization: Use circular buffer for O(1) history add
                 self.diskCircularBuffer.add(primaryVolume.usagePercentage)
                 self.diskHistory = self.diskCircularBuffer.toArray()
+
+                // Track read/write rate history for PerDiskContainer charts
+                // Use MB/s for history tracking (normalized values)
+                let readMBps = (primaryVolume.readBytesPerSecond ?? 0) / (1024 * 1024)
+                let writeMBps = (primaryVolume.writeBytesPerSecond ?? 0) / (1024 * 1024)
+                self.diskReadCircularBuffer.add(readMBps)
+                self.diskWriteCircularBuffer.add(writeMBps)
+                self.diskReadHistory = self.diskReadCircularBuffer.toArray()
+                self.diskWriteHistory = self.diskWriteCircularBuffer.toArray()
 
                 NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
             }
@@ -3450,6 +3463,8 @@ public final class WidgetDataManager {
         cpuHistory = cpuCircularBuffer.toArray()
         memoryHistory = memoryCircularBuffer.toArray()
         diskHistory = diskCircularBuffer.toArray()
+        diskReadHistory = diskReadCircularBuffer.toArray()
+        diskWriteHistory = diskWriteCircularBuffer.toArray()
         networkUploadHistory = networkUploadCircularBuffer.toArray()
         networkDownloadHistory = networkDownloadCircularBuffer.toArray()
         gpuHistory = gpuCircularBuffer.toArray()
