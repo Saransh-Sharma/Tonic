@@ -5,6 +5,9 @@
 //  Fan control component with mode selection and per-fan sliders
 //  Task ID: fn-8-v3b.11
 //
+//  NOTE: Actual SMC fan speed control requires privileged helper (task fn-8-v3b.13)
+//  This component provides the UI and state management; SMC writes are deferred.
+//
 
 import SwiftUI
 
@@ -18,6 +21,10 @@ import SwiftUI
 /// - Per-fan controls with min/max labels and sliders
 /// - Safety features: warning dialog, thermal auto-switch
 /// - Settings persistence via SensorsModuleSettings
+///
+/// **IMPORTANT:** SMC fan speed writes require the privileged helper tool.
+/// This component stores target speeds and will send them to the helper
+/// once it's implemented in task fn-8-v3b.13.
 public struct FanControlView: View {
 
     // MARK: - Properties
@@ -28,6 +35,10 @@ public struct FanControlView: View {
     @State private var showWarningDialog = false
     @State private var hasPendingModeChange = false
     @State private var pendingMode: SensorsModuleSettings.FanControlMode = .manual
+
+    // Privileged helper availability - will be true after task fn-8-v3b.13
+    // For now, this is false to indicate SMC writes are not yet available
+    private var isHelperAvailable: Bool { false }
 
     private let thermalThreshold: Double = 85.0  // Celsius
     private var shouldShowThermalWarning: Bool {
@@ -51,6 +62,11 @@ public struct FanControlView: View {
                 emptyStateView
             } else {
                 fanControlsList
+
+                // Helper not available notice
+                if currentMode == .manual && !isHelperAvailable {
+                    helperNotAvailableNotice
+                }
             }
 
             // Thermal Warning
@@ -189,6 +205,30 @@ public struct FanControlView: View {
         }
         .padding(PopoverConstants.compactSpacing)
         .background(Color.orange.opacity(0.1))
+        .cornerRadius(PopoverConstants.innerCornerRadius)
+    }
+
+    // MARK: - Helper Not Available Notice
+
+    private var helperNotAvailableNotice: some View {
+        HStack(spacing: PopoverConstants.compactSpacing) {
+            Image(systemName: "info.circle.fill")
+                .foregroundColor(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("SMC Control Not Available")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                Text("Fan speed changes will take effect after the privileged helper is installed (task fn-8-v3b.13).")
+                    .font(.system(size: 9))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(PopoverConstants.compactSpacing)
+        .background(Color.blue.opacity(0.1))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
