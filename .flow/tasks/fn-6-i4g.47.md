@@ -115,14 +115,14 @@ struct CPUPopoverView: View {
 - [ ] Colors match Stats Master (red/blue/gray for pie, temp gradient, purple for freq)
 - [ ] Works with temperature unit toggle (°C/°F from Task 35a)
 
-## Done Summary
+## Done summary
 
 Created CPU popover dashboard section with 3 gauges: System/User/Idle pie chart, temperature half-gauge, frequency half-gauge. Matches Stats Master's 90px height layout.
 
 ## Evidence
 
-- Commits:
-- Tests:
+- Commits: 0648814bbc539e6b412fbaa9f638cd5ada62d4da
+- Tests: xcodebuild -scheme Tonic -configuration Debug build -destination 'platform=macOS'
 - PRs:
 
 ## Reference Implementation
