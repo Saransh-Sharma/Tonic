@@ -6,49 +6,68 @@
 //  Task ID: fn-6-i4g.33
 //
 //  Provides per-module settings similar to Stats Master's settings window
-//  with nested split view showing module list | module configuration
+//  with split layout showing module list | module configuration
 //
 
 import SwiftUI
 
 // MARK: - Modules Settings Content
 
-/// Main container for module settings with nested split view
+/// Main container for module settings with split layout
 struct ModulesSettingsContent: View {
     @State private var selectedModule: WidgetType = .cpu
     @State private var preferences = WidgetPreferences.shared
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             // Module list sidebar
             moduleListSidebar
-        } detail: {
+                .frame(width: 180)
+
+            Divider()
+
             // Module-specific settings
             moduleSettingsDetail
         }
-        .navigationSplitViewColumnWidth(min: 140, ideal: 180, max: 220)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.Colors.background)
     }
 
     // MARK: - Module List Sidebar
 
     private var moduleListSidebar: some View {
-        List(WidgetType.allCases, selection: $selectedModule) { module in
-            ModuleListItem(
-                module: module,
-                isEnabled: preferences.config(for: module)?.isEnabled ?? false,
-                isSelected: selectedModule == module
-            )
-            .tag(module)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    selectedModule = module
+        VStack(spacing: 0) {
+            // Sidebar header
+            Text("Widgets")
+                .font(DesignTokens.Typography.subheadEmphasized)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+                .padding(.vertical, DesignTokens.Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Divider()
+
+            // Module list
+            ScrollView {
+                VStack(spacing: DesignTokens.Spacing.xxxs) {
+                    ForEach(WidgetType.allCases) { module in
+                        ModuleListItem(
+                            module: module,
+                            isEnabled: preferences.config(for: module)?.isEnabled ?? false,
+                            isSelected: selectedModule == module
+                        )
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                selectedModule = module
+                            }
+                        }
+                    }
                 }
+                .padding(.vertical, DesignTokens.Spacing.xs)
             }
+            .scrollContentBackground(.hidden)
+            .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
         }
-        .scrollContentBackground(.hidden)
-        .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
     }
 
     // MARK: - Module Settings Detail
@@ -56,12 +75,14 @@ struct ModulesSettingsContent: View {
     @ViewBuilder
     private var moduleSettingsDetail: some View {
         if let config = preferences.config(for: selectedModule) {
-            ModuleSettingsDetailView(
-                module: selectedModule,
-                config: config,
-                preferences: preferences
-            )
-            .id(selectedModule) // Force view refresh on module change
+            ScrollView {
+                ModuleSettingsDetailView(
+                    module: selectedModule,
+                    config: config,
+                    preferences: preferences
+                )
+                .id(selectedModule) // Force view refresh on module change
+            }
         } else {
             Text("Select a module to configure")
                 .foregroundColor(DesignTokens.Colors.textSecondary)
