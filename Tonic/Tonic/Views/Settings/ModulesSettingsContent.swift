@@ -27,6 +27,7 @@ struct ModulesSettingsContent: View {
             moduleSettingsDetail
         }
         .navigationSplitViewColumnWidth(min: 140, ideal: 180, max: 220)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Module List Sidebar
