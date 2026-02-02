@@ -602,12 +602,14 @@ public struct BluetoothDevice: Sendable, Identifiable {
     public let deviceType: BluetoothDeviceType
     public let isConnected: Bool
     public let isPaired: Bool
-    public let primaryBatteryLevel: Int? // 0-100, nil if no battery
+    public let primaryBatteryLevel: Int? // 0-100, nil if no battery (kept for backward compatibility)
     public let signalStrength: Int? // 0-100 RSSI
+    public let batteryLevels: [DeviceBatteryLevel] // Multiple battery levels for AirPods-style devices
 
     public init(id: UUID = UUID(), name: String, deviceType: BluetoothDeviceType = .unknown,
                 isConnected: Bool = false, isPaired: Bool = false,
-                primaryBatteryLevel: Int? = nil, signalStrength: Int? = nil) {
+                primaryBatteryLevel: Int? = nil, signalStrength: Int? = nil,
+                batteryLevels: [DeviceBatteryLevel] = []) {
         self.id = id
         self.name = name
         self.deviceType = deviceType
@@ -615,24 +617,62 @@ public struct BluetoothDevice: Sendable, Identifiable {
         self.isPaired = isPaired
         self.primaryBatteryLevel = primaryBatteryLevel
         self.signalStrength = signalStrength
+        // If batteryLevels is provided, use it; otherwise derive from primaryBatteryLevel
+        if batteryLevels.isEmpty, let level = primaryBatteryLevel {
+            self.batteryLevels = [DeviceBatteryLevel(label: "Battery", percentage: level)]
+        } else {
+            self.batteryLevels = batteryLevels
+        }
     }
 
-    /// Battery levels for the device (returns array with primary battery if available)
-    public var batteryLevels: [DeviceBatteryLevel] {
-        guard let level = primaryBatteryLevel else { return [] }
-        return [DeviceBatteryLevel(label: "Battery", percentage: level)]
+    /// Convenience init with single battery level (backward compatible)
+    public init(id: UUID = UUID(), name: String, deviceType: BluetoothDeviceType = .unknown,
+                isConnected: Bool = false, isPaired: Bool = false,
+                batteryLevel: Int? = nil, signalStrength: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.deviceType = deviceType
+        self.isConnected = isConnected
+        self.isPaired = isPaired
+        self.primaryBatteryLevel = batteryLevel
+        self.signalStrength = signalStrength
+        if let level = batteryLevel {
+            self.batteryLevels = [DeviceBatteryLevel(label: "Battery", percentage: level)]
+        } else {
+            self.batteryLevels = []
+        }
     }
 
-    /// Individual battery level for a device component
-    public struct DeviceBatteryLevel: Identifiable {
+    /// Individual battery level for a device component (Case, Left, Right, etc.)
+    public struct DeviceBatteryLevel: Identifiable, Sendable, Codable, Equatable {
         public let id = UUID()
         public let label: String
         public let percentage: Int
+        public let component: BatteryComponent
 
-        public init(label: String, percentage: Int) {
+        public init(label: String, percentage: Int, component: BatteryComponent = .unknown) {
             self.label = label
             self.percentage = percentage
+            self.component = component
         }
+
+        /// Icon for the battery component
+        public var icon: String {
+            switch component {
+            case .caseBattery: return "airpodsprochargingcase"
+            case .left: return "airpods.left"
+            case .right: return "airpods.right"
+            case .unknown: return "battery.100"
+            }
+        }
+    }
+
+    /// Battery component type for multi-battery devices
+    public enum BatteryComponent: String, Sendable, Codable {
+        case caseBattery = "Case"
+        case left = "Left"
+        case right = "Right"
+        case unknown = "Unknown"
     }
 }
 

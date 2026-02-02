@@ -51,8 +51,7 @@ Reference: Stats Master Network module at `stats-master/Modules/Net/popup.swift`
 - [ ] Process count setting persists in NetworkModuleSettings
 - [ ] Missing DNS/WiFi data shows "Unknown" fallback
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

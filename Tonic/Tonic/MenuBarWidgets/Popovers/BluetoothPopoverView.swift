@@ -178,13 +178,22 @@ public struct BluetoothPopoverView: View {
                 Text(device.deviceType.displayName)
                     .font(.caption2)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                // Multi-battery display for devices like AirPods
+                if device.batteryLevels.count > 1 {
+                    HStack(spacing: 8) {
+                        ForEach(device.batteryLevels) { level in
+                            miniBatteryIndicator(level: level)
+                        }
+                    }
+                }
             }
 
             Spacer()
 
-            // Battery level if available
-            if let battery = device.primaryBatteryLevel {
-                batteryIndicator(percentage: battery)
+            // Single battery indicator for devices with only one battery
+            if device.batteryLevels.count == 1, let level = device.batteryLevels.first {
+                batteryIndicator(percentage: level.percentage)
             }
 
             // Signal strength
@@ -196,6 +205,27 @@ public struct BluetoothPopoverView: View {
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(PopoverConstants.innerCornerRadius)
+    }
+
+    /// Mini battery indicator for multi-battery device components
+    private func miniBatteryIndicator(level: BluetoothDevice.DeviceBatteryLevel) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: level.icon)
+                .font(.system(size: 8))
+                .foregroundColor(batteryColor(level.percentage))
+
+            Text(level.label)
+                .font(.system(size: 8))
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            Text("\(level.percentage)%")
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .foregroundColor(batteryColor(level.percentage))
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(4)
     }
 
     private func batteryIndicator(percentage: Int) -> some View {
