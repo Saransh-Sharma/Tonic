@@ -2044,16 +2044,17 @@ public final class WidgetDataManager {
                 } else if let writeOps = stats["kIOBlockStorageDriverStatisticsWritesKey"] as? UInt64 {
                     totalWriteOps += writeOps
                 }
-                // Try to get timing data (milliseconds from IOKit, stored as nanoseconds)
-                if let readTimeVal = stats["Latency (Read)"] as? UInt64 {
+                // Try to get timing data (IORegistry returns milliseconds, convert to nanoseconds)
+                // Note: Availability depends on macOS version and disk controller type
+                if let readTimeVal = stats["Total read time"] as? UInt64 {
                     totalReadTime += readTimeVal * 1_000_000  // Convert ms to ns
-                } else if let readTimeVal = stats["kIOBlockStorageDriverStatisticsReadTimeKey"] as? UInt64 {
-                    totalReadTime += readTimeVal
+                } else if let readTimeVal = stats["Read Time"] as? UInt64 {
+                    totalReadTime += readTimeVal * 1_000_000
                 }
-                if let writeTimeVal = stats["Latency (Write)"] as? UInt64 {
+                if let writeTimeVal = stats["Total write time"] as? UInt64 {
                     totalWriteTime += writeTimeVal * 1_000_000  // Convert ms to ns
-                } else if let writeTimeVal = stats["kIOBlockStorageDriverStatisticsWriteTimeKey"] as? UInt64 {
-                    totalWriteTime += writeTimeVal
+                } else if let writeTimeVal = stats["Write Time"] as? UInt64 {
+                    totalWriteTime += writeTimeVal * 1_000_000
                 }
             }
         }
