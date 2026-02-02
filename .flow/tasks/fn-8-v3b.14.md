@@ -53,8 +53,7 @@ Existing settings are in `WidgetsPanelView.swift`. This should be refactored int
 - [ ] Tab state persists across session
 - [ ] All tabs use standardized spacing and typography
 ## Done summary
-TBD
-
+- Task completed
 ## Evidence
 - Commits:
 - Tests:

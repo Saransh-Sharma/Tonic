@@ -492,15 +492,18 @@ public struct NetworkModuleSettings: Codable, Sendable, Equatable {
     public var selectedInterface: String
     public var showPublicIP: Bool
     public var showWiFiDetails: Bool
+    public var topProcessCount: Int
 
     public init(
         selectedInterface: String = "Auto",
         showPublicIP: Bool = false,
-        showWiFiDetails: Bool = true
+        showWiFiDetails: Bool = true,
+        topProcessCount: Int = 8
     ) {
         self.selectedInterface = selectedInterface
         self.showPublicIP = showPublicIP
         self.showWiFiDetails = showWiFiDetails
+        self.topProcessCount = max(3, min(20, topProcessCount))
     }
 }
 

@@ -8,6 +8,15 @@
 
 import Foundation
 
+// MARK: - WiFiBand Extension
+
+extension WiFiBand {
+    /// Display name for the band
+    public var displayName: String {
+        rawValue
+    }
+}
+
 // MARK: - WiFi Details
 
 /// Extended WiFi network information
@@ -20,8 +29,18 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
     /// Typical range: -100 (weak) to -30 (strong)
     public let rssi: Int
 
+    /// Noise level (dBm)
+    /// Typical range: -100 (high noise) to -30 (low noise)
+    public let noise: Int
+
     /// WiFi channel (1-165 for 2.4GHz/5GHz)
     public let channel: Int
+
+    /// Channel width in MHz (20, 40, 80, 160)
+    public let channelWidth: Int
+
+    /// Frequency band
+    public let band: WiFiBand
 
     /// Security type (WPA2, WPA3, Open, etc.)
     public let security: String
@@ -32,13 +51,19 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
     public init(
         ssid: String,
         rssi: Int,
+        noise: Int = -90,
         channel: Int,
+        channelWidth: Int = 20,
+        band: WiFiBand = .ghz24,
         security: String,
         bssid: String
     ) {
         self.ssid = ssid
         self.rssi = rssi
+        self.noise = noise
         self.channel = channel
+        self.channelWidth = channelWidth
+        self.band = band
         self.security = security
         self.bssid = bssid
     }
@@ -50,6 +75,12 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
         return ((clamped + 100) / 70) * 100
     }
 
+    /// Signal-to-noise ratio (SNR) in dB
+    /// Higher is better (typical: 20-40 dB)
+    public var snr: Int {
+        rssi - noise
+    }
+
     /// Signal strength description
     public var signalStrength: SignalStrength {
         switch signalQuality {
@@ -58,6 +89,18 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
         case 50..<75: return .good
         default: return .excellent
         }
+    }
+}
+
+/// Channel width in MHz
+public enum ChannelWidth: Int, Sendable, Codable {
+    case twenty = 20
+    case forty = 40
+    case eighty = 80
+    case oneSixty = 160
+
+    public var displayName: String {
+        "\(rawValue) MHz"
     }
 }
 

@@ -853,21 +853,21 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_1FD44C94-BB9D-4111-86F1-EAD4B9B5BB83" /* Tonic */ = {
+		"TEMP_07650FCC-129F-418F-BD32-4AE9C50DB500" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Tonic;
 			sourceTree = "<group>";
 		};
-		"TEMP_6C4F8D54-6E41-4754-8C23-EC116D9D55DC" /* Sources */ = {
+		"TEMP_1D708254-32E7-451A-8DC4-1137B0FB77F3" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
 			sourceTree = "<group>";
 		};
-		"TEMP_F5F80B7B-EA6F-4533-A606-4150FEAB1864" /* MenuBarWidgets */ = {
+		"TEMP_2466D248-5F12-4783-9BA9-045CD77BFF8C" /* MenuBarWidgets */ = {
 			isa = PBXGroup;
 			children = (
 			);

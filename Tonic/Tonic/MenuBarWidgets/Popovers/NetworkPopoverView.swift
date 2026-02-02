@@ -21,6 +21,8 @@ private class NetworkPopoverState {
     var uploadIsActive: Bool = false
     var totalUploadValue: String = "0"
     var totalDownloadValue: String = "0"
+    var showDNSDetails: Bool = false
+    var showWiFiTooltip: Bool = false
 }
 
 // MARK: - Network Popover View
@@ -261,14 +263,152 @@ public struct NetworkPopoverView: View {
             detailRow(title: "Status:", value: dataManager.networkData.isConnected ? "UP" : "DOWN", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
             detailRow(title: "Physical address:", value: macAddressValue, color: textColor)
 
+            // DNS servers with expand/collapse
+            HStack(spacing: 0) {
+                Text("DNS servers:")
+                    .font(Font.system(size: 11))
+                    .foregroundColor(secondaryTextColor)
+                    .frame(width: 120, alignment: .leading)
+
+                Spacer()
+
+                Button(action: { state.showDNSDetails.toggle() }) {
+                    HStack(spacing: 4) {
+                        Text(dnsServersValue)
+                            .font(Font.system(size: 11, weight: .semibold))
+                            .foregroundColor(textColor)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right")
+                            .font(Font.system(size: 8))
+                            .foregroundColor(secondaryTextColor)
+                            .rotationEffect(.degrees(state.showDNSDetails ? 90 : 0))
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(width: 160, alignment: .trailing)
+            }
+            .frame(height: 16)
+
+            if state.showDNSDetails {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(dnsServersList.enumerated()), id: \.offset) { _, dns in
+                        HStack(spacing: 8) {
+                            Spacer()
+                                .frame(width: 120)
+                            Text(dns)
+                                .font(Font.system(size: 10))
+                                .foregroundColor(textColor)
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            }
+
             if dataManager.networkData.connectionType == .wifi,
                let wifi = dataManager.networkData.wifiDetails {
-                detailRow(title: "Network:", value: "\(wifi.ssid) (\(wifi.rssi))", color: textColor)
+                detailRow(title: "Network:", value: wifi.ssid, color: textColor)
                 detailRow(title: "Standard:", value: wifi.security, color: textColor)
-                detailRow(title: "Channel:", value: "\(wifi.channel) (2.4 GHz)", color: textColor)
+
+                // WiFi details row with extended tooltip
+                HStack(spacing: 0) {
+                    Text("Channel:")
+                        .font(Font.system(size: 11))
+                        .foregroundColor(secondaryTextColor)
+                        .frame(width: 120, alignment: .leading)
+
+                    Spacer()
+
+                    Button(action: { state.showWiFiTooltip.toggle() }) {
+                        HStack(spacing: 4) {
+                            Text("\(wifi.channel) (\(wifi.band.displayName))")
+                                .font(Font.system(size: 11, weight: .semibold))
+                                .foregroundColor(textColor)
+                            Image(systemName: "info.circle")
+                                .font(Font.system(size: 9))
+                                .foregroundColor(secondaryTextColor)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 160, alignment: .trailing)
+                    .popover(isPresented: $state.showWiFiTooltip, arrowEdge: .trailing) {
+                        wifiTooltipView(wifi)
+                    }
+                }
+                .frame(height: 16)
+
                 detailRow(title: "Speed:", value: "1000baseT", color: textColor)
             }
         }
+    }
+
+    // MARK: - WiFi Tooltip View
+
+    private func wifiTooltipView(_ wifi: WiFiDetails) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("WiFi Details")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(textColor)
+                .padding(.bottom, 4)
+
+            wifiDetailRow(label: "Signal Strength", value: "\(wifi.rssi) dBm")
+            wifiDetailRow(label: "Noise Level", value: "\(wifi.noise) dBm")
+            wifiDetailRow(label: "SNR", value: "\(wifi.snr) dB")
+            wifiDetailRow(label: "Channel", value: "\(wifi.channel)")
+            wifiDetailRow(label: "Band", value: wifi.band.displayName)
+            wifiDetailRow(label: "Channel Width", value: "\(wifi.channelWidth) MHz")
+            wifiDetailRow(label: "BSSID", value: wifi.bssid)
+        }
+        .padding(12)
+        .frame(width: 200)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .cornerRadius(8)
+        .shadow(radius: 4)
+    }
+
+    private func wifiDetailRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(secondaryTextColor)
+            Spacer()
+            Text(value)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(textColor)
+        }
+    }
+
+    private var dnsServersValue: String {
+        let servers = dnsServersList
+        if servers.isEmpty {
+            return "Unknown"
+        } else if servers.count == 1 {
+            return servers[0]
+        } else {
+            return "\(servers.count) servers"
+        }
+    }
+
+    private var dnsServersList: [String] {
+        // Read from /etc/resolv.conf
+        guard let content = try? String(contentsOfFile: "/etc/resolv.conf"),
+              !content.isEmpty else {
+            return []
+        }
+
+        var servers: [String] = []
+        let lines = content.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("nameserver") {
+                let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                if parts.count >= 2, let ipAddress = parts.last {
+                    servers.append(ipAddress)
+                }
+            }
+        }
+        return servers
     }
 
     private var interfaceValue: String {
@@ -306,8 +446,9 @@ public struct NetworkPopoverView: View {
 
             // Process list
             if let processes = dataManager.networkData.topProcesses, !processes.isEmpty {
+                let processCount = topProcessCount
                 VStack(spacing: 0) {
-                    ForEach(processes.prefix(8)) { process in
+                    ForEach(processes.prefix(processCount)) { process in
                         processRow(process)
                     }
                 }
@@ -320,6 +461,13 @@ public struct NetworkPopoverView: View {
                 .frame(height: 50)
             }
         }
+    }
+
+    /// Get the configured top process count from NetworkModuleSettings
+    private var topProcessCount: Int {
+        WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .network })?
+            .moduleSettings.network.topProcessCount ?? 8
     }
 
     private func processRow(_ process: ProcessNetworkUsage) -> some View {
