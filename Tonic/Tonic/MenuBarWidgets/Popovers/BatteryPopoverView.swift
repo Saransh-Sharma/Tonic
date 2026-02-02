@@ -50,6 +50,9 @@ public struct BatteryPopoverView: View {
                     // Battery Info Section
                     batteryInfoSection
 
+                    // Electrical Metrics Section
+                    electricalMetricsSection
+
                     // Power Adapter Section (only when charging)
                     if dataManager.batteryData.isCharging {
                         Divider()
@@ -288,6 +291,50 @@ public struct BatteryPopoverView: View {
                 } else {
                     detailRow(label: "Power", value: "Unknown")
                 }
+
+                // Adapter current (mA)
+                if let current = dataManager.batteryData.chargingCurrent {
+                    detailRow(label: "Current", value: "\(Int(current)) mA")
+                }
+
+                // Adapter voltage (V)
+                if let voltage = dataManager.batteryData.chargingVoltage {
+                    detailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
+                }
+            }
+        }
+    }
+
+    // MARK: - Electrical Metrics Section
+
+    private var electricalMetricsSection: some View {
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
+            PopoverSectionHeader(title: "Electrical")
+
+            VStack(spacing: PopoverConstants.compactSpacing) {
+                // Amperage (mA) - negative when charging, positive when discharging
+                if let amperage = dataManager.batteryData.amperage {
+                    let amperageText = amperage < 0
+                        ? "\(Int(abs(amperage))) mA (charging)"
+                        : "\(Int(amperage)) mA (discharging)"
+                    detailRow(label: "Amperage", value: amperageText)
+                } else {
+                    detailRow(label: "Amperage", value: "Unknown")
+                }
+
+                // Voltage (V)
+                if let voltage = dataManager.batteryData.voltage {
+                    detailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
+                } else {
+                    detailRow(label: "Voltage", value: "Unknown")
+                }
+
+                // Power (W)
+                if let power = dataManager.batteryData.batteryPower {
+                    detailRow(label: "Power", value: String(format: "%.2f W", power))
+                } else {
+                    detailRow(label: "Power", value: "Unknown")
+                }
             }
         }
     }
@@ -356,8 +403,15 @@ public struct BatteryPopoverView: View {
     }
 
     private var capacityText: String {
-        // Placeholder - would need current/max/design capacity from IOKit
-        // For now, showing just the percentage
+        // Show capacity breakdown: current / max / designed (mAh)
+        if let current = dataManager.batteryData.currentCapacity,
+           let maxCap = dataManager.batteryData.maxCapacity {
+            if let designed = dataManager.batteryData.designedCapacity {
+                return "\(current) / \(maxCap) / \(designed) mAh"
+            } else {
+                return "\(current) / \(maxCap) mAh"
+            }
+        }
         return "\(Int(dataManager.batteryData.chargePercentage))%"
     }
 

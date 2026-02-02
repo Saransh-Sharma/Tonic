@@ -497,13 +497,29 @@ public struct BatteryData: Sendable {
     public let temperature: Double?  // Celsius
     public let optimizedCharging: Bool?  // Optimized Battery Charging enabled
     public let chargerWattage: Double?  // Charger wattage (W)
+
+    // Electrical metrics
+    public let amperage: Double?           // mA (negative = charging, positive = discharging)
+    public let voltage: Double?             // V
+    public let batteryPower: Double?       // W (calculated: voltage × |amperage| / 1000000)
+    public let designedCapacity: UInt64?   // mAh (design capacity from IOKit)
+    public let currentCapacity: UInt64?    // mAh (current capacity)
+    public let maxCapacity: UInt64?        // mAh (maximum capacity)
+    public let chargingCurrent: Double?    // Adapter current in mA
+    public let chargingVoltage: Double?    // Adapter voltage in mV
+
     public let timestamp: Date
 
     public init(isPresent: Bool, isCharging: Bool = false, isCharged: Bool = false,
                 chargePercentage: Double = 0, estimatedMinutesRemaining: Int? = nil,
                 health: BatteryHealth = .unknown, cycleCount: Int? = nil,
                 temperature: Double? = nil, optimizedCharging: Bool? = nil,
-                chargerWattage: Double? = nil, timestamp: Date = Date()) {
+                chargerWattage: Double? = nil,
+                amperage: Double? = nil, voltage: Double? = nil, batteryPower: Double? = nil,
+                designedCapacity: UInt64? = nil, currentCapacity: UInt64? = nil,
+                maxCapacity: UInt64? = nil, chargingCurrent: Double? = nil,
+                chargingVoltage: Double? = nil,
+                timestamp: Date = Date()) {
         self.isPresent = isPresent
         self.isCharging = isCharging
         self.isCharged = isCharged
@@ -514,6 +530,14 @@ public struct BatteryData: Sendable {
         self.chargerWattage = chargerWattage
         self.estimatedMinutesRemaining = estimatedMinutesRemaining
         self.health = health
+        self.amperage = amperage
+        self.voltage = voltage
+        self.batteryPower = batteryPower
+        self.designedCapacity = designedCapacity
+        self.currentCapacity = currentCapacity
+        self.maxCapacity = maxCapacity
+        self.chargingCurrent = chargingCurrent
+        self.chargingVoltage = chargingVoltage
         self.timestamp = timestamp
     }
 
@@ -530,10 +554,18 @@ public struct BatteryData: Sendable {
         self.temperature = temperature
         self.estimatedMinutesRemaining = estimatedMinutesRemaining
         self.health = health
-        self.timestamp = timestamp
         // Enhanced properties default to nil for backward compatibility
         self.optimizedCharging = nil
         self.chargerWattage = nil
+        self.amperage = nil
+        self.voltage = nil
+        self.batteryPower = nil
+        self.designedCapacity = nil
+        self.currentCapacity = nil
+        self.maxCapacity = nil
+        self.chargingCurrent = nil
+        self.chargingVoltage = nil
+        self.timestamp = timestamp
     }
 }
 
@@ -3110,6 +3142,22 @@ public final class WidgetDataManager {
             // Get charger wattage
             let chargerWattage = getChargerWattage()
 
+            // Get electrical metrics from IOKit
+            let amperage = getBatteryAmperage()
+            let voltage = getBatteryVoltage()
+            let designedCapacity = getBatteryDesignedCapacity()
+            let currentCapacity = UInt64(capacity)
+            let maxCapacityVal = UInt64(maxCapacity)
+            let chargingCurrent = getChargingCurrent()
+            let chargingVoltage = getChargingVoltage()
+
+            // Calculate battery power (W = V × A / 1000 for mV/mA to W)
+            var batteryPower: Double? = nil
+            if let v = voltage, let a = amperage {
+                // Use absolute value of amperage for power display
+                batteryPower = (v * abs(a)) / 1000.0  // W
+            }
+
             let newBatteryData = BatteryData(
                 isPresent: true,
                 isCharging: isCharging,
@@ -3120,7 +3168,15 @@ public final class WidgetDataManager {
                 cycleCount: cycleCount,
                 temperature: temperature,
                 optimizedCharging: optimizedCharging,
-                chargerWattage: chargerWattage
+                chargerWattage: chargerWattage,
+                amperage: amperage,
+                voltage: voltage,
+                batteryPower: batteryPower,
+                designedCapacity: designedCapacity,
+                currentCapacity: currentCapacity,
+                maxCapacity: maxCapacityVal,
+                chargingCurrent: chargingCurrent,
+                chargingVoltage: chargingVoltage
             )
             // Dispatch property updates to main thread for @Observable
             DispatchQueue.main.async { [weak self] in
@@ -3226,6 +3282,149 @@ public final class WidgetDataManager {
         }
 
         return nil
+    }
+
+    /// Get battery amperage from IOKit (mA, negative = charging, positive = discharging)
+    private func getBatteryAmperage() -> Double? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSmartBattery"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return nil
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        guard let amperage = IORegistryEntryCreateCFProperty(
+            service,
+            "Amperage" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int else {
+            return nil
+        }
+
+        return Double(amperage)  // mA, negative when charging
+    }
+
+    /// Get battery voltage from IOKit (mV)
+    private func getBatteryVoltage() -> Double? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSmartBattery"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return nil
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        guard let voltage = IORegistryEntryCreateCFProperty(
+            service,
+            "Voltage" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int else {
+            return nil
+        }
+
+        return Double(voltage) / 1000.0  // Convert mV to V
+    }
+
+    /// Get battery designed capacity from IOKit (mAh)
+    private func getBatteryDesignedCapacity() -> UInt64? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleSmartBattery"),
+            &iterator
+        ) == KERN_SUCCESS else {
+            return nil
+        }
+
+        defer { IOObjectRelease(iterator) }
+
+        let service = IOIteratorNext(iterator)
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        guard let capacity = IORegistryEntryCreateCFProperty(
+            service,
+            "DesignCapacity" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? Int else {
+            return nil
+        }
+
+        return UInt64(capacity)
+    }
+
+    /// Get charging current from adapter (mA)
+    /// Note: IOPS doesn't provide current directly, so we estimate from wattage
+    /// assuming USB-C PD standard voltages (5V, 9V, 15V, 20V)
+    private func getChargingCurrent() -> Double? {
+        guard let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] else {
+            return nil
+        }
+
+        // Get wattage if available
+        guard let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? Int else {
+            return nil
+        }
+
+        // USB-C Power Delivery typical voltages: 5V, 9V, 15V, 20V
+        // Estimate current based on wattage
+        let wattage = Double(watts)
+        let possibleVoltages = [5.0, 9.0, 15.0, 20.0]
+
+        // Find most likely voltage and compute current
+        for voltage in possibleVoltages.reversed() {
+            if wattage / voltage >= 0.5 && wattage / voltage <= 6.0 {
+                return wattage / voltage * 1000  // Convert A to mA
+            }
+        }
+
+        // Fallback: assume 20V for higher wattage chargers
+        if wattage >= 60 {
+            return wattage / 20.0 * 1000
+        } else if wattage >= 30 {
+            return wattage / 15.0 * 1000
+        }
+
+        return nil
+    }
+
+    /// Get charging voltage from adapter (V)
+    /// Note: IOPS doesn't provide voltage directly, so we estimate from wattage
+    private func getChargingVoltage() -> Double? {
+        guard let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] else {
+            return nil
+        }
+
+        guard let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? Int else {
+            return nil
+        }
+
+        let wattage = Double(watts)
+
+        // Estimate voltage based on wattage ranges
+        if wattage >= 60 { return 20.0 }      // 60W+ chargers typically use 20V
+        else if wattage >= 30 { return 15.0 } // 30-60W typically use 15V
+        else if wattage >= 18 { return 9.0 }  // 18-30W typically use 9V
+        else if wattage >= 10 { return 5.0 }  // 10-18W typically use 5V
+        else { return 5.0 }                   // Low wattage uses 5V
     }
 
     // MARK: - Sensors Monitoring
