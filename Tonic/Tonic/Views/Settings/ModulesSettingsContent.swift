@@ -120,8 +120,9 @@ struct ModuleListItem: View {
                 .fill(isEnabled ? DesignTokens.Colors.success : Color.clear)
                 .frame(width: 6, height: 6)
         }
-        .padding(.vertical, DesignTokens.Spacing.xs)
-        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
                 .fill(isSelected ? DesignTokens.Colors.accent.opacity(0.15) : Color.clear)
