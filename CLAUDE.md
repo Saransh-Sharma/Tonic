@@ -43,12 +43,26 @@ WidgetCoordinator.shared        // Menu bar widget lifecycle (OneView/Individual
 WidgetDataManager.shared        // Central data source for all widget metrics (@Observable)
 NotificationManager.shared      // Threshold-based notifications
 PermissionManager.shared        // Permission checks
-PrivilegedHelperManager.shared  // Root operations
+PrivilegedHelperManager.shared  // Root operations (including SMC write for fan control)
 CollectorBin.shared             // Deletion staging
 WeatherService.shared           // Weather data
 SparkleUpdater.shared           // App updates
-SMCReader.shared                // SMC sensor readings (temperature, fan, voltage)
+SMCReader.shared                // SMC sensor readings (temperature, fan, voltage) + fan write control
 ```
+
+### Fan Control Architecture (`SMCReader.swift`, `PrivilegedHelperManager.swift`)
+Tonic supports full fan control for advanced users:
+- **Read Operations**: Get current fan speeds, mode (Automatic/Forced/Manual), minimum/maximum speeds via SMC
+- **Write Operations**: Set fan mode, set specific RPM, set percentage speed (requires helper tool)
+- **FanControlView**: UI with per-fan sliders, mode selection (Manual/Auto/System), min/max indicators
+- **Privileged Operations**: Fan write commands go through `TonicHelperTool` for root-level SMC access
+
+### Settings Architecture (`MenuBarWidgets/Settings/TabbedSettingsView.swift`)
+Tabbed settings UI following Stats Master's 4-tab pattern:
+- **Module Tab**: Per-module settings (update intervals, top process count, visualization options)
+- **Widgets Tab**: Widget selector with drag-drop reorder, enable/disable toggles
+- **Popup Tab**: Global popover settings (keyboard shortcut, chart history, scaling, colors)
+- **Notifications Tab**: Threshold configuration, debounce settings, Do Not Disturb respect
 
 ## Key Models
 
@@ -132,21 +146,21 @@ Multi-stage system analysis:
 
 ### 3. System Monitoring (`WidgetDataManager.swift`)
 Centralized data manager for all menu bar widget metrics using inline methods:
-- **CPU Data**: Total usage, per-core usage, E-core/P-core breakdown, frequency, temperature, thermal limit, load averages
-- **Memory Data**: Used/total bytes, pressure level, compressed/swap bytes, free memory, swap usage, top processes
-- **Disk Data**: Usage per volume, read/write rates, I/O statistics, SMART data, detailed disk stats
-- **Network Data**: Upload/download bandwidth, WiFi info, IP addresses, interface names
-- **GPU Data**: Usage (Apple Silicon unified memory), dynamic memory allocation
-- **Battery Data**: Level, charging state, time remaining, cycle count, health, temperature, power adapter info
-- **Sensors Data**: Temperature readings via SMC (SMCReader), fan speeds, voltage, power
-- **Bluetooth Data**: Connected devices, battery levels for Bluetooth devices
-- **History Tracking**: Per-widget history (60-120 samples) for charts and sparklines
+- **CPU Data**: Total usage, per-core usage, E-core/P-core breakdown, frequency, temperature, thermal limit, load averages, scheduler/speed limits, uptime
+- **Memory Data**: Used/total bytes, pressure level (with gauge support), compressed/swap bytes, free memory, swap usage, top processes
+- **Disk Data**: Usage per volume, read/write rates, I/O statistics, SMART data, detailed disk stats, I/O timing
+- **Network Data**: Upload/download bandwidth, WiFi info (RSSI, noise, SNR, band, channel width), DNS servers, IP addresses, interface names, public IP
+- **GPU Data**: Usage (Apple Silicon unified memory), dynamic memory allocation, per-GPU metrics (temperature, utilization, render/tiler, fan, clock, memory)
+- **Battery Data**: Level, charging state, time remaining, cycle count, health, temperature, power adapter info (current, voltage), capacity (current/max/designed), amperage, wattage
+- **Sensors Data**: Temperature readings via SMC (SMCReader), fan speeds (with write control), voltage, power
+- **Bluetooth Data**: Connected devices, multi-battery levels for devices like AirPods (case, left, right)
+- **History Tracking**: Per-widget history (60-180 samples depending on widget type) for charts and sparklines
 
 All data collection is inline within `WidgetDataManager` using `@Observable` pattern for automatic SwiftUI updates.
 
 ### 4. Menu Bar Widgets (`WidgetCoordinator`)
 Stats Master-parity widget system with flexible visualizations:
-- **Data Sources** (9 types): CPU, GPU, Memory, Disk, Network, Battery, Weather, Sensors, Bluetooth
+- **Data Sources** (10 types): CPU, GPU, Memory, Disk, Network, Battery, Weather, Sensors, Bluetooth, Clock
 - **Visualization Types** (14 types): mini, lineChart, barChart, pieChart, tachometer, stack, speed, networkChart, batteryDetails, label, state, text, memory, battery
 - **Display Modes**: Compact (icon+value), Detailed (adds sparkline for mini visualization)
 - **OneView Mode**: Unified menu bar item showing all widgets in a horizontal grid (toggleable)
@@ -154,6 +168,18 @@ Stats Master-parity widget system with flexible visualizations:
 - **Chart Components**: `ChartStatusItems/` directory contains specialized status items for each visualization
 - **Notification Thresholds**: Per-widget configurable alerts via `NotificationManager`
 - **Color System**: 30+ color options including utilization-based auto-coloring (green->yellow->orange->red)
+- **Per-Widget Popovers**: Stats Master-style detail views for each widget type
+
+#### Popover Views (`MenuBarWidgets/Popovers/`)
+Each widget type has a dedicated popover view with Stats Master parity:
+- **CPUPopoverView.swift**: Total usage gauge, E-core/P-core charts, per-core bar chart, scheduler/speed limits, uptime, load averages, top processes
+- **MemoryPopoverView.swift**: Pressure gauge (3-color arc with needle), usage charts, swap section, top processes
+- **GPUPopoverView.swift**: Per-GPU containers, temp/utilization/render/tiler gauges, line charts, expandable details, fan/clock/memory info
+- **DiskPopoverView.swift**: Per-disk containers, dual-line read/write charts, I/O stats, expandable details, top I/O processes
+- **NetworkPopoverView.swift**: Bandwidth charts, connectivity grid, WiFi details (RSSI, noise, SNR, band, width), DNS servers, public IP, interface info
+- **BatteryPopoverView.swift**: Battery visual, electrical metrics (amperage, voltage, power), adapter section, capacity breakdown, time formatting
+- **SensorsPopoverView.swift**: Temperature readings, **FanControlView** with sliders and modes (Manual/Auto/System), per-fan speed control
+- **BluetoothPopoverView.swift**: Connection status, history chart, device list with multi-battery support (case/left/right)
 
 Visualization Type Details:
 - **mini**: Icon + value, optional sparkline in detailed mode
@@ -237,20 +263,33 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 
 ### Popover Design System (Stats Master Parity)
 Located in `Tonic/Tonic/MenuBarWidgets/Popovers/`:
-- **PopoverConstants.swift**: Standardized spacing, typography, and sizes for all widget popovers
-  - Uses `DesignTokens` 8-point grid system for consistency
-  - Provides color helpers (percentageColor, temperatureColor, batteryColor)
-  - Animation timings (fast, normal, slow)
-- **PopoverTemplate.swift**: Reusable components for consistent popover UI
-  - `PopoverTemplate`: Standard template with header, content, action button
-  - `PopoverSection` / `TitledPopoverSection`: Section containers
-  - `PopoverDetailRow` / `PopoverDetailGrid`: Key-value displays
-  - `ProcessRow`: Standardized process list row
-  - `IconLabelRow`: Icon + label + value row
-  - `SectionHeader`: Section title with optional icon
-  - `EmptyStateView`: Empty state placeholder
-  - `MetricCard`: Metric display with label
-  - `CircularProgress`, `UsageBar`, `MetricDisplay`: Visual components
+
+#### PopoverConstants.swift
+Standardized spacing, typography, and sizes for all widget popovers:
+- **Dimensions**: Width 280px, maxHeight 600px (matches Stats Master)
+- **Typography**: 9pt (small), 11pt (default), 13pt (header) - using `DesignTokens`
+- **Spacing**: Uses 8-point grid (4, 8, 12, 16, 24pt values)
+- **Corner Radius**: 6pt for inner cards, 10pt for popover
+- **Icons**: SF Symbols with consistent sizing
+- **Colors**: Helper functions for percentage (green/yellow/orange/red), temperature, battery
+- **Animations**: fast (0.15s), normal (0.25s), slow (0.35s)
+
+#### PopoverTemplate.swift
+Reusable components for consistent popover UI:
+- `PopoverTemplate`: Standard template with header, content, action button
+- `PopoverSection` / `TitledPopoverSection`: Section containers with consistent padding
+- `PopoverDetailRow` / `PopoverDetailGrid`: Key-value displays for metrics
+- `ProcessRow`: Standardized process list row (PID, name, CPU%, memory, kill button)
+- `IconLabelRow`: Icon + label + value row with alignment
+- `SectionHeader`: Section title with optional icon
+- `EmptyStateView`: Empty state placeholder with icon and message
+- `MetricCard`: Metric display with label and value
+- `CircularProgress`, `UsageBar`, `MetricDisplay`: Visual components
+
+#### Gauge Components
+Located in `Tonic/Tonic/Views/`:
+- `PressureGaugeView.swift`: 3-color arc gauge with needle for memory pressure (green 0-50%, yellow 50-80%, red 80-100%)
+- `TachometerView.swift`: Half-circle gauge with needle for CPU/GPU utilization
 
 ## Common Tasks
 

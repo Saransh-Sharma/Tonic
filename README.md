@@ -65,19 +65,32 @@ Real-time metrics for:
 - **Battery** - Charge percentage, health, time remaining (portable Macs)
 
 ### Menu Bar Widgets
-Seven customizable widgets that live in your menu bar:
-- **CPU Widget** - Usage percentage with optional sparkline history
-- **Memory Widget** - Usage with pressure indicator
-- **Disk Widget** - Primary volume usage
-- **Network Widget** - Bandwidth and connection status
-- **GPU Widget** - Apple Silicon unified memory (M-series only)
-- **Battery Widget** - Charge level and time remaining (portable Macs)
+Ten customizable widgets that live in your menu bar with Stats Master-style popovers:
+- **CPU Widget** - Usage percentage with optional sparkline, per-core breakdown, scheduler/speed limits, uptime
+- **Memory Widget** - Usage with pressure indicator (pressure gauge), swap usage, top processes
+- **Disk Widget** - Primary volume usage, I/O statistics, per-disk charts
+- **Network Widget** - Bandwidth and connection status, WiFi details (RSSI, noise, SNR), DNS servers
+- **GPU Widget** - Apple Silicon unified memory, per-GPU metrics (M-series only), temperature, render/tiler stats
+- **Battery Widget** - Charge level, health, electrical metrics (amperage, voltage, wattage), adapter info
 - **Weather Widget** - Current conditions and 7-day forecast
+- **Sensors Widget** - Temperature readings, **fan control with sliders** (Manual/Auto/System modes)
+- **Bluetooth Widget** - Connection status, device list with multi-battery support (case, left, right)
+- **Clock Widget** - Multiple timezones with customizable formats
 
 Each widget supports three display modes:
 - Icon only (minimal)
 - Icon + value
 - Icon + value + sparkline
+
+**Advanced Features**:
+- **Fan Control**: Adjust fan speeds manually or set modes (Automatic/Forced/System)
+- **Pressure Gauge**: Visual memory pressure indicator (3-color arc with needle)
+- **Per-GPU Monitoring**: Separate stats for each GPU in multi-GPU systems
+- **Multi-Battery Display**: See individual battery levels for AirPods case, left, and right
+- **WiFi Details**: Signal strength (RSSI), noise, SNR, band, channel width
+- **Electrical Metrics**: Amperage, voltage, and wattage for battery analysis
+- **Chart History**: Configurable history depth (60-180 samples) for all charts
+- **Tabbed Settings**: Module, Widgets, Popup, and Notifications settings tabs
 
 ### App Management
 - **App Inventory** - Categorized view of all apps and extensions
