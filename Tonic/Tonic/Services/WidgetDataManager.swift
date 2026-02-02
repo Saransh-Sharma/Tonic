@@ -2045,10 +2045,12 @@ public final class WidgetDataManager {
                     totalWriteOps += writeOps
                 }
                 // Try to get timing data (IORegistry returns milliseconds, convert to nanoseconds)
-                // Keys are defined in IOKit/storage/IOBlockStorageDriver.h:
-                //   kIOBlockStorageDriverStatisticsReadTimeKey = "Read Time"
-                //   kIOBlockStorageDriverStatisticsWriteTimeKey = "Write Time"
-                // Note: Availability depends on macOS version and disk controller type
+                // Note: These keys may not be available on all macOS versions or disk controllers.
+                // The IOKit constants are defined as:
+                //   kIOBlockStorageDriverStatisticsReadTimeKey -> "Read Time"
+                //   kIOBlockStorageDriverStatisticsWriteTimeKey -> "Write Time"
+                // Due to Swift bridging limitations with CFString in dictionary access,
+                // we use the string literal values directly (same pattern as operation counts above).
                 if let readTimeVal = stats["Read Time"] as? UInt64 {
                     totalReadTime += readTimeVal * 1_000_000  // Convert ms to ns
                 }
