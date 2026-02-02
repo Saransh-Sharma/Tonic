@@ -251,7 +251,11 @@ public class WidgetStatusItem: ObservableObject {
 
     /// Create the detail view for this widget (to be overridden by subclasses)
     open func createDetailView() -> AnyView {
-        AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
+        // Special handling for network widget - use Stats Master-style popover
+        if widgetType == .network {
+            return AnyView(NetworkPopoverView())
+        }
+        return AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
     }
 
     // MARK: - Actions
