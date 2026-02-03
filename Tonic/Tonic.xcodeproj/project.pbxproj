@@ -205,6 +205,7 @@
 		FEBDCF1B012AB2AA9429BF37 /* ViewRenderPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600CC141B037B23320257A01 /* ViewRenderPerformanceTests.swift */; };
 		FF1A22434ED052BAC9C23CD5 /* ProjectArtifactPurge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA91484AC3C6D90FBF035A3 /* ProjectArtifactPurge.swift */; };
 		FFD807BCD100A6860FF3F6C2 /* PopupWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730E17099307E49073F98D40 /* PopupWindow.swift */; };
+		F92FCE0E9C214C5D9634A129DCF0BB90 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 040744D4C8314410872CA4DE59F2F798 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -255,6 +256,7 @@
 		2F58578D4D646EE427029EBD /* GPUPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUPopoverView.swift; sourceTree = "<group>"; };
 		2FAEE458280DBCEE1369F8A2 /* ProtectedApps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtectedApps.swift; sourceTree = "<group>"; };
 		30B8E5D8772F748896B90BE6 /* DetailedStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailedStatsView.swift; sourceTree = "<group>"; };
+		040744D4C8314410872CA4DE59F2F798 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		322ADC71AE1B1026FD7E0DDF /* NetworkQualityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkQualityService.swift; sourceTree = "<group>"; };
 		32F9B0B44B8F99242ACDDA1D /* Whitelist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Whitelist.swift; sourceTree = "<group>"; };
 		35F8544B1103EE972A3D2FF2 /* PieChartStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PieChartStatusItem.swift; sourceTree = "<group>"; };
@@ -630,6 +632,7 @@
 			isa = PBXGroup;
 			children = (
 				AD2B64BE65F10FE61E5D1F57 /* .gitignore */,
+				040744D4C8314410872CA4DE59F2F798 /* Assets.xcassets */,
 				B8376D12922EBBE44645BC95 /* Main.storyboard */,
 				7D68A6AD143729AF7D467B99 /* TonicApp.swift */,
 				888230F91009656F87B0299C /* Design */,
@@ -953,6 +956,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F92FCE0E9C214C5D9634A129DCF0BB90 /* Assets.xcassets in Resources */,
 				88E7D263AAA222DB534111F3 /* Main.storyboard in Resources */,
 				6EDA5071C9D5664EF4DA6C94 /* Sparkle.zip in Resources */,
 			);
