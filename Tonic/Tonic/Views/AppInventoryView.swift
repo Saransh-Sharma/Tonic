@@ -19,16 +19,17 @@ extension AppMetadata: ActionTableItem {}
 @Observable
 final class AppCache: Sendable {
     private let cacheURL: URL
-    nonisolated(unsafe) private let fileManager = FileManager.default
 
     static let shared = AppCache()
 
     private init() {
+        let fileManager = FileManager.default
         let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
         self.cacheURL = cacheDir.appendingPathComponent("com.pretonic.tonic/appcache.json")
     }
 
     func loadCachedApps() -> [CachedAppData] {
+        let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: cacheURL.path),
               let data = try? Data(contentsOf: cacheURL),
               let cached = try? JSONDecoder().decode([CachedAppData].self, from: data) else {
