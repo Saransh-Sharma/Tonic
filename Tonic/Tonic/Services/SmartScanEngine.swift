@@ -101,7 +101,7 @@ final class SmartScanEngine: @unchecked Sendable {
         lock.locked { _scanData.junkFiles = junkFiles }
 
         // Update disk usage with junk file totals
-        if var existing = _scanData.diskUsage {
+        if let existing = _scanData.diskUsage {
             _scanData.diskUsage = DiskUsageSummary(
                 totalSpace: existing.totalSpace,
                 usedSpace: existing.usedSpace,
@@ -260,23 +260,18 @@ final class SmartScanEngine: @unchecked Sendable {
 
         for recommendation in recommendations where recommendation.safeToFix {
             for path in recommendation.affectedPaths {
-                do {
-                    // Get size before deletion
-                    let attrs = try? fileManager.attributesOfItem(atPath: path)
-                    let size = (attrs?[.size] as? Int64) ?? 0
+                // Get size before deletion
+                let attrs = try? fileManager.attributesOfItem(atPath: path)
+                let size = (attrs?[.size] as? Int64) ?? 0
 
-                    // Delete using FileOperations
-                    let result = await fileOps.deleteFiles(atPaths: [path])
+                // Delete using FileOperations
+                let result = await fileOps.deleteFiles(atPaths: [path])
 
-                    if result.success {
-                        itemsFixed += result.filesProcessed
-                        spaceFreed += size
-                    } else {
-                        errors += result.errors.count
-                    }
-                } catch {
-                    errors += 1
-                    logger.error("Error deleting \(path): \(error.localizedDescription)")
+                if result.success {
+                    itemsFixed += result.filesProcessed
+                    spaceFreed += size
+                } else {
+                    errors += result.errors.count
                 }
             }
         }

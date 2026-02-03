@@ -65,8 +65,8 @@ struct AppUpdate: Identifiable, Sendable, Codable {
 
         // Pad the shorter array with zeros
         let maxLength = max(currentComponents.count, latestComponents.count)
-        var paddedCurrent = currentComponents + [Int](repeating: 0, count: maxLength - currentComponents.count)
-        var paddedLatest = latestComponents + [Int](repeating: 0, count: maxLength - latestComponents.count)
+        let paddedCurrent = currentComponents + [Int](repeating: 0, count: maxLength - currentComponents.count)
+        let paddedLatest = latestComponents + [Int](repeating: 0, count: maxLength - latestComponents.count)
 
         for i in 0..<maxLength {
             if paddedCurrent[i] < paddedLatest[i] {
@@ -259,12 +259,6 @@ final class AppUpdater: @unchecked Sendable {
                                 bundleIdentifier: app.bundleIdentifier,
                                 errorType: .noVersionInfo,
                                 underlyingError: nil
-                            ))
-                        } catch {
-                            return (nil, UpdateCheckError(
-                                bundleIdentifier: app.bundleIdentifier,
-                                errorType: .unknown,
-                                underlyingError: error.localizedDescription
                             ))
                         }
                     }

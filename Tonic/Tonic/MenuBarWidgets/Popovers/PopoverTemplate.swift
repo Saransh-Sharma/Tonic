@@ -673,7 +673,7 @@ private func openActivityMonitor() {
     for path in paths {
         let url = URL(fileURLWithPath: path)
         if FileManager.default.fileExists(atPath: path) {
-            var config = NSWorkspace.OpenConfiguration()
+            let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
                 if let error = error {

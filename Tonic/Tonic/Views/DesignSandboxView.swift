@@ -456,7 +456,7 @@ struct MiscShowcase: View {
             }
 
             SectionShowcase(title: "Search Bar") {
-                var searchText = ""
+                let searchText = ""
                 SearchBar(text: .constant(searchText), placeholder: "Search...")
             }
 

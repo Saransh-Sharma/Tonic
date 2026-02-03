@@ -259,7 +259,7 @@ public struct WidgetDropDelegate: DropDelegate {
     }
 
     public func dropEntered(info: DropInfo) {
-        guard let dragged = draggedWidget else { return }
+        guard draggedWidget != nil else { return }
 
         // Find the target widget and reorder
         // Implementation handled via gesture in ReorderableLazyHStack

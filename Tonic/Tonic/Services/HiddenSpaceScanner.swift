@@ -486,16 +486,12 @@ final class HiddenSpaceScanner: @unchecked Sendable {
                 continue
             }
 
-            do {
-                let result = await fileOps.deleteFiles(atPaths: [item.path])
-                if result.success {
-                    cleanedSize += item.size
-                    cleanedCount += 1
-                } else {
-                    errors.append("Failed: \(item.name)")
-                }
-            } catch {
-                errors.append("Error: \(item.name) - \(error.localizedDescription)")
+            let result = await fileOps.deleteFiles(atPaths: [item.path])
+            if result.success {
+                cleanedSize += item.size
+                cleanedCount += 1
+            } else {
+                errors.append("Failed: \(item.name)")
             }
 
             progressHandler?(index + 1)

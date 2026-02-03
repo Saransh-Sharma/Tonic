@@ -337,7 +337,7 @@ private struct CrashReportStorageManager {
         guard let directory = Self.storageDirectory else { return }
 
         let fileURL = directory.appendingPathComponent("\(report.id).txt")
-        var text = """
+        let text = """
         Crash Report: \(report.id)
         Timestamp: \(report.timestamp.description)
         App Version: \(report.appVersion)

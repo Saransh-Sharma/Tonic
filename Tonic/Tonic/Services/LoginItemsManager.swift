@@ -52,14 +52,14 @@ final class LoginItemsManager: @unchecked Sendable {
 
     @available(macOS 13.0, *)
     private func fetchModernLoginItems() async -> [LoginItem] {
-        var items: [LoginItem] = []
+        let _: [LoginItem] = []
 
         // SMAppService is the modern way to get login items
         // However, we need to use a different approach since SMAppService.loginItemIdentifier
         // requires the app to be registered as a login item
 
         // Instead, we'll read from the shared file list
-        if let loginItemsURL = URL(string: "file:///Library/Managed Preferences/com.apple.loginitems.plist") {
+        if URL(string: "file:///Library/Managed Preferences/com.apple.loginitems.plist") != nil {
             // This may not exist for all users
         }
 

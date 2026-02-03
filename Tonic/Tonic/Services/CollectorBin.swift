@@ -362,7 +362,7 @@ public final class CollectorBin: @unchecked Sendable {
         }
 
         // Remove restored items from bin
-        await removeFromBin(itemIds: itemIds)
+        _ = await removeFromBin(itemIds: itemIds)
 
         return BinRestorationResult(
             success: failedCount == 0,

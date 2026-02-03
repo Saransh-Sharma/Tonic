@@ -422,7 +422,7 @@ class MenuBarController: ObservableObject {
     }
 
     private func showExpandedMenu() {
-        guard let button = statusItem?.button else { return }
+        guard statusItem?.button != nil else { return }
 
         let menu = NSMenu()
 
@@ -579,7 +579,7 @@ class MenuBarController: ObservableObject {
         for item in menu.items {
             if let representedObject = item.representedObject as? [String: Any],
                let title = representedObject["title"] as? String,
-               let valueLabel = representedObject["valueLabel"] as? NSTextField,
+               representedObject["valueLabel"] as? NSTextField != nil,
                let containerView = item.view {
 
                 // Find and update the value label
@@ -973,7 +973,7 @@ class CPUMiniGraphView: NSView {
                 ctx.addLine(to: CGPoint(x: x, y: y))
             }
 
-            if let lastPoint = dataPoints.last {
+            if dataPoints.last != nil {
                 let lastX = CGFloat(dataPoints.count - 1) * step
                 ctx.addLine(to: CGPoint(x: lastX, y: height))
             }

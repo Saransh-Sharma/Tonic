@@ -105,7 +105,7 @@ public final class DNSService {
     private func parseResolvConf() -> [String] {
         var servers: [String] = []
 
-        guard let resolvPath = "/etc/resolv.conf".cString(using: .utf8),
+        guard let _ = "/etc/resolv.conf".cString(using: .utf8),
               let resolvConf = try? String(contentsOfFile: "/etc/resolv.conf") else {
             return servers
         }

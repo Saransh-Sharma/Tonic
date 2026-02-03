@@ -176,7 +176,7 @@ public struct BarChartWidgetView: View {
 
             GeometryReader { geometry in
                 let barHeight = max(2, geometry.size.height * CGFloat(value))
-                let yPosition = geometry.size.height - barHeight
+                let _ = geometry.size.height - barHeight
 
                 RoundedRectangle(cornerRadius: 1)
                     .fill(barColor(for: value, at: index))

@@ -335,7 +335,7 @@ public struct PopupWindowWrapper<Content: View>: View {
     }
 
     private func showPopup() {
-        guard let screen = NSScreen.main else { return }
+        guard NSScreen.main != nil else { return }
 
         // Create hosting view
         let hostingView = NSHostingView(rootView: content)

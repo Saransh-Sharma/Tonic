@@ -204,9 +204,9 @@ public final class NotificationRuleEngine {
         content.body = notificationBody(for: rule, value: value)
         content.sound = .default
 
-        // Add icon for notification
-        if let iconUrl = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
-            // On macOS, notification icons use the app icon by default
+        // On macOS, notification icons use the app icon by default
+        if Bundle.main.url(forResource: "AppIcon", withExtension: "icns") != nil {
+            // Icon available
         }
 
         let request = UNNotificationRequest(

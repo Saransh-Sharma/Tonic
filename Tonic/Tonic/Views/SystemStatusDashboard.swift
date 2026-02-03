@@ -233,7 +233,6 @@ class SystemMonitor: ObservableObject {
     // MARK: - CPU Monitoring
 
     private func getCPUUsage() -> Double {
-        var numCPUs: UInt32 = 0
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -317,7 +316,7 @@ class SystemMonitor: ObservableObject {
         }
 
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
-        var mibLen: Int = mib.count
+        let mibLen: Int = mib.count
         var size = MemoryLayout<kinfo_proc>.stride
         var procList = [kinfo_proc](repeating: kinfo_proc(), count: 1024)
 

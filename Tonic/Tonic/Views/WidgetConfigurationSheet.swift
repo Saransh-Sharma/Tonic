@@ -389,7 +389,7 @@ public struct WidgetConfigurationSheet: View {
     private func saveConfig() {
         // Save to WidgetStore
         let store = WidgetStore.shared
-        _ = store.saveConfig(WidgetConfiguration(
+        store.saveConfig(WidgetConfiguration(
             type: config.type.toWidgetType(),
             visualizationType: config.type.toVisualizationType(),
             isEnabled: true,

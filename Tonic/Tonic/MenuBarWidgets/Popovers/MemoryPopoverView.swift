@@ -305,7 +305,7 @@ public struct MemoryPopoverView: View {
 
     private var hasSwapData: Bool {
         return (dataManager.memoryData.swapTotalBytes ?? 0) > 0 ||
-               (dataManager.memoryData.swapBytes ?? 0) > 0
+               dataManager.memoryData.swapBytes > 0
     }
 
     private var memoryDetailItems: [MemoryDetailItem] {
@@ -404,7 +404,7 @@ private func openActivityMonitor() {
     for path in paths {
         let url = URL(fileURLWithPath: path)
         if FileManager.default.fileExists(atPath: path) {
-            var config = NSWorkspace.OpenConfiguration()
+            let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
                 if let error = error {

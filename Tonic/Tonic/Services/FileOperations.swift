@@ -451,7 +451,7 @@ public final class FileOperations: @unchecked Sendable {
         case .trash:
             // Restore files from trash
             for originalPath in lastOperation.originalPaths {
-                await restoreFromTrash(originalPath: originalPath)
+                _ = await restoreFromTrash(originalPath: originalPath)
             }
             operationHistory.removeLast()
             return true

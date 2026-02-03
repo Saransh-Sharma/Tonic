@@ -2200,7 +2200,7 @@ public final class WidgetDataManager {
 
         defer { IOObjectRelease(iterator) }
 
-        var nvmeService: io_service_t = IOIteratorNext(iterator)
+        let nvmeService: io_service_t = IOIteratorNext(iterator)
         guard nvmeService != 0 else {
             return getFallbackSMARTData()
         }
@@ -2270,9 +2270,8 @@ public final class WidgetDataManager {
             try task.run()
             task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard task.terminationStatus == 0,
-                  let output = String(data: data, encoding: .utf8) else {
+            let _ = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard task.terminationStatus == 0 else {
                 return nil
             }
 
@@ -2348,7 +2347,7 @@ public final class WidgetDataManager {
             let processName = (path as NSString).lastPathComponent
 
             // Get icon if possible
-            let icon = getAppIconForProcess(pid: pid, name: processName)
+            let _ = getAppIconForProcess(pid: pid, name: processName)
 
             processes.append(ProcessUsage(
                 id: pid,
@@ -3274,7 +3273,7 @@ public final class WidgetDataManager {
         // On unified memory, GPU + CPU share the same pool
         // GPU typically uses 5-15% when idle, up to 50%+ under load
         if let total = totalMemory {
-            let memPercent = memoryData.usagePercentage
+            let _ = memoryData.usagePercentage
             // Estimate GPU memory based on activity and system memory pressure
             // This is an approximation since Apple doesn't expose exact GPU memory allocation
             let estimatedGPUMemoryPercent = usage ?? 10.0 // Default 10% idle
@@ -3348,7 +3347,7 @@ public final class WidgetDataManager {
         let gpuTemp: Double? = nil
 
         // Apple Silicon thermal zones
-        let thermalZones = [
+        let _ = [
             "TC0E", // CPU
             "TC0F", // CPU
             "TC0c", // CPU
@@ -3359,7 +3358,7 @@ public final class WidgetDataManager {
         while true {
             let service = IOIteratorNext(iterator)
             guard service != 0 else { break }
-            if let properties = IORegistryEntryCreateCFProperty(service, kIOPropertyThermalInformationKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
+            if let _ = IORegistryEntryCreateCFProperty(service, kIOPropertyThermalInformationKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
                 // Try to parse thermal info
                 IOObjectRelease(service)
                 // Thermal info parsing is complex - return nil for now

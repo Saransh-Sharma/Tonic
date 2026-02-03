@@ -108,8 +108,7 @@ public struct MemoryPressureGaugeView: View {
     }
 
     private var greenArc: some View {
-        let startAngle = Angle.degrees(-90)
-        let endAngle = Angle.degrees(-90 + (180 * Self.greenThreshold / 100))
+        let _ = Angle.degrees(-90 + (180 * Self.greenThreshold / 100))
 
         return Circle()
             .trim(from: 0, to: 0.5) // 50% of circle = 180 degrees

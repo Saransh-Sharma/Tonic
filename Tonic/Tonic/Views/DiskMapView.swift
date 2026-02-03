@@ -619,12 +619,12 @@ struct DiskMapView: View {
         var currentRect = rect
 
         while !sortedNodes.isEmpty {
-            let (row, remaining) = extractRow(from: &sortedNodes, remaining: totalSize, in: currentRect)
+            let (row, _) = extractRow(from: &sortedNodes, remaining: totalSize, in: currentRect)
             let rowRects = layoutRow(row, in: currentRect)
             result.append(contentsOf: rowRects)
 
             // Update remaining rectangle
-            if let lastRowRect = rowRects.last {
+            if rowRects.last != nil {
                 let rowTotalSize = row.reduce(0) { $0 + $1.size }
                 let splitRatio = Double(rowTotalSize) / Double(totalSize)
 

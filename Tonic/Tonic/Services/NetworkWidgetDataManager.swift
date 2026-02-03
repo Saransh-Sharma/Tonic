@@ -90,7 +90,7 @@ extension WidgetDataManager {
     public func refreshNetworkQuality() {
         Task {
             // Update Wi-Fi metrics
-            WiFiMetricsService.shared.fetchMetrics()
+            _ = WiFiMetricsService.shared.fetchMetrics()
 
             // Test router quality
             let routerResult = await NetworkQualityService.shared.testRouterQuality()

@@ -168,7 +168,7 @@ struct OnboardingView: View {
                             .cornerRadius(10)
 
                             Button {
-                                permissionManager.requestFullDiskAccess()
+                                _ = permissionManager.requestFullDiskAccess()
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "gear")

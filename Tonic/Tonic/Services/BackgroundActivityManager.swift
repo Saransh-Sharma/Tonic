@@ -236,7 +236,7 @@ final class BackgroundActivityManager: @unchecked Sendable {
     public func removeBackgroundPermissions(for bundleID: String) async throws {
         let path = NSHomeDirectory() + "/Library/Preferences/com.apple.backgroundtaskmanagement.plist"
 
-        guard var data = FileManager.default.contents(atPath: path),
+        guard let data = FileManager.default.contents(atPath: path),
               var plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
             throw BackgroundActivityError.fileNotFound
         }

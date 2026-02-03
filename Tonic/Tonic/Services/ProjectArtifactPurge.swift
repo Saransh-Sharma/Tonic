@@ -213,7 +213,7 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
     private func detectProjectType(at path: String) -> ProjectType? {
         for type in ProjectType.allCases {
             for identifier in type.identifierFiles {
-                var checkPath = path + "/" + identifier
+                let checkPath = path + "/" + identifier
 
                 // Handle wildcard patterns
                 if identifier.hasPrefix("*") {
@@ -225,7 +225,7 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
                     }
                 } else if identifier.hasSuffix("/") {
                     // Directory check
-                    let dirPath = String(identifier.dropLast())
+                    let _ = String(identifier.dropLast())
                     if fileManager.fileExists(atPath: checkPath) {
                         var isDirectory: ObjCBool = false
                         fileManager.fileExists(atPath: checkPath, isDirectory: &isDirectory)
@@ -483,17 +483,17 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
     }
 
     private func scanDockerProject(_ path: String) async -> [Artifact] {
-        var artifacts: [Artifact] = []
+        let artifacts: [Artifact] = []
 
         // This would be handled by DockerAndVMCleanup service
         return artifacts
     }
 
     private func scanGenericProject(_ path: String) async -> [Artifact] {
-        var artifacts: [Artifact] = []
+        let artifacts: [Artifact] = []
 
         // Common IDE folders
-        let ideFolders = [
+        let _ = [
             ".idea",
             ".vscode",
             ".vs",

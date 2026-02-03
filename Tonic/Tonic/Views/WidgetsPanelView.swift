@@ -53,7 +53,7 @@ public final class WidgetPanelViewModel {
 
     public func addWidget() {
         let position = WidgetPreferences.shared.widgetConfigs.count
-        var newConfig = WidgetConfiguration(
+        let newConfig = WidgetConfiguration(
             type: selectedDataSource,
             visualizationType: selectedVisualization,
             isEnabled: true,
@@ -110,7 +110,7 @@ public final class WidgetPanelViewModel {
         configs.move(fromOffsets: source, toOffset: destination)
 
         // Update positions
-        for (index, var config) in configs.enumerated() {
+        for (index, config) in configs.enumerated() {
             if let existingIndex = WidgetPreferences.shared.widgetConfigs.firstIndex(where: { $0.id == config.id }) {
                 WidgetPreferences.shared.widgetConfigs[existingIndex].position = index
             }

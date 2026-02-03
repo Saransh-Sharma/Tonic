@@ -82,7 +82,7 @@ public struct NetworkMetricRow: View {
                 }
 
                 // Info button if tooltip available
-                if let tooltip = tooltip {
+                if tooltip != nil {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             isExpanded.toggle()
