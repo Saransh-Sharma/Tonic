@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T18:12:42.580945Z",
+  "depends_on": [
+    "fn-6-i4g.21",
+    "fn-6-i4g.22",
+    "fn-6-i4g.23"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.25",
+  "priority": 5,
+  "spec_path": ".flow/tasks/fn-6-i4g.25.md",
+  "status": "todo",
+  "title": "Delete Dead Scheduler and Reader Protocol Files",
+  "updated_at": "2026-02-01T18:13:53.454399Z"
+}

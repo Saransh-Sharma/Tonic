@@ -349,7 +349,7 @@ public struct NetworkDetailViewRedesigned: View {
 
             // Content
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 12) {
+                VStack(spacing: DesignTokens.Spacing.md) {
                     // Connection header (WhyFi style)
                     connectionHeader
 
@@ -388,11 +388,14 @@ public struct NetworkDetailViewRedesigned: View {
 
                     // Speed test card
                     speedTestCard
+
+                    // Top network processes
+                    ProcessListWidgetView(widgetType: .network, maxCount: 5)
                 }
-                .padding(16)
+                .padding(DesignTokens.Spacing.md)
             }
         }
-        .frame(width: 340, height: 520)
+        .frame(width: 320, height: 400)
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             // Immediate display with cached data, then refresh in background
@@ -439,7 +442,7 @@ public struct NetworkDetailViewRedesigned: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, DesignTokens.Spacing.md)
         .padding(.vertical, 12)
         .background(Color(nsColor: .controlBackgroundColor))
     }

@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-31T06:31:05.462978Z",
+  "depends_on": [
+    "fn-6-i4g.1",
+    "fn-6-i4g.2"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.5",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-6-i4g.5.md",
+  "status": "todo",
+  "title": "RAM Enhanced Reader",
+  "updated_at": "2026-01-31T06:33:14.627613Z"
+}

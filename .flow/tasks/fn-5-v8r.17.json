@@ -1,0 +1,23 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-30T20:12:20.624665Z",
+  "depends_on": [
+    "fn-5-v8r.7",
+    "fn-5-v8r.8",
+    "fn-5-v8r.9",
+    "fn-5-v8r.10",
+    "fn-5-v8r.11",
+    "fn-5-v8r.12",
+    "fn-5-v8r.15",
+    "fn-5-v8r.16"
+  ],
+  "epic": "fn-5-v8r",
+  "id": "fn-5-v8r.17",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-5-v8r.17.md",
+  "status": "done",
+  "title": "Performance validation and optimization",
+  "updated_at": "2026-01-31T12:00:00.000000Z"
+}

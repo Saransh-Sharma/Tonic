@@ -17,6 +17,14 @@ struct GeneralPreferencesSection: View {
     @State private var showRestartAlert = false
     @State private var error: TonicError?
 
+    // Temperature unit setting
+    private var temperatureUnit: Binding<TemperatureUnit> {
+        Binding(
+            get: { WidgetPreferences.shared.temperatureUnit },
+            set: { WidgetPreferences.shared.setTemperatureUnit($0) }
+        )
+    }
+
     var body: some View {
         Section("General") {
             // Launch at Login Toggle
@@ -47,6 +55,17 @@ struct GeneralPreferencesSection: View {
                 .pickerStyle(.segmented)
                 .help("How often to check for updates")
             }
+
+            Divider()
+
+            // Temperature Unit
+            Picker("Temperature Unit", selection: temperatureUnit) {
+                ForEach(TemperatureUnit.allCases) { unit in
+                    Text(unit.displayName).tag(unit)
+                }
+            }
+            .pickerStyle(.segmented)
+            .help("Temperature display unit for all widgets (CPU, GPU, Sensors, Battery)")
 
             Divider()
 
@@ -106,14 +125,16 @@ struct GeneralPreferencesSection: View {
     // MARK: - Actions
 
     private func handleLaunchAtLoginChange(_ enabled: Bool) {
-        do {
-            try updateLaunchAtLoginSetting(enabled)
-        } catch let err as TonicError {
-            error = err
-            launchAtLogin = !enabled
-        } catch {
-            error = .settingsFailed(reason: error.localizedDescription)
-            launchAtLogin = !enabled
+        Task {
+            do {
+                try await updateLaunchAtLoginSetting(enabled)
+            } catch let err as TonicError {
+                self.error = err
+                launchAtLogin = !enabled
+            } catch {
+                self.error = .generic(error)
+                launchAtLogin = !enabled
+            }
         }
     }
 
@@ -128,12 +149,18 @@ struct GeneralPreferencesSection: View {
         }
     }
 
-    private func updateLaunchAtLoginSetting(_ enabled: Bool) throws {
+    private func updateLaunchAtLoginSetting(_ enabled: Bool) async throws {
         let loginItemsManager = LoginItemsManager.shared
+        let bundleURL = Bundle.main.bundleURL
+
         if enabled {
-            try loginItemsManager.addCurrentAppToLoginItems()
+            try await loginItemsManager.addLoginItem(at: bundleURL, hidden: false)
         } else {
-            try loginItemsManager.removeCurrentAppFromLoginItems()
+            // Find and remove the login item
+            let items = loginItemsManager.loginItems
+            if let item = items.first(where: { $0.path == bundleURL }) {
+                try await loginItemsManager.removeLoginItem(item)
+            }
         }
     }
 

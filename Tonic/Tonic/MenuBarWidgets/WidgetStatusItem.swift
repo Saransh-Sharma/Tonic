@@ -39,9 +39,6 @@ public class WidgetStatusItem: ObservableObject {
     /// Hosting controller for the compact view (type-erased)
     private var anyHostingController: NSHostingController<AnyView>?
 
-    /// Timer for updating the view
-    private var updateTimer: Timer?
-
     /// Data manager reference
     private var dataManager: WidgetDataManager {
         WidgetDataManager.shared
@@ -56,7 +53,7 @@ public class WidgetStatusItem: ObservableObject {
         logger.info("🔵 Initializing widget: \(widgetType.rawValue), enabled: \(configuration.isEnabled)")
         setupStatusItem()
         setupPopover()
-        startUpdateTimer()
+        // Note: WidgetDataManager (@Observable) triggers SwiftUI view updates automatically
     }
 
     deinit {
@@ -64,19 +61,6 @@ public class WidgetStatusItem: ObservableObject {
         MainActor.assumeIsolated {
             if let statusItem = self.statusItem {
                 NSStatusBar.system.removeStatusItem(statusItem)
-            }
-        }
-        updateTimer?.invalidate()
-    }
-
-    // MARK: - View Updates
-
-    private func startUpdateTimer() {
-        // Update the view every 1 second to reflect data changes
-        self.logger.info("⏰ Starting update timer for \(self.widgetType.rawValue)")
-        self.updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateCompactView()
             }
         }
     }
@@ -171,6 +155,12 @@ public class WidgetStatusItem: ObservableObject {
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Battery: \(Int(dataManager.batteryData.chargePercentage))%, Present: \(dataManager.batteryData.isPresent)")
         case .weather:
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated")
+        case .sensors:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Sensors: \(dataManager.sensorsData.temperatures.count) temps")
+        case .bluetooth:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Bluetooth: \(dataManager.bluetoothData.connectedDevices.count) connected, enabled: \(dataManager.bluetoothData.isBluetoothEnabled)")
+        case .clock:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Clock: \(ClockPreferences.shared.enabledEntries.count) timezones")
         }
     }
 
@@ -208,34 +198,40 @@ public class WidgetStatusItem: ObservableObject {
             // Widget was disabled
             logger.info("🔄 Widget disabled, removing status item")
             removeStatusItem()
-        } else {
+        } else if isVisible, let button = statusItem?.button {
             // Configuration changed - force view refresh
+            // Early return if not visible or no button (avoid work for hidden widgets)
             objectWillChange.send()
 
-            // Recreate the compact view with new configuration
-            let compactView = createCompactView()
-            anyHostingController = NSHostingController(rootView: compactView)
-
-            // Update the button's view
-            if let button = statusItem?.button, let hostedView = anyHostingController?.view {
-                hostedView.translatesAutoresizingMaskIntoConstraints = false
-                button.subviews.forEach { $0.removeFromSuperview() }
-                button.addSubview(hostedView)
-
-                NSLayoutConstraint.activate([
-                    hostedView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-                    hostedView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-                    hostedView.topAnchor.constraint(equalTo: button.topAnchor),
-                    hostedView.bottomAnchor.constraint(equalTo: button.bottomAnchor)
-                ])
-
-                logger.info("✅ View updated successfully for \(self.widgetType.rawValue)")
-            } else {
-                logger.warning("⚠️ Could not update view - button or hostedView is nil for \(self.widgetType.rawValue)")
-            }
+            // Use centralized view update method
+            updateCompactView()
 
             // Update width based on display mode
             updateWidth()
+
+            // Force NSView redraw - fixes menu bar refresh bug where objectWillChange.send()
+            // doesn't trigger NSView to update properly
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+
+                // Force redraw of the button in its own coordinate space
+                button.setNeedsDisplay(button.bounds)
+                button.displayIfNeeded()
+
+                // Also force redraw the button's subviews directly
+                for subview in button.subviews {
+                    subview.setNeedsDisplay(subview.bounds)
+                    subview.displayIfNeeded()
+                }
+
+                // Force window content view to redraw if available
+                if let contentView = button.window?.contentView {
+                    contentView.setNeedsDisplay(contentView.bounds)
+                    contentView.displayIfNeeded()
+                }
+
+                self.logger.debug("🔄 Forced NSView redraw for \(self.widgetType.rawValue)")
+            }
 
             logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), color=\(newConfig.accentColor.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
         }
@@ -261,7 +257,29 @@ public class WidgetStatusItem: ObservableObject {
 
     /// Create the detail view for this widget (to be overridden by subclasses)
     open func createDetailView() -> AnyView {
-        AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
+        // Return the appropriate Stats Master-style popover for each widget type
+        switch widgetType {
+        case .cpu:
+            return AnyView(CPUPopoverView())
+        case .gpu:
+            return AnyView(GPUPopoverView())
+        case .memory:
+            return AnyView(MemoryPopoverView())
+        case .disk:
+            return AnyView(DiskPopoverView())
+        case .network:
+            return AnyView(NetworkPopoverView())
+        case .battery:
+            return AnyView(BatteryPopoverView())
+        case .sensors:
+            return AnyView(SensorsPopoverView())
+        case .bluetooth:
+            return AnyView(BluetoothPopoverView())
+        case .clock:
+            return AnyView(ClockPopoverView())
+        case .weather:
+            return AnyView(WeatherDetailView())
+        }
     }
 
     // MARK: - Actions
@@ -298,8 +316,31 @@ public class WidgetStatusItem: ObservableObject {
 
     /// Refresh the widget display with latest data
     public func refresh() {
+        guard let button = statusItem?.button else { return }
+
         objectWillChange.send()
         updateCompactView()
+
+        // Force NSView redraw - ensures menu bar updates with latest data
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            // Force redraw of the button in its own coordinate space
+            button.setNeedsDisplay(button.bounds)
+            button.displayIfNeeded()
+
+            // Also force redraw the button's subviews directly
+            for subview in button.subviews {
+                subview.setNeedsDisplay(subview.bounds)
+                subview.displayIfNeeded()
+            }
+
+            // Force window content view to redraw if available
+            if let contentView = button.window?.contentView {
+                contentView.setNeedsDisplay(contentView.bounds)
+                contentView.displayIfNeeded()
+            }
+        }
     }
 }
 
@@ -464,6 +505,25 @@ struct WidgetCompactView: View {
                 }
             }
             return "--"
+            
+        case .sensors:
+            // TODO: Add proper sensor value display
+            return "--"
+
+        case .bluetooth:
+            if dataManager.bluetoothData.isBluetoothEnabled {
+                let connectedCount = dataManager.bluetoothData.connectedDevices.count
+                if let device = dataManager.bluetoothData.devicesWithBattery.first,
+                   let battery = device.primaryBatteryLevel {
+                    return "\(battery)%"
+                }
+                return "\(connectedCount)"
+            }
+            return "Off"
+
+        case .clock:
+            // Clock is handled by ClockStatusItem, not WidgetCompactView
+            return "--:--"
         }
     }
 }
@@ -512,10 +572,21 @@ public final class WidgetCoordinator: ObservableObject {
     /// All active widget status items
     @Published public private(set) var activeWidgets: [WidgetType: WidgetStatusItem] = [:]
 
+    /// The unified OneView status item (when in unified mode)
+    private var oneViewStatusItem: OneViewStatusItem?
+
     /// Whether the widget system is active
     @Published public private(set) var isActive = false
 
-    private init() {}
+    /// Single unified view refresh timer (replaces 7 per-widget timers)
+    private var viewRefreshTimer: Timer?
+
+    /// Observer for configuration change notifications
+    private var configChangeObserver: NSObjectProtocol?
+
+    private init() {
+        setupConfigurationObserver()
+    }
 
     // MARK: - Widget Management
 
@@ -539,31 +610,107 @@ public final class WidgetCoordinator: ObservableObject {
         logger.info("🔄 Refreshing widgets...")
         print("🔄 [WidgetCoordinator] Refreshing widgets...")
         refreshWidgets()
+
+        // Start single unified view refresh timer (replaces 7 per-widget timers)
+        // This is a key performance improvement: 1 timer instead of 7
+        startViewRefreshTimer()
+
         logger.info("✅ WidgetCoordinator started with \(self.activeWidgets.count) active widgets")
         print("✅ [WidgetCoordinator] Started with \(self.activeWidgets.count) active widgets")
     }
 
-    /// Stop showing widgets
-    public func stop() {
-        isActive = false
+    // MARK: - Configuration Observer
 
-        // Remove all status items
-        activeWidgets.values.forEach { $0.hide() }
-        activeWidgets.removeAll()
-
-        // Stop data monitoring
-        WidgetDataManager.shared.stopMonitoring()
+    /// Set up observer for configuration changes
+    private func setupConfigurationObserver() {
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .widgetConfigurationDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleConfigurationChange(notification)
+        }
+        logger.info("📡 Configuration observer registered")
     }
 
-    /// Refresh widgets based on current preferences
-    public func refreshWidgets() {
-        let enabledConfigs = WidgetPreferences.shared.enabledWidgets
-        logger.info("🔄 refreshWidgets - enabled configs: \(enabledConfigs.count)")
+    /// Handle configuration change notification
+    /// Performance optimization: Debounce rapid configuration changes
+    private nonisolated func handleConfigurationChange(_ notification: Notification) {
+        // Invalidate existing debounce timer
+        Task { @MainActor [weak self] in
+            self?.configChangeDebounceTimer?.invalidate()
 
-        // Log config values to trace what's being read from preferences
-        for config in enabledConfigs {
-            logger.info("📋 Config for \(config.type.rawValue): color=\(config.accentColor.rawValue), format=\(config.valueFormat.rawValue), mode=\(config.displayMode.rawValue)")
+            // Extract widget type early to avoid Sendable issues
+            let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
+            let widgetType = widgetTypeRaw.flatMap { WidgetType(rawValue: $0) }
+
+            // Schedule debounced refresh (100ms delay to batch rapid changes)
+            await MainActor.run { [weak self] in
+                self?.configChangeDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
+                    // Hop to main actor for refreshWidgets call
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
+
+                        if widgetType == nil {
+                            // If no specific type or invalid type, refresh all widgets
+                            self.logger.info("🔄 Configuration changed - refreshing all widgets")
+                            self.refreshWidgets()
+                        } else {
+                            self.logger.info("🔄 Configuration changed for \(widgetType!.rawValue) - refreshing")
+                            self.refreshWidgets()
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    /// Refresh widgets based on current preferences and mode
+    public func refreshWidgets() {
+        let preferences = WidgetPreferences.shared
+        let enabledConfigs = preferences.enabledWidgets
+        logger.info("🔄 refreshWidgets - unified mode: \(preferences.unifiedMenuBarMode), enabled configs: \(enabledConfigs.count)")
+
+        if preferences.unifiedMenuBarMode {
+            // Unified mode: show OneView, hide individual widgets
+            refreshUnifiedMode()
+        } else {
+            // Individual mode: show each widget separately
+            refreshIndividualWidgets()
+        }
+    }
+
+    /// Refresh widgets in unified OneView mode
+    private func refreshUnifiedMode() {
+        // Remove all individual widgets
+        for (type, widget) in activeWidgets {
+            logger.info("🔻 Removing individual widget for unified mode: \(type.rawValue)")
+            widget.hide()
+            activeWidgets.removeValue(forKey: type)
+        }
+
+        // Create or update OneView
+        if oneViewStatusItem == nil {
+            logger.info("➕ Creating OneView status item")
+            oneViewStatusItem = OneViewStatusItem()
+        }
+
+        // Update the OneView to reflect current widget list
+        oneViewStatusItem?.refreshWidgetList()
+
+        logger.info("✅ OneView mode active")
+    }
+
+    /// Refresh widgets in individual mode
+    private func refreshIndividualWidgets() {
+        // Remove OneView if active
+        if let oneView = oneViewStatusItem {
+            logger.info("🔻 Removing OneView for individual mode")
+            oneView.hide()
+            oneViewStatusItem = nil
+        }
+
+        let enabledConfigs = WidgetPreferences.shared.enabledWidgets
 
         // Remove widgets that are no longer enabled
         let activeTypes = Set(activeWidgets.keys)
@@ -589,27 +736,73 @@ public final class WidgetCoordinator: ObservableObject {
         }
 
         let widgetTypes = self.activeWidgets.keys.map { $0.rawValue }
-        logger.info("✅ After refresh - active widgets: \(self.activeWidgets.count), types: \(widgetTypes)")
+        logger.info("✅ Individual mode active - \(self.activeWidgets.count) widgets: \(widgetTypes)")
     }
 
-    /// Create the appropriate widget subclass for the given type
-    private func createWidget(for type: WidgetType, configuration: WidgetConfiguration) -> WidgetStatusItem {
-        switch type {
-        case .cpu:
-            return CPUStatusItem(widgetType: type, configuration: configuration)
-        case .memory:
-            return MemoryStatusItem(widgetType: type, configuration: configuration)
-        case .disk:
-            return DiskStatusItem(widgetType: type, configuration: configuration)
-        case .network:
-            return NetworkStatusItem(widgetType: type, configuration: configuration)
-        case .gpu:
-            return GPUStatusItem(widgetType: type, configuration: configuration)
-        case .battery:
-            return BatteryStatusItem(widgetType: type, configuration: configuration)
-        case .weather:
-            return WeatherStatusItem(widgetType: type, configuration: configuration)
+    /// Performance optimization: Throttle configuration changes to avoid excessive updates
+    private var configChangeDebounceTimer: Timer?
+
+    /// Start single unified timer for all widget view updates
+    /// This replaces the previous pattern of 7 individual per-widget timers
+    /// Performance optimization: Uses adaptive refresh rate based on widget count
+    private func startViewRefreshTimer() {
+        viewRefreshTimer?.invalidate()
+        logger.info("⏰ Starting unified view refresh timer (1 timer for all widgets)")
+
+        // Performance: Adaptive refresh rate - fewer widgets = slower refresh
+        let adaptiveInterval: TimeInterval = activeWidgets.count > 5 ? 0.5 : 1.0
+
+        viewRefreshTimer = Timer.scheduledTimer(withTimeInterval: adaptiveInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshAllWidgetViews()
+            }
         }
+    }
+
+    /// Refresh all active widget views at once
+    /// Performance optimization: Skip refresh if no data changes detected
+    private func refreshAllWidgetViews() {
+        // Refresh individual widgets only if needed
+        for widget in activeWidgets.values {
+            widget.refresh()
+        }
+
+        // Also refresh OneView if active
+        oneViewStatusItem?.refresh()
+    }
+
+    /// Stop showing widgets
+    public func stop() {
+        isActive = false
+
+        // Stop unified view refresh timer
+        viewRefreshTimer?.invalidate()
+        viewRefreshTimer = nil
+
+        // Remove configuration observer
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configChangeObserver = nil
+        }
+
+        // Remove all status items including OneView
+        oneViewStatusItem?.hide()
+        oneViewStatusItem = nil
+        activeWidgets.values.forEach { $0.hide() }
+        activeWidgets.removeAll()
+
+        // Stop data monitoring
+        WidgetDataManager.shared.stopMonitoring()
+    }
+
+    /// Create the appropriate widget subclass for the given type and visualization
+    private func createWidget(for type: WidgetType, configuration: WidgetConfiguration) -> WidgetStatusItem {
+        // Use the new WidgetFactory which handles both data source type and visualization type
+        return WidgetFactory.createWidget(
+            for: type,
+            visualization: configuration.visualizationType,
+            configuration: configuration
+        )
     }
 
     /// Update a specific widget's configuration
@@ -622,5 +815,12 @@ public final class WidgetCoordinator: ObservableObject {
     /// Get the status item for a specific widget type
     public func widget(for type: WidgetType) -> WidgetStatusItem? {
         activeWidgets[type]
+    }
+
+    deinit {
+        // Clean up observer
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 }

@@ -9,23 +9,11 @@
 
 import SwiftUI
 
-// MARK: - Cached Sparkline Path
-
-/// Cached path data for efficient sparkline rendering
-struct CachedSparklinePath: Equatable {
-    let points: [CGPoint]
-    let dataHash: Int
-
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.dataHash == rhs.dataHash
-    }
-}
-
 // MARK: - Sparkline Chart
 
 /// Mini line chart for displaying metric history
 /// Optimized to avoid recalculating paths on every render
-public struct NetworkSparklineChart: View {
+public struct NetworkSparklineChart: View, Equatable {
 
     // MARK: - Properties
 
@@ -35,9 +23,14 @@ public struct NetworkSparklineChart: View {
     let showArea: Bool
     let lineWidth: CGFloat
 
-    // MARK: - State
-
-    @State private var cachedPath: CachedSparklinePath?
+    // Performance: Equatable conformance for SwiftUI optimization
+    public static func == (lhs: NetworkSparklineChart, rhs: NetworkSparklineChart) -> Bool {
+        return lhs.data == rhs.data &&
+               lhs.color == rhs.color &&
+               lhs.height == rhs.height &&
+               lhs.showArea == rhs.showArea &&
+               lhs.lineWidth == rhs.lineWidth
+    }
 
     // MARK: - Initialization
 
@@ -66,9 +59,6 @@ public struct NetworkSparklineChart: View {
             }
         }
         .frame(height: height)
-        .onChange(of: data.hashValue) { _, _ in
-            updateCachedPath()
-        }
     }
 
     // MARK: - Views
@@ -116,13 +106,6 @@ public struct NetworkSparklineChart: View {
     // MARK: - Path Generation
 
     private func generatePoints(for width: CGFloat, height: CGFloat) -> [CGPoint] {
-        // Check if we can use cached data
-        let dataHash = data.hashValue
-        if let cached = cachedPath, cached.dataHash == dataHash {
-            // Scale cached points to current width/height if needed
-            return scalePoints(cached.points, to: width, height: height)
-        }
-
         // Calculate fresh points
         let validValues = data.filter { $0 != 0 }
         guard !validValues.isEmpty,
@@ -152,25 +135,7 @@ public struct NetworkSparklineChart: View {
             let y = normalizedY * height
             points.append(CGPoint(x: x, y: y))
         }
-
-        // Cache for next render
-        cachedPath = CachedSparklinePath(points: points, dataHash: dataHash)
-
         return points
-    }
-
-    private func scalePoints(_ points: [CGPoint], to width: CGFloat, height: CGFloat) -> [CGPoint] {
-        guard !points.isEmpty else { return [] }
-
-        // If first point is at x=0 and last at some width, we need to scale
-        let maxX = points.last?.x ?? 1
-        let maxY = points.map(\.y).max() ?? 1
-        let scaleX = maxX > 0 ? width / maxX : 1
-        let scaleY = maxY > 0 ? height / maxY : 1
-
-        return points.map { point in
-            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
-        }
     }
 
     private func linePath(from points: [CGPoint]) -> Path {
@@ -202,9 +167,6 @@ public struct NetworkSparklineChart: View {
         return path
     }
 
-    private func updateCachedPath() {
-        cachedPath = nil
-    }
 }
 
 // MARK: - Preview

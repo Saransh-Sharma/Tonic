@@ -170,8 +170,25 @@ class SystemMonitor: ObservableObject {
         if let prev = previousNetStats, let lastUpdate = lastNetworkUpdate {
             let timeDelta = Date().timeIntervalSince(lastUpdate)
             if timeDelta > 0 {
-                downloadRate = Double(currentNetStats.bytesIn - prev.bytesIn) / timeDelta
-                uploadRate = Double(currentNetStats.bytesOut - prev.bytesOut) / timeDelta
+                // Handle counter wrap/reset - use safe unsigned subtraction
+                let bytesInDelta: UInt64
+                if currentNetStats.bytesIn >= prev.bytesIn {
+                    bytesInDelta = currentNetStats.bytesIn - prev.bytesIn
+                } else {
+                    // Counter wrapped or reset - treat as zero delta
+                    bytesInDelta = 0
+                }
+
+                let bytesOutDelta: UInt64
+                if currentNetStats.bytesOut >= prev.bytesOut {
+                    bytesOutDelta = currentNetStats.bytesOut - prev.bytesOut
+                } else {
+                    // Counter wrapped or reset - treat as zero delta
+                    bytesOutDelta = 0
+                }
+
+                downloadRate = Double(bytesInDelta) / timeDelta
+                uploadRate = Double(bytesOutDelta) / timeDelta
             }
         }
 

@@ -65,6 +65,7 @@ class SimpleFeedbackManager {
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
+    case modules = "Modules"
     case permissions = "Permissions"
     case helper = "Helper"
     case updates = "Updates"
@@ -76,6 +77,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: return "gearshape.fill"
+        case .modules: return "square.grid.2x2.fill"
         case .permissions: return "hand.raised.fill"
         case .helper: return "wrench.and.screwdriver.fill"
         case .updates: return "arrow.down.circle.fill"
@@ -87,6 +89,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .general: return "Appearance and startup"
+        case .modules: return "Widget configuration"
         case .permissions: return "System access"
         case .helper: return "Advanced features"
         case .updates: return "Software updates"
@@ -128,13 +131,10 @@ struct PreferencesView: View {
         VStack(spacing: 0) {
             // Header
             VStack(spacing: DesignTokens.Spacing.xs) {
-                Image(systemName: "drop.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.linearGradient(
-                        colors: [TonicColors.accent, TonicColors.accent.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                Image("AppBrand")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
 
                 Text("Settings")
                     .font(DesignTokens.Typography.headlineMedium)
@@ -189,6 +189,8 @@ struct PreferencesView: View {
                     switch selectedSection {
                     case .general:
                         GeneralSettingsContent()
+                    case .modules:
+                        ModulesSettingsContent()
                     case .permissions:
                         PermissionsSettingsContent()
                     case .helper:
@@ -299,6 +301,7 @@ struct SettingsSectionHeader: View {
     private var sectionSubtitle: String {
         switch section {
         case .general: return "Customize how Tonic looks and behaves"
+        case .modules: return "Configure menu bar widgets"
         case .permissions: return "Manage system permissions for full functionality"
         case .helper: return "Enable advanced system operations"
         case .updates: return "Keep Tonic up to date"
@@ -1583,17 +1586,10 @@ struct AboutSettingsContent: View {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     // App icon with gradient
                     ZStack {
-                        Circle()
-                            .fill(.linearGradient(
-                                colors: [TonicColors.accent, TonicColors.pro],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ))
+                        Image("AppBrand")
+                            .resizable()
+                            .scaledToFit()
                             .frame(width: 64, height: 64)
-
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(.white)
                     }
 
                     VStack(spacing: DesignTokens.Spacing.xxxs) {

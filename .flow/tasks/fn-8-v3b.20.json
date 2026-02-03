@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-02T12:30:49.596534Z",
+  "depends_on": [],
+  "epic": "fn-8-v3b",
+  "id": "fn-8-v3b.20",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-8-v3b.20.md",
+  "status": "todo",
+  "title": "Update CLAUDE.md with popover architecture documentation",
+  "updated_at": "2026-02-02T12:33:40.910780Z"
+}

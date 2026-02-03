@@ -13,7 +13,7 @@ import Foundation
 @Observable
 final class MaintenanceViewModel: @unchecked Sendable {
     private let smartScanEngine = SmartScanEngine()
-    private let deepCleanEngine = DeepCleanEngine()
+    private let deepCleanEngine = DeepCleanEngine.shared
     private let lock = NSLock()
 
     // MARK: - Scan State
@@ -109,8 +109,10 @@ final class MaintenanceViewModel: @unchecked Sendable {
                     break
                 }
 
-                let result = try await deepCleanEngine.cleanCategory(category)
-                totalBytes += result.bytesFreed
+                // Convert CleanCategory to DeepCleanCategory
+                let deepCleanCategory = convertToDeepCleanCategory(category)
+                let bytesFreed = await deepCleanEngine.cleanCategory(deepCleanCategory)
+                totalBytes += bytesFreed
                 processedCategories += 1
 
                 cleanState.progress = Double(processedCategories) / Double(categories.count)
@@ -162,17 +164,31 @@ final class MaintenanceViewModel: @unchecked Sendable {
 
     // MARK: - Validation
 
+    @MainActor
     private func validateScanStarting() throws {
         let permissionManager = PermissionManager.shared
-        guard permissionManager.hasFullDiskAccess() else {
-            throw TonicError.fullDiskAccessRequired
+        guard permissionManager.hasFullDiskAccess else {
+            throw TonicError.fullDiskAccessRequired(operation: "Scan")
         }
     }
 
+    @MainActor
     private func validateCleaningStarting() throws {
         let permissionManager = PermissionManager.shared
-        guard permissionManager.hasFullDiskAccess() else {
-            throw TonicError.fullDiskAccessRequired
+        guard permissionManager.hasFullDiskAccess else {
+            throw TonicError.fullDiskAccessRequired(operation: "Cleaning")
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func convertToDeepCleanCategory(_ category: CleanCategory) -> DeepCleanCategory {
+        switch category {
+        case .systemCache: return .systemCache
+        case .userCache: return .userCache
+        case .logs: return .logFiles
+        case .tempFiles: return .tempFiles
+        case .trash: return .trash
         }
     }
 
@@ -240,27 +256,3 @@ enum CleanCategory: String, CaseIterable, Sendable {
         }
     }
 }
-
-// MARK: - Scan Stage
-
-enum ScanStage: String, CaseIterable, Sendable {
-    case preparing = "Preparing"
-    case scanningDisk = "Scanning Disk"
-    case checkingApps = "Checking Apps"
-    case analyzingSystem = "Analyzing System"
-    case complete = "Complete"
-
-    var progressWeight: Double {
-        switch self {
-        case .preparing: return 0.1
-        case .scanningDisk: return 0.4
-        case .checkingApps: return 0.3
-        case .analyzingSystem: return 0.2
-        case .complete: return 1.0
-        }
-    }
-}
-
-// MARK: - Logger Import
-
-import OSLog

@@ -64,13 +64,10 @@ struct OnboardingView: View {
 
     private var welcomePage: some View {
         VStack(spacing: 24) {
-            Image(systemName: "drop.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.linearGradient(
-                    colors: [TonicColors.accent, TonicColors.pro],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+            Image("AppBrand")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
 
             VStack(spacing: 12) {
                 Text("Welcome to Tonic")

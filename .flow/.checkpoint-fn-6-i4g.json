@@ -1,0 +1,327 @@
+{
+  "created_at": "2026-01-31T06:33:28.965978Z",
+  "epic": {
+    "data": {
+      "branch_name": "fn-6-i4g",
+      "created_at": "2026-01-31T06:29:39.540636Z",
+      "default_impl": null,
+      "default_review": null,
+      "default_sync": null,
+      "depends_on_epics": [],
+      "id": "fn-6-i4g",
+      "next_task": 1,
+      "plan_review_status": "unknown",
+      "plan_reviewed_at": null,
+      "spec_path": ".flow/specs/fn-6-i4g.md",
+      "status": "open",
+      "title": "Stats Master Menu Bar Parity",
+      "updated_at": "2026-01-31T06:30:49.344767Z"
+    },
+    "spec": "# Stats Master Menu Bar Parity\n\n## Overview\n\nReplace Tonic's current menu bar widget system with Stats Master's implementation to achieve full feature and design parity. Stats Master is a mature menu bar monitoring app with superior system monitoring capabilities, more widget types, and advanced features like process monitoring, notifications, and oneView combined mode.\n\n**Current State (Tonic)**:\n- 8 widget types: CPU, GPU, Memory, Disk, Network, Weather, Battery, Sensors\n- 10 visualization types: mini, lineChart, barChart, pieChart, tachometer, stack, speed, batteryDetails, label, text\n- SwiftUI + AppKit hybrid architecture\n- Unified timer system (efficient)\n- Centralized `WidgetDataManager`\n- In-memory historical data only\n\n**Target State (from Stats Master)**:\n- 14 widget types with 9 modules: CPU, RAM, Disk, Net, GPU, Battery, Sensors, Bluetooth, Clock\n- Advanced readers: SMC sensors, NVMe SMART, WiFi details, network connectivity (ICMP ping)\n- Process monitoring UI (top apps by resource usage)\n- Notification system with configurable thresholds\n- OneView combined mode (all widgets in single menu bar item)\n- Public IP tracking with change notifications\n- Historical data persistence (DB)\n- Pure AppKit implementation\n\n**Key Decision**: Keep Tonic's SwiftUI + AppKit hybrid architecture (more maintainable) while adopting Stats Master's features and readers. Migrate to `@Observable` pattern already in use.\n\n## Scope\n\n### In Scope (Must-Have)\n1. **Enhanced Data Readers** - Migrate Stats Master's reader implementations:\n   - CPU: Per-core with E/P cluster colors, frequency, thermal limits\n   - RAM: Pressure levels, swap usage, process list\n   - Disk: NVMe SMART data, IOPS, activity per volume\n   - Network: WiFi details (SSID, RSSI, channel, security), public IP tracking\n   - GPU: Temperature, frequency, fan speed (Apple Silicon)\n   - Battery: Health, cycles, optimized charging detection\n   - Sensors: Full SMC integration (temperature, voltage, power, fans)\n\n2. **Process Monitoring UI** - Display top apps by CPU, RAM, Disk, Network usage in widget popovers\n\n3. **Notification System** - Threshold-based alerts for all module types\n\n4. **OneView Mode** - Combine all widgets into single menu bar item (configurable)\n\n5. **Widget Configuration Migration** - Preserve user preferences during migration\n\n6. **Tonic-Exclusive Features to Keep**:\n   - Weather widget (Open-Meteo API - differentiator)\n   - SwiftUI-based visualization views\n   - Unified timer architecture (more efficient)\n\n### Out of Scope (Explicitly Excluded)\n1. Bluetooth module (requires additional entitlements, limited use case)\n2. Clock module (macOS already has clock in menu bar)\n3. Remote data sharing (Stats Master feature not needed for Tonic)\n4. Database persistence for historical data (keep in-memory for simplicity)\n5. Pure AppKit migration (keep SwiftUI + AppKit hybrid)\n\n### Migration Strategy\n- Delete current Tonic menu bar widget implementations\n- Copy/adapt Stats Master implementations to Tonic's architecture\n- Create migration layer for existing user preferences\n- Maintain backward compatibility for Weather widget\n\n## Approach\n\n### Phase 1: Foundation (Tasks 1-3)\nEstablish the core infrastructure to support Stats Master features.\n\n**Phase 1.1: Reader Architecture**\n- Create `Reader<T>` protocol inspired by Stats Master but adapted for `@Observable`\n- Implement `Repeater` class for per-reader timing (optional, can use unified timer)\n- Define reader lifecycle: `start()`, `stop()`, `pause()`, `interval` property\n- Follow Tonic's existing pattern at `WidgetDataManager.swift:289-350` for Observable data\n\n**Phase 1.2: Enhanced Data Models**\n- Extend existing data models in `SystemEnums.swift` and `VisualizationType.swift`\n- Add: `ProcessUsage`, `WiFiDetails`, `PublicIPInfo`, `SensorsFullData`, `NVMeSMARTData`\n- Maintain `Sendable` conformance for thread safety\n\n**Phase 1.3: Notification System Foundation**\n- Create `NotificationManager` singleton following `WidgetPreferences` pattern\n- Define `NotificationThreshold` struct (value, condition, enabled)\n- Create `NotificationPermission` type wrapper around macOS notifications\n\n### Phase 2: Data Readers (Tasks 4-8)\nImplement Stats Master's reader functionality using Tonic's architecture.\n\n**Phase 2.1: CPU Enhanced Reader**\n- Migrate from `stats-master/Modules/CPU/readers.swift:42-151`\n- Add: FrequencyReader, TemperatureReader, LimitReader, AverageLoadReader\n- Use existing `host_processor_info()` pattern from `WidgetDataManager.swift:468-525`\n- Add E/P core cluster coloring\n\n**Phase 2.2: RAM Enhanced Reader**\n- Migrate from `stats-master/Modules/RAM/readers.swift`\n- Add swap tracking and pressure level detailed states\n- Process reader for top RAM consumers\n\n**Phase 2.3: Network Enhanced Reader**\n- Migrate from `stats-master/Modules/Net/readers.swift`\n- Add WiFi details via `CWWiFiClient`\n- Add public IP via API call\n- Add connectivity test via ICMP ping\n- Process reader for top network consumers\n\n**Phase 2.4: Disk Enhanced Reader**\n- Migrate from `stats-master/Modules/Disk/readers.swift`\n- Add NVMe SMART data reading via IOKit\n- Add IOPS tracking\n- Process reader for top disk I/O consumers\n\n**Phase 2.5: Sensors & Battery Enhanced Readers**\n- Migrate SMC reader from `stats-master/Modules/Sensors/readers.swift`\n- Add fan speed with min/max\n- Add voltage and power sensors\n- Battery: Add health, cycles, optimized charging detection\n\n### Phase 3: Process Monitoring UI (Task 9)\nCreate UI to display process resource usage.\n\n**Process List View**:\n- Create `ProcessListView` SwiftUI component\n- Display: PID, app name, usage %, icon\n- Sortable by usage column\n- Filterable by module (CPU/RAM/Disk/Net)\n- Follow `DesignComponents.Card` pattern\n\n**Integration**:\n- Add to widget popover views\n- Reuse existing `topCPUApps` and `topMemoryApps` from `WidgetDataManager.swift:1189-1219`\n\n### Phase 4: Notification System Implementation (Task 10)\nComplete notification system with UI.\n\n**Notification Manager**:\n- Implement threshold checking per reader update\n- Queue notifications to prevent spam\n- Respect \"Do Not Disturb\" system state\n\n**Notification Settings UI**:\n- Add to `WidgetCustomizationView.swift`\n- Per-module threshold sliders\n- Enable/disable per notification type\n\n### Phase 5: OneView Mode (Task 11)\nImplement combined menu bar item mode.\n\n**OneView Widget**:\n- Create `CombinedMenuBarView` with all enabled widgets\n- Grid layout for compact display\n- Scrollable if overflow\n- Click opens unified popup\n\n**Configuration**:\n- Add toggle to `WidgetPreferences`: `unifiedMenuBarMode`\n- Migrate individual widgets when mode toggles\n\n### Phase 6: Widget Visualization Enhancements (Task 12)\nEnhance existing visualizations with Stats Master features.\n\n**Chart Enhancements**:\n- Add value overlay to line charts\n- Add per-core E/P cluster coloring\n- Add logarithmic scaling option (already exists in `ScalingMode`)\n\n**New Visualization: networkChart**\n- Dual-line chart for upload/download\n- Separate colors per direction\n- Independent scaling options\n\n### Phase 7: Migration & Cleanup (Tasks 13-14)\nComplete migration and remove old code.\n\n**User Preferences Migration**:\n- Create migration layer in `WidgetPreferences`\n- Map old configs to new structure\n- One-time migration on app launch\n- Fallback to defaults if migration fails\n\n**Code Cleanup**:\n- Delete old widget implementations in `MenuBarWidgets/`\n- Remove duplicate `WidgetsPanelView` (per git status)\n- Update `CLAUDE.md` with new architecture\n\n## Alternatives Considered\n\n| Option | Pros | Cons | Decision |\n|--------|------|------|----------|\n| **A: Pure AppKit Migration** | 1:1 code port from Stats Master, proven | Loses SwiftUI benefits, harder to maintain, regresses codebase | \u274c Rejected |\n| **B: SwiftUI + AppKit Hybrid** | Modern, maintainable, keeps Tonic architecture | Requires adapting AppKit code, more upfront effort | \u2705 **Selected** |\n| **C: Feature-by-Feature Add** | Incremental, lower risk per release | Longer timeline, inconsistent UX during transition | \u274c Rejected for full parity requirement |\n| **D: Separate Menu Bar App** | Clean separation, could open-source | User confusion, two apps to manage | \u274c Rejected |\n\n## Non-Functional Targets\n\n| Metric | Target | Measurement |\n|--------|--------|-------------|\n| CPU Impact | <1% per widget | Activity Monitor during monitoring |\n| Memory Impact | <50MB baseline | Memory graph for widget process |\n| Update Latency | <500ms for data refresh | Timestamp delta in `WidgetDataManager` |\n| Menu Bar Responsiveness | No lag on click | Subjective + event timing |\n| Widget Startup | <2s to display all enabled | Time from `start()` to visible |\n| Preference Migration | <100ms for typical user | Migration function timing |\n| Crash Rate | 0 crashes per 1000 widget-hours | Crashlytics |\n\n## Architecture Diagram\n\n```mermaid\ngraph TB\n    subgraph \"Menu Bar Layer\"\n        MB[NSStatusItem]\n        OVM[OneView Combined Mode]\n    end\n    \n    subgraph \"Widget Layer\"\n        WF[WidgetFactory]\n        WS[WidgetStatusItem Base]\n        CM[CombinedMenuBarView]\n    end\n    \n    subgraph \"Visualization Layer\"\n        LC[LineChartView]\n        BC[BarChartView]\n        PC[PieChartView]\n        TC[TachometerView]\n        SV[SpeedView]\n        PL[ProcessListView]\n    end\n    \n    subgraph \"Data Layer\"\n        WDM[WidgetDataManager @Observable]\n        R[Reader Protocol]\n    end\n    \n    subgraph \"Enhanced Readers\"\n        CPU[CPUReader + Freq + Temp + Limits]\n        RAM[RAMReader + Swap + Pressure]\n        NET[NetReader + WiFi + IP + Ping]\n        DISK[DiskReader + SMART + IOPS]\n        SEN[SensorsReader + SMC + Fans]\n        BAT[BatteryReader + Health + Cycles]\n    end\n    \n    subgraph \"Services\"\n        WP[WidgetPreferences]\n        NM[NotificationManager]\n        WM[WeatherService - Tonic Exclusive]\n    end\n    \n    MB --> WF\n    OVM --> CM\n    WF --> WS\n    WS --> LC\n    WS --> BC\n    WS --> PC\n    WS --> TC\n    WS --> SV\n    WS --> PL\n    \n    WS --> WDM\n    WDM --> R\n    R --> CPU\n    R --> RAM\n    R --> NET\n    R --> DISK\n    R --> SEN\n    R --> BAT\n    \n    WS --> WP\n    WDM --> NM\n    WP --> WM\n    NM --> WP\n```\n\n## Rollout Plan\n\n### Release Strategy: Single Major Release\nThis is a breaking change (menu bar widgets replaced), so ship as major version update.\n\n### Pre-Release\n1. Beta testing with team members\n2. Migration testing on various macOS versions (14.0, 14.6, 15.0)\n3. Performance benchmarking\n4. Accessibility testing\n\n### Release\n1. Update `CFBundleShortVersionString` to major version (e.g., 2.0.0)\n2. Release notes highlighting new features\n3. Migration occurs automatically on first launch\n4. Old preferences backed up before migration\n\n### Rollback Plan\nIf critical issues discovered:\n1. Revert to previous version\n2. Users who migrated will get defaults on revert (acceptable)\n3. Backup preferences can be restored manually if needed\n\n## Documentation Updates\n\n**Files to Update**:\n1. `CLAUDE.md` - Add new reader architecture, notification system\n2. `Tonic/Tonic/Views/WidgetOnboardingView.swift` - Update to reflect new features\n3. `README.md` (if exists) - Update feature list\n\n**New Documentation Needed**:\n1. Notification system guide (how to configure thresholds)\n2. OneView mode explanation\n3. Process monitoring interpretation guide\n\n## Metrics to Track\n\n| Metric | Why | How |\n|--------|-----|-----|\n| Widget enablement rate | Are users adopting new features? | Aggregate anonymous config stats |\n| Notification opt-in rate | Is notification system useful? | Count enabled notifications |\n| OneView mode usage | Is combined mode popular? | Track unifiedMenuBarMode setting |\n| Migration success rate | Did users' configs migrate cleanly? | Error logging in migration code |\n| Widget crash rate | Stability of new code | Crashlytics with widget tags |\n\n## Risks & Mitigations\n\n| Risk | Impact | Likelihood | Mitigation |\n|------|--------|------------|------------|\n| SMC helper tool fails to install | High temp/fan sensors unavailable | Medium | Fallback to IOKit thermal info, graceful degradation |\n| Migration corrupts user preferences | Users lose widget configurations | Low | Backup before migration, validate after, rollback on error |\n| Performance regression with all readers | System slowdown | Medium | Keep unified timer, lazy reader initialization |\n| macOS API incompatibility | Crashes on newer macOS | Low | Version checking, beta testing on macOS 15 |\n| Open-Meteo API deprecation | Weather widget breaks | Low | Monitor API status, consider alternative |\n| Notification spam | Users disable all notifications | Medium | Rate limiting, smart deduplication |\n| OneView mode overflow | Menu bar can't show all widgets | Low | Scrollable container, max widget limit |\n\n## Acceptance Criteria\n\n### Core Functionality\n- [ ] All 8 Tonic widget types work with Stats Master-enhanced data\n- [ ] Process monitoring UI displays top 5 apps for CPU, RAM, Disk, Network\n- [ ] Notification system sends alerts for configured thresholds\n- [ ] OneView mode combines all widgets into single menu bar item\n- [ ] Weather widget continues to work (Tonic exclusive feature)\n\n### Data Readers\n- [ ] CPU reader shows per-core usage with E/P cluster colors\n- [ ] CPU reader shows frequency, thermal limits\n- [ ] RAM reader shows pressure levels, swap usage\n- [ ] Network reader shows WiFi details (SSID, RSSI, channel)\n- [ ] Network reader shows public IP with change detection\n- [ ] Network reader performs connectivity test (ICMP ping)\n- [ ] Disk reader shows NVMe SMART data (temp, life, cycles)\n- [ ] Disk reader shows IOPS\n- [ ] Sensors reader shows temperature, voltage, power, fans via SMC\n- [ ] Battery reader shows health, cycles, optimized charging status\n\n### UI/UX\n- [ ] All visualization types render correctly (10 types)\n- [ ] Widget popovers include process monitoring section\n- [ ] Notification settings accessible from widget customization\n- [ ] OneView toggle in widget settings\n- [ ] Dark/light mode adaptation works\n- [ ] VoiceOver announces widget values correctly\n\n### Migration\n- [ ] Existing user preferences migrate without data loss\n- [ ] Backup created before migration\n- [ ] Migration fails gracefully to defaults\n- [ ] Migration completes in <100ms for typical user\n\n### Performance\n- [ ] CPU impact <1% per widget during normal operation\n- [ ] Memory usage <50MB baseline for widget system\n- [ ] Menu bar click response <100ms\n- [ ] All widgets load within 2s of app launch\n\n### Code Quality\n- [ ] All old widget code removed from `MenuBarWidgets/`\n- [ ] No duplicate `WidgetsPanelView` (per git status)\n- [ ] `CLAUDE.md` updated with new architecture\n- [ ] All new code follows `@Observable`, `@MainActor`, `Sendable` patterns\n- [ ] No compiler warnings\n\n## Quick Commands\n\n```bash\n# Build Tonic with new menu bar system\nxcodebuild -scheme Tonic -configuration Debug build\n\n# Run unit tests (when available)\nxcodebuild test -scheme Tonic -destination 'platform=macOS'\n\n# Check for Swift compilation errors\nswift build 2>&1 | grep -i error\n\n# Measure memory impact\ninstruments -t \"Allocations\" -D trace.trace \\\n  /Users/saransh1337/Developer/Projects/TONIC/build/Release/Tonic.app\n\n# Profile CPU usage\nsample Tonic 10 -file profile.txt\n\n# Verify menu bar widgets appear\ndefaults read com.tonic.Tonic tonic.widget.configs\n\n# Test migration manually\ndefaults delete com.tonic.Tonic tonic.widget.configs\n# Then launch app and check default widgets appear\n```\n\n## References\n\n### Stats Master Source\n- Directory: `/Users/saransh1337/Developer/Projects/TONIC/stats-master/`\n- CPU readers: `stats-master/Modules/CPU/readers.swift:42-151`\n- RAM readers: `stats-master/Modules/RAM/readers.swift`\n- Network readers: `stats-master/Modules/Net/readers.swift`\n- Disk readers: `stats-master/Modules/Disk/readers.swift`\n- Sensors readers: `stats-master/Modules/Sensors/readers.swift`\n- Battery readers: `stats-master/Modules/Battery/readers.swift`\n- Widget base: `stats-master/Kit/module/widget.swift:31-127`\n- Reader protocol: `stats-master/Kit/module/reader.swift:123-149`\n\n### Tonic Source\n- Widget data manager: `Tonic/Tonic/Services/WidgetDataManager.swift:289-1219`\n- Widget configuration: `Tonic/Tonic/Models/WidgetConfiguration.swift:14-559`\n- Visualization types: `Tonic/Tonic/Models/VisualizationType.swift:15-179`\n- Widget status item: `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift:18-639`\n- Widget factory: `Tonic/Tonic/MenuBarWidgets/WidgetFactory.swift:14-110`\n- Widget customization: `Tonic/Tonic/Views/WidgetCustomizationView.swift:14-898`\n\n### Key Patterns to Follow\n- `@Observable` pattern: `WidgetConfiguration.swift:291-294`\n- `@MainActor` isolation: `WidgetStatusItem.swift:17`\n- `Sendable` conformance: All data models\n- Design tokens: `Tonic/Tonic/Design/DesignTokens.swift`\n- Timer management: `WidgetStatusItem.swift:546-563`\n\n### External APIs\n- Open-Meteo (Weather): `https://open-meteo.com/` - keep for Weather widget\n- Public IP detection: Stats Master uses external API (verify and adapt)\n- macOS IOKit: For SMC, GPU, NVMe access\n- CoreWLAN: For WiFi details\n"
+  },
+  "epic_id": "fn-6-i4g",
+  "schema_version": 2,
+  "tasks": [
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.104128Z",
+        "depends_on": [],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.1",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.1.md",
+        "status": "todo",
+        "title": "Reader Architecture Foundation",
+        "updated_at": "2026-01-31T06:31:26.830548Z"
+      },
+      "id": "fn-6-i4g.1",
+      "runtime": null,
+      "spec": "# fn-6-i4g.1 Reader Architecture Foundation\n\n## Description\nCreate the foundational reader architecture that will support Stats Master-style data reading while maintaining Tonic's `@Observable` and `@MainActor` patterns.\n\n**Size:** M\n\n**Files:** \n- `Tonic/Tonic/Services/ReaderProtocol.swift` (new)\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify)\n- `Tonic/Tonic/Services/Repeater.swift` (new, optional)\n\nCreate a `Reader<T>` protocol inspired by Stats Master's `reader.swift:123-149` but adapted for Tonic's architecture:\n\n```swift\nprotocol Reader {\n    associatedtype T: Sendable\n    var value: T? { get }\n    var interval: TimeInterval? { get }\n    var isOptional: Bool { get }\n    var isPopupOnly: Bool { get }\n    var isActive: Bool { get }\n    \n    func start()\n    func stop()\n    func pause()\n    func read() -> T?\n}\n```\n\nThe protocol should support:\n- Configurable update intervals (1-60 seconds)\n- Optional readers (can be disabled without error)\n- Popup-only readers (only run when widget popup is open)\n- History tracking flag\n\n**Key difference from Stats Master**: Use `@Observable` and `@MainActor` instead of manual `DispatchQueue` synchronization. This keeps Tonic's modern concurrency model.\n\n## Approach\n\n1. Create `ReaderProtocol.swift` in `Services/` directory\n2. Define `Reader<T>` protocol with associated type\n3. Create base `BaseReader<T>` class with common implementation\n4. Use `@MainActor` for UI-related readers\n5. Add `history` property: `Int?` (nil = no history, N = store N points)\n6. Add `callback` closure for value updates\n7. Follow Stats Master's `reader.swift:123-149` for lifecycle methods\n\nDo NOT implement specific readers yet \u2014 this is just the protocol and base class.\n\n## Key Context\n\nStats Master's reader pattern uses `Repeater` class for per-reader timers. Tonic currently uses a unified timer in `WidgetCoordinator`. We're keeping the unified timer for efficiency, but the protocol should support optional per-reader timing for future flexibility.\n\nReference: `WidgetStatusItem.swift:546-563` for current unified timer pattern.\n## Acceptance\n- [ ] `Reader<T>` protocol defined in new file\n- [ ] `BaseReader<T>` class with common implementation\n- [ ] Protocol supports: interval, optional, popupOnly, history, callback\n- [ ] Lifecycle methods: start(), stop(), pause() \n- [ ] `@MainActor` isolation for UI-safe readers\n- [ ] `Sendable` conformance for associated type T\n- [ ] Documentation comments on protocol requirements\n- [ ] No specific reader implementations (foundation only)\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.918836Z",
+        "depends_on": [
+          "fn-6-i4g.3",
+          "fn-6-i4g.4"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.10",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.10.md",
+        "status": "todo",
+        "title": "Notification System Implementation",
+        "updated_at": "2026-01-31T06:33:15.525038Z"
+      },
+      "id": "fn-6-i4g.10",
+      "runtime": null,
+      "spec": "# fn-6-i4g.10 Notification System Implementation\n\n## Description\nComplete the notification system implementation with UI for configuring thresholds.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/NotificationManager.swift` (modify - complete implementation)\n- `Tonic/Tonic/Views/NotificationSettingsView.swift` (new)\n- `Tonic/Tonic/Views/WidgetCustomizationView.swift` (modify - integrate)\n\n**Notification Manager** enhancements:\n1. Implement threshold checking for each data type\n2. Add notification queue with debounce\n3. Track last notification time per threshold\n4. Implement \"Do Not Disturb\" checking\n\n**Notification Settings UI**:\n1. Add \"Notifications\" section to `WidgetCustomizationView`\n2. Per-module notification configuration:\n   - Enable/disable notifications for widget type\n   - Threshold sliders (e.g., \"Notify when CPU > 80%\")\n   - Condition selection (greater than, less than, equals)\n3. Test notification button\n4. Notification preview section\n\n## Approach\n\n1. Complete `NotificationManager.checkThreshold()` implementation\n2. Add `checkThreshold()` calls in `WidgetDataManager` update methods\n3. Create `NotificationSettingsView` with threshold configuration\n4. Integrate into `WidgetCustomizationView.swift` as new tab/section\n5. Add notification permission prompt on first enable\n6. Use `UNUserNotificationCenter` for delivery\n7. Respect `NSWorkspace.shared.notificationCenter.shouldShowNotification` for DND\n\n## Key Context\n\nStats Master's notification thresholds are configurable per widget type. Reference `stats-master/Kit/module/ModuleType.notifications.swift` for supported ranges.\n\nDefault thresholds:\n- CPU: >80% usage\n- Memory: >90% usage\n- Disk: >90% capacity\n- Network: Public IP changed\n- Battery: <20% level\n\nReference pattern: `WidgetCustomizationView.swift:14-898` for settings UI structure.\n## Acceptance\n- [ ] Threshold checking implemented for all widget types\n- [ ] Notification queue with debounce\n- [ ] Do Not Disturb respected\n- [ ] Notification settings UI created\n- [ ] Per-module threshold configuration\n- [ ] Condition selection (greater than, etc.)\n- [ ] Test notification button works\n- [ ] Permission request on first enable\n- [ ] Notifications delivered correctly\n- [ ] Notifications respect user preferences\n- [ ] Notification history/log available (optional)\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:06.018190Z",
+        "depends_on": [
+          "fn-6-i4g.12"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.11",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.11.md",
+        "status": "todo",
+        "title": "OneView Mode",
+        "updated_at": "2026-01-31T06:33:15.616494Z"
+      },
+      "id": "fn-6-i4g.11",
+      "runtime": null,
+      "spec": "# fn-6-i4g.11 OneView Mode\n\n## Description\nImplement OneView mode that combines all enabled widgets into a single menu bar item.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/OneViewStatusItem.swift` (new)\n- `Tonic/Tonic/Views/OneViewContentView.swift` (new)\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (modify - add unified mode flag)\n- `Tonic/Tonic/Services/WidgetCoordinator.swift` (modify - handle OneView)\n\n**OneView Widget**:\n1. Single NSStatusItem showing all enabled widgets in a compact grid\n2. Click opens unified popup with all widget details\n3. Widgets arranged horizontally with dividers\n4. Overflow handled with scroll or max widget limit\n\n**Configuration**:\n1. Add `unifiedMenuBarMode: Bool` to `WidgetPreferences`\n2. Toggle in `WidgetCustomizationView`\n3. When enabled: hide individual widgets, show OneView widget\n4. When disabled: restore individual widgets, hide OneView\n\n## Approach\n\n1. Create `OneViewStatusItem` extending `WidgetStatusItem`\n2. Create `OneViewContentView` with grid layout\n3. Grid shows widget icons + values in compact form\n4. On click: show `NSPopover` with scrollable list of all widget detail views\n5. Add mode toggle to `WidgetPreferences`\n6. Update `WidgetCoordinator.start()` to check mode and create appropriate widgets\n7. Handle mode switch at runtime (stop individual, start OneView, or vice versa)\n\n## Key Context\n\nStats Master calls this \"oneView\" mode. Reference `stats-master/Kit/module/MenuBar.swift` for the combined widget layout.\n\nGrid layout suggestion: Use `LazyHGrid` with 3 rows max for typical menu bar height.\n\nMax widgets: If >6 widgets enabled, scroll horizontal or show \"...\".\n\nReference: `WidgetFactory.swift:14-110` for widget creation patterns.\n## Acceptance\n- [ ] OneViewStatusItem created\n- [ ] OneViewContentView with grid layout\n- [ ] Shows all enabled widgets in compact form\n- [ ] Click opens unified popover\n- [ ] Popover scrollable for many widgets\n- [ ] unifiedMenuBarMode flag in WidgetPreferences\n- [ ] Mode toggle in WidgetCustomizationView\n- [ ] Individual widgets hidden when OneView active\n- [ ] Individual widgets restored when OneView disabled\n- [ ] Mode switch works at runtime\n- [ ] Menu bar overflow handled gracefully\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:06.110173Z",
+        "depends_on": [],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.12",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.12.md",
+        "status": "todo",
+        "title": "Widget Visualization Enhancements",
+        "updated_at": "2026-01-31T06:32:54.381429Z"
+      },
+      "id": "fn-6-i4g.12",
+      "runtime": null,
+      "spec": "# fn-6-i4g.12 Widget Visualization Enhancements\n\n## Description\nEnhance existing widget visualizations with Stats Master features.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/Views/LineChartWidgetView.swift` (modify)\n- `Tonic/Tonic/MenuBarWidgets/Views/BarChartWidgetView.swift` (modify)\n- `Tonic/Tonic/MenuBarWidgets/Views/NetworkChartWidgetView.swift` (new)\n- `Tonic/Tonic/Models/VisualizationType.swift` (modify - add networkChart)\n\n**Line Chart Enhancements**:\n1. Value overlay - show current value on chart\n2. E/P core cluster coloring for CPU\n3. Configurable chart background (fill vs line only)\n\n**Bar Chart Enhancements**:\n1. Per-core E/P cluster coloring\n2. Stacked bar option for multi-value display\n\n**New: networkChart Visualization**:\n1. Dual-line chart (upload/download)\n2. Independent colors per direction\n3. Independent scaling options\n4. Follows `networkChart` pattern from Stats Master\n\n## Approach\n\n1. Extend `LineChartConfig` with `showValueOverlay` flag\n2. Add E/P core color mapping to `BarChartWidgetView`\n3. Create `NetworkChartWidgetView` for dual-line network chart\n4. Add `networkChart` case to `VisualizationType` enum\n5. Register `networkChart` in compatible visualizations for `WidgetType.network`\n6. Update `WidgetFactory` to route `networkChart` to new view\n\n## Key Context\n\nStats Master's `networkChart` uses separate colors and scales for upload vs download. Reference `stats-master/Kit/widgets/NetworkChart.swift`.\n\nE/P core colors: Stats Master uses cluster-based coloring. Apple Silicon E cores = cooler color (blue/green), P cores = warmer color (orange/red).\n\nReference: `LineChartWidgetView.swift:15-97` for current line chart implementation.\n## Acceptance\n- [ ] LineChartConfig extended with showValueOverlay\n- [ ] Line chart shows current value overlay when enabled\n- [ ] Bar chart has E/P core cluster coloring\n- [ ] Bar chart supports stacked mode\n- [ ] networkChart visualization type added\n- [ ] NetworkChartWidgetView created\n- [ ] Dual-line display for upload/download\n- [ ] Independent colors per direction\n- [ ] Independent scaling per direction\n- [ ] networkChart registered for WidgetType.network\n- [ ] WidgetFactory routes networkChart correctly\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:06.203654Z",
+        "depends_on": [
+          "fn-6-i4g.4",
+          "fn-6-i4g.5",
+          "fn-6-i4g.6",
+          "fn-6-i4g.7",
+          "fn-6-i4g.8",
+          "fn-6-i4g.9",
+          "fn-6-i4g.10",
+          "fn-6-i4g.11",
+          "fn-6-i4g.12"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.13",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.13.md",
+        "status": "todo",
+        "title": "User Preferences Migration",
+        "updated_at": "2026-01-31T06:33:16.422721Z"
+      },
+      "id": "fn-6-i4g.13",
+      "runtime": null,
+      "spec": "# fn-6-i4g.13 User Preferences Migration\n\n## Description\nCreate migration layer to preserve existing user preferences when transitioning to the new menu bar system.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Models/WidgetConfiguration.swift` (modify - add migration)\n- `Tonic/Tonic/Services/WidgetPreferences.swift` (modify - add migration)\n\n**Migration Requirements**:\n1. Preserve user's enabled widgets\n2. Preserve widget positions\n3. Preserve widget display modes\n4. Preserve widget colors and customizations\n5. Map old config structure to new structure (if changed)\n6. Create backup before migration\n7. Handle migration failures gracefully\n\n**New Data Model Considerations**:\n- If `VisualizationType` wasn't in old config, default to `.mini`\n- If new fields added (e.g., unifiedMenuBarMode), use sensible defaults\n- Migrate Weather widget config (Tonic exclusive)\n\n## Approach\n\n1. Create `migrateIfNeeded()` method in `WidgetPreferences`\n2. Add `migrationVersion` key to UserDefaults\n3. On init, check if migration needed\n4. If needed:\n   - Create backup of existing config\n   - Read old config structure\n   - Map to new structure\n   - Save new config\n   - Update migration version\n5. If migration fails, log error and fallback to defaults\n6. Test with various config versions (empty, partial, full)\n\n## Key Context\n\nCurrent config key: `\"tonic.widget.configs\"` stores `[WidgetConfiguration]` encoded as JSON.\n\nOld config format may differ from new format if we change `WidgetConfiguration` struct. Use versioned decoding:\n\n```swift\nstatic func loadConfigsFromUserDefaults() -> [WidgetConfiguration] {\n    // Try v2 first, fallback to v1, then defaults\n}\n```\n\nReference: `WidgetConfiguration.swift:397-484` for existing multi-version decoding.\n## Acceptance\n- [ ] migrateIfNeeded() method implemented\n- [ ] migrationVersion key added to UserDefaults\n- [ ] Migration runs on WidgetPreferences init\n- [ ] Backup created before migration\n- [ ] Old config mapped to new structure\n- [ ] Weather widget config preserved\n- [ ] Widget positions preserved\n- [ ] Widget customizations preserved\n- [ ] Migration failure falls back to defaults\n- [ ] Migration logged for debugging\n- [ ] Tested with empty config\n- [ ] Tested with partial config\n- [ ] Tested with full config\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:06.293670Z",
+        "depends_on": [
+          "fn-6-i4g.13"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.14",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.14.md",
+        "status": "todo",
+        "title": "Code Cleanup and Documentation",
+        "updated_at": "2026-01-31T06:33:16.513370Z"
+      },
+      "id": "fn-6-i4g.14",
+      "runtime": null,
+      "spec": "# fn-6-i4g.14 Code Cleanup and Documentation\n\n## Description\nRemove old menu bar widget code and update documentation to reflect the new Stats Master-parity system.\n\n**Size:** S\n\n**Files:**\n- `Tonic/Tonic/MenuBarWidgets/` (cleanup)\n- `Tonic/Tonic/Views/WidgetsPanelView.swift` (resolve duplicate)\n- `Tonic/CLAUDE.md` (update)\n- `Tonic/Tonic/Views/WidgetOnboardingView.swift` (update)\n\n**Code Cleanup**:\n1. Delete old widget implementations that have been replaced:\n   - Old mini widget views if replaced by new visualization system\n   - Any duplicate or deprecated widget files\n2. Resolve duplicate `WidgetsPanelView.swift` (per git status)\n3. Remove unused imports\n4. Remove commented-out old code\n\n**Documentation Updates**:\n1. Update `CLAUDE.md` with:\n   - New reader architecture description\n   - Notification system documentation\n   - OneView mode explanation\n   - Enhanced data models\n   - Updated directory structure\n2. Update `WidgetOnboardingView` to reflect new features\n3. Update any README files\n\n## Approach\n\n1. Review git status for untracked widget files\n2. Identify which old files are no longer used (check imports/references)\n3. Delete unused files\n4. Resolve duplicate `WidgetsPanelView` \u2014 determine which version to keep\n5. Update CLAUDE.md sections:\n   - \"Key Services\" \u2014 add NotificationManager\n   - \"Core Features\" \u2014 update menu bar widgets section\n   - \"Common Tasks\" \u2014 add notification configuration\n6. Build project to verify no broken references\n7. Test that all widgets still work\n\n## Key Context\n\nGit status shows duplicate `WidgetsPanelView.swift` \u2014 need to determine which version to keep and remove the other.\n\nUntracked files that may need cleanup:\n- `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/` \u2014 verify these are the new implementations\n- `Tonic/Tonic/MenuBarWidgets/SensorsStatusItem.swift`\n- `Tonic/Tonic/MenuBarWidgets/WidgetFactory.swift`\n- `Tonic/Tonic/Models/SensorsData.swift`\n- `Tonic/Tonic/Models/VisualizationType.swift`\n\nThese appear to be new files from the current branch's work \u2014 verify they're part of the new system.\n## Acceptance\n- [ ] Unused old widget files deleted\n- [ ] Duplicate WidgetsPanelView resolved\n- [ ] No unused imports remaining\n- [ ] No commented-out code blocks\n- [ ] CLAUDE.md updated with reader architecture\n- [ ] CLAUDE.md updated with notification system\n- [ ] CLAUDE.md updated with OneView mode\n- [ ] WidgetOnboardingView updated\n- [ ] Project builds without errors\n- [ ] All widgets functional after cleanup\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.193130Z",
+        "depends_on": [],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.2",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.2.md",
+        "status": "todo",
+        "title": "Enhanced Data Models",
+        "updated_at": "2026-01-31T06:31:26.930202Z"
+      },
+      "id": "fn-6-i4g.2",
+      "runtime": null,
+      "spec": "# fn-6-i4g.2 Enhanced Data Models\n\n## Description\nExtend Tonic's existing data models to support Stats Master's enhanced features.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify)\n- `Tonic/Tonic/Models/VisualizationType.swift` (modify)\n- `Tonic/Tonic/Models/ProcessUsage.swift` (new)\n- `Tonic/Tonic/Models/NetworkDetails.swift` (new)\n- `Tonic/Tonic/Models/SensorsFullData.swift` (new)\n- `Tonic/Tonic/Models/DiskSMARTData.swift` (new)\n\nAdd new data models:\n\n1. **ProcessUsage** - Per-process resource usage\n```swift\nstruct ProcessUsage: Identifiable, Sendable {\n    let id: Int32  // PID\n    let name: String\n    let icon: NSImage?\n    let cpuUsage: Double?\n    let memoryUsage: UInt64?\n    let diskReadBytes: UInt64?\n    let diskWriteBytes: UInt64?\n    let networkBytes: UInt64?\n}\n```\n\n2. **WiFiDetails** - Extended network information\n```swift\nstruct WiFiDetails: Sendable {\n    let ssid: String\n    let rssi: Int  // Signal strength\n    let channel: Int\n    let security: String\n    let bssid: String\n}\n```\n\n3. **PublicIPInfo** - Public IP tracking\n```swift\nstruct PublicIPInfo: Sendable, Equatable {\n    let ipAddress: String\n    let country: String?\n    let timestamp: Date\n}\n```\n\n4. **SensorsFullData** - Comprehensive sensor readings\n```swift\nstruct SensorsFullData: Sendable {\n    let temperatures: [SensorReading]\n    let fans: [FanReading]\n    let voltages: [SensorReading]\n    let power: [SensorReading]\n}\n\nstruct SensorReading: Identifiable, Sendable {\n    let id: String\n    let name: String\n    let value: Double\n    let unit: String\n    let min: Double?\n    let max: Double?\n}\n```\n\n5. **NVMeSMARTData** - Disk health information\n```swift\nstruct NVMeSMARTData: Sendable {\n    let temperature: Double\n    let percentageUsed: Double?\n    let criticalWarning: Bool\n    let powerCycles: UInt64\n    let powerOnHours: UInt64\n}\n```\n\n## Approach\n\n1. Add new model files to `Models/` directory\n2. Extend existing enums where applicable (e.g., `ConnectionType` in `SystemEnums.swift`)\n3. Ensure all new models conform to `Sendable`\n4. Add `Codable` conformance for persistence (except `NSImage` in ProcessUsage)\n5. Follow existing patterns from `WidgetDataManager.swift:297-340`\n\n## Key Context\n\nStats Master stores these values differently. We're adapting to Tonic's structured approach. Reference Stats Master's module configs in `stats-master/Modules/*/readers.swift` for the values we need to capture.\n## Acceptance\n- [ ] ProcessUsage struct defined with all properties\n- [ ] WiFiDetails struct defined\n- [ ] PublicIPInfo struct defined\n- [ ] SensorsFullData struct with nested types\n- [ ] NVMeSMARTData struct defined\n- [ ] All new models conform to Sendable\n- [ ] Relevant models conform to Codable\n- [ ] No breaking changes to existing models\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.282024Z",
+        "depends_on": [],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.3",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.3.md",
+        "status": "todo",
+        "title": "Notification System Foundation",
+        "updated_at": "2026-01-31T06:31:27.024005Z"
+      },
+      "id": "fn-6-i4g.3",
+      "runtime": null,
+      "spec": "# fn-6-i4g.3 Notification System Foundation\n\n## Description\nCreate the foundation for Stats Master's threshold-based notification system adapted for Tonic.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/NotificationManager.swift` (new)\n- `Tonic/Tonic/Models/NotificationThreshold.swift` (new)\n- `Tonic/Tonic/Models/NotificationConfig.swift` (new)\n\nCreate the notification system architecture:\n\n1. **NotificationThreshold** - Per-widget threshold configuration\n```swift\nstruct NotificationThreshold: Codable, Sendable {\n    let id: UUID\n    let widgetType: WidgetType\n    let condition: NotificationCondition\n    let value: Double\n    let isEnabled: Bool\n}\n\nenum NotificationCondition: String, Codable {\n    case equals, notEquals, greaterThan, lessThan\n    case greaterThanOrEqual, lessThanOrEqual\n}\n```\n\n2. **NotificationConfig** - Aggregate notification settings\n```swift\nstruct NotificationConfig: Codable, Sendable {\n    var thresholds: [NotificationThreshold]\n    var respectDoNotDisturb: Bool\n    var minimumInterval: TimeInterval  // Debounce\n}\n```\n\n3. **NotificationManager** - Singleton service following `WidgetPreferences` pattern\n```swift\n@MainActor\n@Observable\npublic final class NotificationManager: Sendable {\n    static let shared = NotificationManager()\n    \n    var config: NotificationConfig\n    \n    func checkThreshold(widgetType: WidgetType, value: Double)\n    func requestPermission()\n    func sendNotification(title: String, body: String)\n}\n```\n\n## Approach\n\n1. Create model structs in `Models/`\n2. Create `NotificationManager` as `@Observable` singleton\n3. Implement macOS notification permission request\n4. Implement threshold checking logic\n5. Add debouncing to prevent notification spam\n6. Respect \"Do Not Disturb\" via `NSWorkspace.shared.notificationCenter`\n\n## Key Context\n\nReference Stats Master's notification system in `stats-master/Kit/module/ModuleType.notifications.swift`. Stats Master supports 3% to 100% threshold increments \u2014 we'll use configurable Double values instead.\n\nPattern reference: `WidgetPreferences.swift:291-294` for the `@Observable` singleton pattern.\n## Acceptance\n- [ ] NotificationThreshold struct defined\n- [ ] NotificationCondition enum with all comparison types\n- [ ] NotificationConfig struct defined\n- [ ] NotificationManager singleton created\n- [ ] Permission request implemented\n- [ ] Threshold checking logic implemented\n- [ ] Debouncing prevents notification spam\n- [ ] Do Not Disturb is respected\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.372603Z",
+        "depends_on": [
+          "fn-6-i4g.1",
+          "fn-6-i4g.2"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.4",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.4.md",
+        "status": "todo",
+        "title": "CPU Enhanced Reader",
+        "updated_at": "2026-01-31T06:33:14.446186Z"
+      },
+      "id": "fn-6-i4g.4",
+      "runtime": null,
+      "spec": "# fn-6-i4g.4 CPU Enhanced Reader\n\n## Description\nImplement Stats Master's enhanced CPU readers in Tonic's architecture.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify - add CPU readers)\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify - extend CPUData)\n\nExtend CPU data reading to include:\n1. **Per-core usage** with E/P core cluster identification\n2. **CPU frequency** reading (E cores vs P cores on Apple Silicon)\n3. **CPU temperature** via IOKit thermal sensors\n4. **Thermal limits** via `pmset -g therm`\n5. **Average load** via `uptime` command\n\nExtend `CPUData` struct:\n```swift\npublic struct CPUData: Sendable {\n    let totalUsage: Double\n    let perCoreUsage: [Double]\n    let eCoreUsage: [Double]?      // NEW\n    let pCoreUsage: [Double]?      // NEW\n    let frequency: Double?         // NEW - GHz\n    let temperature: Double?       // NEW - Celsius\n    let thermalLimit: Bool?        // NEW - throttling\n    let averageLoad: [Double]?     // NEW - 1min, 5min, 15min\n    let timestamp: Date\n}\n```\n\n## Approach\n\n1. Study Stats Master's CPU readers at `stats-master/Modules/CPU/readers.swift:42-151`\n2. **FrequencyReader**: Use IOReport for CPU frequency on Apple Silicon\n3. **TemperatureReader**: Use IOKit `IOServiceMatching(\"IOThermalSensor\")`\n4. **LimitReader**: Parse `pmset -g therm` output\n5. **AverageLoadReader**: Parse `uptime` command output\n6. Add methods to `WidgetDataManager` to populate new fields\n7. Keep existing `host_processor_info()` pattern from `WidgetDataManager.swift:468-525`\n8. Use existing `cpuLock` for thread safety\n\n## Key Context\n\nStats Master uses platform-specific sensor lists for temperature. For Apple Silicon, focus on `CPU0` and `CPU1` sensors via IORegistry.\n\nE/P core identification: On Apple Silicon, first N cores are E (efficiency), rest are P (performance). Use `hw.physicalcpu` and `hw.perflevel0.physicalcpu` sysctls.\n\nReference: Stats Master's CPU cluster coloring at `stats-master/Modules/CPU/widget.swift`.\n## Acceptance\n- [ ] CPUData extended with eCoreUsage, pCoreUsage\n- [ ] CPUData extended with frequency field\n- [ ] CPUData extended with temperature field\n- [ ] CPUData extended with thermalLimit field\n- [ ] CPUData extended with averageLoad field\n- [ ] Frequency reader implemented via IOReport\n- [ ] Temperature reader implemented via IOKit\n- [ ] Thermal limit reader implemented via pmset\n- [ ] Average load reader implemented via uptime\n- [ ] E/P core identification works on Apple Silicon\n- [ ] All new readers follow Reader protocol from Task 1\n- [ ] Thread-safe with existing locking patterns\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.462978Z",
+        "depends_on": [
+          "fn-6-i4g.1",
+          "fn-6-i4g.2"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.5",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.5.md",
+        "status": "todo",
+        "title": "RAM Enhanced Reader",
+        "updated_at": "2026-01-31T06:33:14.627613Z"
+      },
+      "id": "fn-6-i4g.5",
+      "runtime": null,
+      "spec": "# fn-6-i4g.5 RAM Enhanced Reader\n\n## Description\nImplement Stats Master's enhanced RAM readers including swap, pressure details, and process list.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify)\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify - extend MemoryData)\n\nExtend memory data reading to include:\n1. **Detailed pressure levels** (normal, warning, critical with numerical value)\n2. **Swap usage** with total/used/free\n3. **Compressed memory** amount\n4. **Top processes by memory usage** (already partially exists, enhance)\n\nExtend `MemoryData` struct:\n```swift\npublic struct MemoryData: Sendable {\n    let usedBytes: UInt64\n    let totalBytes: UInt64\n    let freeBytes: UInt64?         // NEW\n    let compressedBytes: UInt64\n    let swapTotalBytes: UInt64?    // NEW\n    let swapUsedBytes: UInt64?     // NEW\n    let pressure: MemoryPressure\n    let pressureValue: Double?     // NEW - 0-100 scale\n    let topProcesses: [ProcessUsage]?  // NEW\n    var usagePercentage: Double { ... }\n}\n```\n\n## Approach\n\n1. Study Stats Master's RAM readers at `stats-master/Modules/RAM/readers.swift`\n2. Use existing `host_statistics64()` pattern from `WidgetDataManager.swift:565-624`\n3. Add `vm_statistics64()` for swap information\n4. Add `sysctlbyname(\"vm.swapusage\")` for detailed swap data\n5. Pressure value: Map `MemoryPressure` enum to 0-100 scale (normal=0-33, warning=34-66, critical=67-100)\n6. Process reader: Use `top -l 1 -o mem -stats pid,command,mem` parsing\n7. Reuse existing `topMemoryApps` array from `WidgetDataManager.swift:1195`\n\n## Key Context\n\nStats Master shows top 5 processes by memory. We already collect `topMemoryApps` \u2014 just need to ensure it's populated correctly and exposed via `MemoryData`.\n\nPressure level detection via `sysctlbyname(\"vm.memory_pressure\")` \u2014 returns 0-4 mapping to normal/warning/critical.\n## Acceptance\n- [ ] MemoryData extended with freeBytes\n- [ ] MemoryData extended with swapTotalBytes, swapUsedBytes\n- [ ] MemoryData extended with pressureValue (0-100 scale)\n- [ ] MemoryData extended with topProcesses array\n- [ ] Swap reader implemented via sysctl\n- [ ] Pressure value mapping implemented\n- [ ] Process memory list populated via top command\n- [ ] topMemoryApps array correctly populated\n- [ ] All new readers follow Reader protocol\n- [ ] Thread-safe with existing patterns\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.553032Z",
+        "depends_on": [
+          "fn-6-i4g.1",
+          "fn-6-i4g.2"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.6",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.6.md",
+        "status": "todo",
+        "title": "Network Enhanced Reader",
+        "updated_at": "2026-01-31T06:33:14.805536Z"
+      },
+      "id": "fn-6-i4g.6",
+      "runtime": null,
+      "spec": "# fn-6-i4g.6 Network Enhanced Reader\n\n## Description\nImplement Stats Master's enhanced network readers including WiFi details, public IP, and connectivity testing.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify)\n- `Tonic/Tonic/Models/NetworkDetails.swift` (new - from Task 2)\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify - extend NetworkData)\n\nExtend network data reading to include:\n1. **WiFi details** - SSID, RSSI, channel, security type, BSSID\n2. **Public IP** tracking with change detection\n3. **Connectivity test** - ICMP ping with latency and jitter\n4. **Top processes by network** usage\n\nExtend `NetworkData` struct:\n```swift\npublic struct NetworkData: Sendable {\n    let uploadBytesPerSecond: Double\n    let downloadBytesPerSecond: Double\n    let isConnected: Bool\n    let connectionType: ConnectionType\n    let ssid: String?\n    let wifiDetails: WiFiDetails?  // NEW\n    let publicIP: PublicIPInfo?    // NEW\n    let connectivity: ConnectivityInfo?  // NEW\n    let topProcesses: [ProcessUsage]?    // NEW\n}\n```\n\n## Approach\n\n1. Study Stats Master's network readers at `stats-master/Modules/Net/readers.swift`\n2. **WiFi details**: Use `CWWiFiClient` from CoreWLAN framework\n3. **Public IP**: Query external API (Stats Master uses specific API, verify and adapt)\n4. **Connectivity**: Implement ICMP ping via `CFSocket` or `NWConnection`\n5. **Process network**: Parse `nettop -P -L 1 -n -k time,interface,state,rx_dupe,...`\n6. Cache public IP with 5-minute refresh interval\n7. Detect IP changes and trigger notification if enabled\n\n## Key Context\n\nCoreWLAN requires entitlement `com.apple.security.network.client` \u2014 ensure this is in entitlements file.\n\nPublic IP API: Stats Master uses external services. Consider using multiple fallback services (e.g., ipify.org, icanhazip.com).\n\nPing implementation: Stats Master uses raw sockets. For modern macOS, consider `NWConnection` or simple `NWPathMonitor` for connectivity status.\n\nReference: Existing network code at `WidgetDataManager.swift:760-802`.\n## Acceptance\n- [ ] NetworkData extended with wifiDetails\n- [ ] NetworkData extended with publicIP\n- [ ] NetworkData extended with connectivity info\n- [ ] NetworkData extended with topProcesses\n- [ ] WiFi reader implemented via CWWiFiClient\n- [ ] SSID, RSSI, channel, security correctly captured\n- [ ] Public IP reader implemented with fallback APIs\n- [ ] IP change detection works\n- [ ] ICMP ping implementation for connectivity\n- [ ] Latency and jitter calculated\n- [ ] Process network usage via nettop\n- [ ] All new readers follow Reader protocol\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.646997Z",
+        "depends_on": [
+          "fn-6-i4g.1",
+          "fn-6-i4g.2"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.7",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.7.md",
+        "status": "todo",
+        "title": "Disk Enhanced Reader",
+        "updated_at": "2026-01-31T06:33:14.986000Z"
+      },
+      "id": "fn-6-i4g.7",
+      "runtime": null,
+      "spec": "# fn-6-i4g.7 Disk Enhanced Reader\n\n## Description\nImplement Stats Master's enhanced disk readers including NVMe SMART data and IOPS tracking.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify)\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify - extend DiskVolumeData)\n\nExtend disk data reading to include:\n1. **NVMe SMART data** - temperature, life percentage, critical warnings\n2. **IOPS** - read/write operations per second\n3. **Activity tracking** - detailed read/write bytes with delta calculation\n4. **Top processes by disk I/O**\n\nExtend `DiskVolumeData` struct:\n```swift\npublic struct DiskVolumeData: Sendable {\n    let name: String\n    let path: String\n    let usedBytes: UInt64\n    let totalBytes: UInt64\n    let isBootVolume: Bool\n    let smartData: NVMeSMARTData?   // NEW\n    let readIOPS: Double?           // NEW\n    let writeIOPS: Double?          // NEW\n    let readBytesPerSecond: Double? // NEW\n    let writeBytesPerSecond: Double?// NEW\n    let topProcesses: [ProcessUsage]? // NEW\n    var usagePercentage: Double { ... }\n}\n```\n\n## Approach\n\n1. Study Stats Master's disk readers at `stats-master/Modules/Disk/readers.swift`\n2. **NVMe SMART**: Use IORegistry to access NVMe drive `IODeviceTree:/PCI0@0/RP0@1C/.../IONVMeController`\n3. Query `SMART` attribute data via IOServiceGetMatchingService\n4. **IOPS**: Use IORegistry block storage statistics\n5. **Activity**: Calculate delta from previous IORegistry snapshot\n6. **Process I/O**: Parse `proc_pid_rusage()` for per-process disk stats\n7. For non-NVMe drives, gracefully omit SMART data\n\n## Key Context\n\nNVMe SMART access requires root privileges via helper tool. If TonicHelperTool exists, extend it. Otherwise, implement fallback to basic disk info.\n\nSMART attributes:\n- Attribute 1: Critical Warning\n- Attribute 2: Composite Temperature\n- Attribute 3: Available Spare\n- Attribute 4: Percentage Used\n- Attribute 5: Data Units Read\n- Attribute 6: Data Units Written\n\nReference: Existing disk code at `WidgetDataManager.swift:677-713`.\n## Acceptance\n- [ ] DiskVolumeData extended with smartData\n- [ ] DiskVolumeData extended with readIOPS, writeIOPS\n- [ ] DiskVolumeData extended with readBytesPerSecond, writeBytesPerSecond\n- [ ] DiskVolumeData extended with topProcesses\n- [ ] NVMe SMART reader implemented\n- [ ] Temperature, life percentage, critical warnings captured\n- [ ] IOPS tracking implemented\n- [ ] Activity bytes per second calculated\n- [ ] Process disk I/O via proc_pid_rusage\n- [ ] Graceful fallback for non-NVMe drives\n- [ ] All new readers follow Reader protocol\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.736550Z",
+        "depends_on": [
+          "fn-6-i4g.1",
+          "fn-6-i4g.2"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.8",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.8.md",
+        "status": "todo",
+        "title": "Sensors & Battery Enhanced Readers",
+        "updated_at": "2026-01-31T06:33:15.162670Z"
+      },
+      "id": "fn-6-i4g.8",
+      "runtime": null,
+      "spec": "# fn-6-i4g.8 Sensors & Battery Enhanced Readers\n\n## Description\nImplement Stats Master's comprehensive SMC sensors reader and enhanced battery reader.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Services/WidgetDataManager.swift` (modify)\n- `Tonic/Tonic/Models/SensorsData.swift` (modify - extend)\n- `Tonic/Tonic/Models/SystemEnums.swift` (modify - extend BatteryData)\n- `Tonic/Tonic/Services/SMCReader.swift` (new)\n\nImplement two enhanced readers:\n\n**1. SMC Sensors Reader**:\n- Temperature sensors (CPU, GPU, SOC, ambient)\n- Voltage sensors (CPU, GPU, SOC)\n- Power sensors (CPU, GPU, battery)\n- Fan sensors with min/max RPM and mode (auto/forced)\n\nUse existing `SensorsData` struct from Task 2, populate with real SMC data.\n\n**2. Enhanced Battery Reader**:\n- Battery health with cycle count\n- Optimized charging status (battery health management)\n- Charger wattage detection\n- Temperature reading\n\nExtend `BatteryData` struct:\n```swift\npublic struct BatteryData: Sendable {\n    let isPresent: Bool\n    let isCharging: Bool\n    let chargePercentage: Double\n    let estimatedMinutesRemaining: Int?\n    let health: BatteryHealth\n    let cycleCount: Int?\n    let optimizedCharging: Bool?    // NEW\n    let chargerWattage: Double?     // NEW\n    let temperature: Double?        // NEW\n}\n```\n\n## Approach\n\n**SMC Reader**:\n1. Study Stats Master's SMC reader at `stats-master/Modules/Sensors/readers.swift`\n2. Use IOServiceGetMatchingService for SMC access\n3. Use SMC key format: \"SP\" prefix for sensors\n4. Temperature keys: TCXC, TC0C, TC0P, etc.\n5. Fan keys: FNum, FAcn, FTg (target), F0Ac (actual)\n6. Consider using TonicHelperTool if available for SMC access\n\n**Battery Reader**:\n1. Study Stats Master's battery readers at `stats-master/Modules/Battery/readers.swift`\n2. Use existing `IOPSCopyPowerSourcesInfo()` from `WidgetDataManager.swift:1007-1067`\n3. Add IORegistry query for battery temperature\n4. Add IORegistry query for charger wattage\n5. Check `pmset -g batt` for optimized charging status\n\n## Key Context\n\nSMC access may require privileged helper tool. Tonic has `TonicHelperTool` \u2014 extend it if needed for SMC key reading.\n\nFan mode detection: Read from IORegistry \"AppleSMC\" service.\n\nBattery temperature: Available from IORegistry \"AppleARMIODevice\" or \"battery\" node.\n\nReference: Existing battery code at `WidgetDataManager.swift:1007-1067`, existing sensors TODO at `WidgetDataManager.swift`.\n## Acceptance\n- [ ] SMC reader implemented in new file\n- [ ] Temperature sensors populated (CPU, GPU, SOC)\n- [ ] Voltage sensors populated\n- [ ] Power sensors populated\n- [ ] Fan sensors populated with RPM, min, max, mode\n- [ ] BatteryData extended with optimizedCharging\n- [ ] BatteryData extended with chargerWattage\n- [ ] BatteryData extended with temperature\n- [ ] Battery temperature read via IORegistry\n- [ ] Charger wattage detected\n- [ ] Optimized charging status detected\n- [ ] Graceful fallback when SMC unavailable\n- [ ] All new readers follow Reader protocol\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-01-31T06:31:05.827999Z",
+        "depends_on": [
+          "fn-6-i4g.4",
+          "fn-6-i4g.5"
+        ],
+        "epic": "fn-6-i4g",
+        "id": "fn-6-i4g.9",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-6-i4g.9.md",
+        "status": "todo",
+        "title": "Process Monitoring UI",
+        "updated_at": "2026-01-31T06:33:15.341066Z"
+      },
+      "id": "fn-6-i4g.9",
+      "runtime": null,
+      "spec": "# fn-6-i4g.9 Process Monitoring UI\n\n## Description\nCreate SwiftUI UI component to display process resource usage in widget popovers.\n\n**Size:** M\n\n**Files:**\n- `Tonic/Tonic/Views/ProcessListView.swift` (new)\n- `Tonic/Tonic/MenuBarWidgets/Views/ProcessListWidgetView.swift` (new)\n- `Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift` (modify - integrate into popovers)\n\nCreate a reusable process monitoring list view:\n\n1. **ProcessListView** component\n```swift\nstruct ProcessListView: View {\n    let processes: [ProcessUsage]\n    let moduleType: WidgetType\n    let maxCount: Int\n}\n```\n\nFeatures:\n- Display app icon, name, usage percentage\n- Sortable by usage (descending by default)\n- Color-coded usage bars (green \u2192 yellow \u2192 red)\n- Show top N processes (default 5)\n- Click on process to reveal in Finder or Activity Monitor\n\n2. **Integration**: Add to each widget's popover:\n- CPU widget \u2192 top CPU processes\n- Memory widget \u2192 top memory processes\n- Network widget \u2192 top network processes\n- Disk widget \u2192 top disk I/O processes\n\n## Approach\n\n1. Create `ProcessListView.swift` in `Views/`\n2. Use `DesignComponents.Card` for consistent styling\n3. Use `DesignTokens.Colors` for usage-based coloring\n4. Create row component: `ProcessRowView` with icon, name, value\n5. Add click handler to reveal in Activity Monitor via `NSWorkspace.open(url:)`\n6. Integrate into existing widget popovers\n7. For widgets without popover views, create one\n\n## Key Context\n\nStats Master shows this in every module's popup. Reference `stats-master/Kit/module/Popup.swift` for layout.\n\nTonic already collects `topCPUApps` and `topMemoryApps` in `WidgetDataManager.swift:1189-1219` \u2014 extend to all module types.\n\nActivity Monitor deep link: `activitymanager://show/` or reveal in Finder then open.\n## Acceptance\n- [ ] ProcessListView component created\n- [ ] ProcessRowView component created\n- [ ] Shows app icon, name, usage percentage\n- [ ] Sorted by usage descending\n- [ ] Color-coded usage bars\n- [ ] Click reveals in Activity Monitor\n- [ ] Integrated into CPU widget popover\n- [ ] Integrated into Memory widget popover\n- [ ] Integrated into Network widget popover\n- [ ] Integrated into Disk widget popover\n- [ ] Follows DesignComponents patterns\n- [ ] Uses DesignTokens for styling\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    }
+  ]
+}

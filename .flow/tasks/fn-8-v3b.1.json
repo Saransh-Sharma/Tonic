@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-02T12:30:47.840240Z",
+  "depends_on": [],
+  "epic": "fn-8-v3b",
+  "id": "fn-8-v3b.1",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-8-v3b.1.md",
+  "status": "todo",
+  "title": "Update PopoverConstants with Stats Master measurements",
+  "updated_at": "2026-02-02T12:31:44.126475Z"
+}

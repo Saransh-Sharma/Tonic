@@ -4,6 +4,7 @@
 //
 //  Memory monitoring widget views
 //  Task ID: fn-2.6
+//  Updated: fn-6-i4g.18 - Standardized popover layout
 //
 
 import SwiftUI
@@ -52,6 +53,7 @@ public struct MemoryCompactView: View {
 // MARK: - Memory Detail View
 
 /// Detailed popover view for Memory widget
+/// Uses standardized PopoverTemplate for consistent layout
 public struct MemoryDetailView: View {
 
     @State private var dataManager = WidgetDataManager.shared
@@ -61,13 +63,28 @@ public struct MemoryDetailView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header
-            header
+            HStack {
+                Image(systemName: "memorychip.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(pressureColor)
+
+                Text("Memory")
+                    .font(.headline)
+
+                Spacer()
+
+                Text("\(Int(dataManager.memoryData.usagePercentage))%")
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(pressureColor)
+            }
+            .padding()
+            .background(DesignTokens.Colors.backgroundSecondary)
 
             Divider()
 
             ScrollView {
-                VStack(spacing: 20) {
-                    // Usage gauge
+                VStack(spacing: DesignTokens.Spacing.md) {
+                    // Usage gauge section
                     usageGaugeSection
 
                     // Memory breakdown
@@ -81,75 +98,27 @@ public struct MemoryDetailView: View {
 
                     // Top apps
                     topAppsSection
-
-                    // Activity Monitor link
-                    activityMonitorButton
                 }
                 .padding()
             }
         }
-        .frame(width: 320, height: 500)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var activityMonitorButton: some View {
-        Button {
-            NSWorkspace.shared.launchApplication("Activity Monitor")
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 14))
-                Text("Open Activity Monitor")
-                    .font(.subheadline)
-                Spacer()
-                Image(systemName: "arrow.up.forward.square")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var header: some View {
-        HStack {
-            Image(systemName: "memorychip.fill")
-                .font(.title2)
-                .foregroundColor(pressureColor)
-
-            Text("Memory")
-                .font(.headline)
-
-            Spacer()
-
-            Text("\(Int(dataManager.memoryData.usagePercentage))%")
-                .font(.system(size: 20, weight: .bold, design: .monospaced))
-                .foregroundColor(pressureColor)
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
+        .frame(width: 320, height: 400)
     }
 
     private var usageGaugeSection: some View {
-        VStack(spacing: 16) {
-            // Circular gauge
+        VStack(spacing: DesignTokens.Spacing.md) {
+            // Circular gauge with centered value
             ZStack {
                 Circle()
-                    .stroke(Color(nsColor: .controlBackgroundColor), lineWidth: 12)
-                    .frame(width: 120, height: 120)
+                    .stroke(pressureColor.opacity(0.2), lineWidth: 12)
 
                 Circle()
                     .trim(from: 0, to: dataManager.memoryData.usagePercentage / 100)
                     .stroke(
-                        pressureColor.gradient,
+                        pressureColor,
                         style: StrokeStyle(lineWidth: 12, lineCap: .round)
                     )
-                    .frame(width: 120, height: 120)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: dataManager.memoryData.usagePercentage)
 
                 VStack(spacing: 4) {
                     Text("\(Int(dataManager.memoryData.usagePercentage))%")
@@ -161,6 +130,7 @@ public struct MemoryDetailView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            .frame(width: 120, height: 120)
 
             // Used/Total text
             HStack(spacing: 4) {
@@ -180,10 +150,10 @@ public struct MemoryDetailView: View {
     }
 
     private var memoryBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Memory Breakdown")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .fontWeight(.semibold)
 
             VStack(spacing: 10) {
                 memoryRow(label: "Used", value: dataManager.memoryData.usedBytes, color: pressureColor)
@@ -195,12 +165,12 @@ public struct MemoryDetailView: View {
             }
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.small)
     }
 
     private func memoryRow(label: String, value: UInt64, color: Color) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignTokens.Spacing.sm) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
@@ -210,16 +180,15 @@ public struct MemoryDetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 70, alignment: .leading)
 
+            // Simple progress bar
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(nsColor: .separatorColor))
-                        .frame(height: 6)
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
 
-                    let percentage = dataManager.memoryData.totalBytes > 0 ? Double(value) / Double(dataManager.memoryData.totalBytes) : 0
-                    RoundedRectangle(cornerRadius: 3)
+                    Rectangle()
                         .fill(color)
-                        .frame(width: max(0, geometry.size.width * percentage), height: 6)
+                        .frame(width: geometry.size.width * CGFloat(Double(value) / Double(dataManager.memoryData.totalBytes)))
                 }
             }
             .frame(height: 6)
@@ -232,39 +201,33 @@ public struct MemoryDetailView: View {
     }
 
     private var pressureSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Memory Pressure")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: pressureIcon)
+                .font(.title2)
+                .foregroundColor(pressureColor)
 
-            HStack(spacing: 12) {
-                Image(systemName: pressureIcon)
-                    .font(.title2)
-                    .foregroundColor(pressureColor)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(pressureText)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(pressureText)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Text(pressureDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
+                Text(pressureDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
+
+            Spacer()
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.small)
     }
 
     private var historyGraphSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Usage History")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .fontWeight(.semibold)
 
             Chart(dataManager.memoryHistory.enumerated().map { (index, value) in
                 ChartDataPoint(index: index, value: value)
@@ -306,60 +269,12 @@ public struct MemoryDetailView: View {
             .frame(height: 100)
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.small)
     }
 
     private var topAppsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Top Memory Apps")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            if dataManager.topMemoryApps.isEmpty {
-                Text("No app data available")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(Array(dataManager.topMemoryApps.prefix(5))) { app in
-                        HStack(spacing: 12) {
-                            if let icon = app.icon {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(nsColor: .controlBackgroundColor))
-                                    .frame(width: 20, height: 20)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.name)
-                                    .font(.caption)
-                                    .lineLimit(1)
-
-                                Text(app.memoryString)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text("\(Double(app.memoryBytes) / Double(dataManager.memoryData.totalBytes) * 100, specifier: "%.1f")%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .monospaced()
-                        }
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        ProcessListWidgetView(widgetType: .memory, maxCount: 5)
     }
 
     private var pressureColor: Color {
@@ -420,5 +335,4 @@ public final class MemoryStatusItem: WidgetStatusItem {
 
 #Preview("Memory Detail") {
     MemoryDetailView()
-        .frame(width: 320, height: 450)
 }

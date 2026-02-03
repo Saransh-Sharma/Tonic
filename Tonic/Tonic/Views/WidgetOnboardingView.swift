@@ -23,17 +23,22 @@ public struct WidgetOnboardingView: View {
         OnboardingPage(
             icon: "cpu",
             title: "Real-Time Monitoring",
-            description: "Track CPU, Memory, Disk, Network, and more with updates every 2 seconds."
+            description: "Track CPU, Memory, Disk, Network, GPU, Battery, and more with updates every second."
         ),
         OnboardingPage(
             icon: "hand.tap.fill",
-            title: "Fully Customizable",
-            description: "Choose which widgets to show, their display mode, and arrange them in any order."
+            title: "Flexible Visualizations",
+            description: "Choose from multiple visualization styles: mini, line charts, bar charts, pie charts, and more."
+        ),
+        OnboardingPage(
+            icon: "rectangle.3.group",
+            title: "OneView Mode",
+            description: "Enable unified mode to show all widgets in a single compact menu bar item."
         ),
         OnboardingPage(
             icon: "bell.badge.fill",
             title: "Smart Notifications",
-            description: "Get notified about important system events like high CPU usage or low disk space."
+            description: "Set custom thresholds to get alerted about high CPU, low memory, or low disk space."
         )
     ]
 

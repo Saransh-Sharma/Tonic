@@ -106,7 +106,7 @@ public struct WiFiMetricsData: Sendable {
 }
 
 /// WiFi frequency band
-public enum WiFiBand: String, Sendable, CaseIterable {
+public enum WiFiBand: String, Sendable, CaseIterable, Codable {
     case ghz24 = "2.4 GHz"
     case ghz5 = "5 GHz"
     case ghz6 = "6 GHz"

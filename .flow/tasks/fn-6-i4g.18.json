@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-31T13:05:38.607757Z",
+  "depends_on": [
+    "fn-6-i4g.9",
+    "fn-6-i4g.12"
+  ],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.18",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-6-i4g.18.md",
+  "status": "todo",
+  "title": "Popover Layout Standardization",
+  "updated_at": "2026-01-31T13:06:57.246332Z"
+}

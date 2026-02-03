@@ -1,0 +1,17 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-30T20:12:20.217650Z",
+  "depends_on": [
+    "fn-5-v8r.13",
+    "fn-5-v8r.14"
+  ],
+  "epic": "fn-5-v8r",
+  "id": "fn-5-v8r.15",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-5-v8r.15.md",
+  "status": "done",
+  "title": "Active Widgets horizontal layout refactor",
+  "updated_at": "2026-01-31T12:00:00.000000Z"
+}

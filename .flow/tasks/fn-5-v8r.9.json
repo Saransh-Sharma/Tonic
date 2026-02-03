@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-01-30T20:12:13.488300Z",
+  "depends_on": [
+    "fn-5-v8r.4",
+    "fn-5-v8r.5",
+    "fn-5-v8r.6"
+  ],
+  "epic": "fn-5-v8r",
+  "id": "fn-5-v8r.9",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-5-v8r.9.md",
+  "status": "done",
+  "title": "Stack/Sensors and Tachometer widgets implementation",
+  "updated_at": "2026-01-31T02:00:00.000000Z"
+}

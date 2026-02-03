@@ -1,0 +1,13 @@
+{
+  "branch_name": "menu-stats-revamp",
+  "created_at": "2026-02-01T18:11:39.512371Z",
+  "depends_on_epics": [],
+  "id": "fn-7-ybl",
+  "next_task": 1,
+  "plan_review_status": "unknown",
+  "plan_reviewed_at": null,
+  "spec_path": ".flow/specs/fn-7-ybl.md",
+  "status": "done",
+  "title": "Stats Master Menu Bar Parity - Cleanup & Completion",
+  "updated_at": "2026-02-01T18:12:15.932300Z"
+}

@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T21:17:56.320455Z",
+  "depends_on": [],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.47",
+  "priority": 25,
+  "spec_path": ".flow/tasks/fn-6-i4g.47.md",
+  "status": "todo",
+  "title": "CPU Popover Dashboard Section",
+  "updated_at": "2026-02-01T21:17:56.320670Z"
+}

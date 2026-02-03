@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Service Error Handler Protocol
 
 /// Protocol for services that need comprehensive error handling
-protocol ServiceErrorHandler {
+public protocol ServiceErrorHandler {
     /// Transform file system errors into TonicError
     func handleFileSystemError(_ error: Error, operation: String, path: String) -> TonicError
 
@@ -60,248 +60,196 @@ extension ServiceErrorHandler {
     private func handleCocoaError(_ error: CocoaError, operation: String, path: String) -> TonicError {
         switch error.code {
         case .fileNoSuchFile:
-            return .fileNotFound(path: path)
+            return .fileMissing(path: path)
 
         case .fileWriteNoPermission, .fileReadNoPermission:
-            return .accessDenied(path: path)
+            return .fileAccessDenied(path: path)
 
         case .fileWriteInvalidFileName:
-            return .invalidPath(path: path)
+            return .invalidFilePath(path: path)
 
         case .fileWriteOutOfSpace:
             return .insufficientDiskSpace(required: 0, available: 0)
 
         default:
-            return .fileOperationFailed(operation: operation, path: path, reason: error.localizedDescription)
+            return .fileOperationFailed(operation: operation, reason: error.localizedDescription)
         }
     }
 
     // MARK: - Filesystem Error Handling
 
     func handleFileSystemError(_ error: Error, operation: String, path: String) -> TonicError {
-        let errorMessage = error.localizedDescription
-
-        if errorMessage.lowercased().contains("permission") {
-            return .accessDenied(path: path)
-        } else if errorMessage.lowercased().contains("no such file") {
-            return .fileNotFound(path: path)
-        } else if errorMessage.lowercased().contains("space") {
-            return .insufficientDiskSpace(required: 0, available: 0)
-        } else {
-            return .fileOperationFailed(operation: operation, path: path, reason: errorMessage)
-        }
+        return .fileOperationFailed(operation: operation, reason: error.localizedDescription)
     }
 
     // MARK: - Network Error Handling
 
     func handleNetworkError(_ error: Error, operation: String) -> TonicError {
         if let urlError = error as? URLError {
-            return handleURLError(urlError, operation: operation)
-        }
+            switch urlError.code {
+            case .timedOut:
+                return .networkTimeout(service: operation)
 
-        let errorMessage = error.localizedDescription
+            case .notConnectedToInternet, .networkConnectionLost:
+                return .noInternetConnection
 
-        if errorMessage.lowercased().contains("timeout") {
-            return .networkTimeout
-        } else if errorMessage.lowercased().contains("no connection") {
-            return .noNetworkConnection
+            case .serverCertificateUntrusted, .clientCertificateRejected:
+                return .invalidNetworkResponse(service: operation)
+
+            default:
+                return .networkError(underlyingError: error)
+            }
+        } else if let error = error as? TonicError {
+            return error
         } else {
-            return .networkError(operation: operation, reason: errorMessage)
-        }
-    }
-
-    private func handleURLError(_ error: URLError, operation: String) -> TonicError {
-        switch error.code {
-        case .timedOut:
-            return .networkTimeout
-
-        case .notConnectedToInternet:
-            return .noNetworkConnection
-
-        case .networkConnectionLost:
-            return .noNetworkConnection
-
-        case .cannotParseResponse:
-            return .invalidNetworkResponse(operation: operation)
-
-        case .badServerResponse:
-            return .serverError(statusCode: 500, operation: operation)
-
-        default:
-            return .networkError(operation: operation, reason: error.localizedDescription)
+            return .networkError(underlyingError: error)
         }
     }
 
     // MARK: - Permission Error Handling
 
     func handlePermissionError(_ operation: String, requiredPermission: String) -> TonicError {
-        switch requiredPermission.lowercased() {
-        case "fda", "full disk access":
-            return .fullDiskAccessRequired
+        return .permissionDenied(type: requiredPermission)
+    }
 
-        case "accessibility":
-            return .accessibilityPermissionRequired
+    // MARK: - Scan Error Handling
 
-        case "location":
-            return .locationPermissionRequired
-
-        case "notifications":
-            return .notificationPermissionRequired
-
-        default:
-            return .permissionDenied(permission: requiredPermission)
+    func handleScanError(_ error: Error, operation: String) -> TonicError {
+        if let error = error as? TonicError {
+            return error
         }
+
+        if (error as NSError).code == NSFileReadNoPermissionError {
+            return .scanPermissionDenied(path: operation)
+        }
+
+        return .scanFailed(reason: error.localizedDescription)
+    }
+
+    func handleScanTimeout(_ operation: String) -> TonicError {
+        return .scanTimeout(operation: operation)
+    }
+
+    // MARK: - Clean Error Handling
+
+    func handleCleanError(_ error: Error, path: String) -> TonicError {
+        if let error = error as? TonicError {
+            return error
+        }
+
+        let nsError = error as NSError
+
+        if nsError.code == NSFileWriteNoPermissionError {
+            return .fileAccessDenied(path: path)
+        }
+
+        if nsError.code == NSFileNoSuchFileError {
+            return .fileMissing(path: path)
+        }
+
+        if nsError.code == NSFileWriteOutOfSpaceError {
+            return .insufficientDiskSpace(required: 0, available: 0)
+        }
+
+        return .fileWriteFailed(path: path)
+    }
+
+    // MARK: - Cache Error Handling
+
+    func handleCacheError(_ error: Error) -> TonicError {
+        if let error = error as? TonicError {
+            return error
+        }
+
+        return .cacheReadFailed
+    }
+
+    func handleCacheCorrupted(_ reason: String) -> TonicError {
+        return .cacheCorrupted(reason: reason)
+    }
+
+    // MARK: - Data Error Handling
+
+    func handleDecodingError(_ error: Error, dataType: String) -> TonicError {
+        return .decodingFailed(dataType: dataType, reason: error.localizedDescription)
+    }
+
+    func handleEncodingError(_ dataType: String) -> TonicError {
+        return .encodingFailed(dataType: dataType)
+    }
+
+    func handleInvalidDataFormat(_ dataType: String) -> TonicError {
+        return .invalidDataFormat(dataType: dataType)
     }
 
     // MARK: - Validation Error Handling
 
-    func validatePathExists(_ path: String) throws {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: path) else {
-            throw TonicError.fileNotFound(path: path)
+    func handleInvalidInput(_ message: String) -> TonicError {
+        return .invalidInput(message: message)
+    }
+
+    func handleEmptyInput(_ field: String) -> TonicError {
+        return .emptyInput(field: field)
+    }
+
+    func handleInputTooLong(_ field: String, max: Int) -> TonicError {
+        return .inputTooLong(field: field, max: max)
+    }
+
+    func handleValueOutOfRange(_ field: String, min: String, max: String) -> TonicError {
+        return .valueOutOfRange(field: field, min: min, max: max)
+    }
+
+    func handleInvalidEmail(_ email: String) -> TonicError {
+        return .invalidEmail(email: email)
+    }
+
+    func handleInvalidURL(_ url: String) -> TonicError {
+        return .invalidURL(url: url)
+    }
+
+    // MARK: - System Error Handling
+
+    func handleSystemCallFailed(_ call: String, errno: Int32) -> TonicError {
+        return .systemCallFailed(call: call, errno: errno)
+    }
+
+    func handleOperationNotSupported(_ operation: String) -> TonicError {
+        return .operationNotSupported(operation: operation)
+    }
+
+    func handleOutOfMemory() -> TonicError {
+        return .outOfMemory
+    }
+
+    // MARK: - Helper Tool Error Handling
+
+    func handleHelperToolNotInstalled() -> TonicError {
+        return .helperToolNotInstalled
+    }
+
+    func handleHelperToolCommunicationFailed(_ reason: String) -> TonicError {
+        return .helperToolCommunicationFailed(reason: reason)
+    }
+
+    func handleHelperToolError(_ message: String) -> TonicError {
+        return .helperToolError(message: message)
+    }
+
+    func handleAuthorizationFailed() -> TonicError {
+        return .authorizationFailed
+    }
+
+    // MARK: - Generic Error Handling
+
+    func handleUnknownError(_ message: String? = nil) -> TonicError {
+        return .unknown(message: message)
+    }
+
+    func handleGenericError(_ error: Error) -> TonicError {
+        if let tonicError = error as? TonicError {
+            return tonicError
         }
-    }
-
-    func validatePathIsDirectory(_ path: String) throws {
-        let fileManager = FileManager.default
-        var isDir: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
-            throw TonicError.invalidPath(path: path)
-        }
-    }
-
-    func validatePathIsFile(_ path: String) throws {
-        let fileManager = FileManager.default
-        var isDir: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue else {
-            throw TonicError.invalidPath(path: path)
-        }
-    }
-
-    func validateDiskSpace(required: Int64) throws {
-        let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser
-
-        if let availableSpace = try? fileManager.attributesOfFileSystem(forPath: home.path)[.systemFreeSize] as? Int64 {
-            guard availableSpace >= required else {
-                throw TonicError.insufficientDiskSpace(required: required, available: availableSpace)
-            }
-        }
-    }
-}
-
-// MARK: - Scan Error Handler
-
-extension ServiceErrorHandler {
-
-    /// Handles scan-specific errors
-    func handleScanError(_ error: Error, scanType: String) -> TonicError {
-        let errorMessage = error.localizedDescription
-
-        if errorMessage.lowercased().contains("permission") {
-            return .scanPermissionDenied
-        } else if errorMessage.lowercased().contains("interrupted") {
-            return .scanInterrupted
-        } else if errorMessage.lowercased().contains("timeout") {
-            return .scanTimeout
-        } else {
-            return .scanFailed(reason: errorMessage)
-        }
-    }
-
-    /// Validates scan can start
-    func validateScanStarting() throws {
-        // Check for required permissions
-        let permissionManager = PermissionManager.shared
-
-        guard permissionManager.hasFullDiskAccess() else {
-            throw TonicError.fullDiskAccessRequired
-        }
-    }
-}
-
-// MARK: - Cleaning Error Handler
-
-extension ServiceErrorHandler {
-
-    /// Handles cleaning operation errors
-    func handleCleaningError(_ error: Error, category: String) -> TonicError {
-        let errorMessage = error.localizedDescription
-
-        if errorMessage.lowercased().contains("protected") {
-            return .protectedFileEncountered(path: category)
-        } else if errorMessage.lowercased().contains("permission") {
-            return .accessDenied(path: category)
-        } else {
-            return .cleaningFailed(category: category, reason: errorMessage)
-        }
-    }
-}
-
-// MARK: - Data Cache Error Handler
-
-extension ServiceErrorHandler {
-
-    /// Handles data loading/caching errors
-    func handleDataError(_ error: Error, dataType: String) -> TonicError {
-        let errorMessage = error.localizedDescription
-
-        if errorMessage.lowercased().contains("decode") {
-            return .dataCorrupted(type: dataType, reason: errorMessage)
-        } else if errorMessage.lowercased().contains("encode") {
-            return .cachingFailed(reason: errorMessage)
-        } else if errorMessage.lowercased().contains("not found") {
-            return .dataNotFound(type: dataType)
-        } else {
-            return .dataProcessingFailed(type: dataType, reason: errorMessage)
-        }
-    }
-}
-
-// MARK: - Async Operation Error Handler
-
-/// Helper for wrapping async operations with error handling
-struct AsyncOperationWithErrorHandling<T> {
-    let operation: () async throws -> T
-    let errorHandler: (Error) -> TonicError
-
-    func execute() async throws -> T {
-        do {
-            return try await operation()
-        } catch let error as TonicError {
-            throw error
-        } catch {
-            throw errorHandler(error)
-        }
-    }
-}
-
-// MARK: - Result Wrapping
-
-/// Helper for operations that should return Result<T, TonicError>
-func withErrorHandling<T>(
-    operation: @escaping () throws -> T,
-    errorHandler: @escaping (Error) -> TonicError
-) -> Result<T, TonicError> {
-    do {
-        return .success(try operation())
-    } catch let error as TonicError {
-        return .failure(error)
-    } catch {
-        return .failure(errorHandler(error))
-    }
-}
-
-/// Helper for async operations that should return Result<T, TonicError>
-func withAsyncErrorHandling<T>(
-    operation: @escaping () async throws -> T,
-    errorHandler: @escaping (Error) -> TonicError
-) async -> Result<T, TonicError> {
-    do {
-        return .success(try await operation())
-    } catch let error as TonicError {
-        return .failure(error)
-    } catch {
-        return .failure(errorHandler(error))
+        return .generic(error)
     }
 }

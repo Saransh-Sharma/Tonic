@@ -1,0 +1,18 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-02T12:30:48.857451Z",
+  "depends_on": [
+    "fn-8-v3b.1",
+    "fn-8-v3b.11",
+    "fn-8-v3b.13"
+  ],
+  "epic": "fn-8-v3b",
+  "id": "fn-8-v3b.12",
+  "priority": null,
+  "spec_path": ".flow/tasks/fn-8-v3b.12.md",
+  "status": "todo",
+  "title": "Update SensorsPopoverView with fan control integration",
+  "updated_at": "2026-02-02T15:00:29.819182Z"
+}

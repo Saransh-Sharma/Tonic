@@ -45,6 +45,20 @@ public protocol PrivilegedHelperProtocol: NSObjectProtocol {
     /// - Parameter passes: Number of overwrite passes (default: 3)
     /// - Returns: True if secure delete succeeded
     func secureDeleteFile(atPath path: String, passes: Int, withReply reply: @escaping (Bool, String?) -> Void)
+
+    // MARK: - Fan Control Methods
+
+    /// Set fan operating mode (auto/manual)
+    /// - Parameter fanId: Fan index (0-based)
+    /// - Parameter mode: Mode value (0=auto, 1=manual/forced)
+    /// - Returns: Success status and error message if failed
+    func setFanMode(fanId: Int, mode: Int, withReply reply: @escaping (Bool, String?) -> Void)
+
+    /// Set fan target speed in RPM
+    /// - Parameter fanId: Fan index (0-based)
+    /// - Parameter rpm: Target RPM value
+    /// - Returns: Success status and error message if failed
+    func setFanSpeed(fanId: Int, rpm: Int, withReply reply: @escaping (Bool, String?) -> Void)
 }
 
 /// Error types for privileged operations

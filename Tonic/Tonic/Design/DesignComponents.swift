@@ -537,7 +537,7 @@ struct SearchBar: View {
 
 // MARK: - Toggle Row
 
-struct ToggleRow: View {
+struct ToggleTitleRow: View {
     let title: String
     var subtitle: String? = nil
     @Binding var isOn: Bool

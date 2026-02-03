@@ -61,6 +61,8 @@ public struct NetworkCompactView: View {
         case .wifi: return "wifi"
         case .ethernet: return "cable.connector"
         case .cellular: return "antenna.radiowaves.left.and.right"
+        case .tethered: return "personalhotspot"
+        case .disconnected: return "wifi.slash"
         case .unknown: return "network"
         }
     }
@@ -146,6 +148,8 @@ public struct NetworkDetailViewLegacy: View {
         case .wifi: return "wifi.fill"
         case .ethernet: return "cable.connector"
         case .cellular: return "antenna.radiowaves.left.and.right.fill"
+        case .tethered: return "personalhotspot"
+        case .disconnected: return "wifi.slash"
         case .unknown: return "network"
         }
     }
@@ -184,6 +188,8 @@ public struct NetworkDetailViewLegacy: View {
         case .wifi: return "Wi-Fi"
         case .ethernet: return "Ethernet"
         case .cellular: return "Cellular"
+        case .tethered: return "Tethered"
+        case .disconnected: return "Disconnected"
         case .unknown: return "Network"
         }
     }
@@ -360,8 +366,8 @@ public final class NetworkStatusItem: WidgetStatusItem {
     // Uses base WidgetStatusItem.createCompactView() which respects configuration
 
     public override func createDetailView() -> AnyView {
-        // Use the redesigned WhyFi-style detail view
-        AnyView(NetworkDetailViewRedesigned())
+        // Use the full Stats Master-style popover
+        AnyView(NetworkPopoverView())
     }
 }
 
@@ -369,11 +375,9 @@ public final class NetworkStatusItem: WidgetStatusItem {
 
 #Preview("Network Detail (Redesigned)") {
     NetworkDetailViewRedesigned()
-        .frame(width: 380, height: 560)
         .preferredColorScheme(.dark)
 }
 
 #Preview("Network Detail (Legacy)") {
     NetworkDetailViewLegacy()
-        .frame(width: 320, height: 400)
 }

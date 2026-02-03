@@ -1,0 +1,14 @@
+{
+  "assignee": null,
+  "claim_note": "",
+  "claimed_at": null,
+  "created_at": "2026-02-01T20:58:38.949705Z",
+  "depends_on": [],
+  "epic": "fn-6-i4g",
+  "id": "fn-6-i4g.38",
+  "priority": 11,
+  "spec_path": ".flow/tasks/fn-6-i4g.38.md",
+  "status": "todo",
+  "title": "Battery Widget Popover Parity",
+  "updated_at": "2026-02-01T20:58:38.950018Z"
+}
