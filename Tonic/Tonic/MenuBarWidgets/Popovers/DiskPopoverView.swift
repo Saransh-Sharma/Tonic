@@ -39,8 +39,11 @@ public struct DiskPopoverView: View {
     @State private var isProcessesExpanded: Bool = true
 
     // Configurable top process count
-    // TODO: fn-8-v3b.15 - Connect to DiskModuleSettings.topProcessCount when ModuleSettings is implemented
-    private var topProcessCount: Int { 8 }
+    private var topProcessCount: Int {
+        WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .disk })?
+            .moduleSettings.disk.topProcessCount ?? 8
+    }
 
     // MARK: - Computed Properties
 

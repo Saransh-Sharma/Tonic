@@ -119,7 +119,7 @@ public struct GPUPopoverView: View {
             ForEach(gpuList, id: \.timestamp) { gpuData in
                 PerGpuContainer(
                     gpuData: gpuData,
-                    temperatureHistory: dataManager.gpuHistory,
+                    temperatureHistory: dataManager.gpuTemperatureHistory,
                     utilizationHistory: dataManager.gpuHistory,
                     renderHistory: [], // TODO: Add render history tracking
                     tilerHistory: []   // TODO: Add tiler history tracking

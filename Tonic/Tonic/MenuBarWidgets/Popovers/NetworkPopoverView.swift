@@ -7,20 +7,13 @@
 //
 
 import SwiftUI
+import AppKit
 
 // MARK: - Network Popover State
 
 @MainActor
 @Observable
 private class NetworkPopoverState {
-    var downloadValue: String = "0"
-    var downloadUnit: String = "B/s"
-    var downloadIsActive: Bool = false
-    var uploadValue: String = "0"
-    var uploadUnit: String = "B/s"
-    var uploadIsActive: Bool = false
-    var totalUploadValue: String = "0"
-    var totalDownloadValue: String = "0"
     var showDNSDetails: Bool = false
     var showWiFiTooltip: Bool = false
 }
@@ -33,7 +26,7 @@ public struct NetworkPopoverView: View {
     // MARK: - Properties
 
     @State private var state = NetworkPopoverState()
-    private var dataManager: WidgetDataManager { WidgetDataManager.shared }
+    @State private var dataManager = WidgetDataManager.shared
 
     // Colors using NSColor for exact matching
     private let downloadColor = Color(nsColor: NSColor(red: 0.2, green: 0.5, blue: 1.0, alpha: 1.0))
@@ -47,22 +40,64 @@ public struct NetworkPopoverView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            dashboardSection
-            chartSection
-            connectivitySection
-            detailsSection
-            interfaceSection
-            addressSection
-            processesSection
+            headerView
+            ScrollView {
+                VStack(spacing: PopoverConstants.sectionSpacing) {
+                    dashboardSection
+                    chartSection
+                    connectivitySection
+                    detailsSection
+                    interfaceSection
+                    addressSection
+                    processesSection
+                }
+                .padding(PopoverConstants.horizontalPadding)
+                .padding(.vertical, PopoverConstants.verticalPadding)
+            }
         }
-        .frame(width: 280)
+        .frame(width: PopoverConstants.width, height: PopoverConstants.maxHeight)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear {
-            updateData()
+        .cornerRadius(PopoverConstants.cornerRadius)
+    }
+
+    // MARK: - Header
+
+    private var headerView: some View {
+        HStack(spacing: PopoverConstants.iconTextGap) {
+            Image(systemName: PopoverConstants.Icons.network)
+                .font(.title2)
+                .foregroundColor(DesignTokens.Colors.accent)
+
+            Text("Network")
+                .font(PopoverConstants.headerTitleFont)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Spacer()
+
+            Button {
+                NSWorkspace.shared.launchApplication("Activity Monitor")
+            } label: {
+                HStack(spacing: PopoverConstants.compactSpacing) {
+                    Image(systemName: PopoverConstants.Icons.activityMonitor)
+                        .font(.system(size: PopoverConstants.mediumIconSize))
+                    Text("Activity Monitor")
+                        .font(PopoverConstants.smallLabelFont)
+                }
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                // TODO: Open settings to Network widget configuration
+            } label: {
+                Image(systemName: PopoverConstants.Icons.settings)
+                    .font(.body)
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            }
+            .buttonStyle(.plain)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NetworkDataUpdated"))) { _ in
-            updateData()
-        }
+        .padding()
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     // MARK: - Dashboard Section (90pt)
@@ -72,20 +107,20 @@ public struct NetworkPopoverView: View {
             // Download side
             halfDashboard(
                 title: "Downloading",
-                value: state.downloadValue,
-                unit: state.downloadUnit,
+                value: downloadSpeed.value,
+                unit: downloadSpeed.unit,
                 color: downloadColor,
-                isActive: state.downloadIsActive
+                isActive: downloadSpeed.isActive
             )
             .frame(width: 140, height: 90)
 
             // Upload side
             halfDashboard(
                 title: "Uploading",
-                value: state.uploadValue,
-                unit: state.uploadUnit,
+                value: uploadSpeed.value,
+                unit: uploadSpeed.unit,
                 color: uploadColor,
-                isActive: state.uploadIsActive
+                isActive: uploadSpeed.isActive
             )
             .frame(width: 140, height: 90)
         }
@@ -137,16 +172,29 @@ public struct NetworkPopoverView: View {
             sectionHeader("Usage history")
 
             // Chart (68pt)
-            ZStack {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(nsColor: .lightGray).opacity(0.1))
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(formatRateFromKBps(maxHistoryRate))
+                        .font(.system(size: 8))
+                        .foregroundColor(secondaryTextColor)
+                    Spacer()
+                    Text("0")
+                        .font(.system(size: 8))
+                        .foregroundColor(secondaryTextColor)
+                }
+                .frame(width: 40)
 
-                DualLineChartView(
-                    downloadData: dataManager.networkDownloadHistory,
-                    uploadData: dataManager.networkUploadHistory,
-                    downloadColor: downloadColor,
-                    uploadColor: uploadColor
-                )
+                ZStack {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(nsColor: .lightGray).opacity(0.1))
+
+                    DualLineChartView(
+                        downloadData: dataManager.networkDownloadHistory,
+                        uploadData: dataManager.networkUploadHistory,
+                        downloadColor: downloadColor,
+                        uploadColor: uploadColor
+                    )
+                }
             }
             .frame(height: 68)
         }
@@ -194,10 +242,10 @@ public struct NetworkPopoverView: View {
             }
 
             // Rows (16pt each)
-            detailColorRow(title: "Total upload:", value: state.totalUploadValue, color: uploadColor)
-            detailColorRow(title: "Total download:", value: state.totalDownloadValue, color: downloadColor)
+            detailColorRow(title: "Total upload:", value: totalUploadValue, color: uploadColor)
+            detailColorRow(title: "Total download:", value: totalDownloadValue, color: downloadColor)
             detailRow(title: "Status:", value: dataManager.networkData.isConnected ? "UP" : "DOWN", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
-            detailRow(title: "Internet connection:", value: dataManager.networkData.isConnected ? "Connected" : "Disconnected", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
+            detailRow(title: "Internet connection:", value: dataManager.networkData.isConnected ? "UP" : "DOWN", color: dataManager.networkData.isConnected ? greenStatus : redStatus)
 
             if let connectivity = dataManager.networkData.connectivity {
                 detailRow(title: "Latency:", value: "\(Int(connectivity.latency)) ms", color: textColor)
@@ -306,10 +354,11 @@ public struct NetworkPopoverView: View {
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             }
 
-            if dataManager.networkData.connectionType == .wifi,
+            if showWiFiDetails,
+               dataManager.networkData.connectionType == .wifi,
                let wifi = dataManager.networkData.wifiDetails {
                 detailRow(title: "Network:", value: wifi.ssid, color: textColor)
-                detailRow(title: "Standard:", value: wifi.security, color: textColor)
+                detailRow(title: "Standard:", value: wifi.standard, color: textColor)
 
                 // WiFi details row with extended tooltip
                 HStack(spacing: 0) {
@@ -322,7 +371,7 @@ public struct NetworkPopoverView: View {
 
                     Button(action: { state.showWiFiTooltip.toggle() }) {
                         HStack(spacing: 4) {
-                            Text("\(wifi.channel) (\(wifi.band.displayName))")
+                            Text("\(wifi.channel) (\(wifi.band.displayName), \(wifi.channelWidth) MHz)")
                                 .font(Font.system(size: 11, weight: .semibold))
                                 .foregroundColor(textColor)
                             Image(systemName: "info.circle")
@@ -338,7 +387,7 @@ public struct NetworkPopoverView: View {
                 }
                 .frame(height: 16)
 
-                detailRow(title: "Speed:", value: "1000baseT", color: textColor)
+                detailRow(title: "Speed:", value: linkSpeedValue, color: textColor)
             }
         }
     }
@@ -391,32 +440,40 @@ public struct NetworkPopoverView: View {
     }
 
     private var dnsServersList: [String] {
-        // Read from /etc/resolv.conf
-        guard let content = try? String(contentsOfFile: "/etc/resolv.conf"),
-              !content.isEmpty else {
-            return []
-        }
-
-        var servers: [String] = []
-        let lines = content.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("nameserver") {
-                let parts = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                if parts.count >= 2, let ipAddress = parts.last {
-                    servers.append(ipAddress)
-                }
-            }
-        }
-        return servers
+        dataManager.networkData.dnsServers
     }
 
     private var interfaceValue: String {
-        "en0"
+        let interfaceName = dataManager.networkData.interfaceName ?? "—"
+        let typeLabel: String
+        switch dataManager.networkData.connectionType {
+        case .wifi:
+            typeLabel = "Wi-Fi"
+        case .ethernet:
+            typeLabel = "Ethernet"
+        case .cellular:
+            typeLabel = "Cellular"
+        default:
+            typeLabel = "Network"
+        }
+        let statusLabel = dataManager.networkData.isConnected ? "IN" : "OUT"
+        return "\(typeLabel) (\(interfaceName), \(statusLabel))"
     }
 
     private var macAddressValue: String {
-        "XX:XX:XX:XX:XX:XX"
+        dataManager.networkData.macAddress ?? "Unknown"
+    }
+
+    private var showPublicIP: Bool {
+        WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .network })?
+            .moduleSettings.network.showPublicIP ?? true
+    }
+
+    private var showWiFiDetails: Bool {
+        WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .network })?
+            .moduleSettings.network.showWiFiDetails ?? true
     }
 
     // MARK: - Address Section
@@ -430,9 +487,13 @@ public struct NetworkPopoverView: View {
 
             detailRow(title: "Local IP:", value: dataManager.networkData.ipAddress ?? "Unknown", color: Color(nsColor: .systemBlue))
 
-            if let publicIP = dataManager.networkData.publicIP {
-                let ipValue = publicIP.ipAddress + (publicIP.country.map { " (\($0))" } ?? "")
-                detailRow(title: "Public IP:", value: ipValue, color: Color(nsColor: .systemBlue))
+            if showPublicIP {
+                if let publicIP = dataManager.networkData.publicIP {
+                    let ipValue = publicIP.ipAddress + (publicIP.country.map { " (\($0))" } ?? "")
+                    detailRow(title: "Public IP:", value: ipValue, color: Color(nsColor: .systemBlue))
+                } else {
+                    detailRow(title: "Public IP:", value: "Unknown", color: Color(nsColor: .systemBlue))
+                }
             }
         }
     }
@@ -448,6 +509,7 @@ public struct NetworkPopoverView: View {
             if let processes = dataManager.networkData.topProcesses, !processes.isEmpty {
                 let processCount = topProcessCount
                 VStack(spacing: 0) {
+                    processHeaderRow
                     ForEach(processes.prefix(processCount)) { process in
                         processRow(process)
                     }
@@ -461,6 +523,38 @@ public struct NetworkPopoverView: View {
                 .frame(height: 50)
             }
         }
+    }
+
+    private var processHeaderRow: some View {
+        HStack(spacing: 0) {
+            Text("Process")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(secondaryTextColor)
+                .frame(width: 110, alignment: .leading)
+
+            Spacer()
+
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(downloadColor)
+                    .frame(width: 6, height: 6)
+                Text("Down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(secondaryTextColor)
+            }
+            .frame(width: 60, alignment: .trailing)
+
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(uploadColor)
+                    .frame(width: 6, height: 6)
+                Text("Up")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(secondaryTextColor)
+            }
+            .frame(width: 60, alignment: .trailing)
+        }
+        .frame(height: 18)
     }
 
     /// Get the configured top process count from NetworkModuleSettings
@@ -482,7 +576,7 @@ public struct NetworkPopoverView: View {
             Text(process.name)
                 .font(Font.system(size: 11))
                 .foregroundColor(textColor)
-                .frame(width: 90, alignment: .leading)
+                .frame(width: 94, alignment: .leading)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
@@ -530,26 +624,37 @@ public struct NetworkPopoverView: View {
 
     // MARK: - Data Updates
 
-    private func updateData() {
-        let networkData = dataManager.networkData
+    private var downloadSpeed: (value: String, unit: String, isActive: Bool) {
+        let rate = dataManager.networkData.downloadBytesPerSecond
+        let tuple = speedTuple(rate)
+        return (tuple.value, tuple.unit, rate > 0)
+    }
 
-        // Update speed
-        let downloadTuple = speedTuple(networkData.downloadBytesPerSecond)
-        state.downloadValue = downloadTuple.value
-        state.downloadUnit = downloadTuple.unit
-        state.downloadIsActive = networkData.downloadBytesPerSecond > 0
+    private var uploadSpeed: (value: String, unit: String, isActive: Bool) {
+        let rate = dataManager.networkData.uploadBytesPerSecond
+        let tuple = speedTuple(rate)
+        return (tuple.value, tuple.unit, rate > 0)
+    }
 
-        let uploadTuple = speedTuple(networkData.uploadBytesPerSecond)
-        state.uploadValue = uploadTuple.value
-        state.uploadUnit = uploadTuple.unit
-        state.uploadIsActive = networkData.uploadBytesPerSecond > 0
+    private var totalUploadValue: String {
+        formatTotalBytes(dataManager.totalUploadBytes)
+    }
 
-        // Update totals
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
-        formatter.countStyle = .file
-        state.totalUploadValue = formatter.string(fromByteCount: dataManager.totalUploadBytes)
-        state.totalDownloadValue = formatter.string(fromByteCount: dataManager.totalDownloadBytes)
+    private var totalDownloadValue: String {
+        formatTotalBytes(dataManager.totalDownloadBytes)
+    }
+
+    private var maxHistoryRate: Double {
+        let maxDownload = dataManager.networkDownloadHistory.max() ?? 0
+        let maxUpload = dataManager.networkUploadHistory.max() ?? 0
+        return max(maxDownload, maxUpload)
+    }
+
+    private var linkSpeedValue: String {
+        if let linkSpeed = dataManager.networkData.linkSpeedMbps, linkSpeed > 0 {
+            return "\(Int(linkSpeed)) Mbps"
+        }
+        return "Unknown"
     }
 
     private func speedTuple(_ bytesPerSecond: Double) -> (value: String, unit: String) {
@@ -560,6 +665,20 @@ public struct NetworkPopoverView: View {
         } else {
             return (String(format: "%.2f", bytesPerSecond / (1024 * 1024)), "MB/s")
         }
+    }
+
+    private func formatRateFromKBps(_ kbps: Double) -> String {
+        if kbps < 1024 {
+            return String(format: "%.0f KB/s", kbps)
+        }
+        return String(format: "%.1f MB/s", kbps / 1024)
+    }
+
+    private func formatTotalBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB, .useTB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 
     private func valueWidth(value: String) -> CGFloat {
@@ -576,15 +695,14 @@ public struct NetworkPopoverView: View {
         if bytes < 1024 {
             return "\(bytes) B/s"
         } else if bytes < 1024 * 1024 {
-            return String(format: "%.1f K/s", Double(bytes) / 1024)
+            return String(format: "%.1f KB/s", Double(bytes) / 1024)
         } else {
-            return String(format: "%.2f M/s", Double(bytes) / (1024 * 1024))
+            return String(format: "%.2f MB/s", Double(bytes) / (1024 * 1024))
         }
     }
 
     private func resetTotalUsage() {
         NotificationCenter.default.post(name: .resetTotalNetworkUsage, object: nil)
-        updateData()
     }
 }
 
