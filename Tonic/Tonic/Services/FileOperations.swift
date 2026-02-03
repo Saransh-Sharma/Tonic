@@ -560,6 +560,8 @@ public final class FileOperations: @unchecked Sendable {
                 remaining -= writeSize
             }
 
+            // synchronizeFile() is non-throwing on macOS 14+
+            // Ensures data is written to disk before proceeding
             handle.synchronizeFile()
         }
 
