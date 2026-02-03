@@ -15,6 +15,12 @@ Fill this out when marking the task as done. The summary should:
 - Tests run (if any)
 -->
 
+## Evidence
+<!--
+JSON evidence for what was done. Format:
+{"commits": ["sha1", "sha2"], "tests": ["cmd1", "cmd2"], "prs": ["url1", "url2"]}
+-->
+
 ## Test Commands
 ```bash
 # Verify storyboard not in project
