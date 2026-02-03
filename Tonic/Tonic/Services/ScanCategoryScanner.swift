@@ -198,7 +198,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
             return FileGroup(name: "Old Files", description: "Old files in Downloads", paths: [], size: 0, count: 0)
         }
 
-        for case let url as URL in enumerator {
+        while let url = enumerator.nextObject() as? URL {
             do {
                 let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
                 if let modDate = resourceValues.contentModificationDate, modDate < thresholdDate {
@@ -581,7 +581,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
             return (0, 0)
         }
 
-        for case let url as URL in enumerator {
+        while let url = enumerator.nextObject() as? URL {
             do {
                 let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
                 let fileSize = Int64(resourceValues.fileSize ?? 0)

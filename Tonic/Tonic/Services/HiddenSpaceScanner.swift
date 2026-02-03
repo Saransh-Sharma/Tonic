@@ -404,7 +404,7 @@ final class HiddenSpaceScanner: @unchecked Sendable {
             return 0
         }
 
-        for case let url as URL in enumerator {
+        while let url = enumerator.nextObject() as? URL {
             if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]) {
                 totalSize += Int64(resourceValues.fileSize ?? 0)
             }

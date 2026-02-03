@@ -120,7 +120,7 @@ final class BackgroundActivityManager: @unchecked Sendable {
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles]
             ) {
-                for case let url as URL in enumerator {
+                while let url = enumerator.nextObject() as? URL {
                     // Only process .app bundles
                     guard url.pathExtension == "app" else { continue }
 

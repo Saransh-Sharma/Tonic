@@ -567,7 +567,7 @@ public final class CollectorBin: @unchecked Sendable {
             includingPropertiesForKeys: [.fileSizeKey],
             options: [.skipsHiddenFiles]
         ) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey]),
                    let isDirectory = resourceValues.isDirectory,
                    !isDirectory {

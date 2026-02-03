@@ -321,7 +321,7 @@ final class BackgroundAppScanner: @unchecked Sendable {
             includingPropertiesForKeys: [.isApplicationKey],
             options: [.skipsHiddenFiles]
         ) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if Task.isCancelled { break }
 
                 let path = url.path

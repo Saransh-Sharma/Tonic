@@ -232,7 +232,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
         let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first?.path ?? ""
 
         if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: cacheDir), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 let path = url.path
                 if let size = await getFileSize(path) {
                     paths.append(ItemPath(path: path, size: size))
@@ -310,7 +310,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
         let thirtyDaysAgo = Date().addingTimeInterval(-30 * 24 * 60 * 60)
 
         if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: downloadsDir), includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 do {
                     let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
                     if let modDate = resourceValues.contentModificationDate,
@@ -332,7 +332,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
 
         if let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first {
             if let enumerator = fileManager.enumerator(at: trashURL, includingPropertiesForKeys: [.fileSizeKey]) {
-                for case let url as URL in enumerator {
+                while let url = enumerator.nextObject() as? URL {
                     if let size = await getFileSize(url.path) {
                         totalSize += size
                     }
@@ -418,7 +418,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
         var totalSize: Int64 = 0
 
         if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if let size = await getFileSize(url.path) {
                     totalSize += size
                 }

@@ -281,7 +281,7 @@ public final class FileOperations: @unchecked Sendable {
 
         for trashPath in trashPaths {
             if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: trashPath), includingPropertiesForKeys: [.fileSizeKey]) {
-                for case let url as URL in enumerator {
+                while let url = enumerator.nextObject() as? URL {
                     do {
                         let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
                         let fileSize = Int64(resourceValues.fileSize ?? 0)
@@ -324,7 +324,7 @@ public final class FileOperations: @unchecked Sendable {
 
         for trashPath in trashPaths {
             if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: trashPath), includingPropertiesForKeys: [.fileSizeKey]) {
-                for case let url as URL in enumerator {
+                while let url = enumerator.nextObject() as? URL {
                     do {
                         let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
                         totalSize += Int64(resourceValues.fileSize ?? 0)
@@ -515,7 +515,7 @@ public final class FileOperations: @unchecked Sendable {
 
         // Search in trash
         if let enumerator = fileManager.enumerator(at: trashURL, includingPropertiesForKeys: [.nameKey]) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if url.lastPathComponent == fileName {
                     do {
                         try fileManager.moveItem(at: url, to: URL(fileURLWithPath: originalPath))
@@ -601,7 +601,7 @@ public final class FileOperations: @unchecked Sendable {
         let options: FileManager.DirectoryEnumerationOptions = recursive ? [] : [.skipsSubdirectoryDescendants]
 
         if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: directoryPath), includingPropertiesForKeys: nil, options: options) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 let path = url.path
 
                 if let pattern = pattern {

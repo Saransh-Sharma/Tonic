@@ -201,7 +201,7 @@ public final class PrivilegedHelperManager: NSObject {
             return 0
         }
 
-        for case let url as URL in enumerator {
+        while let url = enumerator.nextObject() as? URL {
             do {
                 let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
                 let fileSize = Int64(resourceValues.fileSize ?? 0)

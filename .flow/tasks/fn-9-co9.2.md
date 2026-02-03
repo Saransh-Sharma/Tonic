@@ -75,3 +75,9 @@ xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E "de
 # Verify no surfaceHovered usage
 grep -r "surfaceHovered" Tonic/Tonic/ --include="*.swift" || echo "None found (expected)"
 ```
+## Done summary
+Migrated all deprecated design tokens (typography and colors) across 14 files. Typography tokens: .displaySmall→.h2, .headlineMedium→.h3, .bodyMedium→.subhead, .headlineSmall→.bodyEmphasized, .captionLarge→.captionEmphasized, .bodySmall/.captionSmall/.captionMedium→.caption. Color tokens: .text→.textPrimary, .border→.separator, .surface→.backgroundSecondary, .surfaceElevated→.backgroundTertiary, .surfaceHovered→.unemphasizedSelectedContentBackground, .progressLow→.success, .progressMedium→.warning, .progressHigh→.error. Build succeeds with 0 design token deprecation warnings.
+## Evidence
+- Commits: a72e72ce4aa855672479761a6c2b717fab1162d7
+- Tests: xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic -configuration Debug build
+- PRs:
