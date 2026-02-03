@@ -131,13 +131,10 @@ struct PreferencesView: View {
         VStack(spacing: 0) {
             // Header
             VStack(spacing: DesignTokens.Spacing.xs) {
-                Image(systemName: "drop.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.linearGradient(
-                        colors: [TonicColors.accent, TonicColors.accent.opacity(0.7)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                Image("AppBrand")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
 
                 Text("Settings")
                     .font(DesignTokens.Typography.headlineMedium)
@@ -1589,17 +1586,10 @@ struct AboutSettingsContent: View {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     // App icon with gradient
                     ZStack {
-                        Circle()
-                            .fill(.linearGradient(
-                                colors: [TonicColors.accent, TonicColors.pro],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ))
+                        Image("AppBrand")
+                            .resizable()
+                            .scaledToFit()
                             .frame(width: 64, height: 64)
-
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(.white)
                     }
 
                     VStack(spacing: DesignTokens.Spacing.xxxs) {

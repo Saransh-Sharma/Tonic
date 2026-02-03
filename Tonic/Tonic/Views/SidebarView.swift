@@ -59,13 +59,10 @@ struct SidebarView: View {
 
     private var appHeader: some View {
         HStack(spacing: DesignTokens.Spacing.xxs) {
-            Image(systemName: "drop.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.linearGradient(
-                    colors: [DesignTokens.Colors.accent, DesignTokens.Colors.accent.opacity(0.7)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+            Image("AppBrand")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 22)
 
             Text("Tonic")
                 .font(DesignTokens.Typography.bodyEmphasized)

@@ -266,8 +266,12 @@ class MenuBarController: ObservableObject {
     }
 
     private func createMenuBarIcon() -> NSImage {
+        if let image = NSImage(named: "AppBrand") {
+            image.isTemplate = false
+            return image
+        }
         let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-        let image = NSImage(systemSymbolName: "drop.fill", accessibilityDescription: "Tonic")
+        let image = NSImage(systemSymbolName: "app.fill", accessibilityDescription: "Tonic")?.withSymbolConfiguration(config)
         image?.isTemplate = true
         return image ?? NSImage()
     }
@@ -689,9 +693,10 @@ struct MenuBarPopupView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Image(systemName: "drop.fill")
-                    .foregroundColor(DesignTokens.Colors.accent)
-                    .font(.title2)
+                Image("AppBrand")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
 
                 Text("Tonic")
                     .font(DesignTokens.Typography.headlineMedium)
