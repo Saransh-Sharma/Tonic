@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 // MARK: - Popover Template
 
@@ -286,7 +287,7 @@ struct ActivityMonitorButton: View {
 
     var body: some View {
         Button {
-            NSWorkspace.shared.launchApplication("Activity Monitor")
+            openActivityMonitor()
         } label: {
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Image(systemName: "chart.bar.xaxis")
@@ -655,6 +656,31 @@ struct PopoverTemplate_Previews: PreviewProvider {
             .padding()
             .background(Color(nsColor: .windowBackgroundColor))
             .previewDisplayName("Detail Grid")
+        }
+    }
+}
+
+// MARK: - Activity Monitor Launch Helper
+
+/// Opens Activity Monitor using the modern NSWorkspace API
+private func openActivityMonitor() {
+    let paths = [
+        "/System/Applications/Utilities/Activity Monitor.app",
+        "/Applications/Utilities/Activity Monitor.app",
+        "/System/Library/CoreServices/Applications/Activity Monitor.app"
+    ]
+
+    for path in paths {
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path) {
+            var config = NSWorkspace.OpenConfiguration()
+            config.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
+                if let error = error {
+                    os_log("Failed to open Activity Monitor: %@", log: .default, type: .error, error.localizedDescription)
+                }
+            }
+            return
         }
     }
 }

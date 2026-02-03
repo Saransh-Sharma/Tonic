@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 // MARK: - GPU Popover View
 
@@ -72,7 +73,7 @@ public struct GPUPopoverView: View {
 
             // Activity Monitor button
             Button {
-                NSWorkspace.shared.launchApplication("Activity Monitor")
+                openActivityMonitor()
             } label: {
                 HStack(spacing: PopoverConstants.compactSpacing) {
                     Image(systemName: PopoverConstants.Icons.activityMonitor)
@@ -189,6 +190,31 @@ public struct GPUPopoverView: View {
 
     private func loadTemperatureUnit() {
         temperatureUnit = WidgetPreferences.shared.temperatureUnit
+    }
+}
+
+// MARK: - Activity Monitor Launch Helper
+
+/// Opens Activity Monitor using the modern NSWorkspace API
+private func openActivityMonitor() {
+    let paths = [
+        "/System/Applications/Utilities/Activity Monitor.app",
+        "/Applications/Utilities/Activity Monitor.app",
+        "/System/Library/CoreServices/Applications/Activity Monitor.app"
+    ]
+
+    for path in paths {
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path) {
+            var config = NSWorkspace.OpenConfiguration()
+            config.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
+                if let error = error {
+                    os_log("Failed to open Activity Monitor: %@", log: .default, type: .error, error.localizedDescription)
+                }
+            }
+            return
+        }
     }
 }
 

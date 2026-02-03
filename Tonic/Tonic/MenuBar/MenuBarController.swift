@@ -653,11 +653,8 @@ class MenuBarController: ObservableObject {
     }
 
     private func showNotification(title: String, message: String) {
-        let notification = NSUserNotification()
-        notification.title = title
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
+        // Route through NotificationManager which uses the modern UNUserNotificationCenter
+        NotificationManager.shared.sendNotification(title: title, body: message)
     }
 
     // MARK: - Public Methods
