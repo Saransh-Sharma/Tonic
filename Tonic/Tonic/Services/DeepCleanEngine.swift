@@ -9,7 +9,7 @@
 import Foundation
 
 /// Categories of cleanable items
-public enum DeepCleanCategory: String, CaseIterable, Identifiable {
+public enum DeepCleanCategory: String, Sendable, CaseIterable, Identifiable {
     case systemCache = "System Cache"
     case userCache = "User Cache"
     case logFiles = "Log Files"

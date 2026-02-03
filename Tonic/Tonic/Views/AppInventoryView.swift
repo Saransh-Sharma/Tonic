@@ -19,7 +19,7 @@ extension AppMetadata: ActionTableItem {}
 @Observable
 final class AppCache: Sendable {
     private let cacheURL: URL
-    private let fileManager = FileManager.default
+    nonisolated(unsafe) private let fileManager = FileManager.default
 
     static let shared = AppCache()
 

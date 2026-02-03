@@ -9,7 +9,7 @@
 import Foundation
 
 /// Project types with specific artifact patterns
-public enum ProjectType: String, CaseIterable, Identifiable {
+public enum ProjectType: String, Sendable, CaseIterable, Identifiable {
     case node = "Node.js"
     case python = "Python"
     case ruby = "Ruby"
@@ -93,7 +93,7 @@ public struct Artifact: Sendable {
 }
 
 /// Artifact type classification
-public enum ArtifactType: String, CaseIterable, Identifiable {
+public enum ArtifactType: String, Sendable, CaseIterable, Identifiable {
     case dependencies = "Dependencies"
     case buildCache = "Build Cache"
     case logs = "Logs"

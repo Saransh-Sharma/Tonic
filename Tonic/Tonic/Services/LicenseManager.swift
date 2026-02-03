@@ -10,7 +10,7 @@ import Foundation
 import StoreKit
 
 /// License tier
-public enum LicenseTier: String, CaseIterable, Identifiable {
+public enum LicenseTier: String, Sendable, CaseIterable, Identifiable {
     case free = "Free"
     case pro = "Pro"
     case lifetime = "Lifetime"

@@ -83,7 +83,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
 // MARK: - Widget Display Mode
 
 /// Display mode options for each widget
-public enum WidgetDisplayMode: String, CaseIterable, Identifiable, Codable {
+public enum WidgetDisplayMode: String, Sendable, CaseIterable, Identifiable, Codable {
     case compact = "compact"
     case detailed = "detailed"
 
@@ -117,7 +117,7 @@ public enum WidgetDisplayMode: String, CaseIterable, Identifiable, Codable {
 // MARK: - Widget Value Format
 
 /// How to display the value (percentage vs absolute with unit)
-public enum WidgetValueFormat: String, CaseIterable, Identifiable, Codable {
+public enum WidgetValueFormat: String, Sendable, CaseIterable, Identifiable, Codable {
     case percentage = "percentage"
     case valueWithUnit = "valueWithUnit"
 
@@ -847,7 +847,7 @@ extension WidgetType {
 // MARK: - Widget Update Interval
 
 /// Update interval presets based on power mode
-public enum WidgetUpdateInterval: String, CaseIterable, Identifiable, Codable {
+public enum WidgetUpdateInterval: String, Sendable, CaseIterable, Identifiable, Codable {
     case power = "power"       // 5 seconds - power saving
     case balanced = "balanced" // 2 seconds - default
     case performance = "performance" // 1 second - high refresh

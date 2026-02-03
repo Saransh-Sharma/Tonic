@@ -9,7 +9,7 @@
 import Foundation
 
 /// Cloud storage provider
-public enum CloudProvider: String, CaseIterable, Identifiable {
+public enum CloudProvider: String, Sendable, CaseIterable, Identifiable {
     case icloud = "iCloud"
     case dropbox = "Dropbox"
     case googleDrive = "Google Drive"

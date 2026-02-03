@@ -135,7 +135,7 @@ public struct BinRestorationError: Sendable, Error {
     public let itemName: String
     public let reason: RestorationFailureReason
 
-    public enum RestorationFailureReason {
+    public enum RestorationFailureReason: Sendable {
         case fileNotFound
         case permissionDenied
         case diskFull
