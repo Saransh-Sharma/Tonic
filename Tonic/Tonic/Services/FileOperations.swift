@@ -560,7 +560,7 @@ public final class FileOperations: @unchecked Sendable {
                 remaining -= writeSize
             }
 
-            try handle.synchronize()
+            handle.synchronizeFile()
         }
 
         handle.closeFile()
