@@ -134,38 +134,46 @@ public struct TabbedSettingsView: View {
     }
 }
 
-// MARK: - Module Settings View
+// MARK: - Module Settings View (Fallback)
 
-/// Placeholder for per-module settings
-/// Will be fully implemented in task fn-8-v3b.15
+/// Fallback definition used when the standalone ModuleSettingsView file is not part of the build target.
 public struct ModuleSettingsView: View {
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                Text("Module Settings")
-                    .font(.headline)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                    .padding(.top, DesignTokens.Spacing.md)
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("Module Settings")
+                .font(.headline)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                Text("Configure individual widget module settings such as update intervals, data sources, and display options.")
-                    .font(.subheadline)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                // Module settings list will be added in fn-8-v3b.15
-                VStack(spacing: DesignTokens.Spacing.sm) {
-                    ForEach(WidgetType.allCases) { type in
-                        ModuleSettingsCard(type: type)
-                    }
-                }
-                .padding(DesignTokens.Spacing.md)
-            }
+            Text("Module settings view is unavailable in this build target.")
+                .font(.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
         }
+        .padding(DesignTokens.Spacing.md)
     }
 }
+
+// MARK: - Popup Settings View (Fallback)
+
+/// Fallback definition used when the standalone PopupSettingsView file is not part of the build target.
+public struct PopupSettingsView: View {
+    public init() {}
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("Popup Settings")
+                .font(.headline)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Text("Popup settings view is unavailable in this build target.")
+                .font(.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+        }
+        .padding(DesignTokens.Spacing.md)
+    }
+}
+
 
 // MARK: - Widgets Settings View
 
@@ -179,85 +187,6 @@ public struct WidgetsSettingsView: View {
     }
 }
 
-// MARK: - Popup Settings View
-
-/// Global popup settings
-/// Will be fully implemented in task fn-8-v3b.16
-public struct PopupSettingsView: View {
-    public init() {}
-
-    public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                Text("Popup Settings")
-                    .font(.headline)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                    .padding(.top, DesignTokens.Spacing.md)
-
-                Text("Configure global popup window settings, keyboard shortcuts, and chart options.")
-                    .font(.subheadline)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                // Popup settings will be added in fn-8-v3b.16
-                VStack(spacing: DesignTokens.Spacing.sm) {
-                    popupSettingsRow(
-                        title: "Keyboard Shortcut",
-                        description: "Set a global keyboard shortcut to open popovers",
-                        icon: "command"
-                    )
-
-                    popupSettingsRow(
-                        title: "Chart History",
-                        description: "Configure how much historical data to display",
-                        icon: "chart.xyaxis.line"
-                    )
-
-                    popupSettingsRow(
-                        title: "Scaling Mode",
-                        description: "Choose how charts scale their values",
-                        icon: "arrow.up.left.and.arrow.down.right"
-                    )
-                }
-                .padding(DesignTokens.Spacing.md)
-            }
-        }
-    }
-
-    private func popupSettingsRow(title: String, description: String, icon: String) -> some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundColor(DesignTokens.Colors.accent)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Text("Coming Soon")
-                .font(.caption)
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.vertical, 4)
-                .background(DesignTokens.Colors.backgroundSecondary)
-                .cornerRadius(DesignTokens.CornerRadius.small)
-        }
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.backgroundSecondary)
-        .cornerRadius(DesignTokens.CornerRadius.medium)
-    }
-}
 
 // MARK: - Notifications Settings View
 
@@ -327,46 +256,6 @@ public struct NotificationsSettingsView: View {
             }
         }
         .formStyle(.grouped)
-    }
-}
-
-// MARK: - Module Settings Card
-
-/// Placeholder card for module-specific settings
-struct ModuleSettingsCard: View {
-    let type: WidgetType
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Image(systemName: type.icon)
-                .font(.system(size: 18))
-                .foregroundColor(DesignTokens.Colors.accent)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(type.rawValue) Settings")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text("Configure \(type.displayName.lowercased()) options")
-                    .font(.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Text("Coming Soon")
-                .font(.caption)
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-                .padding(.vertical, 4)
-                .background(DesignTokens.Colors.backgroundSecondary)
-                .cornerRadius(DesignTokens.CornerRadius.small)
-        }
-        .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.backgroundSecondary)
-        .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }
 

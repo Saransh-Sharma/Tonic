@@ -58,6 +58,9 @@ public struct ModuleSettingsView: View {
         .onChange(of: moduleSettings) { _, newValue in
             saveSettings(newValue)
         }
+        .onAppear {
+            moduleSettings = loadSettings()
+        }
     }
 
     // MARK: - Private Methods
