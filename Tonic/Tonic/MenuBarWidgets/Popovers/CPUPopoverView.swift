@@ -406,7 +406,6 @@ public struct CPUPopoverView: View {
 
 /// Opens Activity Monitor using the modern NSWorkspace API
 private func openActivityMonitor() {
-    // Try common paths for Activity Monitor
     let paths = [
         "/System/Applications/Utilities/Activity Monitor.app",
         "/Applications/Utilities/Activity Monitor.app",
