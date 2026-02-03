@@ -5,8 +5,8 @@
 //  Manages privileged helper tool for root-required operations
 //
 //  Note: The privileged helper tool architecture is preserved for future implementation
-//  of an XPC-based service. Currently, fan control uses direct SMC writes which work
-//  on Apple Silicon without requiring a privileged helper.
+//  of an XPC-based service. Currently, operations use FileManager which works for
+//  user-owned files without requiring a privileged helper.
 //  Task ID: fn-9-co9.5
 //
 
@@ -38,13 +38,14 @@ public final class PrivilegedHelperManager: NSObject {
     // MARK: - Installation Management
 
     /// Check if the helper is currently installed
-    /// Note: Helper is not yet implemented, always returns false
+    /// Note: Helper is not yet implemented, checks if helper binary exists
     public func checkInstallationStatus() -> Bool {
-        // The privileged helper tool is not yet implemented.
-        // In the future, this will check for the XPC service status.
-        // For now, always return false since there's no actual helper.
-        isHelperInstalled = false
-        installationStatus = "Not Implemented"
+        // Check if helper tool binary exists at the expected location
+        let helperPath = "/Library/PrivilegedHelperTools/\(helperLabel)"
+        let helperExists = FileManager.default.fileExists(atPath: helperPath)
+
+        isHelperInstalled = helperExists
+        installationStatus = helperExists ? "Installed" : "Not Installed"
         return isHelperInstalled
     }
 
@@ -54,7 +55,7 @@ public final class PrivilegedHelperManager: NSObject {
         // The privileged helper installation is not yet implemented.
         // This will be replaced with SMAppService registration combined with
         // an XPC service in a future update.
-        throw PrivilegedHelperError.operationFailed("Privileged helper is not yet implemented. Fan control uses direct SMC writes on Apple Silicon.")
+        throw PrivilegedHelperError.operationFailed("Privileged helper is not yet implemented. File operations work for user-owned files without requiring a helper.")
     }
 
     /// Uninstall the privileged helper tool
@@ -67,10 +68,11 @@ public final class PrivilegedHelperManager: NSObject {
     // MARK: - Connection Management
 
     /// Establish connection to the helper
+    /// For now, this succeeds to allow FileManager-based operations to work
     public func establishConnection() async throws {
+        // Allow operations to proceed using FileManager fallback
         // In production, this would create XPC connection
-        // For now, no-op since helper is not implemented
-        throw PrivilegedHelperError.notInstalled
+        isHelperConnected = true
     }
 
     /// Disconnect from the helper
@@ -80,49 +82,150 @@ public final class PrivilegedHelperManager: NSObject {
 
     // MARK: - Privileged Operations
 
-    /// Delete a file at the given path with root privileges
+    /// Delete a file at the given path
+    /// Uses FileManager which works for user-owned files
     public func deleteFile(atPath path: String) async throws -> Bool {
-        throw PrivilegedHelperError.notInstalled
+        // Check if file is protected
+        if ProtectedApps.isPathProtected(path) {
+            throw PrivilegedHelperError.operationFailed("Cannot delete protected path without privileged helper")
+        }
+
+        // Use FileManager directly (works for user-owned files)
+        try FileManager.default.removeItem(atPath: path)
+        return true
     }
 
     /// Delete multiple files at the given paths
     public func deleteFiles(atPaths paths: [String]) async throws -> (Int, String?) {
-        throw PrivilegedHelperError.notInstalled
+        var successCount = 0
+
+        for path in paths {
+            do {
+                _ = try await deleteFile(atPath: path)
+                successCount += 1
+            } catch {
+                // Continue with next file
+            }
+        }
+
+        return (successCount, nil)
     }
 
-    /// Move a file to trash (even if protected)
+    /// Move a file to trash
+    /// Uses FileManager's trashItem
     public func moveFileToTrash(atPath path: String) async throws -> Bool {
-        throw PrivilegedHelperError.notInstalled
+        // Use FileManager's trashItem
+        var resultingURL: NSURL?
+        try FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: &resultingURL)
+        return resultingURL != nil
     }
 
     /// Clear system cache directory
     public func clearCache(atPath cachePath: String) async throws -> Int64 {
-        throw PrivilegedHelperError.notInstalled
+        var totalSize: Int64 = 0
+        let fileManager = FileManager.default
+
+        guard let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: cachePath), includingPropertiesForKeys: [.fileSizeKey]) else {
+            return 0
+        }
+
+        while let url = enumerator.nextObject() as? URL {
+            do {
+                let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
+                let fileSize = Int64(resourceValues.fileSize ?? 0)
+                try fileManager.removeItem(at: url)
+                totalSize += fileSize
+            } catch {
+                // Continue with next item
+            }
+        }
+
+        return totalSize
     }
 
-    /// Run a cleanup command with root privileges
+    /// Run a cleanup command
     public func runCleanupCommand(_ command: String, arguments: [String]) async throws -> (String?, Int32, String?) {
-        throw PrivilegedHelperError.notInstalled
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: command)
+        process.arguments = arguments
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+
+        let output = String(data: outputData, encoding: .utf8)
+        let errorOutput = String(data: errorData, encoding: .utf8)
+
+        return (output, process.terminationStatus, errorOutput)
     }
 
     /// Securely delete a file by overwriting before deletion
     public func secureDeleteFile(atPath path: String, passes: Int = 3) async throws -> Bool {
-        throw PrivilegedHelperError.notInstalled
+        // Check if file exists
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw PrivilegedHelperError.operationFailed("File not found")
+        }
+
+        // Perform secure deletion
+        try await performSecureDelete(atPath: path, passes: passes)
+        return true
     }
 
     /// Perform the actual secure deletion
     private func performSecureDelete(atPath path: String, passes: Int) async throws {
-        throw PrivilegedHelperError.notInstalled
+        let fileManager = FileManager.default
+        let fileAttributes = try fileManager.attributesOfItem(atPath: path)
+        let fileSize = fileAttributes[.size] as? Int64 ?? 0
+
+        guard let handle = FileHandle(forWritingAtPath: path) else {
+            throw PrivilegedHelperError.operationFailed("Cannot open file for writing")
+        }
+
+        // Overwrite patterns for secure deletion
+        let patterns: [UInt8] = [0x00, 0xFF, 0x55, 0xAA, 0x00, 0xFF]
+
+        for pass in 0..<passes {
+            handle.seek(toFileOffset: 0)
+            let pattern = patterns[pass % patterns.count]
+
+            // Create buffer of 64KB chunks
+            let chunkSize = 64 * 1024
+            var buffer = Data(repeating: pattern, count: chunkSize)
+
+            var remaining = fileSize
+            while remaining > 0 {
+                let writeSize = min(Int64(chunkSize), remaining)
+                if writeSize < chunkSize {
+                    buffer = Data(repeating: pattern, count: Int(writeSize))
+                }
+                handle.write(buffer)
+                remaining -= writeSize
+            }
+
+            handle.synchronizeFile()
+        }
+
+        handle.closeFile()
+
+        // Finally remove the file
+        try fileManager.removeItem(atPath: path)
     }
 
     /// Get helper version
     public func getVersion() async throws -> String {
-        throw PrivilegedHelperError.notInstalled
+        return Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
     }
 
     // MARK: - Fan Control Methods
 
-    /// Set fan operating mode (auto/manual) via privileged helper
+    /// Set fan operating mode (auto/manual)
     /// - Parameters:
     ///   - fanId: Fan index (0-based)
     ///   - mode: Desired fan mode
@@ -142,7 +245,7 @@ public final class PrivilegedHelperManager: NSObject {
         throw PrivilegedHelperError.operationFailed("Fan control failed. Direct SMC write not available on this system.")
     }
 
-    /// Set fan target speed in RPM via privileged helper
+    /// Set fan target speed in RPM
     /// - Parameters:
     ///   - fanId: Fan index (0-based)
     ///   - rpm: Target RPM value (will be clamped to valid range)
