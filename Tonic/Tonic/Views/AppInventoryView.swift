@@ -2185,27 +2185,27 @@ struct AppCard: View {
                     }
 
                     Text(app.bundleIdentifier)
-                        .font(DesignTokens.Typography.captionMedium)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                         .lineLimit(1)
 
                     HStack(spacing: DesignTokens.Spacing.xs) {
                         Text(ByteCountFormatter.string(fromByteCount: app.totalSize, countStyle: .file))
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         Text("•")
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         Text(app.version ?? "Unknown")
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         Text("•")
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         Text(app.category.rawValue)
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
                 }
@@ -2338,7 +2338,7 @@ struct AppDetailView: View {
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 Text("Version \(app.version ?? "Unknown")")
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
 
@@ -2404,11 +2404,11 @@ struct SizeItem: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
             Text(label)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-                .font(DesignTokens.Typography.bodyMedium)
+                .font(DesignTokens.Typography.subhead)
                 .fontWeight(.medium)
         }
     }
@@ -2421,11 +2421,11 @@ struct LocationRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(path)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .lineLimit(1)
         }
@@ -3021,13 +3021,13 @@ struct LoginItemCard: View {
                         .lineLimit(1)
 
                     Text(item.bundleIdentifier)
-                        .font(DesignTokens.Typography.captionMedium)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                         .lineLimit(1)
 
                     HStack(spacing: DesignTokens.Spacing.xs) {
                         Text(itemTypeDisplay)
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(itemColor)
 
                         if item.itemType.contains("Launch") {
@@ -3035,7 +3035,7 @@ struct LoginItemCard: View {
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
                             Text("System")
-                                .font(DesignTokens.Typography.captionSmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                         }
                     }

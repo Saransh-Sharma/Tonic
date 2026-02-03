@@ -604,7 +604,7 @@ struct PermissionStatusBadge: View {
                 Text("\(count) of \(total)")
                     .font(DesignTokens.Typography.subhead)
                     .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(label)
                     .font(DesignTokens.Typography.caption)
@@ -654,7 +654,7 @@ struct PermissionCard: View {
                     Text(title)
                         .font(DesignTokens.Typography.subhead)
                         .fontWeight(.medium)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     if isCritical {
                         Text("Required")
@@ -765,7 +765,7 @@ struct HelperSettingsContent: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text(isInstalling || isUninstalling ? "Processing..." : (helperManager.isHelperInstalled ? "Installed & Ready" : "Not Installed"))
                             .font(DesignTokens.Typography.subhead)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
 
                         Text(helperManager.isHelperInstalled ? "All advanced features are available" : "Install to unlock advanced system features")
                             .font(DesignTokens.Typography.caption)
@@ -984,7 +984,7 @@ struct SettingsHelperFeatureRow: View {
                 Text(title)
                     .font(DesignTokens.Typography.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(description)
                     .font(DesignTokens.Typography.caption)
@@ -1023,7 +1023,7 @@ struct UpdatesSettingsContent: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text("Tonic is Up to Date")
                             .font(DesignTokens.Typography.subhead)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
 
                         Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
                             .font(DesignTokens.Typography.caption)
@@ -1137,7 +1137,7 @@ struct ReleaseNoteItem: View {
                 Text(title)
                     .font(DesignTokens.Typography.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(description)
                     .font(DesignTokens.Typography.caption)
@@ -1171,7 +1171,7 @@ struct FeedbackSheetView: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text("Send Feedback")
                             .font(DesignTokens.Typography.h3)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
 
                         Text("Help us improve Tonic by sharing your feedback")
                             .font(DesignTokens.Typography.caption)
@@ -1192,7 +1192,7 @@ struct FeedbackSheetView: View {
                     // Feedback Type
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                         Text("Feedback Type")
-                            .font(DesignTokens.Typography.captionLarge)
+                            .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .fontWeight(.medium)
 
@@ -1208,7 +1208,7 @@ struct FeedbackSheetView: View {
                     // Title
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         Text("Title")
-                            .font(DesignTokens.Typography.captionLarge)
+                            .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .fontWeight(.medium)
 
@@ -1223,7 +1223,7 @@ struct FeedbackSheetView: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         HStack(spacing: DesignTokens.Spacing.sm) {
                             Text("Description")
-                                .font(DesignTokens.Typography.captionLarge)
+                                .font(DesignTokens.Typography.captionEmphasized)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                                 .fontWeight(.medium)
 
@@ -1252,7 +1252,7 @@ struct FeedbackSheetView: View {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                             Text("Include Application Logs")
                                 .font(DesignTokens.Typography.caption)
-                                .foregroundColor(DesignTokens.Colors.text)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
 
                             Text("Help us diagnose issues faster by including recent logs")
                                 .font(DesignTokens.Typography.caption)
@@ -1263,7 +1263,7 @@ struct FeedbackSheetView: View {
                     // System Info
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         Text("System Information")
-                            .font(DesignTokens.Typography.captionLarge)
+                            .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .fontWeight(.medium)
 
@@ -1397,7 +1397,7 @@ struct SystemInfoRow: View {
 
             Text(value)
                 .font(DesignTokens.Typography.caption)
-                .foregroundColor(DesignTokens.Colors.text)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
                 .fontWeight(.medium)
         }
     }
@@ -1416,7 +1416,7 @@ struct HelpSettingsContent: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                         Text("We'd love to hear from you!")
                             .font(DesignTokens.Typography.caption)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
 
                         Text("Share bug reports, feature suggestions, or any feedback to help us improve Tonic.")
                             .font(DesignTokens.Typography.caption)
@@ -1527,7 +1527,7 @@ struct HelpLinkRow: View {
                     Text(title)
                         .font(DesignTokens.Typography.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     Text(subtitle)
                         .font(DesignTokens.Typography.caption)
@@ -1565,7 +1565,7 @@ struct ShortcutRow: View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Text(title)
                 .font(DesignTokens.Typography.caption)
-                .foregroundColor(DesignTokens.Colors.text)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Spacer()
 
@@ -1599,7 +1599,7 @@ struct AboutSettingsContent: View {
                     VStack(spacing: DesignTokens.Spacing.xxxs) {
                         Text("Tonic")
                             .font(DesignTokens.Typography.h1)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
 
                         Text("A modern macOS system management utility")
                             .font(DesignTokens.Typography.caption)
@@ -1615,7 +1615,7 @@ struct AboutSettingsContent: View {
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
                                 .font(DesignTokens.Typography.subhead)
-                                .foregroundColor(DesignTokens.Colors.text)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -1625,7 +1625,7 @@ struct AboutSettingsContent: View {
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")
                                 .font(DesignTokens.Typography.subhead)
-                                .foregroundColor(DesignTokens.Colors.text)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1724,7 +1724,7 @@ struct AboutLinkRow: View {
                     Text(title)
                         .font(DesignTokens.Typography.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     Text(subtitle)
                         .font(DesignTokens.Typography.caption)

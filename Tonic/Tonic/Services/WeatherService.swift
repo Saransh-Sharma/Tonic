@@ -138,9 +138,9 @@ public final class WeatherService {
                     isCurrentLocation: true
                 )
 
-                try await fetchWeather(latitude: location.coordinate.latitude,
-                                       longitude: location.coordinate.longitude,
-                                       locationName: weatherLocation.name)
+                await fetchWeather(latitude: location.coordinate.latitude,
+                                  longitude: location.coordinate.longitude,
+                                  locationName: weatherLocation.name)
 
             } catch {
                 errorMessage = "Location access denied. Please enable in System Settings."

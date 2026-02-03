@@ -143,7 +143,7 @@ public final class LicenseManager: NSObject, @unchecked Sendable {
     }
 
     private func listenForTransactions() -> Task<Void, Error> {
-        return Task.detached { [weak self] in
+        return Task.detached {
             // This would be the actual StoreKit transaction listener
             // For now, just keep the task alive
             while !Task.isCancelled {

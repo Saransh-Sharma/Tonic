@@ -297,7 +297,7 @@ class SystemMonitor: ObservableObject {
     private func getActiveProcessCount() -> Int {
         var count: mach_msg_type_number_t = 0
         var info = task_basic_info()
-        let result = withUnsafeMutablePointer(to: &info) {
+        _ = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
                 task_info(
                     mach_task_self_,

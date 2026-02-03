@@ -101,9 +101,8 @@ These are purely structural fixes - no behavior changes
 xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E "unused|unreachable|redundant" | wc -l
 ```
 ## Done summary
-TBD
-
+Fixed all remaining logic and cleanup warnings in the codebase. Changes include: removing redundant 'try' on non-throwing functions, removing unreachable switch defaults, fixing unused variables, resolving Codable warnings, removing duplicate switch cases, and fixing Swift 6 concurrency issues.
 ## Evidence
-- Commits:
-- Tests:
+- Commits: 2aacdf7691daf4e8cbe6bb5078dde06f366614ae
+- Tests: xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E '\.swift.*warning:'
 - PRs:

@@ -240,7 +240,7 @@ final class DiskScanner: @unchecked Sendable {
                 if index >= maxConcurrent { break }
 
                 group.addTask {
-                    let size = try await self.calculateDirectorySize(entry.path)
+                    let size = await self.calculateDirectorySize(entry.path)
                     progress(entry.path, size)
                     return (entry.path, size)
                 }

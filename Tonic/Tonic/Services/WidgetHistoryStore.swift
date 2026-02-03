@@ -52,11 +52,12 @@ public final class WidgetHistoryStore {
 
     /// Timer for periodic history saving (every 5 minutes)
     /// Uses RunLoop which is thread-safe by design
-    private struct TimerBox: @unchecked Sendable {
+    private final class TimerBox: @unchecked Sendable {
         var timer: Timer?
+        init() {}
     }
 
-    private var timerBox = TimerBox()
+    private let timerBox = TimerBox()
 
     // MARK: - Initialization
 

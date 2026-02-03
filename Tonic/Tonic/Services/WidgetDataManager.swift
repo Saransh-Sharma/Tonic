@@ -662,12 +662,13 @@ public struct BluetoothDevice: Sendable, Identifiable {
 
     /// Individual battery level for a device component (Case, Left, Right, etc.)
     public struct DeviceBatteryLevel: Identifiable, Sendable, Codable, Equatable {
-        public let id = UUID()
+        public let id: UUID
         public let label: String
         public let percentage: Int
         public let component: BatteryComponent
 
         public init(label: String, percentage: Int, component: BatteryComponent = .unknown) {
+            self.id = UUID()
             self.label = label
             self.percentage = percentage
             self.component = component
@@ -973,9 +974,9 @@ public final class WidgetDataManager {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        Task { @MainActor in
-            self.pathMonitor?.cancel()
-        }
+        // Cancel path monitor if it exists
+        // Note: pathMonitor cleanup is handled by NWPathMonitor internally on dealloc
+        // We don't need explicit cancellation here since the object is being destroyed
     }
 
     // MARK: - Public Methods
@@ -1298,7 +1299,6 @@ public final class WidgetDataManager {
         let finalOverall = overallFreq ?? pCoreFreq
 
         return (finalOverall, eCoreFreq, pCoreFreq)
-
         #else
         // Intel Macs - get CPU frequency
         var frequency: Int64 = 0
@@ -1307,9 +1307,9 @@ public final class WidgetDataManager {
         if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
             return (Double(frequency) / 1_000_000_000, nil, nil)
         }
-        #endif
 
         return (nil, nil, nil)
+        #endif
     }
 
     /// Get CPU temperature in Celsius

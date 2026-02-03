@@ -323,7 +323,8 @@ public class WidgetStatusItem: ObservableObject {
 
         // Force NSView redraw - ensures menu bar updates with latest data
         Task { @MainActor in
-            guard button != nil else { return }
+            // button is guaranteed to be non-nil from the guard above
+            // Redraw of the button in its own coordinate space
 
             // Force redraw of the button in its own coordinate space
             button.setNeedsDisplay(button.bounds)

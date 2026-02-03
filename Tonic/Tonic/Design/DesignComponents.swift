@@ -483,7 +483,7 @@ struct EmptyState: View {
             VStack(spacing: DesignTokens.Spacing.xs) {
                 Text(title)
                     .font(DesignTokens.Typography.h3)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(message)
                     .font(DesignTokens.Typography.subhead)
@@ -530,7 +530,7 @@ struct SearchBar: View {
         .cornerRadius(DesignTokens.CornerRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                .stroke(DesignTokens.Colors.border, lineWidth: 1)
+                .stroke(DesignTokens.Colors.separator, lineWidth: 1)
         )
     }
 }

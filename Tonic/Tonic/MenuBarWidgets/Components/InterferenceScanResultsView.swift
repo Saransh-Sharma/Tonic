@@ -51,7 +51,7 @@ public struct InterferenceScanResultsView: View {
 
             // Summary
             Text(result.summaryText)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             // Recommendation
@@ -120,7 +120,7 @@ struct NearbyNetworkRow: View {
 
             // Network name
             Text(network.ssid)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .lineLimit(1)
 
@@ -128,12 +128,12 @@ struct NearbyNetworkRow: View {
 
             // Channel
             Text("Ch \(network.channel)")
-                .font(DesignTokens.Typography.monoSmall)
+                .font(DesignTokens.Typography.monoCaption)
                 .foregroundColor(network.isSameChannel ? TonicColors.error : DesignTokens.Colors.textTertiary)
 
             // Signal strength
             Text("\(Int(network.signalStrength)) dBm")
-                .font(DesignTokens.Typography.monoSmall)
+                .font(DesignTokens.Typography.monoCaption)
                 .foregroundColor(signalColor)
         }
         .padding(.vertical, 4)
@@ -166,7 +166,7 @@ public struct InterferenceIndicator: View {
                 .font(.caption2)
 
             Text(congestionLevel.rawValue)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
         }
         .foregroundColor(congestionLevel.color)
     }

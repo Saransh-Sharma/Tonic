@@ -613,12 +613,21 @@ final class AppUpdater: @unchecked Sendable {
 
 /// Represents a framework or library dependency
 struct AppDependency: Identifiable, Sendable, Codable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let type: DependencyType
     let path: URL
     let size: Int64
     let version: String?
+
+    init(name: String, type: DependencyType, path: URL, size: Int64, version: String?) {
+        self.id = UUID()
+        self.name = name
+        self.type = type
+        self.path = path
+        self.size = size
+        self.version = version
+    }
 
     enum DependencyType: String, Sendable, Codable {
         case framework = "Framework"
