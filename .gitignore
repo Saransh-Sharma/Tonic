@@ -148,6 +148,10 @@ bundle/
 # Documentation artifacts
 docs/
 
+# Reference repositories
+mole-main/
+stats-master/
+
 # Cache
 .cache/
 npm-debug.log
