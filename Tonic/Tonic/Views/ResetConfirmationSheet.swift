@@ -68,11 +68,11 @@ struct ResetConfirmationSheet: View {
             // Title
             VStack(spacing: DesignTokens.Spacing.xs) {
                 Text("Reset Tonic?")
-                    .font(DesignTokens.Typography.displaySmall)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h2)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text("This action cannot be undone.")
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
             .fadeInSlideUp(delay: 0.05)
@@ -123,7 +123,7 @@ struct ResetConfirmationSheet: View {
                     }
                 }
                 .padding(DesignTokens.Spacing.sm)
-                .background(DesignTokens.Colors.surface)
+                .background(DesignTokens.Colors.backgroundSecondary)
                 .cornerRadius(DesignTokens.CornerRadius.medium)
             }
             .fadeInSlideUp(delay: 0.1)
@@ -149,14 +149,14 @@ struct ResetConfirmationSheet: View {
                 TextField("", text: $confirmationText)
                     .textFieldStyle(.plain)
                     .font(DesignTokens.Typography.bodyMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
                     .padding(DesignTokens.Spacing.sm)
-                    .background(DesignTokens.Colors.surface)
+                    .background(DesignTokens.Colors.backgroundSecondary)
                     .cornerRadius(DesignTokens.CornerRadius.medium)
                     .overlay(
                         RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
                             .stroke(
-                                confirmationText == "RESET" ? TonicColors.error : DesignTokens.Colors.border,
+                                confirmationText == "RESET" ? TonicColors.error : DesignTokens.Colors.separator,
                                 lineWidth: 1
                             )
                     )
@@ -170,7 +170,7 @@ struct ResetConfirmationSheet: View {
                     isPresented = false
                 } label: {
                     Text("Cancel")
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .fontWeight(.medium)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DesignTokens.Spacing.sm)
@@ -182,7 +182,7 @@ struct ResetConfirmationSheet: View {
                     startReset()
                 } label: {
                     Text("Reset App")
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -227,8 +227,8 @@ struct ResetConfirmationSheet: View {
 
             VStack(spacing: DesignTokens.Spacing.xs) {
                 Text("Resetting Tonic...")
-                    .font(DesignTokens.Typography.headlineLarge)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h1)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text("Please wait while we clean everything up.")
                     .font(DesignTokens.Typography.bodySmall)
@@ -300,11 +300,11 @@ struct ResetConfirmationSheet: View {
 
             VStack(spacing: DesignTokens.Spacing.xs) {
                 Text("Reset Complete!")
-                    .font(DesignTokens.Typography.displaySmall)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h2)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text("Starting fresh in \(countdown)...")
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: 0.3), value: countdown)
@@ -469,7 +469,7 @@ private struct ResetStepRow: View {
                         .frame(width: 18, height: 18)
                 } else {
                     Circle()
-                        .stroke(DesignTokens.Colors.border, lineWidth: 1.5)
+                        .stroke(DesignTokens.Colors.separator, lineWidth: 1.5)
                         .frame(width: 18, height: 18)
                 }
             }

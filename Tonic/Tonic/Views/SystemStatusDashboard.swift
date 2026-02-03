@@ -79,11 +79,11 @@ struct BatteryInfo: Equatable {
 
     var color: Color {
         if chargePercentage > 50 {
-            return DesignTokens.Colors.progressLow
+            return DesignTokens.Colors.success
         } else if chargePercentage > 20 {
-            return DesignTokens.Colors.progressMedium
+            return DesignTokens.Colors.warning
         } else {
-            return DesignTokens.Colors.progressHigh
+            return DesignTokens.Colors.error
         }
     }
 }

@@ -1900,14 +1900,14 @@ struct AppInventoryView: View {
 
             if inventory.isLoading {
                 Text("Scanning for login items...")
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 ProgressView()
                     .scaleEffect(1.2)
             } else {
                 Text("No login items found")
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 Text("Login items are applications and services that launch automatically when you log in.")
@@ -1939,18 +1939,18 @@ struct AppInventoryView: View {
 
             if inventory.isLoading {
                 Text("Scanning for applications...")
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 ProgressView()
                     .scaleEffect(1.2)
             } else if !inventory.searchText.isEmpty || inventory.quickFilterCategory != .all {
                 Text("No applications found")
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             } else {
                 Text("No applications found")
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 Button("Scan Again") {
@@ -2169,9 +2169,9 @@ struct AppCard: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                     HStack {
                         Text(app.name)
-                            .font(DesignTokens.Typography.bodyMedium)
+                            .font(DesignTokens.Typography.subhead)
                             .fontWeight(.medium)
-                            .foregroundColor(DesignTokens.Colors.text)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
                             .lineLimit(1)
 
                         Spacer()
@@ -2329,11 +2329,11 @@ struct AppDetailView: View {
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text(app.name)
-                    .font(DesignTokens.Typography.headlineMedium)
+                    .font(DesignTokens.Typography.h3)
                     .fontWeight(.semibold)
 
                 Text(app.bundleIdentifier)
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 Text("Version \(app.version ?? "Unknown")")
@@ -2348,8 +2348,8 @@ struct AppDetailView: View {
     private var sizeSection: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text("Size")
-                .font(DesignTokens.Typography.headlineSmall)
-                .foregroundColor(DesignTokens.Colors.text)
+                .font(DesignTokens.Typography.bodyEmphasized)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             HStack(spacing: DesignTokens.Spacing.xl) {
                 SizeItem(label: "App Bundle", size: app.totalSize)
@@ -2377,8 +2377,8 @@ struct AppDetailView: View {
     private var dangerZone: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text("Actions")
-                .font(DesignTokens.Typography.headlineSmall)
-                .foregroundColor(DesignTokens.Colors.text)
+                .font(DesignTokens.Typography.bodyEmphasized)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Button {
                 dismiss()
@@ -3014,9 +3014,9 @@ struct LoginItemCard: View {
                 // Info
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                     Text(item.name)
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .fontWeight(.medium)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
                         .lineLimit(1)
 
                     Text(item.bundleIdentifier)

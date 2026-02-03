@@ -168,7 +168,7 @@ public struct SpeedTestResults: View {
             // Speed Test Header
             HStack {
                 Text("Speed Test")
-                    .font(DesignTokens.Typography.captionLarge)
+                    .font(DesignTokens.Typography.captionEmphasized)
                     .fontWeight(.semibold)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
@@ -230,7 +230,7 @@ public struct SpeedTestResults: View {
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                                    .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -249,7 +249,7 @@ public struct SpeedTestResults: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -555,7 +555,7 @@ public struct CompactSpeedTestButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                    .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

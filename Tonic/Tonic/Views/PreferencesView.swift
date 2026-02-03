@@ -112,7 +112,7 @@ struct PreferencesView: View {
 
             // Divider
             Rectangle()
-                .fill(DesignTokens.Colors.border)
+                .fill(DesignTokens.Colors.separator)
                 .frame(width: 1)
 
             // Content
@@ -137,12 +137,12 @@ struct PreferencesView: View {
                     .frame(width: 44, height: 44)
 
                 Text("Settings")
-                    .font(DesignTokens.Typography.headlineMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h3)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
             }
             .padding(.vertical, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity)
-            .background(DesignTokens.Colors.surface.opacity(0.5))
+            .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
 
             Divider()
                 .padding(.horizontal, DesignTokens.Spacing.md)
@@ -168,12 +168,12 @@ struct PreferencesView: View {
 
             // Version footer
             Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textTertiary)
                 .padding(.bottom, DesignTokens.Spacing.md)
         }
         .frame(width: 200)
-        .background(DesignTokens.Colors.surface.opacity(0.3))
+        .background(DesignTokens.Colors.backgroundSecondary.opacity(0.3))
     }
 
     @ViewBuilder
@@ -234,12 +234,12 @@ struct SettingsSidebarItem: View {
                 // Text
                 VStack(alignment: .leading, spacing: 2) {
                     Text(section.rawValue)
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundColor(isSelected ? .white : DesignTokens.Colors.text)
+                        .foregroundColor(isSelected ? .white : DesignTokens.Colors.textPrimary)
 
                     Text(section.description)
-                        .font(DesignTokens.Typography.captionSmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(isSelected ? .white.opacity(0.8) : DesignTokens.Colors.textTertiary)
                 }
 
@@ -249,7 +249,7 @@ struct SettingsSidebarItem: View {
             .padding(.vertical, DesignTokens.Spacing.xs)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .fill(isSelected ? TonicColors.accent : (isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear))
+                    .fill(isSelected ? TonicColors.accent : (isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : Color.clear))
             )
         }
         .buttonStyle(.plain)
@@ -285,11 +285,11 @@ struct SettingsSectionHeader: View {
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text(section.rawValue)
-                    .font(DesignTokens.Typography.headlineLarge)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h1)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(sectionSubtitle)
-                    .font(DesignTokens.Typography.bodySmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
 
@@ -325,7 +325,7 @@ struct GeneralSettingsContent: View {
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                         Text("Theme")
-                            .font(DesignTokens.Typography.captionLarge)
+                            .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         HStack(spacing: DesignTokens.Spacing.sm) {
@@ -350,7 +350,7 @@ struct GeneralSettingsContent: View {
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                         Text("Accent Color")
-                            .font(DesignTokens.Typography.captionLarge)
+                            .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DesignTokens.Spacing.sm), count: 5), spacing: DesignTokens.Spacing.sm) {
@@ -451,7 +451,7 @@ struct ThemeSelectorButton: View {
                         .frame(width: 64, height: 44)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(isSelected ? TonicColors.accent : DesignTokens.Colors.border, lineWidth: isSelected ? 2 : 1)
+                                .stroke(isSelected ? TonicColors.accent : DesignTokens.Colors.separator, lineWidth: isSelected ? 2 : 1)
                         )
                         .shadow(color: Color.black.opacity(isHovered ? 0.15 : 0.08), radius: isHovered ? 6 : 3, x: 0, y: 2)
 
@@ -462,7 +462,7 @@ struct ThemeSelectorButton: View {
                 }
 
                 Text(mode.rawValue)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(isSelected ? TonicColors.accent : DesignTokens.Colors.textSecondary)
             }
             .scaleEffect(isHovered ? 1.05 : 1.0)
@@ -522,7 +522,7 @@ struct PermissionsSettingsContent: View {
                             }
                             Text("Refresh")
                         }
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -585,7 +585,7 @@ struct PermissionStatusBadge: View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             ZStack {
                 Circle()
-                    .stroke(DesignTokens.Colors.border, lineWidth: 3)
+                    .stroke(DesignTokens.Colors.separator, lineWidth: 3)
                     .frame(width: 36, height: 36)
 
                 Circle()
@@ -595,19 +595,19 @@ struct PermissionStatusBadge: View {
                     .rotationEffect(.degrees(-90))
 
                 Text("\(count)")
-                    .font(DesignTokens.Typography.bodySmall)
+                    .font(DesignTokens.Typography.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(statusColor)
             }
 
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(count) of \(total)")
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
                     .fontWeight(.medium)
                     .foregroundColor(DesignTokens.Colors.text)
 
                 Text(label)
-                    .font(DesignTokens.Typography.captionSmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
         }
@@ -652,13 +652,13 @@ struct PermissionCard: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Text(title)
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .fontWeight(.medium)
                         .foregroundColor(DesignTokens.Colors.text)
 
                     if isCritical {
                         Text("Required")
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -668,7 +668,7 @@ struct PermissionCard: View {
                 }
 
                 Text(description)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .lineLimit(2)
             }
@@ -683,7 +683,7 @@ struct PermissionCard: View {
                         .frame(width: 8, height: 8)
 
                     Text(statusLabel)
-                        .font(DesignTokens.Typography.captionMedium)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(statusColor)
                 }
 
@@ -701,7 +701,7 @@ struct PermissionCard: View {
         .padding(DesignTokens.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
-                .fill(isHovered ? DesignTokens.Colors.surfaceHovered : DesignTokens.Colors.surface)
+                .fill(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : DesignTokens.Colors.backgroundSecondary)
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
@@ -764,11 +764,11 @@ struct HelperSettingsContent: View {
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text(isInstalling || isUninstalling ? "Processing..." : (helperManager.isHelperInstalled ? "Installed & Ready" : "Not Installed"))
-                            .font(DesignTokens.Typography.bodyMedium)
+                            .font(DesignTokens.Typography.subhead)
                             .foregroundColor(DesignTokens.Colors.text)
 
                         Text(helperManager.isHelperInstalled ? "All advanced features are available" : "Install to unlock advanced system features")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
@@ -782,7 +782,7 @@ struct HelperSettingsContent: View {
                                 .frame(width: 8, height: 8)
 
                             Text(helperManager.isHelperInstalled ? "Active" : "Inactive")
-                                .font(DesignTokens.Typography.captionMedium)
+                                .font(DesignTokens.Typography.caption)
                                 .fontWeight(.medium)
                                 .foregroundColor(statusColor)
                         }
@@ -982,12 +982,12 @@ struct SettingsHelperFeatureRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(DesignTokens.Typography.bodySmall)
+                    .font(DesignTokens.Typography.caption)
                     .fontWeight(.medium)
                     .foregroundColor(DesignTokens.Colors.text)
 
                 Text(description)
-                    .font(DesignTokens.Typography.captionSmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
 
@@ -1022,16 +1022,16 @@ struct UpdatesSettingsContent: View {
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text("Tonic is Up to Date")
-                            .font(DesignTokens.Typography.bodyMedium)
+                            .font(DesignTokens.Typography.subhead)
                             .foregroundColor(DesignTokens.Colors.text)
 
                         Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         if let lastChecked = lastChecked {
                             Text("Last checked: \(lastChecked, style: .relative) ago")
-                                .font(DesignTokens.Typography.captionSmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
                     }
@@ -1050,7 +1050,7 @@ struct UpdatesSettingsContent: View {
                             }
                             Text(isCheckingForUpdates ? "Checking..." : "Check Now")
                         }
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -1126,7 +1126,7 @@ struct ReleaseNoteItem: View {
     var body: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
             Text("v\(version)")
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(TonicColors.accent)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -1135,12 +1135,12 @@ struct ReleaseNoteItem: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(DesignTokens.Typography.bodySmall)
+                    .font(DesignTokens.Typography.caption)
                     .fontWeight(.medium)
                     .foregroundColor(DesignTokens.Colors.text)
 
                 Text(description)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
             }
         }
@@ -1170,11 +1170,11 @@ struct FeedbackSheetView: View {
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                         Text("Send Feedback")
-                            .font(DesignTokens.Typography.headlineMedium)
+                            .font(DesignTokens.Typography.h3)
                             .foregroundColor(DesignTokens.Colors.text)
 
                         Text("Help us improve Tonic by sharing your feedback")
-                            .font(DesignTokens.Typography.bodySmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
@@ -1182,7 +1182,7 @@ struct FeedbackSheetView: View {
                 }
                 .padding(DesignTokens.Spacing.lg)
             }
-            .background(DesignTokens.Colors.surface.opacity(0.5))
+            .background(DesignTokens.Colors.backgroundSecondary.opacity(0.5))
 
             Divider()
 
@@ -1215,7 +1215,7 @@ struct FeedbackSheetView: View {
                         TextField("Brief summary of your feedback", text: $title)
                             .font(DesignTokens.Typography.body)
                             .padding(DesignTokens.Spacing.sm)
-                            .background(DesignTokens.Colors.surface)
+                            .background(DesignTokens.Colors.backgroundSecondary)
                             .cornerRadius(DesignTokens.CornerRadius.medium)
                     }
 
@@ -1230,14 +1230,14 @@ struct FeedbackSheetView: View {
                             Spacer()
 
                             Text("\(description.count)/500")
-                                .font(DesignTokens.Typography.captionSmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
 
                         TextEditor(text: $description)
                             .font(DesignTokens.Typography.body)
                             .scrollContentBackground(.hidden)
-                            .background(DesignTokens.Colors.surface)
+                            .background(DesignTokens.Colors.backgroundSecondary)
                             .cornerRadius(DesignTokens.CornerRadius.medium)
                             .frame(height: 120)
                             .onChange(of: description) { _, newValue in
@@ -1251,11 +1251,11 @@ struct FeedbackSheetView: View {
                     Toggle(isOn: $includeLogs) {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                             Text("Include Application Logs")
-                                .font(DesignTokens.Typography.bodySmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.text)
 
                             Text("Help us diagnose issues faster by including recent logs")
-                                .font(DesignTokens.Typography.captionSmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                         }
                     }
@@ -1273,7 +1273,7 @@ struct FeedbackSheetView: View {
                             SystemInfoRow(label: "Architecture", value: systemArchitecture)
                         }
                         .padding(DesignTokens.Spacing.sm)
-                        .background(DesignTokens.Colors.surface)
+                        .background(DesignTokens.Colors.backgroundSecondary)
                         .cornerRadius(DesignTokens.CornerRadius.medium)
                     }
 
@@ -1283,7 +1283,7 @@ struct FeedbackSheetView: View {
                                 .foregroundColor(DesignTokens.Colors.error)
 
                             Text(error)
-                                .font(DesignTokens.Typography.bodySmall)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.error)
 
                             Spacer()
@@ -1386,13 +1386,13 @@ struct SystemInfoRow: View {
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Text(label)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Spacer()
 
             Text(value)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.text)
                 .fontWeight(.medium)
         }
@@ -1411,11 +1411,11 @@ struct HelpSettingsContent: View {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                         Text("We'd love to hear from you!")
-                            .font(DesignTokens.Typography.bodySmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.text)
 
                         Text("Share bug reports, feature suggestions, or any feedback to help us improve Tonic.")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
@@ -1521,12 +1521,12 @@ struct HelpLinkRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                         .fontWeight(.medium)
                         .foregroundColor(DesignTokens.Colors.text)
 
                     Text(subtitle)
-                        .font(DesignTokens.Typography.captionSmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
 
@@ -1539,7 +1539,7 @@ struct HelpLinkRow: View {
             .padding(DesignTokens.Spacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .fill(isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear)
+                    .fill(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -1560,17 +1560,17 @@ struct ShortcutRow: View {
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Text(title)
-                .font(DesignTokens.Typography.bodySmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.text)
 
             Spacer()
 
             Text(shortcut)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(DesignTokens.Colors.surface)
+                .background(DesignTokens.Colors.backgroundSecondary)
                 .cornerRadius(4)
         }
     }
@@ -1594,11 +1594,11 @@ struct AboutSettingsContent: View {
 
                     VStack(spacing: DesignTokens.Spacing.xxxs) {
                         Text("Tonic")
-                            .font(DesignTokens.Typography.headlineLarge)
+                            .font(DesignTokens.Typography.h1)
                             .foregroundColor(DesignTokens.Colors.text)
 
                         Text("A modern macOS system management utility")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .multilineTextAlignment(.center)
                     }
@@ -1607,20 +1607,20 @@ struct AboutSettingsContent: View {
                     HStack(spacing: DesignTokens.Spacing.md) {
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                             Text("Version")
-                                .font(DesignTokens.Typography.captionMedium)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
-                                .font(DesignTokens.Typography.bodyMedium)
+                                .font(DesignTokens.Typography.subhead)
                                 .foregroundColor(DesignTokens.Colors.text)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                             Text("Build")
-                                .font(DesignTokens.Typography.captionMedium)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")
-                                .font(DesignTokens.Typography.bodyMedium)
+                                .font(DesignTokens.Typography.subhead)
                                 .foregroundColor(DesignTokens.Colors.text)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1685,7 +1685,7 @@ struct AboutSettingsContent: View {
             // Copyright
             VStack {
                 Text("© 2024 Tonic. All rights reserved.")
-                    .font(DesignTokens.Typography.captionSmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textTertiary)
             }
         }
@@ -1718,12 +1718,12 @@ struct AboutLinkRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                         .fontWeight(.medium)
                         .foregroundColor(DesignTokens.Colors.text)
 
                     Text(subtitle)
-                        .font(DesignTokens.Typography.captionSmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
 
@@ -1736,7 +1736,7 @@ struct AboutLinkRow: View {
             .padding(DesignTokens.Spacing.sm)
             .background(
                 RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .fill(isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear)
+                    .fill(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -1762,7 +1762,7 @@ struct TechBadge: View {
                 .foregroundColor(color)
 
             Text(name)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)

@@ -55,7 +55,7 @@ public struct TooltipPopover: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(DesignTokens.Colors.surface)
+                .fill(DesignTokens.Colors.backgroundSecondary)
                 .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 2)
         )
         .overlay(

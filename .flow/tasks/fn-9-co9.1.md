@@ -8,19 +8,11 @@
 - [ ] No startup errors in Console.app
 
 ## Done summary
-<!--
-Fill this out when marking the task as done. The summary should:
-- Describe what was implemented (1-2 sentences)
-- Key files changed
-- Tests run (if any)
--->
-
+Removed redundant Identifiable conformance warning in ActionTable.swift and fully removed Main.storyboard references (Info.plist, project.pbxproj, and deleted file). The app now launches purely via SwiftUI lifecycle.
 ## Evidence
-<!--
-JSON evidence for what was done. Format:
-{"commits": ["sha1", "sha2"], "tests": ["cmd1", "cmd2"], "prs": ["url1", "url2"]}
--->
-
+- Commits: 2738877be3f9a8cfd1fd5442e6477918d42449e3
+- Tests: xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build
+- PRs:
 ## Test Commands
 ```bash
 # Verify storyboard not in project

@@ -21,9 +21,9 @@ public enum MemoryPressure: String, CaseIterable, Sendable {
     /// Color representation for UI
     public var color: Color {
         switch self {
-        case .normal: return DesignTokens.Colors.progressLow
-        case .warning: return DesignTokens.Colors.progressMedium
-        case .critical: return DesignTokens.Colors.progressHigh
+        case .normal: return DesignTokens.Colors.success
+        case .warning: return DesignTokens.Colors.warning
+        case .critical: return DesignTokens.Colors.error
         }
     }
 }

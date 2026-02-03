@@ -220,7 +220,7 @@ struct ModuleSettingsDetailView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
                 Text(module.displayName)
                     .font(DesignTokens.Typography.h3)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(moduleDescription)
                     .font(DesignTokens.Typography.body)
