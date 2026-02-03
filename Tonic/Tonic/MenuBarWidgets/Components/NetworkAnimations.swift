@@ -206,8 +206,6 @@ public struct SlideInView<Content: View>: View {
                 return CGSize(width: 0, height: -20)
             case .bottom:
                 return CGSize(width: 0, height: 20)
-            default:
-                return .zero
             }
         }
         return .zero

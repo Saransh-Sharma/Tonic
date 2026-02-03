@@ -193,9 +193,7 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
             return []
         }
 
-        var currentURL: URL?
         while let url = enumerator.nextObject() as? URL {
-            currentURL = url
             guard let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory else { continue }
             guard isDirectory == true else { continue }
 
@@ -513,9 +511,7 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
         var totalSize: Int64 = 0
 
         if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            var url: URL?
             while let current = enumerator.nextObject() as? URL {
-                url = current
                 if let size = await getFileSize(current.path) {
                     totalSize += size
                 }

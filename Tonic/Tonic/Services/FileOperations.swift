@@ -693,8 +693,8 @@ public final class FileOperations: @unchecked Sendable {
 // MARK: - FileHandle + Synchronize
 
 extension FileHandle {
-    func synchronize() throws {
+    func synchronize() {
         // fsync the file handle
-        try self.synchronizeFile()
+        self.synchronizeFile()
     }
 }

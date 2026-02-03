@@ -47,11 +47,16 @@ public final class WidgetHistoryStore {
 
     // MARK: - Auto-Save
 
-    /// Timer for periodic history saving (every 5 minutes)
-    nonisolated(unsafe) private var autoSaveTimer: Timer?
-
     /// Interval for auto-save (5 minutes)
     private let autoSaveInterval: TimeInterval = 5 * 60
+
+    /// Timer for periodic history saving (every 5 minutes)
+    /// Uses RunLoop which is thread-safe by design
+    private struct TimerBox: @unchecked Sendable {
+        var timer: Timer?
+    }
+
+    private var timerBox = TimerBox()
 
     // MARK: - Initialization
 
@@ -66,7 +71,7 @@ public final class WidgetHistoryStore {
 
     private func setupAutoSave() {
         // Schedule periodic auto-save every 5 minutes
-        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
+        timerBox.timer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.saveHistory()
             }
@@ -93,7 +98,7 @@ public final class WidgetHistoryStore {
 
     @objc private func applicationWillTerminate() {
         saveHistory()
-        autoSaveTimer?.invalidate()
+        timerBox.timer?.invalidate()
     }
 
     @objc private func applicationWillResignActive() {
@@ -102,7 +107,7 @@ public final class WidgetHistoryStore {
 
     deinit {
         // Timer needs to be invalidated outside of MainActor context
-        autoSaveTimer?.invalidate()
+        timerBox.timer?.invalidate()
         NotificationCenter.default.removeObserver(self)
     }
 
