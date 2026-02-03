@@ -25,7 +25,7 @@ public final class BatteryDetailsStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        // TODO: Implement battery details view
-        return AnyView(EmptyView())
+        // Use Stats Master-style BatteryPopoverView
+        return AnyView(BatteryPopoverView())
     }
 }

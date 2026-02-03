@@ -71,64 +71,27 @@ public final class LineChartStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        let dataManager = WidgetDataManager.shared
-
-        // Use Stats Master-style popover for CPU
-        if widgetType == .cpu {
-            return AnyView(CPUPopoverView())
-        }
-
-        // Use Stats Master-style popover for GPU
-        if widgetType == .gpu {
-            // TODO: GPUPopoverView needs to be added to Xcode project
-            return AnyView(GPUDetailView())
-        }
-
-        // Get chart data based on widget type
-        let history: [Double]
-        let currentValue: Double
-
+        // Use Stats Master-style popover for all supported widget types
         switch widgetType {
+        case .cpu:
+            return AnyView(CPUPopoverView())
+        case .gpu:
+            return AnyView(GPUPopoverView())
         case .memory:
-            history = dataManager.getMemoryHistory()
-            currentValue = dataManager.memoryData.usagePercentage
+            return AnyView(MemoryPopoverView())
+        case .disk:
+            return AnyView(DiskPopoverView())
+        case .network:
+            return AnyView(NetworkPopoverView())
+        case .battery:
+            return AnyView(BatteryPopoverView())
+        case .sensors:
+            return AnyView(SensorsPopoverView())
+        case .bluetooth:
+            return AnyView(BluetoothPopoverView())
         default:
-            history = []
-            currentValue = 0
+            // Fallback for weather, clock, or other types
+            return super.createDetailView()
         }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: widgetType.icon)
-                        .foregroundColor(.blue)
-                    Text("\(widgetType.displayName) History")
-                        .font(.headline)
-                    Spacer()
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Current: \(Int(currentValue * 100))%")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    LineChartWidgetView(
-                        data: history.isEmpty ? [0.3, 0.4, 0.35] : history,
-                        config: LineChartConfig(
-                            historySize: 90,
-                            showBackground: true,
-                            showFrame: true,
-                            fillMode: .gradient
-                        ),
-                        currentValue: currentValue
-                    )
-                    .frame(height: 60)
-                }
-
-                Spacer()
-            }
-            .padding()
-            .frame(width: 250, height: 180)
-        )
     }
 }

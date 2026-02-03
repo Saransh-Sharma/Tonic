@@ -36,89 +36,27 @@ public final class TachometerStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        let dataManager = WidgetDataManager.shared
-
-        // Use Stats Master-style popover for CPU
-        if widgetType == .cpu {
-            return AnyView(CPUPopoverView())
-        }
-
-        // Use Stats Master-style popover for GPU
-        if widgetType == .gpu {
-            return AnyView(GPUPopoverView())
-        }
-
-        // Use generic popover for other widget types
-        let value: Double
-        let label: String
-        let details: String
-
+        // Use Stats Master-style popover for all supported widget types
         switch widgetType {
-        case .memory:
-            value = dataManager.memoryData.usagePercentage
-            label = "Memory Usage"
-            let usedGB = Double(dataManager.memoryData.usedBytes) / (1024 * 1024 * 1024)
-            let totalGB = Double(dataManager.memoryData.totalBytes) / (1024 * 1024 * 1024)
-            details = String(format: "%.1f / %.1f GB", usedGB, totalGB)
+        case .cpu:
+            return AnyView(CPUPopoverView())
         case .gpu:
-            value = dataManager.gpuData.usagePercentage ?? 0
-            label = "GPU Usage"
-            details = value > 0 ? "Active" : "Idle"
+            return AnyView(GPUPopoverView())
+        case .memory:
+            return AnyView(MemoryPopoverView())
+        case .disk:
+            return AnyView(DiskPopoverView())
+        case .network:
+            return AnyView(NetworkPopoverView())
+        case .battery:
+            return AnyView(BatteryPopoverView())
+        case .sensors:
+            return AnyView(SensorsPopoverView())
+        case .bluetooth:
+            return AnyView(BluetoothPopoverView())
         default:
-            value = 0
-            label = "Usage"
-            details = ""
+            // Fallback for weather, clock, or other types
+            return super.createDetailView()
         }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: widgetType.icon)
-                        .foregroundColor(.blue)
-                    Text(label)
-                        .font(.headline)
-                    Spacer()
-                }
-
-                VStack(alignment: .center, spacing: 8) {
-                    // Simple circular progress indicator
-                    ZStack {
-                        Circle()
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 8)
-                            .frame(width: 70, height: 70)
-
-                        Circle()
-                            .trim(from: 0, to: value / 100)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [.green, .yellow, .orange, .red],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ),
-                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                            )
-                            .frame(width: 70, height: 70)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.easeInOut(duration: 0.3), value: value)
-
-                        Text("\(Int(value))%")
-                            .font(.system(.title2, design: .rounded))
-                            .fontWeight(.medium)
-                    }
-                    .frame(width: 80, height: 80)
-
-                    if !details.isEmpty {
-                        Text(details)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-
-                Spacer()
-            }
-            .padding()
-            .frame(width: 200, height: 180)
-        )
     }
 }

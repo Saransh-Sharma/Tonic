@@ -257,11 +257,29 @@ public class WidgetStatusItem: ObservableObject {
 
     /// Create the detail view for this widget (to be overridden by subclasses)
     open func createDetailView() -> AnyView {
-        // Special handling for network widget - use Stats Master-style popover
-        if widgetType == .network {
+        // Return the appropriate Stats Master-style popover for each widget type
+        switch widgetType {
+        case .cpu:
+            return AnyView(CPUPopoverView())
+        case .gpu:
+            return AnyView(GPUPopoverView())
+        case .memory:
+            return AnyView(MemoryPopoverView())
+        case .disk:
+            return AnyView(DiskPopoverView())
+        case .network:
             return AnyView(NetworkPopoverView())
+        case .battery:
+            return AnyView(BatteryPopoverView())
+        case .sensors:
+            return AnyView(SensorsPopoverView())
+        case .bluetooth:
+            return AnyView(BluetoothPopoverView())
+        case .clock:
+            return AnyView(ClockPopoverView())
+        case .weather:
+            return AnyView(WeatherDetailView())
         }
-        return AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
     }
 
     // MARK: - Actions

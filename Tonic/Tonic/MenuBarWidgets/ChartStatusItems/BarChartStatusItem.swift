@@ -61,35 +61,28 @@ public final class BarChartStatusItem: WidgetStatusItem {
     }
 
     public override func createDetailView() -> AnyView {
-        let dataManager = WidgetDataManager.shared
-
-        // Use Stats Master-style popover for CPU
-        if widgetType == .cpu {
+        // Use Stats Master-style popover for all supported widget types
+        switch widgetType {
+        case .cpu:
             return AnyView(CPUPopoverView())
+        case .gpu:
+            return AnyView(GPUPopoverView())
+        case .memory:
+            return AnyView(MemoryPopoverView())
+        case .disk:
+            return AnyView(DiskPopoverView())
+        case .network:
+            return AnyView(NetworkPopoverView())
+        case .battery:
+            return AnyView(BatteryPopoverView())
+        case .sensors:
+            return AnyView(SensorsPopoverView())
+        case .bluetooth:
+            return AnyView(BluetoothPopoverView())
+        default:
+            // Fallback for weather, clock, or other types
+            return super.createDetailView()
         }
-
-        return AnyView(
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: widgetType.icon)
-                        .foregroundColor(.blue)
-                    Text("\(widgetType.displayName) Details")
-                        .font(.headline)
-                    Spacer()
-                }
-
-                switch widgetType {
-                case .memory:
-                    memoryDetailView(dataManager)
-                default:
-                    Text("Detailed view coming soon")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-            }
-            .padding()
-            .frame(width: 250, height: 180)
-        )
     }
 
     @ViewBuilder
