@@ -366,8 +366,8 @@ public final class NetworkStatusItem: WidgetStatusItem {
     // Uses base WidgetStatusItem.createCompactView() which respects configuration
 
     public override func createDetailView() -> AnyView {
-        // Use the redesigned WhyFi-style detail view
-        AnyView(NetworkDetailViewRedesigned())
+        // Use the full Stats Master-style popover
+        AnyView(NetworkPopoverView())
     }
 }
 

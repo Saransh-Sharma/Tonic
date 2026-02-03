@@ -45,6 +45,9 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
     /// Security type (WPA2, WPA3, Open, etc.)
     public let security: String
 
+    /// Wi-Fi standard (e.g., 802.11ac)
+    public let standard: String
+
     /// BSSID (MAC address of access point)
     public let bssid: String
 
@@ -56,6 +59,7 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
         channelWidth: Int = 20,
         band: WiFiBand = .ghz24,
         security: String,
+        standard: String = "Unknown",
         bssid: String
     ) {
         self.ssid = ssid
@@ -65,6 +69,7 @@ public struct WiFiDetails: Sendable, Codable, Equatable {
         self.channelWidth = channelWidth
         self.band = band
         self.security = security
+        self.standard = standard
         self.bssid = bssid
     }
 
