@@ -16,3 +16,8 @@ xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E "im
 
 ## Done summary
 Replaced String(cString:) with safer alternatives for array buffers. Fixed utsname.machine access to avoid Swift 6 concurrency warnings.
+
+## Evidence
+```json
+{"commits": ["e91d3e0", "f34ec9d", "155f1f4", "7d7d93d"], "tests": ["xcodebuild build", "rg String(cString:)"], "prs": []}
+```
