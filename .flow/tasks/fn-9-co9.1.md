@@ -7,6 +7,14 @@
 - [ ] App launches and displays UI correctly via SwiftUI lifecycle
 - [ ] No startup errors in Console.app
 
+## Done summary
+<!--
+Fill this out when marking the task as done. The summary should:
+- Describe what was implemented (1-2 sentences)
+- Key files changed
+- Tests run (if any)
+-->
+
 ## Test Commands
 ```bash
 # Verify storyboard not in project
