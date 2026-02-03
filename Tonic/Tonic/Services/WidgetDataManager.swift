@@ -15,6 +15,7 @@ import MachO
 import SwiftUI
 import os
 import Network
+import SystemConfiguration
 import Darwin
 
 // MARK: - proc_pid_rusage types
@@ -360,6 +361,10 @@ public struct NetworkData: Sendable {
     public let publicIP: PublicIPInfo?             // Public IP with geolocation
     public let connectivity: ConnectivityInfo?     // Latency, jitter, reachability
     public let topProcesses: [ProcessNetworkUsage]?  // Top network-using processes
+    public let interfaceName: String?              // Primary interface (e.g., en0)
+    public let macAddress: String?                 // MAC address of primary interface
+    public let linkSpeedMbps: Double?              // Link speed in Mbps (if available)
+    public let dnsServers: [String]                // DNS server list
 
     public init(uploadBytesPerSecond: Double, downloadBytesPerSecond: Double,
                 isConnected: Bool, connectionType: ConnectionType = .unknown,
@@ -368,6 +373,10 @@ public struct NetworkData: Sendable {
                 publicIP: PublicIPInfo? = nil,
                 connectivity: ConnectivityInfo? = nil,
                 topProcesses: [ProcessNetworkUsage]? = nil,
+                interfaceName: String? = nil,
+                macAddress: String? = nil,
+                linkSpeedMbps: Double? = nil,
+                dnsServers: [String] = [],
                 timestamp: Date = Date()) {
         self.uploadBytesPerSecond = uploadBytesPerSecond
         self.downloadBytesPerSecond = downloadBytesPerSecond
@@ -379,6 +388,10 @@ public struct NetworkData: Sendable {
         self.publicIP = publicIP
         self.connectivity = connectivity
         self.topProcesses = topProcesses
+        self.interfaceName = interfaceName
+        self.macAddress = macAddress
+        self.linkSpeedMbps = linkSpeedMbps
+        self.dnsServers = dnsServers
         self.timestamp = timestamp
     }
 
@@ -396,6 +409,10 @@ public struct NetworkData: Sendable {
         self.publicIP = nil
         self.connectivity = nil
         self.topProcesses = nil
+        self.interfaceName = nil
+        self.macAddress = nil
+        self.linkSpeedMbps = nil
+        self.dnsServers = []
         self.timestamp = timestamp
     }
 
@@ -812,6 +829,7 @@ public final class WidgetDataManager {
     private var networkUploadCircularBuffer = CircularBuffer(capacity: 180)
     private var networkDownloadCircularBuffer = CircularBuffer(capacity: 180)
     private var gpuCircularBuffer = CircularBuffer(capacity: 180)
+    private var gpuTemperatureCircularBuffer = CircularBuffer(capacity: 180)
     private var batteryCircularBuffer = CircularBuffer(capacity: 180)
     private var sensorsCircularBuffer = CircularBuffer(capacity: 180)
     private var bluetoothCircularBuffer = CircularBuffer(capacity: 180)
@@ -859,6 +877,7 @@ public final class WidgetDataManager {
 
     public private(set) var gpuData: GPUData = GPUData()
     public private(set) var gpuHistory: [Double] = []
+    public private(set) var gpuTemperatureHistory: [Double] = []
 
     // MARK: - Battery Data
 
@@ -918,6 +937,21 @@ public final class WidgetDataManager {
     private var previousPingLatencies: [Double] = []
     private let publicIPCacheInterval: TimeInterval = 300  // 5 minutes
     private let connectivityCheckInterval: TimeInterval = 30  // 30 seconds
+    private var cachedConnectivity: ConnectivityInfo?
+    private var cachedDNSServers: [String] = []
+    private var lastDNSFetch: Date?
+    private let dnsCacheInterval: TimeInterval = 60  // 1 minute
+    private var cachedNetworkProcesses: [ProcessNetworkUsage]?
+    private var lastNetworkProcessFetch: Date?
+    private let networkProcessFetchInterval: TimeInterval = 5  // 5 seconds
+    private var lastWiFiSecurityFetch: Date?
+    private var cachedWiFiSecurity: String?
+    private var cachedWiFiSecuritySSID: String?
+
+    // Network reachability
+    private var pathMonitor: NWPathMonitor?
+    private let pathMonitorQueue = DispatchQueue(label: "com.tonic.network.pathmonitor", qos: .utility)
+    private var networkReachable: Bool?
 
     // MARK: - Initialization
 
@@ -929,6 +963,7 @@ public final class WidgetDataManager {
             name: .resetTotalNetworkUsage,
             object: nil
         )
+        startNetworkPathMonitor()
     }
 
     /// Handle reset total network usage notification
@@ -938,6 +973,9 @@ public final class WidgetDataManager {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        Task { @MainActor in
+            self.pathMonitor?.cancel()
+        }
     }
 
     // MARK: - Public Methods
@@ -2344,6 +2382,17 @@ public final class WidgetDataManager {
 
     // MARK: - Network Monitoring
 
+    private func startNetworkPathMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.networkReachable = (path.status == .satisfied)
+            }
+        }
+        monitor.start(queue: pathMonitorQueue)
+        pathMonitor = monitor
+    }
+
     private struct NetworkStats {
         let bytesIn: UInt64
         let bytesOut: UInt64
@@ -2355,6 +2404,8 @@ public final class WidgetDataManager {
 
         var uploadRate: Double = 0
         var downloadRate: Double = 0
+        var uploadDeltaBytes: UInt64 = 0
+        var downloadDeltaBytes: UInt64 = 0
         var isConnected = true
 
         if let last = lastNetworkStats {
@@ -2376,11 +2427,18 @@ public final class WidgetDataManager {
                     downloadDelta = stats.bytesIn // Counter reset, use current value
                 }
 
+                uploadDeltaBytes = uploadDelta
+                downloadDeltaBytes = downloadDelta
                 uploadRate = Double(uploadDelta) / timeDelta
                 downloadRate = Double(downloadDelta) / timeDelta
             }
 
-            isConnected = (stats.bytesIn != last.download || stats.bytesOut != last.upload) || timeDelta < 5.0
+            let trafficConnected = (stats.bytesIn != last.download || stats.bytesOut != last.upload) || timeDelta < 5.0
+            if let reachable = networkReachable {
+                isConnected = reachable
+            } else {
+                isConnected = trafficConnected
+            }
         }
 
         lastNetworkStats = (upload: stats.bytesOut, download: stats.bytesIn, timestamp: now)
@@ -2390,11 +2448,15 @@ public final class WidgetDataManager {
         let ssid = getWiFiSSID()
         let ipAddress = getLocalIPAddress()
 
-        // Get enhanced network data
+        // Get enhanced network data (cached/throttled)
         let wifiDetails = getWiFiDetails()
         let publicIP = getPublicIP()
         let connectivity = getConnectivityInfo()
         let topProcesses = getTopNetworkProcesses()
+        let interfaceName = getPrimaryInterfaceName()
+        let macAddress = interfaceName.flatMap { getMACAddress(for: $0) }
+        let linkSpeed = getLinkSpeedMbps(interfaceName: interfaceName)
+        let dnsServers = getDNSServers()
 
         let newNetworkData = NetworkData(
             uploadBytesPerSecond: max(0, uploadRate),
@@ -2406,7 +2468,11 @@ public final class WidgetDataManager {
             wifiDetails: wifiDetails,
             publicIP: publicIP,
             connectivity: connectivity,
-            topProcesses: topProcesses
+            topProcesses: topProcesses,
+            interfaceName: interfaceName,
+            macAddress: macAddress,
+            linkSpeedMbps: linkSpeed,
+            dnsServers: dnsServers
         )
 
         // Dispatch property updates to main thread for @Observable
@@ -2421,8 +2487,8 @@ public final class WidgetDataManager {
             self.networkDownloadHistory = self.networkDownloadCircularBuffer.toArray()
 
             // Update cumulative totals (for Details section)
-            self.totalUploadBytes += Int64(max(0, uploadRate))
-            self.totalDownloadBytes += Int64(max(0, downloadRate))
+            self.totalUploadBytes += Int64(uploadDeltaBytes)
+            self.totalDownloadBytes += Int64(downloadDeltaBytes)
 
             // Update connectivity history (for grid visualization)
             self.connectivityHistory.append(isConnected)
@@ -2629,16 +2695,46 @@ public final class WidgetDataManager {
 
         // Get RSSI (signal strength)
         let rssi = interface.rssiValue()
+        let noise = interface.noiseMeasurement()
 
         // Get channel information
         var channel = 0
+        var channelWidth = 20
+        var band: WiFiBand = .unknown
         if let channelInfo = interface.wlanChannel() {
             channel = channelInfo.channelNumber
-            _ = channelInfo.channelBand  // Available for future use
+            switch channelInfo.channelWidth {
+            case .width20MHz:
+                channelWidth = 20
+            case .width40MHz:
+                channelWidth = 40
+            case .width80MHz:
+                channelWidth = 80
+            case .width160MHz:
+                channelWidth = 160
+            case .widthUnknown:
+                channelWidth = 20
+            @unknown default:
+                channelWidth = 20
+            }
+
+            switch channelInfo.channelBand {
+            case .band2GHz:
+                band = .ghz24
+            case .band5GHz:
+                band = .ghz5
+            case .band6GHz:
+                band = .ghz6
+            case .bandUnknown:
+                band = .unknown
+            @unknown default:
+                band = .unknown
+            }
         }
 
-        // Get security type
+        // Get security type and standard
         let security = getSecurityType(from: interface)
+        let standard = getWiFiStandard(from: interface)
 
         // Get BSSID
         let bssid = interface.bssid() ?? "Unknown"
@@ -2646,21 +2742,65 @@ public final class WidgetDataManager {
         return WiFiDetails(
             ssid: ssid,
             rssi: rssi,
+            noise: noise,
             channel: channel,
+            channelWidth: channelWidth,
+            band: band,
             security: security,
+            standard: standard,
             bssid: bssid
         )
     }
 
+    /// Get Wi-Fi standard (802.11a/b/g/n/ac/ax/be) from PHY mode
+    private func getWiFiStandard(from interface: CWInterface) -> String {
+        switch interface.activePHYMode() {
+        case .mode11a:
+            return "802.11a"
+        case .mode11b:
+            return "802.11b"
+        case .mode11g:
+            return "802.11g"
+        case .mode11n:
+            return "802.11n"
+        case .mode11ac:
+            return "802.11ac"
+        case .mode11ax:
+            return "802.11ax"
+        case .modeNone:
+            return "Unknown"
+        @unknown default:
+            return "Unknown"
+        }
+    }
+
     /// Get security type from WiFi interface
     private func getSecurityType(from interface: CWInterface) -> String {
+        if let ssid = interface.ssid(),
+           let cachedSSID = cachedWiFiSecuritySSID,
+           ssid == cachedSSID,
+           let cached = cachedWiFiSecurity,
+           let lastFetch = lastWiFiSecurityFetch,
+           Date().timeIntervalSince(lastFetch) < 600 {
+            return cached
+        }
         // CoreWLAN security detection via system_profiler
         // This is the most reliable method without requiring additional entitlements
-        return getSecurityTypeFromSystemProfiler()
+        let security = getSecurityTypeFromSystemProfiler()
+        cachedWiFiSecuritySSID = interface.ssid()
+        cachedWiFiSecurity = security
+        lastWiFiSecurityFetch = Date()
+        return security
     }
 
     /// Get security type from system_profiler (fallback)
     private func getSecurityTypeFromSystemProfiler() -> String {
+        if let cached = cachedWiFiSecurity,
+           let lastFetch = lastWiFiSecurityFetch,
+           Date().timeIntervalSince(lastFetch) < 600 {
+            return cached
+        }
+
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
         task.arguments = ["SPAirPortDataType", "-xml"]
@@ -2679,13 +2819,19 @@ public final class WidgetDataManager {
 
             // Parse XML for security type (simplified)
             if output.contains("WPA3") {
-                return "WPA3"
+                cachedWiFiSecurity = "WPA3"
             } else if output.contains("WPA2") {
-                return "WPA2"
+                cachedWiFiSecurity = "WPA2"
             } else if output.contains("WPA") {
-                return "WPA"
+                cachedWiFiSecurity = "WPA"
             } else if output.contains("WEP") {
-                return "WEP"
+                cachedWiFiSecurity = "WEP"
+            } else {
+                cachedWiFiSecurity = "Unknown"
+            }
+            lastWiFiSecurityFetch = Date()
+            if let cached = cachedWiFiSecurity {
+                return cached
             }
         } catch {}
 
@@ -2762,7 +2908,7 @@ public final class WidgetDataManager {
         // Only check connectivity every 30 seconds to avoid excessive pings
         if let lastCheck = lastConnectivityCheck,
            now.timeIntervalSince(lastCheck) < connectivityCheckInterval {
-            return nil  // Return nil to use cached value from UI
+            return cachedConnectivity
         }
 
         lastConnectivityCheck = now
@@ -2771,17 +2917,97 @@ public final class WidgetDataManager {
         let pingResults = performPingTest(host: "8.8.8.8", count: 5)
 
         guard let avgLatency = pingResults.average, !pingResults.latencies.isEmpty else {
-            return ConnectivityInfo(latency: 0, jitter: 0, isReachable: false)
+            let info = ConnectivityInfo(latency: 0, jitter: 0, isReachable: false)
+            cachedConnectivity = info
+            return info
         }
 
         // Calculate jitter (standard deviation of latencies)
         let jitter = calculateJitter(latencies: pingResults.latencies)
 
-        return ConnectivityInfo(
+        let info = ConnectivityInfo(
             latency: avgLatency,
             jitter: jitter,
             isReachable: pingResults.isReachable
         )
+        cachedConnectivity = info
+        return info
+    }
+
+    /// Get DNS server list using SystemConfiguration (cached)
+    private func getDNSServers() -> [String] {
+        let now = Date()
+        if let lastFetch = lastDNSFetch,
+           now.timeIntervalSince(lastFetch) < dnsCacheInterval {
+            return cachedDNSServers
+        }
+
+        let key = "State:/Network/Global/DNS" as CFString
+        if let dict = SCDynamicStoreCopyValue(nil, key) as? [String: Any],
+           let servers = dict["ServerAddresses"] as? [String] {
+            cachedDNSServers = servers
+        } else {
+            cachedDNSServers = []
+        }
+        lastDNSFetch = now
+        return cachedDNSServers
+    }
+
+    /// Primary interface name from SystemConfiguration (e.g., en0)
+    private func getPrimaryInterfaceName() -> String? {
+        let key = "State:/Network/Global/IPv4" as CFString
+        if let dict = SCDynamicStoreCopyValue(nil, key) as? [String: Any],
+           let name = dict["PrimaryInterface"] as? String {
+            return name
+        }
+        return nil
+    }
+
+    /// MAC address for the given interface name
+    private func getMACAddress(for interfaceName: String) -> String? {
+        var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrPtr) == 0, let firstAddr = ifaddrPtr else {
+            return nil
+        }
+        defer { freeifaddrs(ifaddrPtr) }
+
+        var ptr = firstAddr
+        while true {
+            let interface = ptr.pointee
+            let name = String(cString: interface.ifa_name)
+            if name == interfaceName,
+               let addr = interface.ifa_addr,
+               addr.pointee.sa_family == UInt8(AF_LINK) {
+                let sdl = UnsafeRawPointer(addr).assumingMemoryBound(to: sockaddr_dl.self).pointee
+                let macPtr = withUnsafePointer(to: sdl.sdl_data) { ptr -> UnsafeRawPointer in
+                    UnsafeRawPointer(ptr)
+                }
+                let addrPtr = macPtr.advanced(by: Int(sdl.sdl_nlen)).assumingMemoryBound(to: UInt8.self)
+                var bytes: [UInt8] = []
+                bytes.reserveCapacity(Int(sdl.sdl_alen))
+                for i in 0..<Int(sdl.sdl_alen) {
+                    bytes.append(addrPtr[i])
+                }
+                return bytes.map { String(format: "%02x", $0) }.joined(separator: ":").uppercased()
+            }
+            if let next = interface.ifa_next {
+                ptr = next
+            } else {
+                break
+            }
+        }
+        return nil
+    }
+
+    /// Link speed in Mbps if available (WiFi transmit rate)
+    private func getLinkSpeedMbps(interfaceName: String?) -> Double? {
+        guard let interfaceName else { return nil }
+        let client = CWWiFiClient.shared()
+        if let interface = client.interface(withName: interfaceName),
+           interface.powerOn() {
+            return interface.transmitRate()
+        }
+        return nil
     }
 
     /// Ping test result structure
@@ -2855,6 +3081,12 @@ public final class WidgetDataManager {
 
     /// Get top processes by network usage
     private func getTopNetworkProcesses(limit: Int = 8) -> [ProcessNetworkUsage]? {
+        if let lastFetch = lastNetworkProcessFetch,
+           Date().timeIntervalSince(lastFetch) < networkProcessFetchInterval,
+           let cached = cachedNetworkProcesses {
+            return cached
+        }
+
         // Use nettop command to get network usage per process
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
@@ -2879,10 +3111,20 @@ public final class WidgetDataManager {
                 return parseNettopOutputAlternative()
             }
 
-            return parseNettopOutput(output, limit: limit)
+            let processes = parseNettopOutput(output, limit: limit)
+            if let processes {
+                cachedNetworkProcesses = processes
+                lastNetworkProcessFetch = Date()
+            }
+            return processes
         } catch {
             logger.warning("nettop failed: \(error.localizedDescription)")
-            return parseNettopOutputAlternative()
+            let processes = parseNettopOutputAlternative()
+            if let processes {
+                cachedNetworkProcesses = processes
+                lastNetworkProcessFetch = Date()
+            }
+            return processes
         }
     }
 
@@ -3063,6 +3305,11 @@ public final class WidgetDataManager {
 
                 // Check notification thresholds
                 NotificationManager.shared.checkThreshold(widgetType: .gpu, value: gpuUsage)
+            }
+
+            if let temperature = temperature {
+                self.gpuTemperatureCircularBuffer.add(temperature)
+                self.gpuTemperatureHistory = self.gpuTemperatureCircularBuffer.toArray()
             }
         }
         #else
