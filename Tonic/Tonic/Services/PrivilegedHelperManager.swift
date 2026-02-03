@@ -5,8 +5,8 @@
 //  Manages privileged helper tool for root-required operations
 //
 //  Note: The deprecated SMJobBless/SMJobCopyDictionary/SMJobRemove APIs have been removed.
-//  File operations now work directly via FileManager for user-owned files.
-//  Future implementation will use SMAppService for privileged helper registration.
+//  A privileged helper is required for system-level file operations.
+//  User-owned file operations work directly via FileManager without a helper.
 //  Task ID: fn-9-co9.5
 //
 
@@ -22,15 +22,12 @@ public final class PrivilegedHelperManager: NSObject {
     private(set) var isHelperInstalled = false
     private(set) var isHelperConnected = false
 
-    // Flag to indicate we're using FileManager-based operations (no actual helper)
-    private var usingFileManagerFallback = true
-
     public var installationStatus: String = "Unknown"
     public var lastError: String?
 
     // Computed property for isInstalled that FileOperations expects
     public var isInstalled: Bool {
-        return isHelperInstalled || usingFileManagerFallback
+        return isHelperInstalled
     }
 
     private override init() {
@@ -46,43 +43,35 @@ public final class PrivilegedHelperManager: NSObject {
         let helperPath = "/Library/PrivilegedHelperTools/\(helperLabel)"
         let helperExists = FileManager.default.fileExists(atPath: helperPath)
 
-        if helperExists {
-            isHelperInstalled = true
-            installationStatus = "Installed"
-        } else {
-            // FileManager fallback is available
-            installationStatus = "FileManager Fallback (No helper required for user files)"
-        }
-
-        return isHelperInstalled || usingFileManagerFallback
+        isHelperInstalled = helperExists
+        installationStatus = helperExists ? "Installed" : "Not Installed"
+        return isHelperInstalled
     }
 
     /// Install the privileged helper tool
-    /// Note: With FileManager fallback, this succeeds for user-owned files
+    /// Note: Helper installation via SMAppService is not yet implemented
     public func installHelper() async throws {
-        // For user-owned files, FileManager works without a helper
-        // This simulates a successful "install" for the FileManager fallback mode
-        usingFileManagerFallback = true
-        isHelperInstalled = true
-        installationStatus = "FileManager Fallback Active"
-        // Note: For actual privileged operations (system files), an error will occur
-        // This is intentional - we only support user-owned file operations via FileManager
+        // The privileged helper installation requires SMAppService registration
+        // which is not yet implemented. For now, indicate that operations will
+        // use FileManager for user-owned files only.
+        throw PrivilegedHelperError.operationFailed("Privileged helper installation is not yet implemented. File operations are limited to user-owned files.")
     }
 
     /// Uninstall the privileged helper tool
     public func uninstallHelper() async throws {
-        // Clear the fallback "install" state
-        usingFileManagerFallback = false
-        isHelperInstalled = false
+        // Helper was never installed via our APIs, so nothing to uninstall
+        // If a legacy helper exists, it would need manual removal
         installationStatus = "Not Installed"
+        isHelperInstalled = false
     }
 
     // MARK: - Connection Management
 
     /// Establish connection to the helper
-    /// Succeeds for FileManager-based operations
     public func establishConnection() async throws {
-        // FileManager operations don't require a connection
+        guard isHelperInstalled else {
+            throw PrivilegedHelperError.notInstalled
+        }
         // In production with XPC, this would establish actual connection
         isHelperConnected = true
     }
