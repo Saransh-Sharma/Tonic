@@ -1,4 +1,7 @@
 <div align="center">
+  <p>
+    <img src="Tonic/docs/assets/app-icon.png" alt="Tonic App Icon" width="128" height="128" />
+  </p>
   <h1>Tonic</h1>
   <p><em>Beautiful native macOS system management.</em></p>
 </div>

@@ -2,6 +2,10 @@
 
 Comprehensive design system documentation for the Tonic macOS application, including component specifications, design tokens, and usage examples.
 
+<p align="center">
+  <img src="assets/app-icon.png" alt="Tonic App Icon" width="128" height="128" />
+</p>
+
 ## Overview
 
 The Tonic design system provides a cohesive, native macOS experience with consistent spacing, typography, colors, and reusable components. All design tokens and components support both light and dark modes using semantic system colors.
