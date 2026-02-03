@@ -620,9 +620,9 @@ struct AppDependency: Identifiable, Sendable, Codable {
     let size: Int64
     let version: String?
 
-    // CodingKeys to exclude 'id' from decoding - it will be generated instead
+    // CodingKeys includes 'id' to preserve it when present in encoded data
     enum CodingKeys: String, CodingKey {
-        case name, type, path, size, version
+        case id, name, type, path, size, version
     }
 
     init(name: String, type: DependencyType, path: URL, size: Int64, version: String?) {
@@ -634,15 +634,16 @@ struct AppDependency: Identifiable, Sendable, Codable {
         self.version = version
     }
 
-    // Custom init from decoder to handle missing 'id' field
+    // Custom init from decoder to preserve ID when present, generate when missing
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Preserve existing ID if present, otherwise generate new one
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         self.name = try container.decode(String.self, forKey: .name)
         self.type = try container.decode(DependencyType.self, forKey: .type)
         self.path = try container.decode(URL.self, forKey: .path)
         self.size = try container.decode(Int64.self, forKey: .size)
         self.version = try container.decodeIfPresent(String.self, forKey: .version)
-        self.id = UUID() // Generate new ID on decode
     }
 
     enum DependencyType: String, Sendable, Codable {
