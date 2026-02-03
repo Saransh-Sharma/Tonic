@@ -1373,11 +1373,11 @@ struct FeedbackSheetView: View {
     private var systemArchitecture: String {
         var sysinfo = utsname()
         uname(&sysinfo)
-        // Convert the machine field (Int8 array) to String
-        return withUnsafeBytes(of: &sysinfo.machine) { rawBuffer in
-            let baseAddr = rawBuffer.baseAddress?.assumingMemoryBound(to: CChar.self)
-            return String(cString: baseAddr!)
+        // Convert Int8 array to UInt8 array for String(decodingCString:as:)
+        let machineData = withUnsafeBytes(of: &sysinfo.machine) { rawBuffer in
+            Data(rawBuffer)
         }
+        return String(data: machineData, encoding: .utf8)?.trimmingCharacters(in: .controlCharacters) ?? "unknown"
     }
 }
 
