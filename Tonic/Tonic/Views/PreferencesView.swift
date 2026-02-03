@@ -1373,7 +1373,11 @@ struct FeedbackSheetView: View {
     private var systemArchitecture: String {
         var sysinfo = utsname()
         uname(&sysinfo)
-        return String(cString: &sysinfo.machine.0)
+        // Copy the machine string to avoid exclusive access issues
+        var machineBytes = sysinfo.machine
+        return withUnsafePointer(to: &machineBytes.0) {
+            String(cString: $0)
+        }
     }
 }
 

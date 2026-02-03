@@ -65,7 +65,11 @@ struct SystemInfo: Codable {
         self.architecture = {
             var sysinfo = utsname()
             uname(&sysinfo)
-            return String(cString: &sysinfo.machine.0)
+            // Copy the machine string to avoid exclusive access issues
+            var machineBytes = sysinfo.machine
+            return withUnsafePointer(to: &machineBytes.0) {
+                String(cString: $0)
+            }
         }()
         self.processorCount = processInfo.processorCount
         self.totalMemory = processInfo.physicalMemory

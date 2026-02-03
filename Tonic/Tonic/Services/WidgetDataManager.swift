@@ -1852,10 +1852,8 @@ public final class WidgetDataManager {
         var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
         let result = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
 
-        guard result > 0,
-              let path = String(cString: pathBuffer) as String? else {
-            return nil
-        }
+        guard result > 0 else { return nil }
+        let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 
         // Check if this is an app bundle
         if path.contains(".app/") {
@@ -2344,10 +2342,8 @@ public final class WidgetDataManager {
             var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
             let pathResult = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
 
-            guard pathResult > 0,
-                  let path = String(cString: pathBuffer) as String? else {
-                continue
-            }
+            guard pathResult > 0 else { continue }
+            let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 
             let processName = (path as NSString).lastPathComponent
 
@@ -2671,7 +2667,7 @@ public final class WidgetDataManager {
                                             &hostname, socklen_t(hostname.count),
                                             nil, socklen_t(0), NI_NUMERICHOST)
                     if result == 0 {
-                        address = String(cString: hostname)
+                        address = String(decodingCString: hostname.map { UInt8(bitPattern: $0) }, as: UTF8.self)
                     }
                 }
             }
