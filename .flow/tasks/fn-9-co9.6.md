@@ -1,9 +1,9 @@
-- [ ] All Codable warnings removed (5 structs)
-- [ ] All `String(cString:)` warnings removed (search project-wide)
-- [ ] IDs are preserved on decode when present (stable identity maintained)
-- [ ] New instances still get generated UUIDs
-- [ ] Existing persisted data still decodes correctly
-- [ ] Build succeeds
+- [x] All Codable warnings removed (5 structs)
+- [x] All `String(cString:)` warnings removed (search project-wide)
+- [x] IDs are preserved on decode when present (stable identity maintained)
+- [x] New instances still get generated UUIDs
+- [x] Existing persisted data still decodes correctly
+- [x] Build succeeds
 
 ## Test Commands
 ```bash
@@ -13,3 +13,6 @@ rg "String\(cString:" Tonic/Tonic/ --type swift
 # Count Codable warnings
 xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E "immutable property.*will not be decoded" | wc -l
 ```
+
+## Done summary
+Replaced String(cString:) with safer alternatives for array buffers. Fixed utsname.machine access to avoid Swift 6 concurrency warnings.
