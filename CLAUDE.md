@@ -7,9 +7,41 @@
 **Tonic** is a native macOS utility application built with SwiftUI for system management and optimization. It provides disk cleanup, performance monitoring, app management, and menu bar widgets through a polished native interface.
 
 - **Platform**: macOS 14.0 (Sonoma) or later
-- **Language**: Swift
+- **Language**: Swift 6.2
 - **UI Framework**: SwiftUI
 - **Architecture**: MVVM with Observable pattern (macOS 14+)
+
+## Development Setup
+
+See [SETUP.md](SETUP.md) for complete development environment setup.
+
+### Quick Start
+
+```bash
+# Install dependencies
+brew install xcodegen swiftformat swiftlint
+
+# Generate Xcode project
+xcodegen generate
+
+# Open in Xcode
+open Tonic/Tonic.xcodeproj
+```
+
+### Code Quality
+
+```bash
+# Format code
+./Scripts/format.sh
+
+# Lint code
+./Scripts/lint.sh
+```
+
+### Prerequisites
+- macOS 14.0+
+- Xcode 16.0+
+- XcodeGen, SwiftFormat, SwiftLint (via Homebrew)
 
 ## Quick Reference
 
@@ -326,10 +358,21 @@ Note: Data collection is centralized in `WidgetDataManager` using inline methods
 3. Add to ContentView switch statement
 4. Add sidebar icon (SF Symbol)
 
-## Testing Notes
+## Testing
 
-- No test suite currently exists
-- Manual testing via Xcode
+### Running Tests
+
+```bash
+# Run all tests via xcodebuild
+xcodebuild test -scheme Tonic -project Tonic/Tonic.xcodeproj
+
+# Or use Xcode Test Navigator (Cmd+6)
+```
+
+### Test Notes
+- Test framework: XCTest
+- Test directory: `Tonic/TonicTests/`
+- Manual testing via Xcode recommended for UI features
 - Test permissions on clean macOS install
 - Test helper tool installation/uninstallation
 

@@ -1,0 +1,85 @@
+# SwiftLint configuration for Tonic
+# https://github.com/realm/SwiftLint
+
+# Disabled rules - opt-in only approach
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+
+# Opt-in rules for code quality
+opt_in_rules:
+  - explicit_init
+  - explicit_type_interface
+  - fatal_error_message
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - prohibited_interface_builder
+  - redundant_nil_coalescing
+  - strict_fileprivate
+  - unneeded_parentheses_in_closure_argument
+  - vertical_whitespace_closing_braces
+  - weak_delegate
+
+# Included paths
+included:
+  - Tonic
+
+# Excluded paths
+excluded:
+  - Tonic/.build
+  - Tonic/DerivedData
+  - Tonic/**/*.generated.swift
+
+# Rule configurations
+line_length:
+  warning: 150
+  error: 200
+  ignores_function_declarations: true
+  ignores_comments: true
+  ignores_urls: true
+
+file_length:
+  warning: 500
+  error: 1000
+
+function_body_length:
+  warning: 80
+  error: 150
+
+type_body_length:
+  warning: 350
+  error: 500
+
+identifier_name:
+  min_length:
+    warning: 2
+  max_length:
+    warning: 50
+  excluded:
+    - id
+    - x
+    - y
+    - z
+
+type_name:
+  min_length: 3
+  max_length:
+    warning: 50
+
+custom_rules:
+  # Avoid force unwrap in production code paths
+  no_force_unwrap_critical:
+    name: "No Force Unwrap in Critical Paths"
+    regex: '!\\s*[^=]'
+    match_kinds:
+      - forceunwrapping
+    excluded:
+      - ".*Tests?.swift"
+    message: "Avoid force unwrapping in critical code paths"
+
+  # Ensure proper use of @MainActor
+  main_actor_on_ui_classes:
+    name: "@MainActor on UI Classes"
+    regex: 'class\s+\w+View'
+    message: "UI classes should be marked with @MainActor"

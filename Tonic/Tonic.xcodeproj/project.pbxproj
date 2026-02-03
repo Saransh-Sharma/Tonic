@@ -117,7 +117,6 @@
 		853FDDFA6D5C529DF3E74E0A /* WiFiMetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9478C2E04B1AA8580B97E2EE /* WiFiMetricsService.swift */; };
 		85CA98ECEFF7066DAB9637DE /* DesignTokensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFBFF103C901BA7B56CCA325 /* DesignTokensTests.swift */; };
 		873ED038884970D553EFFD8F /* DiskAnalysisViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C8800321689BBE5473D74C /* DiskAnalysisViewTests.swift */; };
-		88E7D263AAA222DB534111F3 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B8376D12922EBBE44645BC95 /* Main.storyboard */; };
 		8929DF22E2F6D9DD74D1A463 /* DeepCleanEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0ECBF921A693395FFA7E5C /* DeepCleanEngine.swift */; };
 		8AE3C1269C242EEB5FE87AE8 /* DeepCleanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B81CABA22E93AD44451B46E /* DeepCleanView.swift */; };
 		8C309EA15378E6BA94D3C640 /* GaugeSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219A35B350A521D62C191337 /* GaugeSegment.swift */; };
@@ -363,7 +362,6 @@
 		B2EDCA4C395EBFBC64D865E1 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
 		B2FD03443C350B66793E7833 /* NotificationConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationConfig.swift; sourceTree = "<group>"; };
 		B4B47A4B58EAA8412A0B8653 /* PreferenceListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceListTests.swift; sourceTree = "<group>"; };
-		B8376D12922EBBE44645BC95 /* Main.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
 		B848B21FCC1AB8D6E44494D8 /* NetworkWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetView.swift; sourceTree = "<group>"; };
 		B88BA12D204EC655AB3ACE8E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BA8B2535D04217204DFB105E /* OutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutlineView.swift; sourceTree = "<group>"; };
@@ -633,7 +631,6 @@
 			children = (
 				AD2B64BE65F10FE61E5D1F57 /* .gitignore */,
 				040744D4C8314410872CA4DE59F2F798 /* Assets.xcassets */,
-				B8376D12922EBBE44645BC95 /* Main.storyboard */,
 				7D68A6AD143729AF7D467B99 /* TonicApp.swift */,
 				888230F91009656F87B0299C /* Design */,
 				BF5F3F84CC228F0469E6B3DD /* Frameworks */,
@@ -957,7 +954,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F92FCE0E9C214C5D9634A129DCF0BB90 /* Assets.xcassets in Resources */,
-				88E7D263AAA222DB534111F3 /* Main.storyboard in Resources */,
 				6EDA5071C9D5664EF4DA6C94 /* Sparkle.zip in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

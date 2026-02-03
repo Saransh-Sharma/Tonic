@@ -27,8 +27,7 @@ import SwiftUI
 /// Protocol for items that can be displayed in the ActionTable.
 /// Implement this protocol to provide data for the table.
 protocol ActionTableItem: Identifiable, Hashable {
-    associatedtype ID: Hashable
-    var id: ID { get }
+    // ID is inherited from Identifiable
 }
 
 // MARK: - ActionTableColumn
