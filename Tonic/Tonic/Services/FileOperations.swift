@@ -562,8 +562,7 @@ public final class FileOperations: @unchecked Sendable {
 
             // synchronizeFile() is non-throwing on macOS 14+
             // Ensures data is written to disk before proceeding
-            // Note: Using try? to handle both throwing (older SDKs) and non-throwing (macOS 14+) variants
-            try? handle.synchronizeFile()
+            handle.synchronizeFile()
         }
 
         handle.closeFile()
