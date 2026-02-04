@@ -52,6 +52,7 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
     let safeToFix: Bool
     let spaceToReclaim: Int64
     let affectedPaths: [String]
+    let scoreImpact: Int
 
     enum RecommendationType: String, CaseIterable {
         case cache = "Cache"
@@ -789,10 +790,11 @@ struct RecommendationRow: View {
 struct PathDetail: Identifiable, Hashable, Sendable {
     let id = UUID()
     let path: String
-    let size: Int64
+    let size: Int64?
     let isDirectory: Bool
     var isExpanded: Bool = false
     var children: [PathDetail]? = nil
+    var isLoadingChildren: Bool = false
 
     var fileName: String {
         (path as NSString).lastPathComponent
@@ -803,7 +805,8 @@ struct PathDetail: Identifiable, Hashable, Sendable {
     }
 
     var formattedSize: String {
-        ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        guard let size else { return "—" }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 
     var displayPath: String {
@@ -823,6 +826,7 @@ struct RecommendationDetailView: View {
     @State private var selectedItems: Set<String> = []
     @State private var searchText = ""
     @State private var isLoading = true
+    @State private var sizeIndex: [String: Int64] = [:]
 
     @Environment(\.dismiss) private var dismiss
 
@@ -838,7 +842,7 @@ struct RecommendationDetailView: View {
 
     private var totalSelectedSize: Int64 {
         selectedItems.reduce(0) { total, path in
-            total + (pathDetails.first { $0.path == path }?.size ?? 0)
+            total + (sizeIndex[path] ?? 0)
         }
     }
 
@@ -1052,78 +1056,99 @@ struct RecommendationDetailView: View {
 
         Task {
             var details: [PathDetail] = []
+            var sizes: [String: Int64] = [:]
 
             for path in recommendation.affectedPaths {
                 let detail = await createPathDetail(from: path)
                 details.append(detail)
+                if let size = detail.size {
+                    sizes[detail.path] = size
+                }
             }
 
             // Sort by size (descending)
-            details.sort { $0.size > $1.size }
+            details.sort { ($0.size ?? 0) > ($1.size ?? 0) }
 
             await MainActor.run {
                 pathDetails = details
+                sizeIndex = sizes
                 isLoading = false
             }
         }
     }
 
     private func createPathDetail(from path: String) async -> PathDetail {
-        var isDirectory: ObjCBool = false
-        let fileManager = FileManager.default
-
-        fileManager.fileExists(atPath: path, isDirectory: &isDirectory)
-
-        var size: Int64 = 0
-        var children: [PathDetail]? = nil
-
-        if isDirectory.boolValue {
-            // Get directory size and contents
-            if let enumerator = fileManager.enumerator(atPath: path) {
-                var childPaths: [String] = []
-
-                // Collect all files first to avoid async context issues
-                let allFiles = enumerator.compactMap { $0 as? String }
-
-                for file in allFiles {
-                    let fullPath = (path as NSString).appendingPathComponent(file)
-                    childPaths.append(fullPath)
-
-                    if let attributes = try? fileManager.attributesOfItem(atPath: fullPath),
-                       let fileSize = attributes[.size] as? Int64 {
-                        size += fileSize
-                    }
-                }
-
-                // Create child details (limit to first 50 for performance)
-                children = Array(childPaths.prefix(50)).map { childPath in
-                    PathDetail(
-                        path: childPath,
-                        size: (try? fileManager.attributesOfItem(atPath: childPath)[.size] as? Int64) ?? 0,
-                        isDirectory: (try? fileManager.attributesOfItem(atPath: childPath)[.type] as? FileAttributeType == .typeDirectory) ?? false
-                    )
-                }
-            }
-        } else {
-            // Single file size
-            if let attributes = try? fileManager.attributesOfItem(atPath: path),
-               let fileSize = attributes[.size] as? Int64 {
-                size = fileSize
-            }
-        }
+        let url = URL(fileURLWithPath: path)
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+        let isDirectory = values?.isDirectory ?? false
+        let size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
 
         return PathDetail(
             path: path,
             size: size,
-            isDirectory: isDirectory.boolValue,
+            isDirectory: isDirectory,
             isExpanded: false,
-            children: children
+            children: nil,
+            isLoadingChildren: false
         )
     }
 
     private func toggleExpansion(_ detail: PathDetail) {
-        if let index = pathDetails.firstIndex(where: { $0.id == detail.id }) {
-            pathDetails[index].isExpanded.toggle()
+        guard let index = pathDetails.firstIndex(where: { $0.id == detail.id }) else { return }
+
+        if pathDetails[index].isExpanded {
+            pathDetails[index].isExpanded = false
+            return
+        }
+
+        if pathDetails[index].children != nil {
+            pathDetails[index].isExpanded = true
+            return
+        }
+
+        pathDetails[index].isLoadingChildren = true
+
+        Task {
+            let children = await loadChildren(for: detail.path)
+            await MainActor.run {
+                pathDetails[index].children = children
+                pathDetails[index].isLoadingChildren = false
+                pathDetails[index].isExpanded = true
+
+                for child in children {
+                    if let size = child.size {
+                        sizeIndex[child.path] = size
+                    }
+                }
+            }
+        }
+    }
+
+    private func loadChildren(for path: String) async -> [PathDetail] {
+        let fileManager = FileManager.default
+        let url = URL(fileURLWithPath: path)
+
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        let limited = contents.prefix(100)
+        return limited.map { childURL in
+            let values = try? childURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+            let isDirectory = values?.isDirectory ?? false
+            let size = isDirectory ? nil : Int64(values?.fileSize ?? 0)
+            return PathDetail(
+                path: childURL.path,
+                size: size,
+                isDirectory: isDirectory,
+                isExpanded: false,
+                children: nil,
+                isLoadingChildren: false
+            )
         }
     }
 }
@@ -1155,16 +1180,22 @@ struct PathDetailRow: View {
                 .buttonStyle(.plain)
 
                 // Expand/collapse for directories
-                if detail.isDirectory && (detail.children?.isEmpty == false) {
-                    Button {
-                        toggleExpansion(detail)
-                    } label: {
-                        Image(systemName: detail.isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.secondary)
-                            .frame(width: 16)
+                if detail.isDirectory {
+                    if detail.isLoadingChildren {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Button {
+                            toggleExpansion(detail)
+                        } label: {
+                            Image(systemName: detail.isExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.secondary)
+                                .frame(width: 16)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 } else {
                     Spacer()
                         .frame(width: 16)
