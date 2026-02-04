@@ -13,15 +13,24 @@ import OSLog
 
 final class RecommendationGenerator {
     private let logger = Logger(subsystem: "com.tonic.app", category: "RecommendationGenerator")
+    private let scoreCalculator = HealthScoreCalculator()
 
     func generateRecommendations(from scanResult: ScanResult) -> [ScanRecommendation] {
         var recommendations: [ScanRecommendation] = []
 
+        let basePenalties = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: scanResult.junkFiles,
+            performanceIssues: scanResult.performanceIssues,
+            appIssues: scanResult.appIssues,
+            privacyIssues: scanResult.privacyIssues
+        )
+
         // Generate recommendations for each category
-        recommendations.append(contentsOf: generateJunkRecommendations(from: scanResult.junkFiles))
-        recommendations.append(contentsOf: generatePerformanceRecommendations(from: scanResult.performanceIssues))
-        recommendations.append(contentsOf: generateAppRecommendations(from: scanResult.appIssues))
-        recommendations.append(contentsOf: generatePrivacyRecommendations(from: scanResult.privacyIssues))
+        recommendations.append(contentsOf: generateJunkRecommendations(from: scanResult, basePenalties: basePenalties))
+        recommendations.append(contentsOf: generatePerformanceRecommendations(from: scanResult, basePenalties: basePenalties))
+        recommendations.append(contentsOf: generateAppRecommendations(from: scanResult, basePenalties: basePenalties))
+        recommendations.append(contentsOf: generatePrivacyRecommendations(from: scanResult, basePenalties: basePenalties))
 
         // Sort by priority (size saved, then safety)
         recommendations.sort { rec1, rec2 in
@@ -39,11 +48,28 @@ final class RecommendationGenerator {
 
     // MARK: - Junk Recommendations
 
-    private func generateJunkRecommendations(from junkFiles: JunkCategory) -> [ScanRecommendation] {
+    private func generateJunkRecommendations(
+        from scanResult: ScanResult,
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown
+    ) -> [ScanRecommendation] {
         var recommendations: [ScanRecommendation] = []
+        let junkFiles = scanResult.junkFiles
 
         // Temporary files
         if junkFiles.tempFiles.size > 50 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: FileGroup(name: junkFiles.tempFiles.name, description: junkFiles.tempFiles.description),
+                cacheFiles: junkFiles.cacheFiles,
+                logFiles: junkFiles.logFiles,
+                trashItems: junkFiles.trashItems,
+                languageFiles: junkFiles.languageFiles,
+                oldFiles: junkFiles.oldFiles
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .tempFiles,
                 title: "Clear Temporary Files",
@@ -51,13 +77,27 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: junkFiles.tempFiles.size,
-                affectedPaths: junkFiles.tempFiles.paths
+                affectedPaths: junkFiles.tempFiles.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Cache files
         if junkFiles.cacheFiles.size > 100 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: junkFiles.tempFiles,
+                cacheFiles: FileGroup(name: junkFiles.cacheFiles.name, description: junkFiles.cacheFiles.description),
+                logFiles: junkFiles.logFiles,
+                trashItems: junkFiles.trashItems,
+                languageFiles: junkFiles.languageFiles,
+                oldFiles: junkFiles.oldFiles
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .cache,
                 title: "Clear Application Caches",
@@ -65,13 +105,27 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: junkFiles.cacheFiles.size,
-                affectedPaths: junkFiles.cacheFiles.paths
+                affectedPaths: junkFiles.cacheFiles.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Log files
         if junkFiles.logFiles.size > 50 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: junkFiles.tempFiles,
+                cacheFiles: junkFiles.cacheFiles,
+                logFiles: FileGroup(name: junkFiles.logFiles.name, description: junkFiles.logFiles.description),
+                trashItems: junkFiles.trashItems,
+                languageFiles: junkFiles.languageFiles,
+                oldFiles: junkFiles.oldFiles
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .logs,
                 title: "Clear Old Log Files",
@@ -79,13 +133,27 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: junkFiles.logFiles.size,
-                affectedPaths: junkFiles.logFiles.paths
+                affectedPaths: junkFiles.logFiles.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Trash items
         if junkFiles.trashItems.size > 10 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: junkFiles.tempFiles,
+                cacheFiles: junkFiles.cacheFiles,
+                logFiles: junkFiles.logFiles,
+                trashItems: FileGroup(name: junkFiles.trashItems.name, description: junkFiles.trashItems.description),
+                languageFiles: junkFiles.languageFiles,
+                oldFiles: junkFiles.oldFiles
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .trash,
                 title: "Empty Trash",
@@ -93,13 +161,27 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: junkFiles.trashItems.size,
-                affectedPaths: junkFiles.trashItems.paths
+                affectedPaths: junkFiles.trashItems.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Language files
         if junkFiles.languageFiles.size > 50 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: junkFiles.tempFiles,
+                cacheFiles: junkFiles.cacheFiles,
+                logFiles: junkFiles.logFiles,
+                trashItems: junkFiles.trashItems,
+                languageFiles: FileGroup(name: junkFiles.languageFiles.name, description: junkFiles.languageFiles.description),
+                oldFiles: junkFiles.oldFiles
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .languageFiles,
                 title: "Remove Unused Language Files",
@@ -107,13 +189,27 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: junkFiles.languageFiles.size,
-                affectedPaths: junkFiles.languageFiles.paths
+                affectedPaths: junkFiles.languageFiles.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Old files
         if junkFiles.oldFiles.size > 100 * 1024 * 1024 {
+            let updated = JunkCategory(
+                tempFiles: junkFiles.tempFiles,
+                cacheFiles: junkFiles.cacheFiles,
+                logFiles: junkFiles.logFiles,
+                trashItems: junkFiles.trashItems,
+                languageFiles: junkFiles.languageFiles,
+                oldFiles: FileGroup(name: junkFiles.oldFiles.name, description: junkFiles.oldFiles.description)
+            )
+            let impact = junkScoreImpact(
+                basePenalties: basePenalties,
+                updatedJunk: updated,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .oldFiles,
                 title: "Remove Old Downloads",
@@ -121,7 +217,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: junkFiles.oldFiles.size,
-                affectedPaths: junkFiles.oldFiles.paths
+                affectedPaths: junkFiles.oldFiles.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -131,11 +228,27 @@ final class RecommendationGenerator {
 
     // MARK: - Performance Recommendations
 
-    private func generatePerformanceRecommendations(from performanceIssues: PerformanceCategory) -> [ScanRecommendation] {
+    private func generatePerformanceRecommendations(
+        from scanResult: ScanResult,
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown
+    ) -> [ScanRecommendation] {
         var recommendations: [ScanRecommendation] = []
+        let performanceIssues = scanResult.performanceIssues
 
         // Browser caches
         if performanceIssues.browserCaches.size > 500 * 1024 * 1024 {
+            let updatedPerformance = PerformanceCategory(
+                launchAgents: performanceIssues.launchAgents,
+                loginItems: performanceIssues.loginItems,
+                browserCaches: FileGroup(name: performanceIssues.browserCaches.name, description: performanceIssues.browserCaches.description),
+                memoryIssues: performanceIssues.memoryIssues,
+                diskFragmentation: performanceIssues.diskFragmentation
+            )
+            let impact = cacheScoreImpact(
+                basePenalties: basePenalties,
+                updatedPerformance: updatedPerformance,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .cache,
                 title: "Clear Browser Caches",
@@ -143,7 +256,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: performanceIssues.browserCaches.size,
-                affectedPaths: performanceIssues.browserCaches.paths
+                affectedPaths: performanceIssues.browserCaches.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -157,7 +271,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: 0,
-                affectedPaths: performanceIssues.launchAgents.paths
+                affectedPaths: performanceIssues.launchAgents.paths,
+                scoreImpact: 0
             )
             recommendations.append(rec)
         }
@@ -167,12 +282,27 @@ final class RecommendationGenerator {
 
     // MARK: - App Recommendations
 
-    private func generateAppRecommendations(from appIssues: AppIssueCategory) -> [ScanRecommendation] {
+    private func generateAppRecommendations(
+        from scanResult: ScanResult,
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown
+    ) -> [ScanRecommendation] {
         var recommendations: [ScanRecommendation] = []
+        let appIssues = scanResult.appIssues
 
         // Unused apps
         if !appIssues.unusedApps.isEmpty {
             let totalSize = appIssues.unusedApps.reduce(0) { $0 + $1.totalSize }
+            let updatedAppIssues = AppIssueCategory(
+                unusedApps: [],
+                largeApps: appIssues.largeApps,
+                duplicateApps: appIssues.duplicateApps,
+                orphanedFiles: appIssues.orphanedFiles
+            )
+            let impact = appScoreImpact(
+                basePenalties: basePenalties,
+                updatedAppIssues: updatedAppIssues,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .oldApps,
                 title: "Uninstall Unused Applications",
@@ -180,7 +310,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: totalSize,
-                affectedPaths: appIssues.unusedApps.map { $0.path.path }
+                affectedPaths: appIssues.unusedApps.map { $0.path.path },
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -188,6 +319,17 @@ final class RecommendationGenerator {
         // Duplicate apps
         if !appIssues.duplicateApps.isEmpty {
             let totalSize = appIssues.duplicateApps.reduce(0) { $0 + $1.totalSize }
+            let updatedAppIssues = AppIssueCategory(
+                unusedApps: appIssues.unusedApps,
+                largeApps: appIssues.largeApps,
+                duplicateApps: [],
+                orphanedFiles: appIssues.orphanedFiles
+            )
+            let impact = appScoreImpact(
+                basePenalties: basePenalties,
+                updatedAppIssues: updatedAppIssues,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .oldApps,
                 title: "Remove Duplicate Applications",
@@ -197,13 +339,25 @@ final class RecommendationGenerator {
                 spaceToReclaim: totalSize,
                 affectedPaths: appIssues.duplicateApps.flatMap { dup in
                     dup.versions.dropFirst().map { $0.path.path }
-                }
+                },
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Large apps
         if !appIssues.largeApps.isEmpty {
+            let updatedAppIssues = AppIssueCategory(
+                unusedApps: appIssues.unusedApps,
+                largeApps: [],
+                duplicateApps: appIssues.duplicateApps,
+                orphanedFiles: appIssues.orphanedFiles
+            )
+            let impact = appScoreImpact(
+                basePenalties: basePenalties,
+                updatedAppIssues: updatedAppIssues,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .largeApps,
                 title: "Review Large Applications",
@@ -211,7 +365,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: 0,
-                affectedPaths: appIssues.largeApps.map { $0.path.path }
+                affectedPaths: appIssues.largeApps.map { $0.path.path },
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -219,6 +374,17 @@ final class RecommendationGenerator {
         // Orphaned files
         if !appIssues.orphanedFiles.isEmpty {
             let totalSize = appIssues.orphanedFiles.reduce(0) { $0 + $1.size }
+            let updatedAppIssues = AppIssueCategory(
+                unusedApps: appIssues.unusedApps,
+                largeApps: appIssues.largeApps,
+                duplicateApps: appIssues.duplicateApps,
+                orphanedFiles: []
+            )
+            let impact = orphanedScoreImpact(
+                basePenalties: basePenalties,
+                updatedAppIssues: updatedAppIssues,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .oldApps,
                 title: "Remove Orphaned Application Files",
@@ -226,7 +392,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: true,
                 spaceToReclaim: totalSize,
-                affectedPaths: appIssues.orphanedFiles.map { $0.path }
+                affectedPaths: appIssues.orphanedFiles.map { $0.path },
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -236,11 +403,26 @@ final class RecommendationGenerator {
 
     // MARK: - Privacy Recommendations
 
-    private func generatePrivacyRecommendations(from privacyIssues: PrivacyCategory) -> [ScanRecommendation] {
+    private func generatePrivacyRecommendations(
+        from scanResult: ScanResult,
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown
+    ) -> [ScanRecommendation] {
         var recommendations: [ScanRecommendation] = []
+        let privacyIssues = scanResult.privacyIssues
 
         // Browser history
         if privacyIssues.browserHistory.size > 100 * 1024 * 1024 {
+            let updatedPrivacy = PrivacyCategory(
+                browserHistory: FileGroup(name: privacyIssues.browserHistory.name, description: privacyIssues.browserHistory.description),
+                downloadHistory: privacyIssues.downloadHistory,
+                recentDocuments: privacyIssues.recentDocuments,
+                clipboardData: privacyIssues.clipboardData
+            )
+            let impact = privacyScoreImpact(
+                basePenalties: basePenalties,
+                updatedPrivacy: updatedPrivacy,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .privacyData,
                 title: "Clear Browser History",
@@ -248,13 +430,25 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: privacyIssues.browserHistory.size,
-                affectedPaths: privacyIssues.browserHistory.paths
+                affectedPaths: privacyIssues.browserHistory.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
 
         // Download history
         if privacyIssues.downloadHistory.size > 1024 * 1024 * 1024 {
+            let updatedPrivacy = PrivacyCategory(
+                browserHistory: privacyIssues.browserHistory,
+                downloadHistory: FileGroup(name: privacyIssues.downloadHistory.name, description: privacyIssues.downloadHistory.description),
+                recentDocuments: privacyIssues.recentDocuments,
+                clipboardData: privacyIssues.clipboardData
+            )
+            let impact = privacyScoreImpact(
+                basePenalties: basePenalties,
+                updatedPrivacy: updatedPrivacy,
+                scanResult: scanResult
+            )
             let rec = ScanRecommendation(
                 type: .privacyData,
                 title: "Clean Up Old Downloads",
@@ -262,7 +456,8 @@ final class RecommendationGenerator {
                 actionable: true,
                 safeToFix: false,
                 spaceToReclaim: privacyIssues.downloadHistory.size,
-                affectedPaths: privacyIssues.downloadHistory.paths
+                affectedPaths: privacyIssues.downloadHistory.paths,
+                scoreImpact: impact
             )
             recommendations.append(rec)
         }
@@ -292,5 +487,80 @@ final class RecommendationGenerator {
             return String(format: "%.1f K", Double(count) / 1000)
         }
         return "\(count)"
+    }
+
+    private func junkScoreImpact(
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
+        updatedJunk: JunkCategory,
+        scanResult: ScanResult
+    ) -> Int {
+        let updated = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: updatedJunk,
+            performanceIssues: scanResult.performanceIssues,
+            appIssues: scanResult.appIssues,
+            privacyIssues: scanResult.privacyIssues
+        )
+        return max(0, basePenalties.junk - updated.junk)
+    }
+
+    private func cacheScoreImpact(
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
+        updatedPerformance: PerformanceCategory,
+        scanResult: ScanResult
+    ) -> Int {
+        let updated = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: scanResult.junkFiles,
+            performanceIssues: updatedPerformance,
+            appIssues: scanResult.appIssues,
+            privacyIssues: scanResult.privacyIssues
+        )
+        return max(0, basePenalties.cache - updated.cache)
+    }
+
+    private func appScoreImpact(
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
+        updatedAppIssues: AppIssueCategory,
+        scanResult: ScanResult
+    ) -> Int {
+        let updated = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: scanResult.junkFiles,
+            performanceIssues: scanResult.performanceIssues,
+            appIssues: updatedAppIssues,
+            privacyIssues: scanResult.privacyIssues
+        )
+        return max(0, basePenalties.app - updated.app)
+    }
+
+    private func orphanedScoreImpact(
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
+        updatedAppIssues: AppIssueCategory,
+        scanResult: ScanResult
+    ) -> Int {
+        let updated = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: scanResult.junkFiles,
+            performanceIssues: scanResult.performanceIssues,
+            appIssues: updatedAppIssues,
+            privacyIssues: scanResult.privacyIssues
+        )
+        return max(0, basePenalties.orphaned - updated.orphaned)
+    }
+
+    private func privacyScoreImpact(
+        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
+        updatedPrivacy: PrivacyCategory,
+        scanResult: ScanResult
+    ) -> Int {
+        let updated = scoreCalculator.penaltyBreakdown(
+            diskUsage: nil,
+            junkFiles: scanResult.junkFiles,
+            performanceIssues: scanResult.performanceIssues,
+            appIssues: scanResult.appIssues,
+            privacyIssues: updatedPrivacy
+        )
+        return max(0, basePenalties.privacy - updated.privacy)
     }
 }
