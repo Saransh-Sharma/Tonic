@@ -209,14 +209,16 @@ final class SmartScanEngine: @unchecked Sendable {
             clipboardData: FileGroup(name: "Clipboard", description: "")
         )
 
-        // Calculate health score using new comprehensive calculator
-        let healthScore = healthScoreCalculator.calculateScore(
+        let legacyHealthScore = healthScoreCalculator.calculateScore(
             diskUsage: diskUsage,
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
             appIssues: appIssues,
             privacyIssues: privacyIssues
         )
+        // Use scan-derived score only for Smart Scan to ensure stable results
+        // when the scan findings haven't changed.
+        let systemHealthScore = legacyHealthScore
 
         // Calculate total reclaimable space from all categories
         let unusedAppsSize = appIssues.unusedApps.reduce(Int64(0)) { $0 + $1.totalSize }
@@ -239,13 +241,65 @@ final class SmartScanEngine: @unchecked Sendable {
         return ScanResult(
             id: UUID(),
             timestamp: Date(),
-            healthScore: healthScore,
+            healthScore: systemHealthScore,
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
             appIssues: appIssues,
             privacyIssues: privacyIssues,
             totalReclaimableSpace: totalReclaimableSpace
         )
+    }
+
+    private func calculateSystemHealthScore(fallbackScore: Int) async -> Int {
+        await ensureSystemMetrics()
+        let metrics = await snapshotSystemMetrics()
+        guard metrics.cpuUsagePercent > 0 || metrics.memoryUsedPercent > 0 || metrics.diskUsedPercent != nil else {
+            return fallbackScore
+        }
+        return healthScoreCalculator.calculateSystemScore(metrics: metrics).score
+    }
+
+    private func ensureSystemMetrics() async {
+        let hasMonitoring = await MainActor.run {
+            WidgetDataManager.shared.isMonitoring
+        }
+        if !hasMonitoring {
+            await MainActor.run {
+                WidgetDataManager.shared.startMonitoring()
+            }
+        }
+
+        let snapshot = await MainActor.run {
+            (WidgetDataManager.shared.cpuData, WidgetDataManager.shared.memoryData, WidgetDataManager.shared.diskVolumes)
+        }
+
+        let hasData = snapshot.0.totalUsage > 0 || snapshot.1.totalBytes > 0 || !snapshot.2.isEmpty
+        if !hasData {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+    }
+
+    private func snapshotSystemMetrics() async -> HealthScoreCalculator.SystemHealthMetrics {
+        await MainActor.run {
+            let cpu = WidgetDataManager.shared.cpuData
+            let memory = WidgetDataManager.shared.memoryData
+            let disk = WidgetDataManager.shared.diskVolumes.first(where: { $0.isBootVolume }) ?? WidgetDataManager.shared.diskVolumes.first
+            let sensors = WidgetDataManager.shared.sensorsData
+
+            let cpuTemp = cpu.temperature ?? sensors.temperatures.map({ $0.value }).max()
+            let diskReadMBps = (disk?.readBytesPerSecond ?? 0) / 1_000_000
+            let diskWriteMBps = (disk?.writeBytesPerSecond ?? 0) / 1_000_000
+
+            return HealthScoreCalculator.SystemHealthMetrics(
+                cpuUsagePercent: cpu.totalUsage,
+                memoryUsedPercent: memory.usagePercentage,
+                memoryPressure: memory.pressure,
+                diskUsedPercent: disk?.usagePercentage,
+                cpuTemperatureCelsius: cpuTemp,
+                diskReadMBps: diskReadMBps,
+                diskWriteMBps: diskWriteMBps
+            )
+        }
     }
 
     // MARK: - Fix Actions
