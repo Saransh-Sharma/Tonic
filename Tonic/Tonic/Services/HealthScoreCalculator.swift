@@ -14,6 +14,16 @@ import OSLog
 final class HealthScoreCalculator {
     private let logger = Logger(subsystem: "com.tonic.app", category: "HealthScoreCalculator")
 
+    struct SystemHealthMetrics {
+        let cpuUsagePercent: Double
+        let memoryUsedPercent: Double
+        let memoryPressure: MemoryPressure
+        let diskUsedPercent: Double?
+        let cpuTemperatureCelsius: Double?
+        let diskReadMBps: Double
+        let diskWriteMBps: Double
+    }
+
     // Score weightings (total 100 points available)
     private let diskUsageWeight = 30
     private let cacheWeight = 25
@@ -60,6 +70,131 @@ final class HealthScoreCalculator {
         )
 
         return max(score, 0)
+    }
+
+    // MARK: - System Health Score (Mole parity)
+
+    func calculateSystemScore(metrics: SystemHealthMetrics) -> (score: Int, message: String) {
+        let cpuNormalThreshold = 30.0
+        let cpuHighThreshold = 70.0
+        let memNormalThreshold = 50.0
+        let memHighThreshold = 80.0
+        let memPressureWarnPenalty = 5.0
+        let memPressureCritPenalty = 15.0
+        let diskWarnThreshold = 70.0
+        let diskCritThreshold = 90.0
+        let thermalNormalThreshold = 60.0
+        let thermalHighThreshold = 85.0
+        let ioNormalThreshold = 50.0
+        let ioHighThreshold = 150.0
+
+        let healthCPUWeight = 30.0
+        let healthMemWeight = 25.0
+        let healthDiskWeight = 20.0
+        let healthThermalWeight = 15.0
+        let healthIOWeight = 10.0
+
+        var score = 100.0
+        var issues: [String] = []
+
+        // CPU penalty
+        if metrics.cpuUsagePercent > cpuNormalThreshold {
+            let cpuPenalty: Double
+            if metrics.cpuUsagePercent > cpuHighThreshold {
+                cpuPenalty = healthCPUWeight * (metrics.cpuUsagePercent - cpuNormalThreshold) / cpuHighThreshold
+            } else {
+                cpuPenalty = (healthCPUWeight / 2) * (metrics.cpuUsagePercent - cpuNormalThreshold) / (cpuHighThreshold - cpuNormalThreshold)
+            }
+            score -= cpuPenalty
+            if metrics.cpuUsagePercent > cpuHighThreshold {
+                issues.append("High CPU")
+            }
+        }
+
+        // Memory penalty
+        if metrics.memoryUsedPercent > memNormalThreshold {
+            let memPenalty: Double
+            if metrics.memoryUsedPercent > memHighThreshold {
+                memPenalty = healthMemWeight * (metrics.memoryUsedPercent - memNormalThreshold) / memNormalThreshold
+            } else {
+                memPenalty = (healthMemWeight / 2) * (metrics.memoryUsedPercent - memNormalThreshold) / (memHighThreshold - memNormalThreshold)
+            }
+            score -= memPenalty
+            if metrics.memoryUsedPercent > memHighThreshold {
+                issues.append("High Memory")
+            }
+        }
+
+        // Memory pressure penalty
+        switch metrics.memoryPressure {
+        case .warning:
+            score -= memPressureWarnPenalty
+            issues.append("Memory Pressure")
+        case .critical:
+            score -= memPressureCritPenalty
+            issues.append("Critical Memory")
+        case .normal:
+            break
+        }
+
+        // Disk penalty
+        if let diskUsage = metrics.diskUsedPercent, diskUsage > diskWarnThreshold {
+            let diskPenalty: Double
+            if diskUsage > diskCritThreshold {
+                diskPenalty = healthDiskWeight * (diskUsage - diskWarnThreshold) / (100 - diskWarnThreshold)
+            } else {
+                diskPenalty = (healthDiskWeight / 2) * (diskUsage - diskWarnThreshold) / (diskCritThreshold - diskWarnThreshold)
+            }
+            score -= diskPenalty
+            if diskUsage > diskCritThreshold {
+                issues.append("Disk Almost Full")
+            }
+        }
+
+        // Thermal penalty
+        if let cpuTemp = metrics.cpuTemperatureCelsius, cpuTemp > thermalNormalThreshold {
+            if cpuTemp > thermalHighThreshold {
+                score -= healthThermalWeight
+                issues.append("Overheating")
+            } else {
+                let thermalPenalty = healthThermalWeight * (cpuTemp - thermalNormalThreshold) / (thermalHighThreshold - thermalNormalThreshold)
+                score -= thermalPenalty
+            }
+        }
+
+        // Disk IO penalty (MB/s)
+        let totalIO = metrics.diskReadMBps + metrics.diskWriteMBps
+        if totalIO > ioNormalThreshold {
+            let ioPenalty: Double
+            if totalIO > ioHighThreshold {
+                ioPenalty = healthIOWeight
+                issues.append("Heavy Disk IO")
+            } else {
+                ioPenalty = healthIOWeight * (totalIO - ioNormalThreshold) / (ioHighThreshold - ioNormalThreshold)
+            }
+            score -= ioPenalty
+        }
+
+        score = max(0, min(100, score))
+
+        let rating: String
+        switch score {
+        case 90...:
+            rating = "Excellent"
+        case 75..<90:
+            rating = "Good"
+        case 60..<75:
+            rating = "Fair"
+        case 40..<60:
+            rating = "Poor"
+        default:
+            rating = "Critical"
+        }
+
+        let message = issues.isEmpty ? rating : "\(rating): \(issues.joined(separator: ", "))"
+        logger.info("System health score calculated: \(Int(score))/100 (\(message))")
+
+        return (Int(score), message)
     }
 
     // MARK: - Penalty Calculations
