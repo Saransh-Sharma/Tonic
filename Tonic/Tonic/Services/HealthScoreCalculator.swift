@@ -39,37 +39,57 @@ final class HealthScoreCalculator {
         appIssues: AppIssueCategory,
         privacyIssues: PrivacyCategory
     ) -> Int {
-        var score = 100
-
-        // Deduct for disk usage (0-30 points)
-        let diskPenalty = calculateDiskPenalty(diskUsage: diskUsage)
-        score -= diskPenalty
-
-        // Deduct for cache size (0-25 points)
-        let cachePenalty = calculateCachePenalty(performanceIssues: performanceIssues)
-        score -= cachePenalty
-
-        // Deduct for junk files (0-20 points)
-        let junkPenalty = calculateJunkPenalty(junkFiles: junkFiles)
-        score -= junkPenalty
-
-        // Deduct for app issues (0-15 points)
-        let appPenalty = calculateAppPenalty(appIssues: appIssues)
-        score -= appPenalty
-
-        // Deduct for orphaned files (0-10 points)
-        let orphanedPenalty = calculateOrphanedPenalty(appIssues: appIssues)
-        score -= orphanedPenalty
-
-        // Deduct for privacy issues (0-5 points)
-        let privacyPenalty = calculatePrivacyPenalty(privacyIssues: privacyIssues)
-        score -= privacyPenalty
+        let penalties = penaltyBreakdown(
+            diskUsage: diskUsage,
+            junkFiles: junkFiles,
+            performanceIssues: performanceIssues,
+            appIssues: appIssues,
+            privacyIssues: privacyIssues
+        )
+        var score = 100 - penalties.total
 
         logger.info(
-            "Health score calculated: \(max(score, 0))/100 (disk: -\(diskPenalty), cache: -\(cachePenalty), junk: -\(junkPenalty), app: -\(appPenalty), orphaned: -\(orphanedPenalty), privacy: -\(privacyPenalty))"
+            "Health score calculated: \(max(score, 0))/100 (disk: -\(penalties.disk), cache: -\(penalties.cache), junk: -\(penalties.junk), app: -\(penalties.app), orphaned: -\(penalties.orphaned), privacy: -\(penalties.privacy))"
         )
 
         return max(score, 0)
+    }
+
+    struct ScorePenaltyBreakdown {
+        let disk: Int
+        let cache: Int
+        let junk: Int
+        let app: Int
+        let orphaned: Int
+        let privacy: Int
+
+        var total: Int {
+            disk + cache + junk + app + orphaned + privacy
+        }
+    }
+
+    func penaltyBreakdown(
+        diskUsage: DiskUsageSummary?,
+        junkFiles: JunkCategory,
+        performanceIssues: PerformanceCategory,
+        appIssues: AppIssueCategory,
+        privacyIssues: PrivacyCategory
+    ) -> ScorePenaltyBreakdown {
+        let diskPenalty = calculateDiskPenalty(diskUsage: diskUsage)
+        let cachePenalty = calculateCachePenalty(performanceIssues: performanceIssues)
+        let junkPenalty = calculateJunkPenalty(junkFiles: junkFiles)
+        let appPenalty = calculateAppPenalty(appIssues: appIssues)
+        let orphanedPenalty = calculateOrphanedPenalty(appIssues: appIssues)
+        let privacyPenalty = calculatePrivacyPenalty(privacyIssues: privacyIssues)
+
+        return ScorePenaltyBreakdown(
+            disk: diskPenalty,
+            cache: cachePenalty,
+            junk: junkPenalty,
+            app: appPenalty,
+            orphaned: orphanedPenalty,
+            privacy: privacyPenalty
+        )
     }
 
     // MARK: - System Health Score (Mole parity)
