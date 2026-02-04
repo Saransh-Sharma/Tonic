@@ -69,14 +69,34 @@ struct ActivityItem: Identifiable, Equatable {
 // MARK: - Recommendation Model
 
 struct Recommendation: Identifiable, Equatable {
-    let id = UUID()
+    let id: UUID
     let title: String
     let description: String
     let type: RecommendationType
     let category: RecommendationCategory
     let priority: Priority
     let actionText: String
+    let scanRecommendation: ScanRecommendation
+    let scoreImpact: Int
     var isCompleted: Bool = false
+
+    init(
+        scanRecommendation: ScanRecommendation,
+        type: RecommendationType,
+        category: RecommendationCategory,
+        priority: Priority,
+        actionText: String
+    ) {
+        id = scanRecommendation.id
+        title = scanRecommendation.title
+        description = scanRecommendation.description
+        self.type = type
+        self.category = category
+        self.priority = priority
+        self.actionText = actionText
+        self.scanRecommendation = scanRecommendation
+        scoreImpact = scanRecommendation.scoreImpact
+    }
 
     /// Category for grouping recommendations
     enum RecommendationCategory: String, CaseIterable {
@@ -297,8 +317,7 @@ class SmartScanManager: ObservableObject {
 
     private func recommendation(from scanRecommendation: ScanRecommendation) -> Recommendation {
         Recommendation(
-            title: scanRecommendation.title,
-            description: scanRecommendation.description,
+            scanRecommendation: scanRecommendation,
             type: recommendationType(for: scanRecommendation),
             category: recommendationCategory(for: scanRecommendation),
             priority: recommendationPriority(for: scanRecommendation),
@@ -370,6 +389,8 @@ struct DashboardView: View {
     @State private var showWidgetOnboarding = false
     @State private var showHealthScoreExplanation = false
     @State private var isActivityExpanded = false
+    @State private var detailRecommendation: ScanRecommendation?
+    @State private var showingRecommendationDetail = false
 
     var body: some View {
         ScrollView {
@@ -407,6 +428,16 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showWidgetOnboarding) {
             WidgetOnboardingView()
+        }
+        .sheet(isPresented: $showingRecommendationDetail, onDismiss: {
+            detailRecommendation = nil
+        }) {
+            if let recommendation = detailRecommendation {
+                RecommendationDetailView(
+                    recommendation: recommendation,
+                    isPresented: $showingRecommendationDetail
+                )
+            }
         }
         .onAppear {
             if !widgetDataManager.isMonitoring {
@@ -723,11 +754,18 @@ struct DashboardView: View {
                         // Recommendations in this category, sorted by priority
                         let sortedRecommendations = categoryRecommendations.sorted { $0.priority.sortOrder < $1.priority.sortOrder }
                         ForEach(Array(sortedRecommendations.enumerated()), id: \.element.id) { index, recommendation in
-                            DashboardRecommendationRow(recommendation: recommendation) {
-                                Task {
-                                    await handleRecommendation(recommendation)
+                            DashboardRecommendationRow(
+                                recommendation: recommendation,
+                                showDetails: {
+                                    detailRecommendation = recommendation.scanRecommendation
+                                    showingRecommendationDetail = true
+                                },
+                                action: {
+                                    Task {
+                                        await handleRecommendation(recommendation)
+                                    }
                                 }
-                            }
+                            )
 
                             if index < sortedRecommendations.count - 1 {
                                 Divider()
@@ -806,44 +844,61 @@ struct DashboardView: View {
 
 struct DashboardRecommendationRow: View {
     let recommendation: Recommendation
+    let showDetails: () -> Void
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            // Priority icon with background tint
-            ZStack {
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
-                    .fill(recommendation.priority.backgroundColor)
-                    .frame(width: 32, height: 32)
+            Button(action: showDetails) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    // Priority icon with background tint
+                    ZStack {
+                        RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
+                            .fill(recommendation.priority.backgroundColor)
+                            .frame(width: 32, height: 32)
 
-                Image(systemName: recommendation.priority.icon)
-                    .foregroundColor(recommendation.priority.color)
-                    .font(.system(size: 14))
+                        Image(systemName: recommendation.priority.icon)
+                            .foregroundColor(recommendation.priority.color)
+                            .font(.system(size: 14))
+                    }
+
+                    // Content
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recommendation.title)
+                            .font(DesignTokens.Typography.subhead)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                        Text(recommendation.description)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    // Priority badge
+                    Text(recommendation.priority.label)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(recommendation.priority.color)
+                        .padding(.horizontal, DesignTokens.Spacing.xxs)
+                        .padding(.vertical, 2)
+                        .background(recommendation.priority.backgroundColor)
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+
+                    // Score impact badge
+                    Text("Score +\(recommendation.scoreImpact)")
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.accent)
+                        .padding(.horizontal, DesignTokens.Spacing.xxs)
+                        .padding(.vertical, 2)
+                        .background(DesignTokens.Colors.accent.opacity(0.12))
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-
-            // Content
-            VStack(alignment: .leading, spacing: 2) {
-                Text(recommendation.title)
-                    .font(DesignTokens.Typography.subhead)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text(recommendation.description)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            // Priority badge
-            Text(recommendation.priority.label)
-                .font(DesignTokens.Typography.caption)
-                .foregroundColor(recommendation.priority.color)
-                .padding(.horizontal, DesignTokens.Spacing.xxs)
-                .padding(.vertical, 2)
-                .background(recommendation.priority.backgroundColor)
-                .cornerRadius(DesignTokens.CornerRadius.small)
+            .buttonStyle(.plain)
 
             // Action Button
             Button(action: action) {
@@ -867,7 +922,7 @@ struct DashboardRecommendationRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(recommendation.title), \(recommendation.priority.label) priority")
-        .accessibilityHint("Double tap to \(recommendation.actionText.lowercased())")
+        .accessibilityHint("Double tap to view details or \(recommendation.actionText.lowercased())")
     }
 }
 
