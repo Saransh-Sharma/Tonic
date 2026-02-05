@@ -161,3 +161,7 @@ yarn-error.log
 # Local Tonic app data
 Tonic/AppData/
 Tonic/CollectorBin/
+
+# Build outputs and temporary files
+output/
+tmp/
