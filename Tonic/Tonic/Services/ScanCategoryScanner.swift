@@ -18,6 +18,7 @@ import OSLog
 final class ScanCategoryScanner: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.tonic.app", category: "ScanCategoryScanner")
     private let fileManager = FileManager.default
+    private let sizeCache = DirectorySizeCache.shared
     private let lock = NSLock()
 
     // MARK: - Junk Files Scanning
@@ -190,27 +191,32 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         let thresholdDate = Date().addingTimeInterval(-TimeInterval(thresholdDays * 24 * 3600))
 
-        guard let enumerator = fileManager.enumerator(
+        guard let contents = try? fileManager.contentsOfDirectory(
             at: URL(fileURLWithPath: downloadsPath),
-            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
             return FileGroup(name: "Old Files", description: "Old files in Downloads", paths: [], size: 0, count: 0)
         }
 
-        while let url = enumerator.nextObject() as? URL {
-            do {
-                let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-                if let modDate = resourceValues.contentModificationDate, modDate < thresholdDate {
-                    let size = Int64(resourceValues.fileSize ?? 0)
-                    if size > 0 {
-                        paths.append(url.path)
-                        totalSize += size
-                        fileCount += 1
-                    }
+        for url in contents {
+            guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                continue
+            }
+            guard let modDate = resourceValues.contentModificationDate, modDate < thresholdDate else { continue }
+            if resourceValues.isDirectory == true {
+                if let size = sizeCache.size(for: url.path, includeHidden: false) {
+                    paths.append(url.path)
+                    totalSize += size
+                    fileCount += 1
                 }
-            } catch {
-                logger.debug("Error reading file attributes: \(error.localizedDescription)")
+            } else {
+                let size = Int64(resourceValues.fileSize ?? 0)
+                if size > 0 {
+                    paths.append(url.path)
+                    totalSize += size
+                    fileCount += 1
+                }
             }
         }
 
@@ -569,36 +575,38 @@ final class ScanCategoryScanner: @unchecked Sendable {
     // MARK: - Helper Methods
 
     private func measureFilesInPath(_ path: String, minAgeHours: Int = 0) async -> (size: Int64, count: Int) {
-        var totalSize: Int64 = 0
-        var fileCount = 0
         let minAgeDate = minAgeHours > 0 ? Date().addingTimeInterval(-TimeInterval(minAgeHours * 3600)) : nil
+        let baseURL = URL(fileURLWithPath: path)
 
-        guard let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles]
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: baseURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
             return (0, 0)
         }
 
-        while let url = enumerator.nextObject() as? URL {
-            do {
-                let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-                let fileSize = Int64(resourceValues.fileSize ?? 0)
+        var totalSize: Int64 = 0
+        var fileCount = 0
 
-                if fileSize > 0 {
-                    if let minAge = minAgeDate, let modDate = resourceValues.contentModificationDate {
-                        if modDate < minAge {
-                            totalSize += fileSize
-                            fileCount += 1
-                        }
-                    } else {
-                        totalSize += fileSize
-                        fileCount += 1
-                    }
+        for url in contents {
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                continue
+            }
+
+            if let minAge = minAgeDate, let modDate = values.contentModificationDate, modDate >= minAge {
+                continue
+            }
+
+            if values.isDirectory == true {
+                if let size = sizeCache.size(for: url.path, includeHidden: false) {
+                    totalSize += size
+                    fileCount += 1
                 }
-            } catch {
-                logger.debug("Error reading file attributes: \(error.localizedDescription)")
+            } else {
+                let size = Int64(values.fileSize ?? 0)
+                totalSize += size
+                fileCount += 1
             }
         }
 
