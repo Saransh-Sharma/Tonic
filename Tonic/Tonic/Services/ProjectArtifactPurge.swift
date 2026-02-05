@@ -121,6 +121,9 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
     public static let shared = ProjectArtifactPurge()
 
     private let fileManager = FileManager.default
+    private let sizeCache = DirectorySizeCache.shared
+    private let maxScanDepth = 6
+    private let maxProjects = 200
 
     private var isScanning = false
     public var scanProgress: Double = 0
@@ -140,9 +143,9 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
         // Find project directories
         let projectDirs = await findProjectDirectories(in: path)
 
-        for projectDir in projectDirs {
-            currentScanningPath = projectDir
-            if let result = await scanProject(projectDir) {
+        for detected in projectDirs.prefix(maxProjects) {
+            currentScanningPath = detected.path
+            if let result = await scanProject(detected.path, type: detected.type) {
                 results.append(result)
             }
         }
@@ -155,8 +158,17 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
 
     /// Scan user's home directory for projects
     public func scanUserProjects() async -> [ProjectArtifactResult] {
-        let homeDir = fileManager.homeDirectoryForCurrentUser.path
-        return await scanDirectory(homeDir)
+        let roots = candidateRoots()
+        var results: [ProjectArtifactResult] = []
+
+        for root in roots {
+            results.append(contentsOf: await scanDirectory(root))
+            if results.count >= maxProjects {
+                break
+            }
+        }
+
+        return results
     }
 
     /// Clean artifacts from specific projects
@@ -186,56 +198,80 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
 
     // MARK: - Project Detection
 
-    private func findProjectDirectories(in path: String) async -> [String] {
-        var projectDirs: Set<String> = []
+    private struct DetectedProject: Sendable {
+        let path: String
+        let type: ProjectType
+    }
 
-        guard let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
-            return []
-        }
+    private func findProjectDirectories(in path: String) async -> [DetectedProject] {
+        var projects: [DetectedProject] = []
+        let rootURL = URL(fileURLWithPath: path)
 
-        while let url = enumerator.nextObject() as? URL {
-            guard let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory else { continue }
-            guard isDirectory == true else { continue }
+        var queue: [(url: URL, depth: Int)] = [(rootURL, 0)]
+        var index = 0
 
-            let foundPath = url.path
+        while index < queue.count, projects.count < maxProjects {
+            let (currentURL, depth) = queue[index]
+            index += 1
 
-            // Check if this is a project directory
-            if detectProjectType(at: foundPath) != nil {
-                projectDirs.insert(foundPath)
+            if shouldSkipDirectory(currentURL) {
+                continue
+            }
+
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: currentURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
+                continue
+            }
+
+            let names = Set(contents.map { $0.lastPathComponent })
+
+            if let type = detectProjectType(at: currentURL.path, contents: names) {
+                projects.append(DetectedProject(path: currentURL.path, type: type))
+                continue
+            }
+
+            guard depth < maxScanDepth else { continue }
+
+            for url in contents {
+                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                      values.isDirectory == true else { continue }
+                if shouldSkipDirectory(url) { continue }
+                queue.append((url, depth + 1))
             }
         }
 
-        return Array(projectDirs)
+        return projects
     }
 
-    private func detectProjectType(at path: String) -> ProjectType? {
+    private func detectProjectType(at path: String, contents: Set<String>) -> ProjectType? {
         for type in ProjectType.allCases {
             for identifier in type.identifierFiles {
-                let checkPath = path + "/" + identifier
-
-                // Handle wildcard patterns
                 if identifier.hasPrefix("*") {
                     let fileExt = String(identifier.dropFirst())
-                    if let contents = try? fileManager.contentsOfDirectory(atPath: path) {
-                        if contents.contains(where: { $0.hasSuffix(fileExt) }) {
-                            return type
-                        }
+                    if contents.contains(where: { $0.hasSuffix(fileExt) }) {
+                        return type
                     }
-                } else if identifier.hasSuffix("/") {
-                    // Directory check
-                    let _ = String(identifier.dropLast())
-                    if fileManager.fileExists(atPath: checkPath) {
+                    continue
+                }
+
+                if identifier.hasSuffix("/") {
+                    let dirName = String(identifier.dropLast())
+                    if contents.contains(dirName) {
                         var isDirectory: ObjCBool = false
+                        let checkPath = path + "/" + dirName
                         fileManager.fileExists(atPath: checkPath, isDirectory: &isDirectory)
                         if isDirectory.boolValue {
                             return type
                         }
                     }
-                } else {
-                    // File check
-                    if fileManager.fileExists(atPath: checkPath) {
-                        return type
-                    }
+                    continue
+                }
+
+                if contents.contains(identifier) {
+                    return type
                 }
             }
         }
@@ -243,10 +279,68 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
         return nil
     }
 
+    private func candidateRoots() -> [String] {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let candidates = [
+            home + "/Developer",
+            home + "/Developers",
+            home + "/Projects",
+            home + "/Project",
+            home + "/Code",
+            home + "/Workspace",
+            home + "/Workspaces",
+            home + "/Documents",
+            home + "/Desktop",
+            home + "/Downloads"
+        ]
+        let existing = candidates.filter { fileManager.fileExists(atPath: $0) }
+        return existing.isEmpty ? [home] : existing
+    }
+
+    private func shouldSkipDirectory(_ url: URL) -> Bool {
+        let name = url.lastPathComponent.lowercased()
+        if name.hasPrefix(".") && name != ".config" {
+            return true
+        }
+        let skipNames: Set<String> = [
+            "library",
+            "applications",
+            "system",
+            "private",
+            "volumes",
+            "pictures",
+            "movies",
+            "music",
+            "cores",
+            "tmp",
+            ".trash",
+            "node_modules",
+            "pods",
+            "deriveddata",
+            "carthage",
+            ".build",
+            ".swiftpm",
+            ".gradle",
+            ".npm",
+            ".yarn",
+            ".cache",
+            ".cargo",
+            ".venv",
+            "venv"
+        ]
+        if skipNames.contains(name) {
+            return true
+        }
+        let path = url.path.lowercased()
+        if path.contains("/library/containers") || path.contains("/library/application support") {
+            return true
+        }
+        return false
+    }
+
     // MARK: - Project Scanning
 
-    private func scanProject(_ path: String) async -> ProjectArtifactResult? {
-        guard let type = detectProjectType(at: path) else { return nil }
+    private func scanProject(_ path: String, type: ProjectType) async -> ProjectArtifactResult? {
 
         var artifacts: [Artifact] = []
 
@@ -294,18 +388,6 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
         let nodeModules = path + "/node_modules"
         if let size = await getDirectorySize(nodeModules) {
             artifacts.append(Artifact(name: "node_modules", path: nodeModules, size: size, type: .dependencies))
-        }
-
-        // .npm cache
-        let npmCache = fileManager.homeDirectoryForCurrentUser.path + "/.npm"
-        if let size = await getDirectorySize(npmCache) {
-            artifacts.append(Artifact(name: ".npm cache", path: npmCache, size: size, type: .buildCache))
-        }
-
-        // yarn cache
-        let yarnCache = fileManager.homeDirectoryForCurrentUser.path + "/.yarn/cache"
-        if let size = await getDirectorySize(yarnCache) {
-            artifacts.append(Artifact(name: "Yarn cache", path: yarnCache, size: size, type: .buildCache))
         }
 
         // TypeScript cache
@@ -383,12 +465,6 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
             artifacts.append(Artifact(name: "Gradle build", path: build, size: size, type: .buildCache))
         }
 
-        // .gradle cache
-        let gradleCache = fileManager.homeDirectoryForCurrentUser.path + "/.gradle/caches"
-        if let size = await getDirectorySize(gradleCache) {
-            artifacts.append(Artifact(name: ".gradle caches", path: gradleCache, size: size, type: .buildCache))
-        }
-
         return artifacts
     }
 
@@ -408,12 +484,6 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
 
     private func scanGoProject(_ path: String) async -> [Artifact] {
         var artifacts: [Artifact] = []
-
-        // Go module cache
-        let goModCache = fileManager.homeDirectoryForCurrentUser.path + "/go/pkg/mod"
-        if let size = await getDirectorySize(goModCache) {
-            artifacts.append(Artifact(name: "Go modules", path: goModCache, size: size, type: .dependencies))
-        }
 
         return artifacts
     }
@@ -443,20 +513,6 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
         let swiftpm = path + "/.swiftpm"
         if let size = await getDirectorySize(swiftpm) {
             artifacts.append(Artifact(name: ".swiftpm cache", path: swiftpm, size: size, type: .buildCache))
-        }
-
-        // DerivedData (if Xcode project)
-        let projectName = (path as NSString).lastPathComponent
-        let derivedDataPath = fileManager.homeDirectoryForCurrentUser.path + "/Library/Developer/Xcode/DerivedData"
-        if let dirs = try? fileManager.contentsOfDirectory(atPath: derivedDataPath) {
-            for dir in dirs {
-                if dir.contains(projectName) {
-                    let dirPath = derivedDataPath + "/" + dir
-                    if let size = await getDirectorySize(dirPath) {
-                        artifacts.append(Artifact(name: "DerivedData", path: dirPath, size: size, type: .buildCache))
-                    }
-                }
-            }
         }
 
         return artifacts
@@ -507,18 +563,8 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
 
     private func getDirectorySize(_ path: String) async -> Int64? {
         guard fileManager.fileExists(atPath: path) else { return nil }
-
-        var totalSize: Int64 = 0
-
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            while let current = enumerator.nextObject() as? URL {
-                if let size = await getFileSize(current.path) {
-                    totalSize += size
-                }
-            }
-        }
-
-        return totalSize > 0 ? totalSize : nil
+        let size = sizeCache.size(for: path, includeHidden: true) ?? 0
+        return size > 0 ? size : nil
     }
 
     private func getFileSize(_ path: String) async -> Int64? {

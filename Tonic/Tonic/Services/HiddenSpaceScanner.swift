@@ -133,7 +133,11 @@ struct DiskDiscrepancyReport: Sendable {
 final class HiddenSpaceScanner: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.tonic.app", category: "HiddenSpace")
     private let fileManager = FileManager.default
+    private let sizeCache = DirectorySizeCache.shared
     private let lock = NSLock()
+    private let discrepancyLock = NSLock()
+    private var discrepancyCache: [String: (report: DiskDiscrepancyReport, timestamp: Date)] = [:]
+    private let discrepancyTTL: TimeInterval = 60 * 10
 
     private var _isScanning = false
     private var _progress: Double = 0
@@ -151,31 +155,44 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     // MARK: - Known Hidden Space Patterns
 
     private let hiddenSpacePatterns: [(pattern: String, type: HiddenSpaceItem.HiddenItemType)] = [
-        (".git", .gitDirectory),
-        (".hg", .gitDirectory),
-        (".svn", .gitDirectory),
-        ("node_modules", .nodeModules),
-        (".npm", .cache),
-        ("build", .buildArtifacts),
-        (".build", .buildArtifacts),
-        ("dist", .buildArtifacts),
-        (".dist", .buildArtifacts),
-        ("target", .buildArtifacts),
-        (".gradle", .buildArtifacts),
-        ("Pods", .buildArtifacts),
-        (".venv", .virtualEnvironment),
-        ("venv", .virtualEnvironment),
-        (".virtualenv", .virtualEnvironment),
-        (".conda", .virtualEnvironment),
-        ("__pycache__", .cache),
-        (".pytest_cache", .cache),
         (".cache", .cache),
-        (".caches", .cache),
-        ("Docker", .docker),
-        (".docker", .docker),
-        ("logs", .logs),
-        (".logs", .logs),
-        (".log", .logs),
+        (".npm", .cache),
+        (".yarn", .cache),
+        (".pnpm-store", .cache),
+        (".bun", .cache),
+        (".gradle", .cache),
+        (".m2", .cache),
+        (".cargo", .cache),
+        (".rustup", .cache),
+        (".swiftpm", .cache),
+        (".cocoapods", .cache),
+        (".gem", .cache),
+        (".bundle", .cache),
+        (".conda", .virtualEnvironment),
+        (".venv", .virtualEnvironment),
+        (".virtualenv", .virtualEnvironment),
+        (".logs", .logs)
+    ]
+
+    private let hiddenSpaceExclusions: Set<String> = [
+        ".trash",
+        ".trashes",
+        ".temporaryitems",
+        ".ds_store",
+        ".spotlight-v100",
+        ".documentrevisions-v100",
+        ".fseventsd",
+        ".volumeicon.icns",
+        ".localized",
+        ".apdisk",
+        ".com.apple.timemachine",
+        ".ssh",
+        ".gnupg",
+        ".aws",
+        ".kube",
+        ".docker",
+        ".colima",
+        ".config"
     ]
 
     // MARK: - Main Scan Method
@@ -242,15 +259,11 @@ final class HiddenSpaceScanner: @unchecked Sendable {
         for item in contents {
             let itemPath = item.path
             let name = item.lastPathComponent
+            let nameLower = name.lowercased()
             let isHidden = name.hasPrefix(".")
 
-            // Skip if not including dotfiles and not in our patterns
-            if !includeDotfiles && isHidden {
-                // Check if it's a known hidden directory type
-                let isKnownType = hiddenSpacePatterns.contains { $0.pattern == name }
-                if !isKnownType {
-                    continue
-                }
+            if hiddenSpaceExclusions.contains(nameLower) {
+                continue
             }
 
             guard let resourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]) else {
@@ -258,56 +271,29 @@ final class HiddenSpaceScanner: @unchecked Sendable {
             }
 
             let isDirectory = resourceValues.isDirectory ?? false
+            guard isDirectory else { continue }
 
-            if isDirectory {
-                // Check if it matches known patterns
-                if let pattern = hiddenSpacePatterns.first(where: { $0.pattern == name }) {
-                    let size = await measureDirectorySize(itemPath)
-                    if size > 1024 * 1024 { // Only include if > 1MB
-                        let item = HiddenSpaceItem(
-                            name: name,
-                            path: itemPath,
-                            size: size,
-                            type: pattern.type,
-                            isHidden: isHidden,
-                            lastModified: getFileModificationDate(itemPath) ?? Date()
-                        )
-                        items.append(item)
-                    }
-                } else if isHidden && includeDotfiles {
-                    // Generic hidden directory
-                    let size = await measureDirectorySize(itemPath)
-                    if size > 10 * 1024 * 1024 { // Only if > 10MB
-                        let item = HiddenSpaceItem(
-                            name: name,
-                            path: itemPath,
-                            size: size,
-                            type: .other,
-                            isHidden: true,
-                            lastModified: getFileModificationDate(itemPath) ?? Date()
-                        )
-                        items.append(item)
-                    }
+            var type: HiddenSpaceItem.HiddenItemType?
 
-                    // Recursively scan hidden directory for more items
-                    if shouldScanRecursively(name) {
-                        let subItems = await scanDirectoryForHiddenSpace(itemPath, includeDotfiles: true)
-                        items.append(contentsOf: subItems)
-                    }
-                }
-            } else if isHidden && includeDotfiles {
-                // Hidden file
-                if let fileSize = resourceValues.fileSize, fileSize > 1 * 1024 * 1024 { // > 1MB
-                    let item = HiddenSpaceItem(
-                        name: name,
-                        path: itemPath,
-                        size: Int64(fileSize),
-                        type: .hiddenFile,
-                        isHidden: true,
-                        lastModified: getFileModificationDate(itemPath) ?? Date()
-                    )
-                    items.append(item)
-                }
+            if let pattern = hiddenSpacePatterns.first(where: { $0.pattern == nameLower }) {
+                type = pattern.type
+            } else if includeDotfiles && isHidden {
+                type = .other
+            }
+
+            guard let resolvedType = type else { continue }
+
+            let size = await measureDirectorySize(itemPath)
+            if size > 1024 * 1024 {
+                let item = HiddenSpaceItem(
+                    name: name,
+                    path: itemPath,
+                    size: size,
+                    type: resolvedType,
+                    isHidden: isHidden,
+                    lastModified: getFileModificationDate(itemPath) ?? Date()
+                )
+                items.append(item)
             }
         }
 
@@ -317,6 +303,10 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     // MARK: - Discrepancy Analysis
 
     private func analyzeDiscrepancy(at path: String) async -> DiskDiscrepancyReport {
+        if let cached = cachedDiscrepancy(for: path) {
+            return cached
+        }
+
         // Get Finder-style size (via getattrlist)
         let finderSize = await getFinderSize(path)
 
@@ -363,12 +353,14 @@ final class HiddenSpaceScanner: @unchecked Sendable {
             }
         }
 
-        return DiskDiscrepancyReport(
+        let report = DiskDiscrepancyReport(
             finderUsedSpace: finderSize,
             duUsedSpace: duSize,
             discrepancy: discrepancy,
             possibleCauses: causes
         )
+        storeDiscrepancy(report, for: path)
+        return report
     }
 
     // MARK: - Size Measurement Methods
@@ -390,27 +382,14 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     }
 
     private func getDuSize(_ path: String) async -> Int64 {
+        if let fastSize = await runDu(path: path) {
+            return fastSize
+        }
         return await measureDirectorySize(path)
     }
 
     private func measureDirectorySize(_ path: String) async -> Int64 {
-        var totalSize: Int64 = 0
-
-        guard let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.fileSizeKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return 0
-        }
-
-        while let url = enumerator.nextObject() as? URL {
-            if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]) {
-                totalSize += Int64(resourceValues.fileSize ?? 0)
-            }
-        }
-
-        return totalSize
+        sizeCache.size(for: path, includeHidden: false) ?? 0
     }
 
     private func getTimeMachineSnapshotSize() async -> Int64 {
@@ -508,6 +487,49 @@ final class HiddenSpaceScanner: @unchecked Sendable {
 
     private func getFileModificationDate(_ path: String) -> Date? {
         return (try? fileManager.attributesOfItem(atPath: path)[.modificationDate] as? Date)
+    }
+
+    private func cachedDiscrepancy(for path: String) -> DiskDiscrepancyReport? {
+        discrepancyLock.lock()
+        defer { discrepancyLock.unlock() }
+        if let entry = discrepancyCache[path] {
+            if Date().timeIntervalSince(entry.timestamp) < discrepancyTTL {
+                return entry.report
+            }
+        }
+        return nil
+    }
+
+    private func storeDiscrepancy(_ report: DiskDiscrepancyReport, for path: String) {
+        discrepancyLock.lock()
+        discrepancyCache[path] = (report: report, timestamp: Date())
+        discrepancyLock.unlock()
+    }
+
+    private func runDu(path: String) async -> Int64? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+        process.arguments = ["-sk", path]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard let output = try? pipe.fileHandleForReading.readToEnd(),
+                  let outputString = String(data: output, encoding: .utf8) else {
+                return nil
+            }
+            let components = outputString.split(separator: "\t")
+            if let first = components.first, let kb = Int64(first) {
+                return kb * 1024
+            }
+        } catch {
+            return nil
+        }
+
+        return nil
     }
 
     private func shouldScanRecursively(_ name: String) -> Bool {
