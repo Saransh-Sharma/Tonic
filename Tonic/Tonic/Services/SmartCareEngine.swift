@@ -18,10 +18,9 @@ final class SmartCareEngine: @unchecked Sendable {
     private let sizeCache = DirectorySizeCache.shared
 
     private let progressWeights: [SmartCareDomain: Double] = [
-        .cleanup: 0.46,
-        .protection: 0.14,
-        .performance: 0.16,
-        .applications: 0.24
+        .cleanup: 0.53,
+        .performance: 0.19,
+        .applications: 0.28
     ]
 
     typealias DomainProgressUpdate = @Sendable (_ progress: Double, _ currentItem: String?, _ detail: String) -> Void
@@ -71,10 +70,6 @@ final class SmartCareEngine: @unchecked Sendable {
             emit(.cleanup, "Looking for junk...", detail, local, currentItem)
         }
 
-        async let protectionTask = scanProtection { local, currentItem, detail in
-            emit(.protection, "Looking for threats...", detail, local, currentItem)
-        }
-
         async let performanceTask = scanPerformance { local, currentItem, detail in
             emit(.performance, "Optimizing performance...", detail, local, currentItem)
         }
@@ -83,12 +78,10 @@ final class SmartCareEngine: @unchecked Sendable {
             emit(.applications, "Reviewing applications...", detail, local, currentItem)
         }
         let cleanup = await cleanupTask
-        let protection = await protectionTask
         let performance = await performanceTask
         let applications = await applicationsTask
 
         domainResults[.cleanup] = cleanup
-        domainResults[.protection] = protection
         domainResults[.performance] = performance
         domainResults[.applications] = applications
 
@@ -414,70 +407,23 @@ final class SmartCareEngine: @unchecked Sendable {
         )
     }
 
-    // MARK: - Protection
-
-    private func scanProtection(update: DomainProgressUpdate) async -> SmartCareDomainResult {
-        let start = Date()
-        update(0.1, nil, "Reviewing sensitive data")
-        let privacy = await categoryScanner.scanPrivacyIssues()
-        update(1.0, nil, "Protection scan complete")
-        logger.info("Protection scan finished in \(Date().timeIntervalSince(start))s")
-
-        let groupId = UUID()
-        let items: [SmartCareItem] = [
-            makeFileGroupItem(
-                domain: .protection,
-                groupId: groupId,
-                title: privacy.browserHistory.name,
-                subtitle: privacy.browserHistory.description,
-                group: privacy.browserHistory,
-                safeToRun: false,
-                smartlySelected: false
-            ),
-            makeFileGroupItem(
-                domain: .protection,
-                groupId: groupId,
-                title: privacy.downloadHistory.name,
-                subtitle: privacy.downloadHistory.description,
-                group: privacy.downloadHistory,
-                safeToRun: false,
-                smartlySelected: false
-            ),
-            makeFileGroupItem(
-                domain: .protection,
-                groupId: groupId,
-                title: privacy.recentDocuments.name,
-                subtitle: privacy.recentDocuments.description,
-                group: privacy.recentDocuments,
-                safeToRun: false,
-                smartlySelected: false
-            )
-        ].filter { $0.size > 0 || $0.count > 0 }
-
-        let groups = items.isEmpty ? [] : [
-            SmartCareGroup(
-                id: groupId,
-                domain: .protection,
-                title: "Privacy Data",
-                description: "Sensitive records that can be cleared",
-                items: items
-            )
-        ]
-
-        return SmartCareDomainResult(domain: .protection, groups: groups)
-    }
-
     // MARK: - Performance
 
     private func scanPerformance(update: DomainProgressUpdate) async -> SmartCareDomainResult {
         let start = Date()
-        update(0.2, nil, "Checking maintenance tasks")
-        let performanceIssues = await categoryScanner.scanPerformanceIssues()
+        update(0.12, nil, "Checking maintenance tasks")
 
         let maintenanceGroupId = UUID()
-        let serviceGroupId = UUID()
+        let loginGroupId = UUID()
+        let backgroundGroupId = UUID()
 
-        let maintenanceActions: [OptimizationAction] = [.flushDNS, .cleanQuickLook, .cleanFonts]
+        let maintenanceActions: [OptimizationAction] = [
+            .flushDNS,
+            .freePurgeableSpace,
+            .reindexSpotlight,
+            .repairDiskPermissions,
+            .speedUpMail
+        ]
 
         let maintenanceItems = maintenanceActions.map { action in
             makeItem(
@@ -494,53 +440,154 @@ final class SmartCareEngine: @unchecked Sendable {
             )
         }
 
-        let serviceItems: [SmartCareItem] = [
-            makeFileGroupItem(
+        update(0.45, nil, "Reviewing login items")
+        let loginItems = await scanLoginItemsDetailed().map { entry in
+            makeItem(
                 domain: .performance,
-                groupId: serviceGroupId,
-                title: performanceIssues.launchAgents.name,
-                subtitle: performanceIssues.launchAgents.description,
-                group: performanceIssues.launchAgents,
+                groupId: loginGroupId,
+                title: entry.name,
+                subtitle: "Opens automatically when you log in",
+                size: 0,
+                count: 1,
                 safeToRun: false,
-                smartlySelected: false
-            ),
-            makeFileGroupItem(
-                domain: .performance,
-                groupId: serviceGroupId,
-                title: performanceIssues.loginItems.name,
-                subtitle: performanceIssues.loginItems.description,
-                group: performanceIssues.loginItems,
-                safeToRun: false,
-                smartlySelected: false
+                paths: [entry.path],
+                smartlySelected: false,
+                action: .none
             )
-        ].filter { $0.count > 0 || $0.size > 0 }
+        }
+
+        update(0.75, nil, "Reviewing background items")
+        let backgroundItems = scanBackgroundItemsDetailed().map { entry in
+            makeItem(
+                domain: .performance,
+                groupId: backgroundGroupId,
+                title: entry.title,
+                subtitle: entry.subtitle,
+                size: sizeForPath(entry.path),
+                count: 1,
+                safeToRun: entry.safeToRemove,
+                paths: [entry.path],
+                smartlySelected: false,
+                action: entry.safeToRemove ? .delete(paths: [entry.path]) : .none
+            )
+        }
 
         update(1.0, nil, "Performance scan complete")
         logger.info("Performance scan finished in \(Date().timeIntervalSince(start))s")
 
-        var groups: [SmartCareGroup] = [
+        let groups: [SmartCareGroup] = [
             SmartCareGroup(
                 id: maintenanceGroupId,
                 domain: .performance,
                 title: "Maintenance Tasks",
-                description: "Safe optimizations you can run now",
+                description: "Essential Mac care includes both general and specific tasks that help keep your software and hardware in shape.",
                 items: maintenanceItems
+            ),
+            SmartCareGroup(
+                id: loginGroupId,
+                domain: .performance,
+                title: "Login Items",
+                description: "Manage the list of applications that get automatically opened every time you log in.",
+                items: loginItems
+            ),
+            SmartCareGroup(
+                id: backgroundGroupId,
+                domain: .performance,
+                title: "Background Items",
+                description: "Manage the list of processes and applications that run in the background.",
+                items: backgroundItems
             )
         ]
 
-        if !serviceItems.isEmpty {
-            groups.append(
-                SmartCareGroup(
-                    id: serviceGroupId,
-                    domain: .performance,
-                    title: "System Services",
-                    description: "Launch agents and login items",
-                    items: serviceItems
-                )
-            )
+        return SmartCareDomainResult(domain: .performance, groups: groups)
+    }
+
+    private struct PerformanceLoginEntry {
+        let name: String
+        let path: String
+    }
+
+    private struct PerformanceBackgroundEntry {
+        let title: String
+        let subtitle: String
+        let path: String
+        let safeToRemove: Bool
+    }
+
+    private func scanLoginItemsDetailed() async -> [PerformanceLoginEntry] {
+        var seen = Set<String>()
+        var items: [PerformanceLoginEntry] = []
+
+        // Prefer ServiceManagement-backed data through existing manager.
+        await LoginItemsManager.shared.fetchLoginItems()
+        let managerItems = await MainActor.run { LoginItemsManager.shared.loginItems }
+        for item in managerItems {
+            let path = item.path.path
+            guard !seen.contains(path) else { continue }
+            seen.insert(path)
+            items.append(PerformanceLoginEntry(name: item.name, path: path))
         }
 
-        return SmartCareDomainResult(domain: .performance, groups: groups)
+        // Fallback to legacy plist entries.
+        let loginItemsPath = NSHomeDirectory() + "/Library/Preferences/com.apple.loginitems.plist"
+        if let plistData = FileManager.default.contents(atPath: loginItemsPath),
+           let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
+           let loginItemsArray = plist["AutoLaunchedApplicationDictionary"] as? [[String: Any]] {
+            for item in loginItemsArray {
+                guard let path = item["Path"] as? String else { continue }
+                guard !seen.contains(path) else { continue }
+                seen.insert(path)
+
+                let url = URL(fileURLWithPath: path)
+                let name = url.deletingPathExtension().lastPathComponent
+                items.append(PerformanceLoginEntry(name: name, path: path))
+            }
+        }
+
+        return items.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private func scanBackgroundItemsDetailed() -> [PerformanceBackgroundEntry] {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let userLaunchAgentsPath = home + "/Library/LaunchAgents"
+        let launchPaths = [
+            userLaunchAgentsPath,
+            "/Library/LaunchAgents",
+            "/Library/LaunchDaemons"
+        ]
+
+        var entries: [PerformanceBackgroundEntry] = []
+        var seenPaths = Set<String>()
+
+        for basePath in launchPaths where fileManager.fileExists(atPath: basePath) {
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: URL(fileURLWithPath: basePath),
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for url in contents where url.pathExtension == "plist" {
+                let fullPath = url.path
+                guard !seenPaths.contains(fullPath) else { continue }
+                seenPaths.insert(fullPath)
+
+                entries.append(
+                    PerformanceBackgroundEntry(
+                        title: url.lastPathComponent,
+                        subtitle: basePath,
+                        path: fullPath,
+                        safeToRemove: basePath == userLaunchAgentsPath
+                    )
+                )
+            }
+        }
+
+        return entries.sorted {
+            $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+        }
     }
 
     // MARK: - Applications
