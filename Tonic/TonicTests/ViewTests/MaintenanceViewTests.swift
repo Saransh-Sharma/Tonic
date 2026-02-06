@@ -323,3 +323,98 @@ final class MaintenanceViewTests: XCTestCase {
         XCTAssertTrue(cleanComplete)
     }
 }
+
+final class SmartScanDeepLinkMapperTests: XCTestCase {
+
+    func testSectionReviewRoutes() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.space)),
+            .manager(.space(.spaceRoot))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.performance)),
+            .manager(.performance(.root(defaultNav: .maintenanceTasks)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.apps)),
+            .manager(.apps(.root(defaultNav: .uninstaller)))
+        )
+    }
+
+    func testContributorReviewRoutes() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "xcodeJunk")),
+            .manager(.space(.cleanup(.systemJunk, categoryId: CleanupCategoryID(raw: "xcodeJunk"), rowId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "downloads")),
+            .manager(.space(.clutter(.downloads, filter: .allFiles, groupId: nil, fileId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "duplicates")),
+            .manager(.space(.clutter(.duplicates, filter: .allFiles, groupId: nil, fileId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "maintenanceTasks")),
+            .manager(.performance(.maintenanceTasks(preselectTaskIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "backgroundItems")),
+            .manager(.performance(.backgroundItems(preselectItemIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "loginItems")),
+            .manager(.performance(.loginItems(preselectItemIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "uninstaller")),
+            .manager(.apps(.uninstaller(filter: .all)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "updater")),
+            .manager(.apps(.updater))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "leftovers")),
+            .manager(.apps(.leftovers))
+        )
+    }
+
+    func testUnknownContributorFallsBackToSmartScan() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "unknown-contributor")),
+            .smartScan
+        )
+    }
+}
+
+@MainActor
+final class SmartScanReviewFlowTests: XCTestCase {
+
+    func testReviewButtonsFlowToManagerRoutes() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.review(target: .section(.space))
+        XCTAssertEqual(store.destination, .manager(.space(.spaceRoot)))
+
+        store.showHub()
+        store.review(target: .section(.performance))
+        XCTAssertEqual(store.destination, .manager(.performance(.root(defaultNav: .maintenanceTasks))))
+
+        store.showHub()
+        store.review(target: .section(.apps))
+        XCTAssertEqual(store.destination, .manager(.apps(.root(defaultNav: .uninstaller))))
+    }
+
+    func testReviewCustomizeNavigatesFromResults() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.reviewCustomize()
+
+        XCTAssertEqual(store.destination, .manager(.space(.spaceRoot)))
+    }
+}
