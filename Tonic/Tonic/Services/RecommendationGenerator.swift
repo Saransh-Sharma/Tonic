@@ -22,15 +22,13 @@ final class RecommendationGenerator {
             diskUsage: nil,
             junkFiles: scanResult.junkFiles,
             performanceIssues: scanResult.performanceIssues,
-            appIssues: scanResult.appIssues,
-            privacyIssues: scanResult.privacyIssues
+            appIssues: scanResult.appIssues
         )
 
         // Generate recommendations for each category
         recommendations.append(contentsOf: generateJunkRecommendations(from: scanResult, basePenalties: basePenalties))
         recommendations.append(contentsOf: generatePerformanceRecommendations(from: scanResult, basePenalties: basePenalties))
         recommendations.append(contentsOf: generateAppRecommendations(from: scanResult, basePenalties: basePenalties))
-        recommendations.append(contentsOf: generatePrivacyRecommendations(from: scanResult, basePenalties: basePenalties))
 
         // Sort by priority (size saved, then safety)
         recommendations.sort { rec1, rec2 in
@@ -401,70 +399,6 @@ final class RecommendationGenerator {
         return recommendations
     }
 
-    // MARK: - Privacy Recommendations
-
-    private func generatePrivacyRecommendations(
-        from scanResult: ScanResult,
-        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown
-    ) -> [ScanRecommendation] {
-        var recommendations: [ScanRecommendation] = []
-        let privacyIssues = scanResult.privacyIssues
-
-        // Browser history
-        if privacyIssues.browserHistory.size > 100 * 1024 * 1024 {
-            let updatedPrivacy = PrivacyCategory(
-                browserHistory: FileGroup(name: privacyIssues.browserHistory.name, description: privacyIssues.browserHistory.description),
-                downloadHistory: privacyIssues.downloadHistory,
-                recentDocuments: privacyIssues.recentDocuments,
-                clipboardData: privacyIssues.clipboardData
-            )
-            let impact = privacyScoreImpact(
-                basePenalties: basePenalties,
-                updatedPrivacy: updatedPrivacy,
-                scanResult: scanResult
-            )
-            let rec = ScanRecommendation(
-                type: .privacyData,
-                title: "Clear Browser History",
-                description: "Remove \(formatFileCount(privacyIssues.browserHistory.count)) browser history entries (\(formatSize(privacyIssues.browserHistory.size))). Improves privacy.",
-                actionable: true,
-                safeToFix: false,
-                spaceToReclaim: privacyIssues.browserHistory.size,
-                affectedPaths: privacyIssues.browserHistory.paths,
-                scoreImpact: impact
-            )
-            recommendations.append(rec)
-        }
-
-        // Download history
-        if privacyIssues.downloadHistory.size > 1024 * 1024 * 1024 {
-            let updatedPrivacy = PrivacyCategory(
-                browserHistory: privacyIssues.browserHistory,
-                downloadHistory: FileGroup(name: privacyIssues.downloadHistory.name, description: privacyIssues.downloadHistory.description),
-                recentDocuments: privacyIssues.recentDocuments,
-                clipboardData: privacyIssues.clipboardData
-            )
-            let impact = privacyScoreImpact(
-                basePenalties: basePenalties,
-                updatedPrivacy: updatedPrivacy,
-                scanResult: scanResult
-            )
-            let rec = ScanRecommendation(
-                type: .privacyData,
-                title: "Clean Up Old Downloads",
-                description: "Remove \(formatFileCount(privacyIssues.downloadHistory.count)) old downloaded files (\(formatSize(privacyIssues.downloadHistory.size))). Frees space and improves privacy.",
-                actionable: true,
-                safeToFix: false,
-                spaceToReclaim: privacyIssues.downloadHistory.size,
-                affectedPaths: privacyIssues.downloadHistory.paths,
-                scoreImpact: impact
-            )
-            recommendations.append(rec)
-        }
-
-        return recommendations
-    }
-
     // MARK: - Helper Methods
 
     private func formatSize(_ bytes: Int64) -> String {
@@ -498,8 +432,7 @@ final class RecommendationGenerator {
             diskUsage: nil,
             junkFiles: updatedJunk,
             performanceIssues: scanResult.performanceIssues,
-            appIssues: scanResult.appIssues,
-            privacyIssues: scanResult.privacyIssues
+            appIssues: scanResult.appIssues
         )
         return max(0, basePenalties.junk - updated.junk)
     }
@@ -513,8 +446,7 @@ final class RecommendationGenerator {
             diskUsage: nil,
             junkFiles: scanResult.junkFiles,
             performanceIssues: updatedPerformance,
-            appIssues: scanResult.appIssues,
-            privacyIssues: scanResult.privacyIssues
+            appIssues: scanResult.appIssues
         )
         return max(0, basePenalties.cache - updated.cache)
     }
@@ -528,8 +460,7 @@ final class RecommendationGenerator {
             diskUsage: nil,
             junkFiles: scanResult.junkFiles,
             performanceIssues: scanResult.performanceIssues,
-            appIssues: updatedAppIssues,
-            privacyIssues: scanResult.privacyIssues
+            appIssues: updatedAppIssues
         )
         return max(0, basePenalties.app - updated.app)
     }
@@ -543,24 +474,8 @@ final class RecommendationGenerator {
             diskUsage: nil,
             junkFiles: scanResult.junkFiles,
             performanceIssues: scanResult.performanceIssues,
-            appIssues: updatedAppIssues,
-            privacyIssues: scanResult.privacyIssues
+            appIssues: updatedAppIssues
         )
         return max(0, basePenalties.orphaned - updated.orphaned)
-    }
-
-    private func privacyScoreImpact(
-        basePenalties: HealthScoreCalculator.ScorePenaltyBreakdown,
-        updatedPrivacy: PrivacyCategory,
-        scanResult: ScanResult
-    ) -> Int {
-        let updated = scoreCalculator.penaltyBreakdown(
-            diskUsage: nil,
-            junkFiles: scanResult.junkFiles,
-            performanceIssues: scanResult.performanceIssues,
-            appIssues: scanResult.appIssues,
-            privacyIssues: updatedPrivacy
-        )
-        return max(0, basePenalties.privacy - updated.privacy)
     }
 }
