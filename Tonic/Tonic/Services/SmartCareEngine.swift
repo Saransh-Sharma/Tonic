@@ -23,20 +23,40 @@ final class SmartCareEngine: @unchecked Sendable {
         .applications: 0.28
     ]
 
-    typealias DomainProgressUpdate = @Sendable (_ progress: Double, _ currentItem: String?, _ detail: String) -> Void
+    typealias DomainProgressUpdate = @Sendable (
+        _ progress: Double,
+        _ currentItem: String?,
+        _ detail: String,
+        _ counters: SmartScanLiveCounters?
+    ) -> Void
 
     private actor ProgressEmitter {
         private let update: (SmartCareScanUpdate) -> Void
         private let progressWeights: [SmartCareDomain: Double]
         private var progressByDomain: [SmartCareDomain: Double] = [:]
+        private var counters = SmartScanLiveCounters.zero
 
         init(update: @escaping (SmartCareScanUpdate) -> Void, progressWeights: [SmartCareDomain: Double]) {
             self.update = update
             self.progressWeights = progressWeights
         }
 
-        func emit(domain: SmartCareDomain, title: String, detail: String, localProgress: Double, currentItem: String?) {
+        func emit(
+            domain: SmartCareDomain,
+            title: String,
+            detail: String,
+            localProgress: Double,
+            currentItem: String?,
+            currentStage: SmartScanStage,
+            completedStages: [SmartScanStage],
+            counterSnapshot: SmartScanLiveCounters?
+        ) {
             progressByDomain[domain] = localProgress
+            if let counterSnapshot {
+                counters.spaceBytesFound = max(counters.spaceBytesFound, counterSnapshot.spaceBytesFound)
+                counters.performanceFlaggedCount = max(counters.performanceFlaggedCount, counterSnapshot.performanceFlaggedCount)
+                counters.appsScannedCount = max(counters.appsScannedCount, counterSnapshot.appsScannedCount)
+            }
             let total = progressByDomain.reduce(0.0) { partial, entry in
                 let weight = progressWeights[entry.key] ?? 0
                 return partial + (entry.value * weight)
@@ -46,7 +66,12 @@ final class SmartCareEngine: @unchecked Sendable {
                 title: title,
                 detail: detail,
                 progress: min(1.0, total),
-                currentItem: currentItem
+                currentItem: currentItem,
+                currentStage: currentStage,
+                completedStages: completedStages,
+                spaceBytesFound: counters.spaceBytesFound,
+                performanceFlaggedCount: counters.performanceFlaggedCount,
+                appsScannedCount: counters.appsScannedCount
             )
             Task { @MainActor in
                 update(updateValue)
@@ -58,39 +83,141 @@ final class SmartCareEngine: @unchecked Sendable {
         let start = Date()
         var domainResults: [SmartCareDomain: SmartCareDomainResult] = [:]
         let emitter = ProgressEmitter(update: update, progressWeights: progressWeights)
-        let emit: @Sendable (SmartCareDomain, String, String, Double, String?) -> Void = { domain, title, detail, localProgress, currentItem in
+        let emit: @Sendable (
+            SmartCareDomain,
+            String,
+            String,
+            Double,
+            String?,
+            SmartScanStage,
+            [SmartScanStage],
+            SmartScanLiveCounters?
+        ) -> Void = { domain, title, detail, localProgress, currentItem, stage, completed, counterSnapshot in
             Task {
-                await emitter.emit(domain: domain, title: title, detail: detail, localProgress: localProgress, currentItem: currentItem)
+                await emitter.emit(
+                    domain: domain,
+                    title: title,
+                    detail: detail,
+                    localProgress: localProgress,
+                    currentItem: currentItem,
+                    currentStage: stage,
+                    completedStages: completed,
+                    counterSnapshot: counterSnapshot
+                )
             }
         }
 
         logger.info("Starting Smart Care scan")
 
-        async let cleanupTask = scanCleanupAndClutter { local, currentItem, detail in
-            emit(.cleanup, "Looking for junk...", detail, local, currentItem)
-        }
+        emit(
+            .cleanup,
+            "Scanning Space...",
+            "Preparing space scan",
+            0,
+            nil,
+            .space,
+            [],
+            .zero
+        )
 
-        async let performanceTask = scanPerformance { local, currentItem, detail in
-            emit(.performance, "Optimizing performance...", detail, local, currentItem)
+        let cleanup = await scanCleanupAndClutter { local, currentItem, detail, counters in
+            emit(
+                .cleanup,
+                "Scanning Space...",
+                detail,
+                local,
+                currentItem,
+                .space,
+                [],
+                counters
+            )
         }
-
-        async let applicationsTask = scanApplications { local, currentItem, detail in
-            emit(.applications, "Reviewing applications...", detail, local, currentItem)
-        }
-        let cleanup = await cleanupTask
-        let performance = await performanceTask
-        let applications = await applicationsTask
 
         domainResults[.cleanup] = cleanup
+        emit(
+            .cleanup,
+            "Space scan complete",
+            "Preparing Performance scan",
+            1.0,
+            nil,
+            .space,
+            [.space],
+            SmartScanLiveCounters(spaceBytesFound: cleanup.totalSize, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
+
+        emit(
+            .performance,
+            "Scanning Performance...",
+            "Preparing performance checks",
+            0,
+            nil,
+            .performance,
+            [.space],
+            nil
+        )
+
+        let performance = await scanPerformance { local, currentItem, detail, counters in
+            emit(
+                .performance,
+                "Scanning Performance...",
+                detail,
+                local,
+                currentItem,
+                .performance,
+                [.space],
+                counters
+            )
+        }
+
         domainResults[.performance] = performance
+        emit(
+            .performance,
+            "Performance scan complete",
+            "Preparing Apps scan",
+            1.0,
+            nil,
+            .performance,
+            [.space, .performance],
+            SmartScanLiveCounters(spaceBytesFound: cleanup.totalSize, performanceFlaggedCount: performance.totalUnitCount, appsScannedCount: 0)
+        )
+
+        emit(
+            .applications,
+            "Scanning Apps...",
+            "Preparing app lifecycle review",
+            0,
+            nil,
+            .apps,
+            [.space, .performance],
+            nil
+        )
+
+        let applications = await scanApplications { local, currentItem, detail, counters in
+            emit(
+                .applications,
+                "Scanning Apps...",
+                detail,
+                local,
+                currentItem,
+                .apps,
+                [.space, .performance],
+                counters
+            )
+        }
+
         domainResults[.applications] = applications
 
         update(SmartCareScanUpdate(
-            domain: .cleanup,
+            domain: .applications,
             title: "Scan complete",
-            detail: "Preparing your Smart Care results",
+            detail: "Preparing your Smart Scan results",
             progress: 1.0,
-            currentItem: nil
+            currentItem: nil,
+            currentStage: .apps,
+            completedStages: [.space, .performance, .apps],
+            spaceBytesFound: cleanup.totalSize,
+            performanceFlaggedCount: performance.totalUnitCount,
+            appsScannedCount: applications.totalUnitCount
         ))
 
         let duration = Date().timeIntervalSince(start)
@@ -101,7 +228,7 @@ final class SmartCareEngine: @unchecked Sendable {
 
     // MARK: - Cleanup
 
-    private func scanCleanupAndClutter(update: DomainProgressUpdate) async -> SmartCareDomainResult {
+    private func scanCleanupAndClutter(update: @escaping DomainProgressUpdate) async -> SmartCareDomainResult {
         let start = Date()
         let categories: [DeepCleanCategory] = [
             .systemCache,
@@ -115,23 +242,49 @@ final class SmartCareEngine: @unchecked Sendable {
         let extraWeight = 1.0 - deepCleanWeight
 
         let deepStart = Date()
-        let results = await scanDeepCleanCategories(categories) { progress, currentItem, detail in
-            update(progress * deepCleanWeight, currentItem, detail)
+        let results = await scanDeepCleanCategories(categories) { progress, currentItem, detail, bytesSoFar in
+            update(
+                progress * deepCleanWeight,
+                currentItem,
+                detail,
+                SmartScanLiveCounters(spaceBytesFound: bytesSoFar, performanceFlaggedCount: 0, appsScannedCount: 0)
+            )
         }
         logger.info("Deep clean categories finished in \(Date().timeIntervalSince(deepStart))s")
+        let deepCleanBytes = results.values.reduce(0) { $0 + $1.totalSize }
 
-        update(deepCleanWeight + extraWeight * 0.10, "Finalizing", "Analyzing extra cleanup targets")
+        update(
+            deepCleanWeight + extraWeight * 0.10,
+            "Finalizing",
+            "Analyzing extra cleanup targets",
+            SmartScanLiveCounters(spaceBytesFound: deepCleanBytes, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
 
         async let junkFilesTask = categoryScanner.scanJunkFiles()
         async let hiddenTask = scanHiddenSpace()
         async let downloadsSplitTask = scanDownloadsSplit(thresholdDays: 30)
 
         let junkFiles = await junkFilesTask
-        update(deepCleanWeight + extraWeight * 0.35, "Finding extra junk", "Scanning hidden space")
+        update(
+            deepCleanWeight + extraWeight * 0.35,
+            "Finding extra junk",
+            "Scanning hidden space",
+            SmartScanLiveCounters(spaceBytesFound: deepCleanBytes + junkFiles.totalSize, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
         let hiddenStart = Date()
         let hiddenResult = await hiddenTask
         logger.info("Hidden space scan finished in \(Date().timeIntervalSince(hiddenStart))s")
-        update(deepCleanWeight + extraWeight * 0.70, "Finding extra junk", "Scanning downloads")
+        let hiddenBytes = hiddenResult?.totalHiddenSize ?? 0
+        update(
+            deepCleanWeight + extraWeight * 0.70,
+            "Finding extra junk",
+            "Scanning downloads",
+            SmartScanLiveCounters(
+                spaceBytesFound: deepCleanBytes + junkFiles.totalSize + hiddenBytes,
+                performanceFlaggedCount: 0,
+                appsScannedCount: 0
+            )
+        )
         let downloadsSplit = await downloadsSplitTask
         let userLogGroup = buildLogGroup(
             name: "User Log Files",
@@ -144,7 +297,19 @@ final class SmartCareEngine: @unchecked Sendable {
             basePaths: ["/Library/Logs", "/var/log"]
         )
 
-        update(1.0, nil, "Cleanup scan complete")
+        let cleanupTotal = results.values.reduce(0) { $0 + $1.totalSize } +
+            junkFiles.totalSize +
+            hiddenBytes +
+            downloadsSplit.recent.size +
+            downloadsSplit.old.size +
+            userLogGroup.size +
+            systemLogGroup.size
+        update(
+            1.0,
+            nil,
+            "Cleanup scan complete",
+            SmartScanLiveCounters(spaceBytesFound: cleanupTotal, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
         logger.info("Cleanup scan finished in \(Date().timeIntervalSince(start))s")
 
         let systemGroupId = UUID()
@@ -288,12 +453,13 @@ final class SmartCareEngine: @unchecked Sendable {
 
     private func scanDeepCleanCategories(
         _ categories: [DeepCleanCategory],
-        update: DomainProgressUpdate
+        update: @escaping @Sendable (_ progress: Double, _ currentItem: String?, _ detail: String, _ bytesSoFar: Int64) -> Void
     ) async -> [DeepCleanCategory: DeepCleanResult] {
         let maxConcurrent = 3
         var results: [DeepCleanCategory: DeepCleanResult] = [:]
         var completed = 0
         var index = 0
+        var bytesSoFar: Int64 = 0
 
         await withTaskGroup(of: (DeepCleanCategory, DeepCleanResult).self) { group in
             func enqueueNext() {
@@ -313,8 +479,9 @@ final class SmartCareEngine: @unchecked Sendable {
             while let (category, result) = await group.next() {
                 results[category] = result
                 completed += 1
+                bytesSoFar += result.totalSize
                 let progress = Double(completed) / Double(max(1, categories.count))
-                update(progress, category.rawValue, category.description)
+                update(progress, category.rawValue, category.description, bytesSoFar)
                 enqueueNext()
             }
         }
@@ -409,9 +576,14 @@ final class SmartCareEngine: @unchecked Sendable {
 
     // MARK: - Performance
 
-    private func scanPerformance(update: DomainProgressUpdate) async -> SmartCareDomainResult {
+    private func scanPerformance(update: @escaping DomainProgressUpdate) async -> SmartCareDomainResult {
         let start = Date()
-        update(0.12, nil, "Checking maintenance tasks")
+        update(
+            0.12,
+            nil,
+            "Checking maintenance tasks",
+            SmartScanLiveCounters(spaceBytesFound: 0, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
 
         let maintenanceGroupId = UUID()
         let loginGroupId = UUID()
@@ -440,7 +612,12 @@ final class SmartCareEngine: @unchecked Sendable {
             )
         }
 
-        update(0.45, nil, "Reviewing login items")
+        update(
+            0.45,
+            nil,
+            "Reviewing login items",
+            SmartScanLiveCounters(spaceBytesFound: 0, performanceFlaggedCount: maintenanceItems.count, appsScannedCount: 0)
+        )
         let loginItems = await scanLoginItemsDetailed().map { entry in
             makeItem(
                 domain: .performance,
@@ -456,7 +633,16 @@ final class SmartCareEngine: @unchecked Sendable {
             )
         }
 
-        update(0.75, nil, "Reviewing background items")
+        update(
+            0.75,
+            nil,
+            "Reviewing background items",
+            SmartScanLiveCounters(
+                spaceBytesFound: 0,
+                performanceFlaggedCount: maintenanceItems.count + loginItems.count,
+                appsScannedCount: 0
+            )
+        )
         let backgroundItems = scanBackgroundItemsDetailed().map { entry in
             makeItem(
                 domain: .performance,
@@ -472,7 +658,16 @@ final class SmartCareEngine: @unchecked Sendable {
             )
         }
 
-        update(1.0, nil, "Performance scan complete")
+        update(
+            1.0,
+            nil,
+            "Performance scan complete",
+            SmartScanLiveCounters(
+                spaceBytesFound: 0,
+                performanceFlaggedCount: maintenanceItems.count + loginItems.count + backgroundItems.count,
+                appsScannedCount: 0
+            )
+        )
         logger.info("Performance scan finished in \(Date().timeIntervalSince(start))s")
 
         let groups: [SmartCareGroup] = [
@@ -592,11 +787,27 @@ final class SmartCareEngine: @unchecked Sendable {
 
     // MARK: - Applications
 
-    private func scanApplications(update: DomainProgressUpdate) async -> SmartCareDomainResult {
+    private func scanApplications(update: @escaping DomainProgressUpdate) async -> SmartCareDomainResult {
         let start = Date()
-        update(0.2, nil, "Reviewing installed applications")
+        update(
+            0.2,
+            nil,
+            "Reviewing installed applications",
+            SmartScanLiveCounters(spaceBytesFound: 0, performanceFlaggedCount: 0, appsScannedCount: 0)
+        )
         let appIssues = await categoryScanner.scanAppIssues()
-        update(1.0, nil, "Applications scan complete")
+        let duplicateVersionsCount = appIssues.duplicateApps.reduce(0) { $0 + $1.versions.count }
+        let scannedAppsCount = appIssues.unusedApps.count + duplicateVersionsCount + appIssues.largeApps.count
+        update(
+            1.0,
+            nil,
+            "Applications scan complete",
+            SmartScanLiveCounters(
+                spaceBytesFound: 0,
+                performanceFlaggedCount: 0,
+                appsScannedCount: scannedAppsCount
+            )
+        )
         logger.info("Applications scan finished in \(Date().timeIntervalSince(start))s")
 
         let groupId = UUID()
