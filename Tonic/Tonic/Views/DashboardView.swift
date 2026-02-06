@@ -328,7 +328,6 @@ class SmartScanManager: ObservableObject {
     private func recommendationType(for scanRecommendation: ScanRecommendation) -> Recommendation.RecommendationType {
         switch scanRecommendation.type {
         case .launchAgents: return .optimize
-        case .privacyData: return .security
         case .cache, .logs, .tempFiles, .trash, .oldFiles, .languageFiles, .duplicates, .oldApps, .largeApps, .largeFiles, .hiddenSpace:
             return .clean
         }
@@ -339,7 +338,7 @@ class SmartScanManager: ObservableObject {
         case .cache, .tempFiles: return .cache
         case .logs: return .logs
         case .oldApps, .largeApps: return .apps
-        case .launchAgents, .privacyData: return .system
+        case .launchAgents: return .system
         case .trash, .oldFiles, .languageFiles, .duplicates, .largeFiles, .hiddenSpace: return .other
         }
     }
@@ -350,7 +349,7 @@ class SmartScanManager: ObservableObject {
         if bytes >= 250_000_000 { return .medium }
         if bytes > 0 { return .low }
         switch scanRecommendation.type {
-        case .launchAgents, .privacyData:
+        case .launchAgents:
             return .medium
         default:
             return .low
