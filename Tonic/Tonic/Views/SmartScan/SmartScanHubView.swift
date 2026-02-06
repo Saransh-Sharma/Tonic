@@ -119,18 +119,10 @@ struct SmartScanHubView: View {
     }
 
     private var timelineAndCounters: some View {
-        VStack(spacing: TonicSpaceToken.two) {
-            ScanTimelineStepper(
-                stages: SmartScanStage.allCases.map(\.rawValue),
-                activeIndex: activeStageIndex,
-                completed: Set(completedStageIndexes)
-            )
-
-            HStack(spacing: TonicSpaceToken.two) {
-                LiveCounterChip(label: "Space", value: formatBytes(counters.spaceBytesFound))
-                LiveCounterChip(label: "Performance", value: "\(counters.performanceFlaggedCount) items")
-                LiveCounterChip(label: "Apps", value: "\(counters.appsScannedCount) apps")
-            }
+        HStack(spacing: TonicSpaceToken.two) {
+            stageBadge(for: .space)
+            stageBadge(for: .performance)
+            stageBadge(for: .apps)
         }
     }
 
@@ -211,14 +203,6 @@ struct SmartScanHubView: View {
         case .results:
             onRunSmartClean()
         }
-    }
-
-    private var activeStageIndex: Int {
-        SmartScanStage.allCases.firstIndex(of: currentStage) ?? 0
-    }
-
-    private var completedStageIndexes: [Int] {
-        completedStages.compactMap { SmartScanStage.allCases.firstIndex(of: $0) }
     }
 
     private var spaceResultMetric: String {
@@ -464,6 +448,38 @@ struct SmartScanHubView: View {
 
     private func formatBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func stageBadge(for stage: SmartScanStage) -> some View {
+        LiveCounterChip(
+            label: stage.rawValue,
+            value: stageValue(for: stage),
+            isActive: currentStage == stage && mode == .scanning,
+            isComplete: completedStages.contains(stage) || mode == .results || mode == .running
+        )
+    }
+
+    private func stageValue(for stage: SmartScanStage) -> String? {
+        switch mode {
+        case .ready:
+            return nil
+        case .scanning:
+            guard completedStages.contains(stage) else { return nil }
+            return valueForCompletedStage(stage)
+        case .running, .results:
+            return valueForCompletedStage(stage)
+        }
+    }
+
+    private func valueForCompletedStage(_ stage: SmartScanStage) -> String {
+        switch stage {
+        case .space:
+            return formatBytes(counters.spaceBytesFound)
+        case .performance:
+            return "\(counters.performanceFlaggedCount) items"
+        case .apps:
+            return "\(counters.appsScannedCount) apps"
+        }
     }
 
     private func sectionBackground(for world: TonicWorld) -> some View {
