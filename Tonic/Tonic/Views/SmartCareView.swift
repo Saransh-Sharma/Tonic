@@ -30,11 +30,19 @@ struct SmartCareView: View {
             counters: smartCareSession.liveCounters,
             scanResult: smartCareSession.scanResult,
             runSummaryText: smartCareSession.runSummaryText,
+            quickActionSheet: smartCareSession.quickActionSheet,
+            quickActionProgress: smartCareSession.quickActionProgress,
+            quickActionSummary: smartCareSession.quickActionSummary,
+            quickActionIsRunning: smartCareSession.quickActionIsRunning,
             onStartScan: smartCareSession.startScan,
             onStopScan: smartCareSession.stopCurrentOperation,
             onRunSmartClean: smartCareSession.runSmartClean,
             onReviewCustomize: smartCareSession.reviewCustomize,
-            onReviewTarget: smartCareSession.review(target:)
+            onReviewTarget: smartCareSession.review(target:),
+            onTileAction: smartCareSession.presentQuickAction(for:action:),
+            onQuickActionStart: smartCareSession.startQuickActionRun,
+            onQuickActionStop: smartCareSession.stopQuickActionRun,
+            onQuickActionDone: smartCareSession.dismissQuickActionSummary
         )
     }
 
