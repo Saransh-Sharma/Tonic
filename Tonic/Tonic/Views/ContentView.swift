@@ -22,6 +22,7 @@ struct ContentView: View {
 
     @State private var permissionManager = PermissionManager.shared
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
+    @StateObject private var smartCareSession = SmartCareSessionStore()
 
     var hasSeenOnboarding: Bool {
         get { hasSeenOnboardingValue }
@@ -38,7 +39,8 @@ struct ContentView: View {
                     onPermissionNeeded: { feature in
                         missingPermissionFor = feature
                         showPermissionPrompt = true
-                    }
+                    },
+                    smartCareSession: smartCareSession
                 )
             }
             .navigationTitle("Tonic")
@@ -108,6 +110,7 @@ struct ContentView: View {
 struct DetailView: View {
     let item: NavigationDestination
     let onPermissionNeeded: (PermissionManager.Feature) -> Void
+    @ObservedObject var smartCareSession: SmartCareSessionStore
 
     @State private var permissionManager = PermissionManager.shared
     @State private var checkedPermissions = false
@@ -135,7 +138,7 @@ struct DetailView: View {
         case .dashboard:
             DashboardView()
         case .systemCleanup:
-            MaintenanceView()
+            MaintenanceView(smartCareSession: smartCareSession)
         case .appManager:
             if permissionManager.hasFullDiskAccess {
                 AppInventoryView()
