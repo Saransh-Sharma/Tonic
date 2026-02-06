@@ -208,6 +208,17 @@
 		BCFEA2AF64924B438559D160 /* SmartScanModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF38630AE4B442AE8EC5F279 /* SmartScanModels.swift */; };
 		9FDBB3C929424070A7B0A68A /* SmartCareEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92440DF3A9CB46EA8F8CE525 /* SmartCareEngine.swift */; };
 		C31280E511B44935B7890DFB /* RecommendationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4E493AFBBB4EF08C211F68 /* RecommendationDetailView.swift */; };
+		A10000000000000000000001 /* TonicThemeTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* TonicThemeTokens.swift */; };
+		A10000000000000000000002 /* TonicThemeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* TonicThemeProvider.swift */; };
+		A10000000000000000000003 /* TonicVisualPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* TonicVisualPrimitives.swift */; };
+		A10000000000000000000004 /* TonicSmartScanComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* TonicSmartScanComponents.swift */; };
+		A10000000000000000000005 /* SmartScanRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* SmartScanRouting.swift */; };
+		A10000000000000000000006 /* SmartScanIAModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* SmartScanIAModels.swift */; };
+		A10000000000000000000007 /* SmartScanHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* SmartScanHubView.swift */; };
+			A10000000000000000000008 /* SpaceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* SpaceManagerView.swift */; };
+			A10000000000000000000009 /* PerformanceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* PerformanceManagerView.swift */; };
+			A1000000000000000000000A /* AppsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* AppsManagerView.swift */; };
+			A1000000000000000000000B /* SmartCareSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* SmartCareSessionStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -425,6 +436,17 @@
 		AF38630AE4B442AE8EC5F279 /* SmartScanModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanModels.swift; sourceTree = "<group>"; };
 		92440DF3A9CB46EA8F8CE525 /* SmartCareEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCareEngine.swift; sourceTree = "<group>"; };
 		CA4E493AFBBB4EF08C211F68 /* RecommendationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationDetailView.swift; sourceTree = "<group>"; };
+		B10000000000000000000001 /* TonicThemeTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicThemeTokens.swift; sourceTree = "<group>"; };
+		B10000000000000000000002 /* TonicThemeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicThemeProvider.swift; sourceTree = "<group>"; };
+		B10000000000000000000003 /* TonicVisualPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicVisualPrimitives.swift; sourceTree = "<group>"; };
+		B10000000000000000000004 /* TonicSmartScanComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicSmartScanComponents.swift; sourceTree = "<group>"; };
+		B10000000000000000000005 /* SmartScanRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanRouting.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* SmartScanIAModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanIAModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000007 /* SmartScanHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartScanHubView.swift; sourceTree = "<group>"; };
+			B10000000000000000000008 /* SpaceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceManagerView.swift; sourceTree = "<group>"; };
+			B10000000000000000000009 /* PerformanceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceManagerView.swift; sourceTree = "<group>"; };
+			B1000000000000000000000A /* AppsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsManagerView.swift; sourceTree = "<group>"; };
+			B1000000000000000000000B /* SmartCareSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCareSessionStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -454,8 +476,12 @@
 				32F9B0B44B8F99242ACDDA1D /* Whitelist.swift */,
 				7CFCB4336429AF08DE91FA18 /* WidgetConfiguration.swift */,
 			
-				E57718FCD8224B68A399150D /* SmartCareModels.swift */,
-				AF38630AE4B442AE8EC5F279 /* SmartScanModels.swift */,);
+					E57718FCD8224B68A399150D /* SmartCareModels.swift */,
+					B1000000000000000000000B /* SmartCareSessionStore.swift */,
+					AF38630AE4B442AE8EC5F279 /* SmartScanModels.swift */,
+					B10000000000000000000005 /* SmartScanRouting.swift */,
+					B10000000000000000000006 /* SmartScanIAModels.swift */,
+			);
 			path = Models;
 			sourceTree = "<group>";
 		};
@@ -530,6 +556,7 @@
 				11AD4BB226CE29A4E16BE5D7 /* WidgetGalleryView.swift */,
 				2D78B8C9BDFD96B7C93C669C /* WidgetOnboardingView.swift */,
 				7240B22691C5F22256423B6B /* WidgetsPanelView.swift */,
+				C10000000000000000000001 /* SmartScan */,
 				3E9C718477AB9BDB3360C093 /* Refactored */,
 				18FC03C9DBC63425495A088F /* Settings */,
 			
@@ -552,6 +579,17 @@
 				CB03775DCEA7F141621E13AB /* GeneralPreferencesSection.swift */,
 			);
 			path = Refactored;
+			sourceTree = "<group>";
+		};
+		C10000000000000000000001 /* SmartScan */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* SmartScanHubView.swift */,
+				B10000000000000000000008 /* SpaceManagerView.swift */,
+				B10000000000000000000009 /* PerformanceManagerView.swift */,
+				B1000000000000000000000A /* AppsManagerView.swift */,
+			);
+			path = SmartScan;
 			sourceTree = "<group>";
 		};
 		3F11CF546F133A3D5C4519A0 /* Utilities */ = {
@@ -714,6 +752,10 @@
 				1341573082F2ED7AF28AC9FA /* InputValidation.swift */,
 				BA8B2535D04217204DFB105E /* OutlineView.swift */,
 				38BCE5E4FF1CA33C25A7D8EE /* WidgetColors.swift */,
+				B10000000000000000000001 /* TonicThemeTokens.swift */,
+				B10000000000000000000002 /* TonicThemeProvider.swift */,
+				B10000000000000000000003 /* TonicVisualPrimitives.swift */,
+				B10000000000000000000004 /* TonicSmartScanComponents.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -1152,9 +1194,21 @@
 			
 				9A4E973688294EAA9011E393 /* SmartCareView.swift in Sources */,
 				07651E38C62E491A858F2267 /* SmartCareModels.swift in Sources */,
-				BCFEA2AF64924B438559D160 /* SmartScanModels.swift in Sources */,
-				9FDBB3C929424070A7B0A68A /* SmartCareEngine.swift in Sources */,
-				C31280E511B44935B7890DFB /* RecommendationDetailView.swift in Sources */,);
+					BCFEA2AF64924B438559D160 /* SmartScanModels.swift in Sources */,
+					9FDBB3C929424070A7B0A68A /* SmartCareEngine.swift in Sources */,
+					A1000000000000000000000B /* SmartCareSessionStore.swift in Sources */,
+					C31280E511B44935B7890DFB /* RecommendationDetailView.swift in Sources */,
+					A10000000000000000000001 /* TonicThemeTokens.swift in Sources */,
+				A10000000000000000000002 /* TonicThemeProvider.swift in Sources */,
+				A10000000000000000000003 /* TonicVisualPrimitives.swift in Sources */,
+				A10000000000000000000004 /* TonicSmartScanComponents.swift in Sources */,
+				A10000000000000000000005 /* SmartScanRouting.swift in Sources */,
+				A10000000000000000000006 /* SmartScanIAModels.swift in Sources */,
+				A10000000000000000000007 /* SmartScanHubView.swift in Sources */,
+				A10000000000000000000008 /* SpaceManagerView.swift in Sources */,
+				A10000000000000000000009 /* PerformanceManagerView.swift in Sources */,
+				A1000000000000000000000A /* AppsManagerView.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		1FE28D87FED915A11AB8233E /* Sources */ = {
@@ -1277,6 +1331,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1378,6 +1433,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
