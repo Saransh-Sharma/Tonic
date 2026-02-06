@@ -98,14 +98,14 @@ struct WorldCanvasBackground: View {
     var body: some View {
         ZStack {
             RadialGradient(
-                gradient: Gradient(colors: [theme.canvasLight, theme.canvasMid, theme.canvasDark]),
+                gradient: Gradient(colors: [theme.canvasMid.opacity(0.92), theme.canvasMid, theme.canvasDark]),
                 center: recipe.center,
                 startRadius: 40,
                 endRadius: 900
             )
 
             LinearGradient(
-                colors: [theme.canvasMid.opacity(0.15), theme.canvasDark.opacity(0.35)],
+                colors: [theme.canvasMid.opacity(0.22), theme.canvasDark.opacity(0.45)],
                 startPoint: .top,
                 endPoint: .bottom
             )
