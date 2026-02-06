@@ -10,7 +10,7 @@ import Foundation
 import OSLog
 
 // Note: Assumes ScanResult.swift models are imported via module
-// Imports: JunkCategory, PerformanceCategory, AppIssueCategory, PrivacyCategory, FileGroup, AppMetadata, DuplicateAppGroup, OrphanedFile, ScanConfiguration
+// Imports: JunkCategory, PerformanceCategory, AppIssueCategory, FileGroup, AppMetadata, DuplicateAppGroup, OrphanedFile, ScanConfiguration
 
 // MARK: - Scan Category Scanner
 
@@ -472,104 +472,6 @@ final class ScanCategoryScanner: @unchecked Sendable {
         }
 
         return orphanedFiles.sorted { $0.size > $1.size }
-    }
-
-    // MARK: - Privacy Issues Scanning
-
-    func scanPrivacyIssues() async -> PrivacyCategory {
-        let browserHistory = await scanBrowserHistory()
-        let downloadHistory = await scanDownloadHistory()
-        let recentDocuments = await scanRecentDocuments()
-        let clipboardData = FileGroup(name: "Clipboard", description: "System clipboard data", paths: [], size: 0, count: 0)
-
-        return PrivacyCategory(
-            browserHistory: browserHistory,
-            downloadHistory: downloadHistory,
-            recentDocuments: recentDocuments,
-            clipboardData: clipboardData
-        )
-    }
-
-    private func scanBrowserHistory() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let historyPaths = [
-            home + "/Library/Safari/History.db",
-            home + "/Library/Application Support/Google/Chrome/Default/History",
-            home + "/Library/Application Support/Firefox/Profiles"
-        ]
-
-        for path in historyPaths where fileManager.fileExists(atPath: path) {
-            let (size, count) = await measureFilesInPath(path)
-            if size > 0 {
-                paths.append(path)
-                totalSize += size
-                fileCount += count
-            }
-        }
-
-        return FileGroup(
-            name: "Browser History",
-            description: "Web browsing history from installed browsers",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
-    }
-
-    private func scanDownloadHistory() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let downloadsPath = home + "/Downloads"
-
-        if fileManager.fileExists(atPath: downloadsPath) {
-            let (size, count) = await measureFilesInPath(downloadsPath)
-            if size > 0 {
-                paths.append(downloadsPath)
-                totalSize = size
-                fileCount = count
-            }
-        }
-
-        return FileGroup(
-            name: "Download History",
-            description: "Files in Downloads folder",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
-    }
-
-    private func scanRecentDocuments() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let recentPath = home + "/Library/Preferences/com.apple.LaunchServices.QuarantineResolve"
-
-        if fileManager.fileExists(atPath: recentPath) {
-            let (size, count) = await measureFilesInPath(recentPath)
-            if size > 0 {
-                paths.append(recentPath)
-                totalSize = size
-                fileCount = count
-            }
-        }
-
-        return FileGroup(
-            name: "Recent Documents",
-            description: "Recent file access records",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
     }
 
     // MARK: - Helper Methods
