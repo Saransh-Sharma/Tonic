@@ -637,28 +637,42 @@ struct ThemeSandboxShowcase: View {
 // MARK: - Smart Scan Sandbox
 
 struct SmartScanSandboxShowcase: View {
-    @State private var query = ""
-    @State private var includeInAction = true
-    @State private var permanentDelete = false
-    @State private var selectedAppFilter: AppFilter = .all
-    @State private var selectedRowA = false
-    @State private var selectedRowB = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             Text("Smart Scan Components")
                 .font(DesignTokens.Typography.h2)
 
-            Text("Hub, managers, shell layout, rows, actions, and safety patterns.")
+            Text("Bento layouts, command dock states, quick action overlays, and badge mapping.")
                 .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
-            SectionShowcase(title: "Hub Hero States") {
+            SectionShowcase(title: "Command Dock States") {
                 TonicThemeProvider(world: .smartScanPurple) {
                     VStack(spacing: TonicSpaceToken.two) {
-                        ScanHeroModule(state: .ready)
-                        ScanHeroModule(state: .scanning(progress: 0.44))
-                        ScanHeroModule(state: .results(space: "80.55 GB", performance: "18 items", apps: "38 apps"))
+                        SmartScanCommandDock(
+                            mode: .ready,
+                            summary: "Run Smart Scan across Space, Performance, and Apps.",
+                            primaryEnabled: true,
+                            secondaryTitle: nil,
+                            onSecondaryAction: nil,
+                            action: {}
+                        )
+                        SmartScanCommandDock(
+                            mode: .scanning,
+                            summary: "Scanning: 44% • Space: 32.4 GB • Performance: 12 items • Apps: 38 apps",
+                            primaryEnabled: true,
+                            secondaryTitle: nil,
+                            onSecondaryAction: nil,
+                            action: {}
+                        )
+                        SmartScanCommandDock(
+                            mode: .results,
+                            summary: "Recommended: 18 tasks • Space: 80.55 GB • Apps: 38 apps",
+                            primaryEnabled: true,
+                            secondaryTitle: "Customize",
+                            onSecondaryAction: {},
+                            action: {}
+                        )
                     }
                     .padding(TonicSpaceToken.two)
                     .background(WorldCanvasBackground())
@@ -666,7 +680,159 @@ struct SmartScanSandboxShowcase: View {
                 }
             }
 
-            SectionShowcase(title: "Timeline + Live Counters") {
+            SectionShowcase(title: "Pillar Header Variants") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        PillarSectionHeader(
+                            title: "Space",
+                            subtitle: "Cleanup + Clutter",
+                            summary: "107.47 GB reclaimable",
+                            sectionActionTitle: "Review All Junk",
+                            world: .cleanupGreen,
+                            onSectionAction: {}
+                        )
+                        PillarSectionHeader(
+                            title: "Performance",
+                            subtitle: "Optimize + Startup Control",
+                            summary: "23 items affecting startup",
+                            sectionActionTitle: "View All Tasks",
+                            world: .performanceOrange,
+                            onSectionAction: {}
+                        )
+                        PillarSectionHeader(
+                            title: "Apps",
+                            subtitle: "Uninstall + Updates + Leftovers",
+                            summary: "88 apps found",
+                            sectionActionTitle: "Manage My Applications",
+                            world: .applicationsBlue,
+                            onSectionAction: {}
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Bento Grid Layout Matrix") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        BentoGrid(
+                            world: .cleanupGreen,
+                            tiles: demoSpaceTiles,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                        BentoGrid(
+                            world: .performanceOrange,
+                            tiles: demoPerformanceTiles,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Bento Tile Actions") {
+                TonicThemeProvider(world: .applicationsBlue) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        BentoTile(
+                            model: demoAppsTiles[0],
+                            world: .applicationsBlue,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                        BentoTile(
+                            model: demoAppsTiles[2],
+                            world: .applicationsBlue,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Quick Action Card States") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 0,
+                            summary: nil,
+                            isRunning: false,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 0.47,
+                            summary: nil,
+                            isRunning: true,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 1,
+                            summary: SmartScanRunSummary(tasksRun: 4, spaceFreed: 2_484_000_000, errors: 1, scoreImprovement: 6),
+                            isRunning: false,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Full Results Composition") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        PillarSectionHeader(
+                            title: "Space",
+                            subtitle: "Cleanup + Clutter",
+                            summary: "144 GB reclaimable",
+                            sectionActionTitle: "Review All Junk",
+                            world: .cleanupGreen,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .cleanupGreen, tiles: demoSpaceTiles, onReview: { _ in }, onAction: { _, _ in })
+                        PillarSectionHeader(
+                            title: "Performance",
+                            subtitle: "Optimize + Startup Control",
+                            summary: "23 items affecting startup",
+                            sectionActionTitle: "View All Tasks",
+                            world: .performanceOrange,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .performanceOrange, tiles: demoPerformanceTiles, onReview: { _ in }, onAction: { _, _ in })
+                        PillarSectionHeader(
+                            title: "Apps",
+                            subtitle: "Uninstall + Updates + Leftovers",
+                            summary: "88 apps found",
+                            sectionActionTitle: "Manage My Applications",
+                            world: .applicationsBlue,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .applicationsBlue, tiles: demoAppsTiles, onReview: { _ in }, onAction: { _, _ in })
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Badge World Mapping") {
                 TonicThemeProvider(world: .smartScanPurple) {
                     VStack(spacing: TonicSpaceToken.two) {
                         ScanTimelineStepper(
@@ -685,171 +851,144 @@ struct SmartScanSandboxShowcase: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
             }
-
-            SectionShowcase(title: "Result Pillar Cards") {
-                TonicThemeProvider(world: .smartScanPurple) {
-                    ResultPillarCard(
-                        title: "Space",
-                        metric: "80.55 GB",
-                        summary: "Cleanup + Clutter",
-                        preview: [
-                            ResultContributor(id: "xcodeJunk", title: "Xcode Junk", subtitle: "Developer artifacts", metric: "40.5 GB"),
-                            ResultContributor(id: "downloads", title: "Downloads", subtitle: "Old downloads", metric: "18.2 GB"),
-                            ResultContributor(id: "duplicates", title: "Duplicates", subtitle: "Duplicate file groups", metric: "448 MB")
-                        ],
-                        reviewTitle: "Review Space",
-                        onReviewSection: {},
-                        onReviewContributor: { _ in }
-                    )
-                    .padding(TonicSpaceToken.two)
-                    .background(WorldCanvasBackground())
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-
-            SectionShowcase(title: "ManagerShell States") {
-                TonicThemeProvider(world: .cleanupGreen) {
-                    ManagerShell(
-                        header: AnyView(
-                            PageHeader(
-                                title: "Space Manager",
-                                subtitle: "Three-pane shell",
-                                showsBack: true,
-                                searchText: $query,
-                                onBack: {},
-                                trailing: nil
-                            )
-                        ),
-                        left: {
-                            LeftNavPane {
-                                LeftNavListItem(title: "System Junk", count: 4, isSelected: true, action: {})
-                                LeftNavListItem(title: "Downloads", count: 2, isSelected: false, action: {})
-                            }
-                        },
-                        middle: {
-                            MiddleSummaryPane {
-                                SectionSummaryCard(
-                                    title: "System Junk",
-                                    description: "Subcategory summary",
-                                    metrics: ["All: 8", "Selected: 2", "Space: 12.3 GB"]
-                                )
-                            }
-                        },
-                        right: {
-                            RightItemsPane {
-                                ManagerSummaryStrip(text: "Xcode Junk · 11.2 GB · Safe: 2 · Needs review: 1")
-                                SelectableRow(
-                                    icon: "hammer",
-                                    title: "Derived Data",
-                                    subtitle: "Build artifacts",
-                                    metric: "8.1 GB",
-                                    isSelected: true,
-                                    onSelect: {},
-                                    onToggle: {}
-                                )
-                            }
-                        },
-                        footer: AnyView(
-                            StickyActionBar(
-                                summary: "Selected: 2 items · 8.1 GB",
-                                variant: .cleanUp,
-                                enabled: true,
-                                action: {}
-                            )
-                        )
-                    )
-                    .padding(TonicSpaceToken.two)
-                    .background(WorldCanvasBackground())
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-
-            SectionShowcase(title: "Row Behavior Matrix") {
-                TonicThemeProvider(world: .applicationsBlue) {
-                    VStack(spacing: TonicSpaceToken.one) {
-                        SelectableRow(
-                            icon: "trash",
-                            title: "Direct cleanable row",
-                            subtitle: "Checkbox only",
-                            metric: "2.4 GB",
-                            isSelected: selectedRowA,
-                            onSelect: {},
-                            onToggle: { selectedRowA.toggle() }
-                        )
-
-                        DrilldownRow(
-                            icon: "folder",
-                            title: "Drilldown row",
-                            subtitle: "Chevron only",
-                            metric: "14 groups",
-                            action: {}
-                        )
-
-                        HybridRow(
-                            icon: "app.badge",
-                            title: "Hybrid row",
-                            subtitle: "Row opens details, checkbox selects",
-                            metric: "4.8 GB",
-                            isSelected: selectedRowB,
-                            badges: [.unused, .large],
-                            onSelect: {},
-                            onToggle: { selectedRowB.toggle() }
-                        )
-                    }
-                    .padding(TonicSpaceToken.two)
-                    .background(WorldCanvasBackground())
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-
-            SectionShowcase(title: "StickyActionBar Variants") {
-                TonicThemeProvider(world: .performanceOrange) {
-                    VStack(spacing: TonicSpaceToken.one) {
-                        StickyActionBar(summary: "Cleanup selection", variant: .cleanUp, enabled: true, action: {})
-                        StickyActionBar(summary: "Run tasks", variant: .run, enabled: true, action: {})
-                        StickyActionBar(summary: "Disable startup items", variant: .disable, enabled: true, action: {})
-                        StickyActionBar(summary: "Uninstall apps", variant: .uninstall, enabled: true, action: {})
-                        StickyActionBar(summary: "Remove leftovers", variant: .remove, enabled: true, action: {})
-                    }
-                    .padding(TonicSpaceToken.two)
-                    .background(WorldCanvasBackground())
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
-
-            SectionShowcase(title: "Detail + Confirmation + Risk") {
-                TonicThemeProvider(world: .cleanupGreen) {
-                    VStack(spacing: TonicSpaceToken.two) {
-                        DetailPane(
-                            title: "Xcode Junk",
-                            subtitle: "Developer artifacts and simulators",
-                            riskText: "Review shared simulator runtimes before removing.",
-                            includeExcludeTitle: "Include in cleanup",
-                            include: $includeInAction
-                        )
-
-                        DeleteModeToggle(permanent: $permanentDelete)
-
-                        ActionConfirmationModal(
-                            title: "Confirm Cleanup",
-                            message: "You're about to remove 12 items (4.2 GB).",
-                            confirmTitle: "Run",
-                            onConfirm: {},
-                            onCancel: {}
-                        )
-
-                        SegmentedFilter(
-                            options: AppFilter.allCases,
-                            selected: $selectedAppFilter,
-                            title: { $0.title }
-                        )
-                    }
-                    .padding(TonicSpaceToken.two)
-                    .background(WorldCanvasBackground())
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-            }
         }
+    }
+
+    private var demoSpaceTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .spaceSystemJunk,
+                size: .large,
+                metricTitle: "22.5 GB",
+                title: "System Junk Found",
+                subtitle: "Clean up all unneeded files generated by your system.",
+                iconSymbols: ["gearshape.2.fill", "clock.fill", "person.crop.circle"],
+                reviewTarget: .tile(.spaceSystemJunk),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Clean", kind: .clean)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceTrashBins,
+                size: .wide,
+                metricTitle: "327 MB",
+                title: "Trash Bins Found",
+                subtitle: "Delete trash bin contents for good.",
+                iconSymbols: ["trash.fill"],
+                reviewTarget: .tile(.spaceTrashBins),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Clean", kind: .clean)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceExtraBinaries,
+                size: .small,
+                metricTitle: "3.2 GB",
+                title: "Extra Binaries Found",
+                subtitle: "Binary artifacts detected.",
+                iconSymbols: ["terminal.fill"],
+                reviewTarget: .tile(.spaceExtraBinaries),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceXcodeJunk,
+                size: .small,
+                metricTitle: "118 GB",
+                title: "Xcode Junk Found",
+                subtitle: "Developer caches and runtimes.",
+                iconSymbols: ["hammer.fill", "chevron.left.forwardslash.chevron.right"],
+                reviewTarget: .tile(.spaceXcodeJunk),
+                actions: [.init(title: "Review", kind: .review)]
+            )
+        ]
+    }
+
+    private var demoPerformanceTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .performanceMaintenanceTasks,
+                size: .large,
+                metricTitle: "5 Tasks",
+                title: "Maintenance Tasks Recommended",
+                subtitle: "Run weekly maintenance tasks to keep your Mac in shape.",
+                iconSymbols: ["wrench.and.screwdriver.fill", "magnifyingglass"],
+                reviewTarget: .tile(.performanceMaintenanceTasks),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Run Tasks", kind: .run)]
+            ),
+            SmartScanBentoTileModel(
+                id: .performanceLoginItems,
+                size: .wide,
+                metricTitle: "6 Items",
+                title: "You Have 6 Login Items",
+                subtitle: "Review applications that open automatically when your Mac starts.",
+                iconSymbols: ["shippingbox.fill", "app.fill", "chevron.left.forwardslash.chevron.right"],
+                reviewTarget: .tile(.performanceLoginItems),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .performanceBackgroundItems,
+                size: .wide,
+                metricTitle: "17 Items",
+                title: "Background Items Found",
+                subtitle: "Review background processes allowed to run on your Mac.",
+                iconSymbols: ["bolt.horizontal.circle.fill"],
+                reviewTarget: .tile(.performanceBackgroundItems),
+                actions: [.init(title: "Review", kind: .review)]
+            )
+        ]
+    }
+
+    private var demoAppsTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .appsUpdates,
+                size: .large,
+                metricTitle: "17 Updates",
+                title: "Application Updates Available",
+                subtitle: "Update software to keep up with latest features.",
+                iconSymbols: ["square.and.arrow.down.fill", "arrow.triangle.2.circlepath", "app.badge.fill"],
+                reviewTarget: .tile(.appsUpdates),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Update", kind: .update)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsUnused,
+                size: .wide,
+                metricTitle: "2 Apps",
+                title: "Unused Applications Found",
+                subtitle: "Unused apps still consume space on your Mac.",
+                iconSymbols: ["folder.fill"],
+                reviewTarget: .tile(.appsUnused),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsLeftovers,
+                size: .small,
+                metricTitle: "715 MB",
+                title: "App Leftovers Found",
+                subtitle: "Remove orphaned files.",
+                iconSymbols: ["trash.square.fill"],
+                reviewTarget: .tile(.appsLeftovers),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Remove", kind: .remove)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsInstallationFiles,
+                size: .small,
+                metricTitle: "10.4 GB",
+                title: "Installation Files Found",
+                subtitle: "Installer payloads and archives.",
+                iconSymbols: ["shippingbox.fill"],
+                reviewTarget: .tile(.appsInstallationFiles),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Remove", kind: .remove)]
+            )
+        ]
+    }
+
+    private var demoQuickSheet: SmartScanQuickActionSheetState {
+        SmartScanQuickActionSheetState(
+            tileID: .spaceSystemJunk,
+            action: .clean,
+            scope: .tile(.spaceSystemJunk),
+            title: "Clean System Junk",
+            subtitle: "About to clean selected system junk files.",
+            items: [],
+            estimatedSpace: 2_484_000_000
+        )
     }
 }
 
