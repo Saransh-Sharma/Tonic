@@ -33,7 +33,7 @@ public enum LicenseTier: String, Sendable, CaseIterable, Identifiable {
             return [
                 "All Free features",
                 "Unlimited cleaning",
-                "Deep clean all categories",
+                "Advanced maintenance toolkit",
                 "Smart scan recommendations",
                 "App uninstaller",
                 "System optimization",
@@ -204,16 +204,6 @@ public final class LicenseManager: NSObject, @unchecked Sendable {
             }
             return .unlocked
 
-        case .deepClean:
-            if currentTier == .free {
-                return FeatureLock(
-                    isLocked: true,
-                    tierRequired: .pro,
-                    message: "Deep clean requires Pro"
-                )
-            }
-            return .unlocked
-
         case .smartScan:
             if currentTier == .free {
                 return FeatureLock(
@@ -339,7 +329,6 @@ public enum Feature {
     case systemDashboard
     case appInventory
     case unlimitedCleaning
-    case deepClean
     case smartScan
     case appUninstaller
     case systemOptimization
