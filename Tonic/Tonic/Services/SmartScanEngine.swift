@@ -35,7 +35,6 @@ final class SmartScanEngine: @unchecked Sendable {
         var junkFiles: JunkCategory?
         var performanceIssues: PerformanceCategory?
         var appIssues: AppIssueCategory?
-        var privacyIssues: PrivacyCategory?
         var recommendations: [ScanRecommendation] = []
         var stageProgress: Double = 0
     }
@@ -139,10 +138,6 @@ final class SmartScanEngine: @unchecked Sendable {
         let performanceIssues = await categoryScanner.scanPerformanceIssues()
         lock.locked { _scanData.performanceIssues = performanceIssues }
 
-        // Scan privacy issues using category scanner
-        let privacyIssues = await categoryScanner.scanPrivacyIssues()
-        lock.locked { _scanData.privacyIssues = privacyIssues }
-
         let baseProgress = ScanStage.preparing.progressWeight +
                           ScanStage.scanningDisk.progressWeight +
                           ScanStage.checkingApps.progressWeight
@@ -202,19 +197,11 @@ final class SmartScanEngine: @unchecked Sendable {
             orphanedFiles: []
         )
 
-        let privacyIssues = lock.locked { _scanData.privacyIssues } ?? PrivacyCategory(
-            browserHistory: FileGroup(name: "Browser History", description: ""),
-            downloadHistory: FileGroup(name: "Downloads", description: ""),
-            recentDocuments: FileGroup(name: "Recent", description: ""),
-            clipboardData: FileGroup(name: "Clipboard", description: "")
-        )
-
         let legacyHealthScore = healthScoreCalculator.calculateScore(
             diskUsage: diskUsage,
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
-            appIssues: appIssues,
-            privacyIssues: privacyIssues
+            appIssues: appIssues
         )
         // Use scan-derived score only for Smart Scan to ensure stable results
         // when the scan findings haven't changed.
@@ -233,10 +220,7 @@ final class SmartScanEngine: @unchecked Sendable {
                                    unusedAppsSize +
                                    largeAppsSize +
                                    duplicateAppsSize +
-                                   orphanedFilesSize +
-                                   privacyIssues.browserHistory.size +
-                                   privacyIssues.downloadHistory.size +
-                                   privacyIssues.recentDocuments.size
+                                   orphanedFilesSize
 
         return ScanResult(
             id: UUID(),
@@ -245,7 +229,6 @@ final class SmartScanEngine: @unchecked Sendable {
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
             appIssues: appIssues,
-            privacyIssues: privacyIssues,
             totalReclaimableSpace: totalReclaimableSpace
         )
     }
