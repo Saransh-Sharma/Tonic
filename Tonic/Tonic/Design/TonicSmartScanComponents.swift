@@ -24,6 +24,15 @@ private extension View {
     func optionalAccessibilityIdentifier(_ identifier: String?) -> some View {
         modifier(OptionalAccessibilityIdentifier(identifier: identifier))
     }
+
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Buttons
@@ -92,6 +101,7 @@ struct PrimaryActionButton: View {
 struct SecondaryPillButton: View {
     let title: String
     let action: () -> Void
+    var accessibilityIdentifier: String? = nil
 
     var body: some View {
         Button(action: action) {
@@ -107,6 +117,7 @@ struct SecondaryPillButton: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(PressEffect())
+        .optionalAccessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -363,6 +374,7 @@ struct TrailingMetric: View {
 struct CounterChip: View {
     let title: String
     let value: String
+    var world: TonicWorld? = nil
 
     var body: some View {
         HStack(spacing: TonicSpaceToken.one) {
@@ -375,7 +387,20 @@ struct CounterChip: View {
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, 6)
-        .background(TonicNeutralToken.white.opacity(0.10))
+        .background(
+            Group {
+                if let world {
+                    PillarWorldCanvas(world: world)
+                } else {
+                    TonicNeutralToken.white.opacity(0.10)
+                }
+            }
+        )
+        .overlay(
+            Capsule()
+                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                .allowsHitTesting(false)
+        )
         .clipShape(Capsule())
     }
 }
@@ -807,15 +832,42 @@ struct ScanTimelineStepper: View {
     var body: some View {
         HStack(spacing: TonicSpaceToken.two) {
             ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
+                let isActive = index == activeIndex
+                let isComplete = completed.contains(index)
+                let world = worldForStage(stage)
+
                 HStack(spacing: TonicSpaceToken.one) {
                     Circle()
-                        .fill(completed.contains(index) ? TonicNeutralToken.white : (index == activeIndex ? TonicNeutralToken.white.opacity(0.75) : TonicNeutralToken.white.opacity(0.25)))
-                        .frame(width: 8, height: 8)
+                        .fill(isComplete || isActive ? TonicNeutralToken.white : TonicNeutralToken.white.opacity(0.40))
+                        .frame(width: 7, height: 7)
                     Text(stage)
-                        .font(TonicTypeToken.micro.weight(index == activeIndex ? .semibold : .regular))
-                        .foregroundStyle(index == activeIndex ? TonicTextToken.primary : TonicTextToken.tertiary)
+                        .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
+                        .foregroundStyle(isActive || isComplete ? TonicTextToken.primary : TonicTextToken.secondary)
                 }
+                .padding(.horizontal, TonicSpaceToken.two)
+                .padding(.vertical, 6)
+                .background(PillarWorldCanvas(world: world))
+                .overlay(
+                    Capsule()
+                        .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                        .allowsHitTesting(false)
+                )
+                .clipShape(Capsule())
+                .opacity(isActive || isComplete ? 1 : 0.55)
             }
+        }
+    }
+
+    private func worldForStage(_ stage: String) -> TonicWorld {
+        switch stage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "space":
+            return .cleanupGreen
+        case "performance":
+            return .performanceOrange
+        case "apps":
+            return .applicationsBlue
+        default:
+            return .smartScanPurple
         }
     }
 }
@@ -825,7 +877,417 @@ struct LiveCounterChip: View {
     let value: String
 
     var body: some View {
-        CounterChip(title: label, value: value)
+        CounterChip(
+            title: label,
+            value: value,
+            world: worldForLabel(label)
+        )
+    }
+
+    private func worldForLabel(_ label: String) -> TonicWorld {
+        switch label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "space":
+            return .cleanupGreen
+        case "performance":
+            return .performanceOrange
+        case "apps":
+            return .applicationsBlue
+        default:
+            return .smartScanPurple
+        }
+    }
+}
+
+struct SmartScanCommandDock: View {
+    let mode: SmartScanHubMode
+    let summary: String
+    let primaryEnabled: Bool
+    let secondaryTitle: String?
+    let onSecondaryAction: (() -> Void)?
+    let action: () -> Void
+    var primaryAccessibilityIdentifier: String = "smartscan.primary.action"
+    var secondaryAccessibilityIdentifier: String = "smartscan.review.customize"
+
+    private var primaryTitle: String {
+        switch mode {
+        case .ready:
+            return "Run Smart Scan"
+        case .scanning, .running:
+            return "Stop"
+        case .results:
+            return "Run Smart Clean"
+        }
+    }
+
+    private var primaryIcon: String {
+        switch mode {
+        case .ready:
+            return "magnifyingglass"
+        case .scanning, .running:
+            return "stop.fill"
+        case .results:
+            return "sparkles"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Text(summary)
+                .font(TonicTypeToken.caption)
+                .foregroundStyle(TonicTextToken.secondary)
+                .lineLimit(2)
+
+            Spacer()
+
+            if let secondaryTitle, let onSecondaryAction {
+                SecondaryPillButton(
+                    title: secondaryTitle,
+                    action: onSecondaryAction,
+                    accessibilityIdentifier: secondaryAccessibilityIdentifier
+                )
+            }
+
+            PrimaryActionButton(
+                title: primaryTitle,
+                icon: primaryIcon,
+                action: action,
+                isEnabled: primaryEnabled
+            )
+            .accessibilityIdentifier(primaryAccessibilityIdentifier)
+        }
+        .padding(.horizontal, TonicSpaceToken.four)
+        .padding(.vertical, TonicSpaceToken.three)
+        .glassSurface(radius: TonicRadiusToken.xl)
+    }
+}
+
+struct PillarSectionHeader: View {
+    let title: String
+    let subtitle: String
+    let summary: String
+    let sectionActionTitle: String
+    let world: TonicWorld
+    var sectionAccessibilityIdentifier: String? = nil
+    let onSectionAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(TonicTypeToken.title)
+                        .foregroundStyle(TonicTextToken.primary)
+                    Text(subtitle)
+                        .font(TonicTypeToken.caption)
+                        .foregroundStyle(TonicTextToken.secondary)
+                    Text(summary)
+                        .font(TonicTypeToken.body.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+                }
+
+                Spacer()
+
+                SecondaryPillButton(
+                    title: sectionActionTitle,
+                    action: onSectionAction,
+                    accessibilityIdentifier: sectionAccessibilityIdentifier
+                )
+            }
+        }
+        .padding(TonicSpaceToken.three)
+        .background(
+            PillarWorldCanvas(world: world)
+                .saturation(0.78)
+                .brightness(-0.14)
+                .overlay(Color.black.opacity(0.18))
+                .overlay(TonicNeutralToken.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                .allowsHitTesting(false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
+    }
+}
+
+struct MetricHeadline: View {
+    let value: String
+    let title: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(TonicTypeToken.title)
+                .foregroundStyle(TonicTextToken.primary)
+            Text(title)
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+        }
+    }
+}
+
+struct IconCluster: View {
+    let symbols: [String]
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.one) {
+            ForEach(Array(symbols.prefix(3).enumerated()), id: \.offset) { _, symbol in
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                    .frame(width: 28, height: 28)
+                    .background(TonicNeutralToken.white.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+            }
+        }
+    }
+}
+
+struct BentoTileActions: View {
+    let tileID: SmartScanTileID
+    let actions: [SmartScanBentoTileActionModel]
+    let onReview: (SmartScanReviewTarget) -> Void
+    let reviewTarget: SmartScanReviewTarget
+    let onAction: (SmartScanTileID, SmartScanTileActionKind) -> Void
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.one) {
+            ForEach(actions) { action in
+                Button {
+                    if action.kind == .review {
+                        onReview(reviewTarget)
+                    } else {
+                        onAction(tileID, action.kind)
+                    }
+                } label: {
+                    Text(action.title)
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .foregroundStyle(
+                            action.kind == .review
+                                ? TonicTextToken.primary
+                                : TonicNeutralToken.black.opacity(0.9)
+                        )
+                        .padding(.horizontal, TonicSpaceToken.two)
+                        .padding(.vertical, 7)
+                        .background(
+                            action.kind == .review
+                                ? TonicNeutralToken.white.opacity(0.12)
+                                : TonicNeutralToken.white.opacity(0.92)
+                        )
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!action.enabled)
+                .opacity(action.enabled ? 1 : 0.45)
+                .accessibilityIdentifier(buttonAccessibilityIdentifier(for: action))
+            }
+        }
+    }
+
+    private func buttonAccessibilityIdentifier(for action: SmartScanBentoTileActionModel) -> String {
+        switch action.kind {
+        case .review:
+            return "smartscan.review.contributor.\(tileID.rawValue)"
+        case .clean:
+            return "smartscan.execute.clean.\(tileID.rawValue)"
+        case .remove:
+            return "smartscan.execute.remove.\(tileID.rawValue)"
+        case .run:
+            return "smartscan.execute.run.\(tileID.rawValue)"
+        case .update:
+            return "smartscan.execute.update.\(tileID.rawValue)"
+        }
+    }
+}
+
+struct BentoTile: View {
+    let model: SmartScanBentoTileModel
+    let world: TonicWorld
+    let onReview: (SmartScanReviewTarget) -> Void
+    let onAction: (SmartScanTileID, SmartScanTileActionKind) -> Void
+
+    private var tileHeight: CGFloat {
+        switch model.size {
+        case .large:
+            return 368
+        case .wide:
+            return 178
+        case .small:
+            return 178
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .top) {
+                MetricHeadline(value: model.metricTitle, title: model.title)
+                Spacer()
+                if !model.iconSymbols.isEmpty {
+                    IconCluster(symbols: model.iconSymbols)
+                }
+            }
+
+            Text(model.subtitle)
+                .font(TonicTypeToken.body)
+                .foregroundStyle(TonicTextToken.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Spacer()
+                BentoTileActions(
+                    tileID: model.id,
+                    actions: model.actions,
+                    onReview: onReview,
+                    reviewTarget: model.reviewTarget,
+                    onAction: onAction
+                )
+            }
+        }
+        .padding(TonicSpaceToken.three)
+        .frame(maxWidth: .infinity, minHeight: tileHeight, maxHeight: tileHeight, alignment: .topLeading)
+        .background(
+            PillarWorldCanvas(world: world)
+                .saturation(0.82)
+                .brightness(-0.08)
+                .overlay(Color.black.opacity(0.22))
+                .overlay(TonicNeutralToken.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                .allowsHitTesting(false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
+        .depthLift()
+    }
+}
+
+struct BentoGrid: View {
+    let world: TonicWorld
+    let tiles: [SmartScanBentoTileModel]
+    let onReview: (SmartScanReviewTarget) -> Void
+    let onAction: (SmartScanTileID, SmartScanTileActionKind) -> Void
+
+    var body: some View {
+        let largeTiles = tiles.filter { $0.size == .large }
+        let wideTiles = tiles.filter { $0.size == .wide }
+        let smallTiles = tiles.filter { $0.size == .small }
+
+        if let large = largeTiles.first, wideTiles.count >= 1, smallTiles.count >= 2 {
+            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+                BentoTile(model: large, world: world, onReview: onReview, onAction: onAction)
+                    .frame(maxWidth: .infinity, alignment: .top)
+
+                VStack(spacing: TonicSpaceToken.two) {
+                    BentoTile(model: wideTiles[0], world: world, onReview: onReview, onAction: onAction)
+                    HStack(spacing: TonicSpaceToken.two) {
+                        BentoTile(model: smallTiles[0], world: world, onReview: onReview, onAction: onAction)
+                        BentoTile(model: smallTiles[1], world: world, onReview: onReview, onAction: onAction)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+        } else if let large = largeTiles.first, wideTiles.count >= 2 {
+            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+                BentoTile(model: large, world: world, onReview: onReview, onAction: onAction)
+                    .frame(maxWidth: .infinity, alignment: .top)
+
+                VStack(spacing: TonicSpaceToken.two) {
+                    BentoTile(model: wideTiles[0], world: world, onReview: onReview, onAction: onAction)
+                    BentoTile(model: wideTiles[1], world: world, onReview: onReview, onAction: onAction)
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+        } else {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: TonicSpaceToken.two),
+                    GridItem(.flexible(), spacing: TonicSpaceToken.two)
+                ],
+                spacing: TonicSpaceToken.two
+            ) {
+                ForEach(tiles) { tile in
+                    BentoTile(model: tile, world: world, onReview: onReview, onAction: onAction)
+                        .if(tile.size == .wide) { view in
+                            view.gridCellColumns(2)
+                        }
+                }
+            }
+        }
+    }
+}
+
+struct SmartScanQuickActionCard: View {
+    let sheet: SmartScanQuickActionSheetState
+    let progress: Double
+    let summary: SmartScanRunSummary?
+    let isRunning: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
+    let onDone: () -> Void
+
+    var body: some View {
+        GlassPanel(radius: TonicRadiusToken.xl) {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.three) {
+                Text(sheet.title)
+                    .font(TonicTypeToken.title)
+                    .foregroundStyle(TonicTextToken.primary)
+
+                if let summary {
+                    Text(summary.formattedSummary)
+                        .font(TonicTypeToken.body)
+                        .foregroundStyle(TonicTextToken.secondary)
+                        .accessibilityLabel("Quick action summary: \(summary.formattedSummary)")
+
+                    HStack {
+                        Spacer()
+                        PrimaryActionButton(title: "Done", icon: "checkmark", action: onDone)
+                            .accessibilityIdentifier("smartscan.quickaction.done")
+                    }
+                } else if isRunning {
+                    Text("Executing selected actions...")
+                        .font(TonicTypeToken.body)
+                        .foregroundStyle(TonicTextToken.secondary)
+
+                    ProgressBar(
+                        value: progress,
+                        total: 1,
+                        color: TonicNeutralToken.white,
+                        showPercentage: true
+                    )
+
+                    HStack {
+                        Spacer()
+                        SecondaryPillButton(title: "Stop", action: onStop)
+                            .accessibilityIdentifier("smartscan.quickaction.stop")
+                    }
+                } else {
+                    Text(sheet.subtitle)
+                        .font(TonicTypeToken.body)
+                        .foregroundStyle(TonicTextToken.secondary)
+
+                    Text("Items: \(sheet.items.count) • Estimated space: \(ByteCountFormatter.string(fromByteCount: sheet.estimatedSpace, countStyle: .file))")
+                        .font(TonicTypeToken.caption)
+                        .foregroundStyle(TonicTextToken.tertiary)
+
+                    HStack {
+                        SecondaryPillButton(title: "Dismiss", action: onDone)
+                        Spacer()
+                        PrimaryActionButton(
+                            title: "Run Now",
+                            icon: "play.fill",
+                            action: onStart,
+                            isEnabled: !sheet.items.isEmpty
+                        )
+                        .accessibilityIdentifier("smartscan.quickaction.run")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: 520)
     }
 }
 
@@ -876,14 +1338,14 @@ private struct PillarWorldCanvas: View {
         let token = world.token
         ZStack {
             RadialGradient(
-                gradient: Gradient(colors: [token.light, token.mid, token.dark]),
+                gradient: Gradient(colors: [token.mid.opacity(0.94), token.mid, token.dark]),
                 center: UnitPoint(x: 0.55, y: 0.35),
                 startRadius: 24,
                 endRadius: 520
             )
 
             LinearGradient(
-                colors: [token.mid.opacity(0.15), token.dark.opacity(0.35)],
+                colors: [token.mid.opacity(0.22), token.dark.opacity(0.44)],
                 startPoint: .top,
                 endPoint: .bottom
             )
