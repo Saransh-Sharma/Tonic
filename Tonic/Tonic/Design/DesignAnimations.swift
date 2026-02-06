@@ -350,7 +350,7 @@ extension View {
 struct SkeletonLoadingModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(DesignTokens.Colors.surfaceElevated)
+            .background(DesignTokens.Colors.backgroundTertiary)
             .shimmer()
             .cornerRadius(DesignTokens.CornerRadius.medium)
     }

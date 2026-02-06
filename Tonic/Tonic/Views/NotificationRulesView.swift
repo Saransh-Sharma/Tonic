@@ -41,7 +41,7 @@ struct NotificationRulesView: View {
         .frame(width: 500, height: 400)
         .sheet(isPresented: $showingAddRule) {
             AddRuleView(rule: editingRule) { rule in
-                if let existing = editingRule {
+                if editingRule != nil {
                     engine.updateRule(rule)
                 } else {
                     engine.addRule(rule)

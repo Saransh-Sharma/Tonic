@@ -23,7 +23,7 @@ public struct InterferenceScanResultsView: View {
                         .foregroundColor(result.congestionLevel.color)
 
                     Text("Channel \(result.currentChannel)")
-                        .font(DesignTokens.Typography.headlineSmall)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .fontWeight(.semibold)
                 }
 
@@ -31,7 +31,7 @@ public struct InterferenceScanResultsView: View {
 
                 // Congestion badge
                 Text(result.congestionLevel.rawValue)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .fontWeight(.medium)
                     .foregroundColor(result.congestionLevel.color)
                     .padding(.horizontal, 8)
@@ -51,7 +51,7 @@ public struct InterferenceScanResultsView: View {
 
             // Summary
             Text(result.summaryText)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             // Recommendation
@@ -62,8 +62,8 @@ public struct InterferenceScanResultsView: View {
                         .foregroundColor(TonicColors.warning)
 
                     Text(recommendation)
-                        .font(DesignTokens.Typography.captionSmall)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -77,7 +77,7 @@ public struct InterferenceScanResultsView: View {
             if !result.nearbyNetworks.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Nearby Networks")
-                        .font(DesignTokens.Typography.captionMedium)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
 
                     ForEach(result.nearbyNetworks.prefix(5)) { network in
@@ -86,7 +86,7 @@ public struct InterferenceScanResultsView: View {
 
                     if result.nearbyNetworks.count > 5 {
                         Text("+ \(result.nearbyNetworks.count - 5) more networks")
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                             .padding(.top, 4)
                     }
@@ -120,7 +120,7 @@ struct NearbyNetworkRow: View {
 
             // Network name
             Text(network.ssid)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .lineLimit(1)
 
@@ -128,12 +128,12 @@ struct NearbyNetworkRow: View {
 
             // Channel
             Text("Ch \(network.channel)")
-                .font(DesignTokens.Typography.monoSmall)
+                .font(DesignTokens.Typography.monoCaption)
                 .foregroundColor(network.isSameChannel ? TonicColors.error : DesignTokens.Colors.textTertiary)
 
             // Signal strength
             Text("\(Int(network.signalStrength)) dBm")
-                .font(DesignTokens.Typography.monoSmall)
+                .font(DesignTokens.Typography.monoCaption)
                 .foregroundColor(signalColor)
         }
         .padding(.vertical, 4)
@@ -166,7 +166,7 @@ public struct InterferenceIndicator: View {
                 .font(.caption2)
 
             Text(congestionLevel.rawValue)
-                .font(DesignTokens.Typography.captionSmall)
+                .font(DesignTokens.Typography.caption)
         }
         .foregroundColor(congestionLevel.color)
     }

@@ -168,7 +168,7 @@ struct OnboardingView: View {
                             .cornerRadius(10)
 
                             Button {
-                                permissionManager.requestFullDiskAccess()
+                                _ = permissionManager.requestFullDiskAccess()
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "gear")
@@ -301,9 +301,9 @@ struct OnboardingView: View {
                 )
 
                 HelperFeatureRow(
-                    icon: "trash.fill",
-                    title: "Deep Clean",
-                    description: "Remove system-level cache files"
+                    icon: "sparkles",
+                    title: "Smart Scan",
+                    description: "Run intelligent maintenance scans and recommendations"
                 )
 
                 HelperFeatureRow(

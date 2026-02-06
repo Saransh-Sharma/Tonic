@@ -191,7 +191,7 @@ struct PrimaryButton: View {
                     Image(systemName: icon)
                 }
                 Text(title)
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
             }
             .frame(minWidth: DesignTokens.Layout.minButtonHeight)
             .padding(.horizontal, DesignTokens.Spacing.md)
@@ -231,17 +231,17 @@ struct SecondaryButton: View {
                     Image(systemName: icon)
                 }
                 Text(title)
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
             }
             .frame(minWidth: DesignTokens.Layout.minButtonHeight)
             .padding(.horizontal, DesignTokens.Spacing.md)
             .padding(.vertical, DesignTokens.Spacing.sm)
-            .background(isHovered ? DesignTokens.Colors.surfaceHovered : DesignTokens.Colors.surface)
-            .foregroundColor(DesignTokens.Colors.text)
+            .background(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : DesignTokens.Colors.backgroundSecondary)
+            .foregroundColor(DesignTokens.Colors.textPrimary)
             .cornerRadius(DesignTokens.CornerRadius.medium)
             .overlay(
                 RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .stroke(DesignTokens.Colors.border, lineWidth: 1)
+                    .stroke(DesignTokens.Colors.separator, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -275,7 +275,7 @@ struct ProgressBar: View {
             if showPercentage {
                 HStack {
                     Text("\(Int(value * 100))%")
-                        .font(DesignTokens.Typography.captionLarge)
+                        .font(DesignTokens.Typography.captionEmphasized)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                     Spacer()
                 }
@@ -300,9 +300,9 @@ struct ProgressBar: View {
 
     private var progressColor: Color {
         switch value {
-        case 0..<0.5: return DesignTokens.Colors.progressLow
-        case 0.5..<0.8: return DesignTokens.Colors.progressMedium
-        default: return DesignTokens.Colors.progressHigh
+        case 0..<0.5: return DesignTokens.Colors.success
+        case 0.5..<0.8: return DesignTokens.Colors.warning
+        default: return DesignTokens.Colors.error
         }
     }
 }
@@ -321,28 +321,28 @@ struct StatCard: View {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(color)
-                    .font(DesignTokens.Typography.headlineSmall)
+                    .font(DesignTokens.Typography.bodyEmphasized)
                 Spacer()
             }
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text(value)
-                    .font(DesignTokens.Typography.displaySmall)
+                    .font(DesignTokens.Typography.h2)
 
                 Text(title)
-                    .font(DesignTokens.Typography.bodySmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(DesignTokens.Typography.captionSmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.large)
     }
 }
@@ -362,12 +362,12 @@ struct InfoRow: View {
                     .frame(width: 20)
             }
             Text(label)
-                .font(DesignTokens.Typography.bodyMedium)
+                .font(DesignTokens.Typography.subhead)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
             Spacer()
             Text(value)
-                .font(DesignTokens.Typography.bodyMedium)
-                .foregroundColor(DesignTokens.Colors.text)
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
         }
     }
 }
@@ -384,11 +384,11 @@ struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text(title)
-                    .font(DesignTokens.Typography.headlineMedium)
+                    .font(DesignTokens.Typography.h3)
 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
             }
@@ -398,7 +398,7 @@ struct SectionHeader: View {
             if let action = action, let actionTitle = actionTitle {
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                 }
                 .buttonStyle(.link)
             }
@@ -426,9 +426,9 @@ struct Badge: View {
 
         var font: Font {
             switch self {
-            case .small: return DesignTokens.Typography.captionSmall
-            case .medium: return DesignTokens.Typography.captionMedium
-            case .large: return DesignTokens.Typography.captionLarge
+            case .small: return DesignTokens.Typography.caption
+            case .medium: return DesignTokens.Typography.caption
+            case .large: return DesignTokens.Typography.captionEmphasized
             }
         }
     }
@@ -482,11 +482,11 @@ struct EmptyState: View {
 
             VStack(spacing: DesignTokens.Spacing.xs) {
                 Text(title)
-                    .font(DesignTokens.Typography.headlineMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h3)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Text(message)
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -513,7 +513,7 @@ struct SearchBar: View {
 
             TextField(placeholder, text: $text)
                 .textFieldStyle(.plain)
-                .font(DesignTokens.Typography.bodyMedium)
+                .font(DesignTokens.Typography.subhead)
 
             if !text.isEmpty {
                 Button {
@@ -526,11 +526,11 @@ struct SearchBar: View {
             }
         }
         .padding(DesignTokens.Spacing.sm)
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.medium)
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                .stroke(DesignTokens.Colors.border, lineWidth: 1)
+                .stroke(DesignTokens.Colors.separator, lineWidth: 1)
         )
     }
 }
@@ -546,11 +546,11 @@ struct ToggleTitleRow: View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text(title)
-                    .font(DesignTokens.Typography.bodyMedium)
+                    .font(DesignTokens.Typography.subhead)
 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(DesignTokens.Typography.bodySmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
             }
@@ -561,7 +561,7 @@ struct ToggleTitleRow: View {
                 .toggleStyle(.switch)
         }
         .padding(DesignTokens.Spacing.md)
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }

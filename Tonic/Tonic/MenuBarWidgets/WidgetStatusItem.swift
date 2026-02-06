@@ -322,8 +322,9 @@ public class WidgetStatusItem: ObservableObject {
         updateCompactView()
 
         // Force NSView redraw - ensures menu bar updates with latest data
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
+        Task { @MainActor in
+            // button is guaranteed to be non-nil from the guard above
+            // Redraw of the button in its own coordinate space
 
             // Force redraw of the button in its own coordinate space
             button.setNeedsDisplay(button.bounds)

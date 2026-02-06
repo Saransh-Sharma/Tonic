@@ -65,7 +65,11 @@ struct SystemInfo: Codable {
         self.architecture = {
             var sysinfo = utsname()
             uname(&sysinfo)
-            return String(cString: &sysinfo.machine.0)
+            // Convert Int8 array to UInt8 array for String(decodingCString:as:)
+            let machineData = withUnsafeBytes(of: &sysinfo.machine) { rawBuffer in
+                Data(rawBuffer)
+            }
+            return String(data: machineData, encoding: .utf8)?.trimmingCharacters(in: .controlCharacters) ?? "unknown"
         }()
         self.processorCount = processInfo.processorCount
         self.totalMemory = processInfo.physicalMemory

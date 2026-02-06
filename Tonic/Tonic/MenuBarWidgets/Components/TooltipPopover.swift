@@ -39,7 +39,7 @@ public struct TooltipPopover: View {
             // Text content
             VStack(alignment: .leading, spacing: 4) {
                 Text(text)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .lineLimit(4)
                     .multilineTextAlignment(.leading)
@@ -55,7 +55,7 @@ public struct TooltipPopover: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(DesignTokens.Colors.surface)
+                .fill(DesignTokens.Colors.backgroundSecondary)
                 .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 2)
         )
         .overlay(
@@ -87,7 +87,7 @@ public struct CompactTooltip: View {
                     .foregroundColor(color.swiftUIColor)
 
                 Text(text)
-                    .font(DesignTokens.Typography.captionSmall)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
                 Spacer()
@@ -174,7 +174,7 @@ public struct MetricLabelWithTooltip: View {
     public var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Image(systemName: "info.circle")

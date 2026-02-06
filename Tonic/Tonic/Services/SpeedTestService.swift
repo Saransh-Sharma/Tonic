@@ -58,15 +58,9 @@ public final class SpeedTestService {
         // Pre-generate upload test data on background thread
         Task.detached(priority: .background) {
             let size = 5_000_000  // 5MB
-            var localData = Data(count: size)
-            localData.withUnsafeMutableBytes { bytes in
-                guard let baseAddr = bytes.baseAddress else { return }
-                for i in 0..<bytes.count {
-                    baseAddr.advanced(by: i).storeBytes(of: UInt8.random(in: 0...255), as: UInt8.self)
-                }
-            }
+            let testData = Data((0..<size).map { _ in UInt8.random(in: 0...255) })
             await MainActor.run {
-                Self.uploadTestData = localData
+                Self.uploadTestData = testData
             }
         }
     }

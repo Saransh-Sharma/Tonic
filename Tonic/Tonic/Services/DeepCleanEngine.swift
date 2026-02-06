@@ -7,9 +7,11 @@
 //
 
 import Foundation
+import Darwin
+import OSLog
 
 /// Categories of cleanable items
-public enum DeepCleanCategory: String, CaseIterable, Identifiable {
+public enum DeepCleanCategory: String, Sendable, CaseIterable, Identifiable {
     case systemCache = "System Cache"
     case userCache = "User Cache"
     case logFiles = "Log Files"
@@ -73,6 +75,7 @@ public struct DeepCleanResult: Sendable, Identifiable {
 public final class DeepCleanEngine: @unchecked Sendable {
 
     private let fileManager = FileManager.default
+    private let sizeCache = DirectorySizeCache.shared
 
     public static let shared = DeepCleanEngine()
 
@@ -141,9 +144,9 @@ public final class DeepCleanEngine: @unchecked Sendable {
             totalSize = downloadPaths.reduce(0) { $0 + $1.size }
 
         case .trash:
-            let trashSize = await scanTrash()
-            paths = [fileManager.urls(for: .trashDirectory, in: .userDomainMask).first?.path ?? ""]
-            totalSize = trashSize
+            let trashPaths = trashContents()
+            paths = trashPaths
+            totalSize = measureTrashSize(trashPaths)
 
         case .development:
             let devPaths = await scanDevelopmentArtifacts()
@@ -213,14 +216,32 @@ public final class DeepCleanEngine: @unchecked Sendable {
 
     private func scanSystemCaches() async -> [ItemPath] {
         var paths: [ItemPath] = []
-        let cachePaths = [
+        let cacheRoots = [
             "/Library/Caches",
             "/System/Library/Caches"
         ]
 
-        for cachePath in cachePaths {
-            if let size = await getDirectorySize(cachePath) {
-                paths.append(ItemPath(path: cachePath, size: size))
+        for root in cacheRoots {
+            let rootURL = URL(fileURLWithPath: root)
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: rootURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { continue }
+
+            for url in contents {
+                let nameLower = url.lastPathComponent.lowercased()
+                if nameLower.contains("docker") {
+                    continue
+                }
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                if values?.isDirectory == true {
+                    if let size = await getDirectorySize(url.path) {
+                        paths.append(ItemPath(path: url.path, size: size))
+                    }
+                } else if let fileSize = values?.fileSize {
+                    paths.append(ItemPath(path: url.path, size: Int64(fileSize)))
+                }
             }
         }
 
@@ -230,12 +251,79 @@ public final class DeepCleanEngine: @unchecked Sendable {
     private func scanUserCaches() async -> [ItemPath] {
         var paths: [ItemPath] = []
         let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first?.path ?? ""
+        let cacheURL = URL(fileURLWithPath: cacheDir)
+        let excludedTopLevel: Set<String> = [
+            "com.apple.dt.xcode",
+            "com.apple.dt.xcodepreviews",
+            "com.apple.safari",
+            "firefox",
+            "com.docker.docker"
+        ]
+        if let contents = try? fileManager.contentsOfDirectory(
+            at: cacheURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for url in contents {
+                let nameLower = url.lastPathComponent.lowercased()
+                if excludedTopLevel.contains(nameLower) || nameLower.contains("docker") {
+                    continue
+                }
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                if values?.isDirectory == true {
+                    if nameLower == "google" {
+                        if let googleContents = try? fileManager.contentsOfDirectory(
+                            at: url,
+                            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                        ) {
+                            for child in googleContents {
+                                let childName = child.lastPathComponent.lowercased()
+                                if childName.contains("chrome") {
+                                    continue
+                                }
+                                let childValues = try? child.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                                if childValues?.isDirectory == true {
+                                    if let size = sizeCache.size(for: child.path, includeHidden: true) {
+                                        paths.append(ItemPath(path: child.path, size: size))
+                                    }
+                                } else if let fileSize = childValues?.fileSize {
+                                    paths.append(ItemPath(path: child.path, size: Int64(fileSize)))
+                                }
+                            }
+                        }
+                        continue
+                    }
 
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: cacheDir), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
-                let path = url.path
-                if let size = await getFileSize(path) {
-                    paths.append(ItemPath(path: path, size: size))
+                    if nameLower == "microsoft" {
+                        if let microsoftContents = try? fileManager.contentsOfDirectory(
+                            at: url,
+                            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                        ) {
+                            for child in microsoftContents {
+                                let childName = child.lastPathComponent.lowercased()
+                                if childName.contains("edge") {
+                                    continue
+                                }
+                                let childValues = try? child.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                                if childValues?.isDirectory == true {
+                                    if let size = sizeCache.size(for: child.path, includeHidden: true) {
+                                        paths.append(ItemPath(path: child.path, size: size))
+                                    }
+                                } else if let fileSize = childValues?.fileSize {
+                                    paths.append(ItemPath(path: child.path, size: Int64(fileSize)))
+                                }
+                            }
+                        }
+                        continue
+                    }
+
+                    if let size = sizeCache.size(for: url.path, includeHidden: true) {
+                        paths.append(ItemPath(path: url.path, size: size))
+                    }
+                } else if let fileSize = values?.fileSize {
+                    paths.append(ItemPath(path: url.path, size: Int64(fileSize)))
                 }
             }
         }
@@ -308,18 +396,24 @@ public final class DeepCleanEngine: @unchecked Sendable {
         let downloadsDir = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first?.path ?? ""
 
         let thirtyDaysAgo = Date().addingTimeInterval(-30 * 24 * 60 * 60)
-
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: downloadsDir), includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]) {
-            for case let url as URL in enumerator {
-                do {
-                    let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-                    if let modDate = resourceValues.contentModificationDate,
-                       modDate < thirtyDaysAgo {
-                        let size = Int64(resourceValues.fileSize ?? 0)
+        let downloadsURL = URL(fileURLWithPath: downloadsDir)
+        if let contents = try? fileManager.contentsOfDirectory(
+            at: downloadsURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for url in contents {
+                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                    continue
+                }
+                guard let modDate = values.contentModificationDate, modDate < thirtyDaysAgo else { continue }
+                if values.isDirectory == true {
+                    if let size = sizeCache.size(for: url.path, includeHidden: true) {
                         paths.append(ItemPath(path: url.path, size: size))
                     }
-                } catch {
-                    continue
+                } else {
+                    let size = Int64(values.fileSize ?? 0)
+                    paths.append(ItemPath(path: url.path, size: size))
                 }
             }
         }
@@ -327,20 +421,72 @@ public final class DeepCleanEngine: @unchecked Sendable {
         return paths
     }
 
-    private func scanTrash() async -> Int64 {
-        var totalSize: Int64 = 0
+    private func trashRoots() -> [String] {
+        var roots: [String] = []
 
         if let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first {
-            if let enumerator = fileManager.enumerator(at: trashURL, includingPropertiesForKeys: [.fileSizeKey]) {
-                for case let url as URL in enumerator {
-                    if let size = await getFileSize(url.path) {
-                        totalSize += size
-                    }
+            roots.append(trashURL.path)
+        }
+
+        let homeTrash = fileManager.homeDirectoryForCurrentUser.path + "/.Trash"
+        if fileManager.fileExists(atPath: homeTrash) {
+            roots.append(homeTrash)
+        }
+
+        let uid = getuid()
+        if let volumeURLs = try? fileManager.contentsOfDirectory(
+            at: URL(fileURLWithPath: "/Volumes"),
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            for volume in volumeURLs {
+                let values = try? volume.resourceValues(forKeys: [.isDirectoryKey])
+                guard values?.isDirectory == true else { continue }
+                let trashPath = volume.path + "/.Trashes/\(uid)"
+                if fileManager.fileExists(atPath: trashPath) {
+                    roots.append(trashPath)
+                }
+                let altTrash = volume.path + "/.Trash"
+                if fileManager.fileExists(atPath: altTrash) {
+                    roots.append(altTrash)
                 }
             }
         }
 
-        return totalSize
+        return Array(Set(roots))
+    }
+
+    private func trashContents() -> [String] {
+        var items: [String] = []
+
+        for root in trashRoots() {
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: URL(fileURLWithPath: root),
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                options: [.skipsPackageDescendants]
+            ) else { continue }
+
+            for url in contents {
+                items.append(url.path)
+            }
+        }
+
+        return items
+    }
+
+    private func measureTrashSize(_ paths: [String]) -> Int64 {
+        var total: Int64 = 0
+        for path in paths {
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    total += sizeCache.size(for: path, includeHidden: true) ?? 0
+                } else if let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]) {
+                    total += Int64(values.fileSize ?? 0)
+                }
+            }
+        }
+        return total
     }
 
     private func scanDevelopmentArtifacts() async -> [ItemPath] {
@@ -413,29 +559,15 @@ public final class DeepCleanEngine: @unchecked Sendable {
     // MARK: - Helper Methods
 
     private func getDirectorySize(_ path: String) async -> Int64? {
-        guard fileManager.fileExists(atPath: path) else { return nil }
-
-        var totalSize: Int64 = 0
-
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
-                if let size = await getFileSize(url.path) {
-                    totalSize += size
-                }
-            }
-        }
-
-        return totalSize
+        sizeCache.size(for: path, includeHidden: true)
     }
 
     private func getFileSize(_ path: String) async -> Int64? {
         guard fileManager.fileExists(atPath: path) else { return nil }
-
-        do {
-            let attrs = try fileManager.attributesOfItem(atPath: path)
-            return attrs[.size] as? Int64
-        } catch {
-            return nil
+        let url = URL(fileURLWithPath: path)
+        if let values = try? url.resourceValues(forKeys: [.fileSizeKey]) {
+            return Int64(values.fileSize ?? 0)
         }
+        return nil
     }
 }

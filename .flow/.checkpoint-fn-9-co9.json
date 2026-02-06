@@ -1,0 +1,194 @@
+{
+  "created_at": "2026-02-03T10:42:42.910345Z",
+  "epic": {
+    "data": {
+      "branch_name": "fn-9-co9",
+      "created_at": "2026-02-03T10:08:10.013476Z",
+      "default_impl": null,
+      "default_review": null,
+      "default_sync": null,
+      "depends_on_epics": [
+        "fn-6-i4g"
+      ],
+      "id": "fn-9-co9",
+      "next_task": 1,
+      "plan_review_status": "unknown",
+      "plan_reviewed_at": null,
+      "spec_path": ".flow/specs/fn-9-co9.md",
+      "status": "open",
+      "title": "Tonic Xcode Warnings: Fix All 395 Compiler Warnings",
+      "updated_at": "2026-02-03T10:38:25.120438Z"
+    },
+    "spec": "# Tonic Xcode Warnings: Fix All 395 Compiler Warnings\n\n## Overview\n\nFix all ~395 Xcode compiler warnings in the Tonic macOS application. The warnings fall into 7 categories:\n\n| Category | Count | Severity |\n|----------|-------|----------|\n| Deprecated Design Tokens (Typography) | ~180 | Low |\n| Deprecated Design Tokens (Colors) | ~70 | Low |\n| Swift 6 Async Iterator | 15 | High |\n| Swift 6 Sendable/Concurrency | ~20 | High |\n| Deprecated macOS APIs | ~13 | Medium |\n| Codable/Init Issues | 9 | Medium |\n| Logic/Cleanup | ~50 | Low |\n| Protocol/Storyboard | 2 | Low |\n\n## Goals\n\n- **Zero compiler warnings** - `xcodebuild` reports 0 warnings\n- **Preserve existing behavior** - No functional regressions\n- **Fix at source** - No warning suppressions\n\n## Architecture\n\n```mermaid\nflowchart TD\n    P0[Phase 0: Trivial Fixes] --> P1[Phase 1: Design Tokens]\n    P1 --> P2[Phase 2: Async Iterator]\n    P2 --> P3[Phase 3: Sendable]\n    P3 --> P4[Phase 4: Deprecated APIs]\n    P4 --> P5[Phase 5: Codable]\n    P5 --> P6[Phase 6: Logic Cleanup]\n    P6 --> P7[Phase 7: Hardening]\n    \n    style P0 fill:#90EE90\n    style P1 fill:#87CEEB\n    style P2 fill:#FFB6C1\n    style P3 fill:#FFB6C1\n    style P7 fill:#FFD700\n```\n\n## Phases\n\n### Phase 0 \u2014 Trivial Structural Fixes (2 warnings)\n- Fix redundant `Identifiable` protocol in `ActionTable.swift:30`\n- Fix storyboard window controller `B8D-0N-5wS`\n\n### Phase 1 \u2014 Design Token Migration (~250 warnings)\nReplace deprecated typography and color tokens throughout 115+ files.\n\n**Typography Mapping:**\n```\n.displayLarge \u2192 .h1      .displayMedium \u2192 .h2       .displaySmall \u2192 .h2\n.headlineLarge \u2192 .h3     .headlineMedium \u2192 .h3      .headlineSmall \u2192 .bodyEmphasized\n.bodyLarge \u2192 .body       .bodyMedium \u2192 .subhead     .bodySmall \u2192 .caption\n.captionLarge \u2192 .captionEmphasized  .captionMedium \u2192 .caption  .captionSmall \u2192 .caption\n.monoLarge \u2192 .monoBody   .monoMedium \u2192 .monoSubhead .monoSmall \u2192 .monoCaption\n```\n\n**Color Mapping:**\n```\n.text \u2192 .textPrimary              .border \u2192 .separator\n.surface \u2192 .backgroundSecondary   .surfaceElevated \u2192 .backgroundTertiary\n.progressLow \u2192 .success           .progressMedium \u2192 .warning\n.progressHigh \u2192 .error\n```\n\n**Special:** Replace `.surfaceHovered` with hover state modifier.\n\n### Phase 2 \u2014 Swift 6 Async Iterator (15 warnings)\nFix `makeIterator` warnings in async contexts using `while let` pattern:\n```swift\n// OLD: for case let url as URL in enumerator\n// NEW: while let url = enumerator?.nextObject() as? URL\n```\n\nFiles: `BackgroundActivityManager.swift`, `CollectorBin.swift`, `DeepCleanEngine.swift`, `FileOperations.swift`, `HiddenSpaceScanner.swift`, `PrivilegedHelperManager.swift`, `ScanCategoryScanner.swift`, `AppInventoryView.swift`\n\n### Phase 3 \u2014 Sendable / Concurrency (~20 warnings)\n- Add `Sendable` conformance to enums: `WidgetDisplayMode`, `WidgetValueFormat`, `WidgetUpdateInterval`, `CloudProvider`, `DeepCleanCategory`, `ProjectType`, `ArtifactType`, `LicenseTier`, `VisualizationType`\n- Fix closure capture in `SpeedTestService.swift`\n- Remove `Task` capturing `self` in `WidgetDataManager.swift` deinit\n- Fix `nonisolated(unsafe)` in `WidgetHistoryStore.swift`\n\n**Rules:** Prefer explicit `Sendable` over `@unchecked Sendable`. Use locks with `@unchecked`.\n\n### Phase 4 \u2014 Deprecated macOS APIs (~13 warnings)\n- `NSUserNotification` \u2192 `UNUserNotificationCenter`\n- `NSWorkspace.launchApplication` \u2192 `openApplication(at:configuration:)` via helper\n- `SMJobBless/SMJobRemove/SMJobCopyDictionary` \u2192 `SMAppService` (macOS 13+ with fallback)\n\n### Phase 5 \u2014 Codable / Init (9 warnings)\nFix immutable default properties blocking decoding:\n- Files: `NotificationRule.swift` (RuleTrigger), `WeatherData.swift` (HourlyForecast, DailyForecast), `WidgetDataManager.swift` (DeviceBatteryLevel), `AppUpdater.swift` (AppDependency)\n- Replace `String(cString:)` with `String(decodingCString:as:)`\n\n### Phase 6 \u2014 Logic & Cleanup (~50 warnings)\n- Unused variables / values\n- `var` \u2192 `let` conversions\n- Unreachable catch, redundant try\n- Non-optional `??`\n- Unreachable default in switches\n- Duplicate switch cases\n- Dangling pointer in `PerformanceValidation.swift`\n\n### Phase 7 \u2014 Final Hardening\n- Confirm zero warnings\n- Optionally remove deprecated aliases from `DesignTokens.swift`\n- Optional strictness flags (after warnings are 0)\n\n## Dependencies\n\nBased on epic-scout analysis:\n- **fn-6-i4g** (Stats Master Menu Bar Parity - Cleanup): Complete first to remove dead code\n- **fn-4-as7** (UI/UX Redesign): Schedule after warning fixes to avoid design system conflicts\n- **fn-8-v3b** (Popover Parity): May need coordination for concurrency patterns\n\n## Documentation Updates Required\n\nFrom docs-gap-scout:\n- `CLAUDE.md` - Design token references, state management patterns\n- `Tonic/docs/Design.md` - Token examples, migration guide\n- `README.md` - Build instructions if Swift 6 settings change\n\n## Quick Commands\n\n```bash\n# Count warnings before/after\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic clean build 2>&1 | grep -E \"warning:\" | wc -l\n\n# Show unique warnings\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"^/.*\\.swift:[0-9]+:[0-9]+: warning:\" | sort -u\n\n# Verify zero warnings\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -q \"warning:\" && echo \"WARNINGS REMAIN\" || echo \"ALL CLEAN\"\n\n# Spot-check key screens after each phase\nopen Tonic/Tonic.xcodeproj\n```\n\n## Acceptance\n\n- [ ] **Phase 0:** ActionTable.swift and storyboard warnings gone, no UI startup changes\n- [ ] **Phase 1:** All deprecated token warnings removed, UI styling unchanged (spot-check Preferences, MenuBar, Popovers)\n- [ ] **Phase 2:** No \"makeIterator unavailable from async contexts\" warnings, file scanning behaviors unchanged\n- [ ] **Phase 3:** No Sendable-conformance warnings, no new data-race risks\n- [ ] **Phase 4:** All deprecated API warnings removed, notifications/Activity Monitor/helper tool still work\n- [ ] **Phase 5:** All Codable warnings removed, decode behavior unchanged\n- [ ] **Phase 6:** No remaining \"unused\"/\"unreachable\"/\"redundant\" warnings\n- [ ] **Phase 7:** `xcodebuild` reports 0 warnings, build passes, optional deprecated aliases removed\n- [ ] **Documentation:** CLAUDE.md, Design.md updated with new token names and patterns\n\n## References\n\n**Research Sources:**\n- Apple Developer: [openApplication](https://developer.apple.com/documentation/appkit/nsworkspace/openapplication(at:configuration:completionHandler:))\n- Apple Developer: [UNUserNotificationCenter](https://developer.apple.com/documentation/usernotifications)\n- Apple Developer: [SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice)\n- Apple Developer: [Sendable Protocol](https://developer.apple.com/documentation/swift/sendable)\n- Swift Forums: [makeIterator in async function](https://forums.swift.org/t/xcode-16-3-cant-use-makeiterator-via-filemanagers-enumerator-at-in-async-function/78976)\n- WWDC 2024: [Migrate your app to Swift 6](https://developer.apple.com/videos/play/wwdc2024/10169/)\n\n**Key Files:**\n- `Tonic/Tonic/Design/DesignTokens.swift` - Token definitions (lines 88-122 deprecated, 18-87 new)\n- `Tonic/Tonic/Design/DesignComponents.swift` - 41 deprecated token usages\n- `Tonic/Tonic/MenuBarWidgets/Popovers/*.swift` - 50+ deprecated token usages\n- `Tonic/Tonic/Services/DeepCleanEngine.swift` - Async iterator issues\n- `Tonic/Tonic/Services/FileOperations.swift` - Async iterator issues\n\n**External Patterns:**\n- `realm/swift` - @Observable with @unchecked Sendable + lock pattern\n- `apollographql/apollo-ios` - Enum Sendable conformance\n- `alienator88/HelperToolApp` - SMAppService implementation\n"
+  },
+  "epic_id": "fn-9-co9",
+  "schema_version": 2,
+  "tasks": [
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:35.906004Z",
+        "depends_on": [],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.1",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.1.md",
+        "status": "todo",
+        "title": "Phase 0: Trivial Structural Fixes",
+        "updated_at": "2026-02-03T10:10:20.154526Z"
+      },
+      "id": "fn-9-co9.1",
+      "runtime": null,
+      "spec": "# fn-9-co9.1 Phase 0: Trivial Structural Fixes\n\n## Description\n# Phase 0: Trivial Structural Fixes\n\nFix 2 trivial warnings before tackling larger phases.\n\n## What to Fix\n\n1. **ActionTable.swift:30** - Remove redundant `associatedtype ID` declaration\n   - Protocol inherits from `Identifiable`, which already provides `ID`\n   \n2. **Main.storyboard:B8D-0N-5wS** - Window controller without content view controller\n   - Either attach a content VC or remove unused window controller\n\n**Size:** S (2 files, trivial fixes)\n**Files:** \n- `Tonic/Tonic/Design/ActionTable.swift:30`\n- `Tonic/Tonic/Main.storyboard`\n\n## Approach\n\n1. Remove `associatedtype ID: Hashable` and `var id: ID { get }` from `ActionTableItem` protocol\n2. For storyboard: Since Tonic is SwiftUI-based, the window controller may be unused. Verify by checking if `B8D-0N-5wS` is referenced elsewhere. If not, remove it.\n\n## Key Context\n\nPer Swift protocol design, `Identifiable` already provides:\n```swift\nprotocol Identifiable {\n    associatedtype ID: Hashable\n    var id: Self.ID { get }\n}\n```\nRedeclaring these causes the compiler warning.\n## Acceptance\n- [ ] ActionTable.swift warning gone (\"redeclaration of associated type 'ID'\")\n- [ ] Storyboard warning gone (\"Window Controller requires a content view controller\")\n- [ ] App launches and displays UI correctly\n- [ ] ActionTable views still work (if any exist in codebase)\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"ActionTable.swift|Main.storyboard|warning:\"\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:36.197841Z",
+        "depends_on": [
+          "fn-9-co9.1"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.2",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.2.md",
+        "status": "todo",
+        "title": "Phase 1: Design Token Migration (Typography & Colors)",
+        "updated_at": "2026-02-03T10:10:44.691412Z"
+      },
+      "id": "fn-9-co9.2",
+      "runtime": null,
+      "spec": "# fn-9-co9.2 Phase 1: Design Token Migration (Typography & Colors)\n\n## Description\n# Phase 1: Design Token Migration (Typography & Colors)\n\nReplace ~250 deprecated token usages across 115+ files.\n\n## What to Fix\n\n**Typography Tokens (~180 replacements):**\n```\n.displayLarge \u2192 .h1          .displayMedium \u2192 .h2         .displaySmall \u2192 .h2\n.headlineLarge \u2192 .h3         .headlineMedium \u2192 .h3        .headlineSmall \u2192 .bodyEmphasized\n.bodyLarge \u2192 .body           .bodyMedium \u2192 .subhead       .bodySmall \u2192 .caption\n.captionLarge \u2192 .captionEmphasized  .captionMedium \u2192 .caption  .captionSmall \u2192 .caption\n.monoLarge \u2192 .monoBody       .monoMedium \u2192 .monoSubhead   .monoSmall \u2192 .monoCaption\n```\n\n**Color Tokens (~70 replacements):**\n```\n.text \u2192 .textPrimary              .border \u2192 .separator\n.surface \u2192 .backgroundSecondary   .surfaceElevated \u2192 .backgroundTertiary\n.progressLow \u2192 .success           .progressMedium \u2192 .warning\n.progressHigh \u2192 .error\n```\n\n**Special Case:** Replace `.surfaceHovered` with a hover state modifier\n\n**Size:** L (split strategy: batch replace by token type)\n**Files:** 115+ files including:\n- `Tonic/Tonic/Design/DesignComponents.swift` (~41 usages)\n- `Tonic/Tonic/Views/PreferencesView.swift` (~70 usages)\n- `Tonic/Tonic/Views/AppInventoryView.swift` (~56 usages)\n- `Tonic/Tonic/MenuBarWidgets/Popovers/*.swift` (~50 usages)\n- All View files using `DesignTokens.Typography.*` or `DesignTokens.Colors.*`\n\n## Approach\n\n**DO NOT write implementation code. Use batch find-replace:**\n\n1. For each deprecated token, run project-wide find-replace\n2. Build after each category to verify\n3. For `.surfaceHovered`: Create a view modifier extension in `DesignAnimations.swift`\n\n**For .surfaceHovered specifically:**\n- Follow pattern at `Tonic/Tonic/Design/DesignAnimations.swift` for existing modifiers\n- Add `hoverBackground()` modifier that applies background on hover state\n- Replace all `.surfaceHovered` references with `.hoverBackground()`\n\n## Key Context\n\n- Deprecated tokens are defined in `DesignTokens.swift:88-122` with `@available(*, deprecated, renamed:...)` attributes\n- New semantic tokens are in `DesignTokens.swift:18-87` (colors) and `:128-159` (typography)\n- Keep deprecated aliases in this phase - they'll be removed in Phase 7\n- Spot-check UI after changes: Preferences window, Menu Bar widgets, Popovers\n\n## Reuse\n\n- Follow existing modifier pattern in `DesignAnimations.swift`\n- No new design tokens - use existing semantic tokens\n## Acceptance\n- [ ] All deprecated typography token warnings removed (~180)\n- [ ] All deprecated color token warnings removed (~70)\n- [ ] `.surfaceHovered` replaced with hover modifier\n- [ ] UI styling unchanged (spot-check: Preferences, MenuBar, Popovers)\n- [ ] Build succeeds with reduced warning count\n- [ ] Deprecated aliases still present in DesignTokens.swift (for Phase 7)\n\n## Test Commands\n```bash\n# Count remaining deprecated token warnings\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"deprecated.*renamed\" | wc -l\n\n# Verify no surfaceHovered usage\ngrep -r \"surfaceHovered\" Tonic/Tonic/ --include=\"*.swift\" || echo \"None found (expected)\"\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:36.474821Z",
+        "depends_on": [
+          "fn-9-co9.2"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.3",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.3.md",
+        "status": "todo",
+        "title": "Phase 2: Swift 6 Async Iterator Warnings",
+        "updated_at": "2026-02-03T10:12:12.990282Z"
+      },
+      "id": "fn-9-co9.3",
+      "runtime": null,
+      "spec": "# fn-9-co9.3 Phase 2: Swift 6 Async Iterator Warnings\n\n## Description\n# Phase 2: Swift 6 Async Iterator Warnings\n\nFix 15 \"makeIterator unavailable from async contexts\" warnings.\n\n## What to Fix\n\nReplace `for case let url as URL in enumerator` pattern with `while let` in async contexts.\n\n**Size:** M (8 files, pattern-based fix)\n**Files:**\n- `Tonic/Tonic/Services/BackgroundActivityManager.swift:123`\n- `Tonic/Tonic/Services/CollectorBin.swift:570`\n- `Tonic/Tonic/Services/DeepCleanEngine.swift:235, 313, 335, 421`\n- `Tonic/Tonic/Services/FileOperations.swift:284, 327, 518, 604`\n- `Tonic/Tonic/Services/HiddenSpaceScanner.swift:407`\n- `Tonic/Tonic/Services/PrivilegedHelperManager.swift:204`\n- `Tonic/Tonic/Services/ScanCategoryScanner.swift:201, 584`\n- `Tonic/Tonic/Views/AppInventoryView.swift:324`\n\n## Approach\n\n**Pattern replacement:**\n```swift\n// OLD (causes warning)\nfor case let url as URL in enumerator {\n    // async work here\n}\n\n// NEW (Swift 6 compatible)\nwhile let url = enumerator?.nextObject() as? URL {\n    // async work here\n}\n```\n\n## Key Context\n\n- `FileManager.DirectoryEnumerator.makeIterator()` is not available in async contexts\n- The `while let` pattern avoids the implicit `makeIterator()` call\n- No functional changes - file scanning behavior remains identical\n\n## References\n\n- Swift Forums: [makeIterator in async function](https://forums.swift.org/t/xcode-16-3-cant-use-makeiterator-via-filemanagers-enumerator-at-in-async-function/78976)\n- Pattern used by `realm/swift` for similar issues\n## Acceptance\n- [ ] No \"makeIterator unavailable from async contexts\" warnings\n- [ ] All 8 files updated with `while let` pattern\n- [ ] File scanning behaviors unchanged (test Deep Clean, Hidden Space scanner)\n- [ ] Build succeeds\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"makeIterator.*unavailable\" | wc -l\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:36.761165Z",
+        "depends_on": [
+          "fn-9-co9.3"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.4",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.4.md",
+        "status": "todo",
+        "title": "Phase 3: Sendable / Concurrency Fixes",
+        "updated_at": "2026-02-03T10:32:56.493348Z"
+      },
+      "id": "fn-9-co9.4",
+      "runtime": null,
+      "spec": "# fn-9-co9.4 Phase 3: Sendable / Concurrency Fixes\n\n## Description\n# Phase 3: Sendable / Concurrency Fixes\n\nFix ~20 Swift 6 Sendable and concurrency warnings.\n\n## What to Fix\n\n**1. Add Sendable to enums** (enums are safely Sendable if all stored properties are Sendable):\n- `WidgetDisplayMode` \n- `WidgetValueFormat`\n- `WidgetUpdateInterval`\n- `CloudProvider`\n- `DeepCleanCategory`\n- `ProjectType`\n- `ArtifactType`\n- `LicenseTier`\n- `VisualizationType`\n\n**2. Fix closure capture warning** in `SpeedTestService.swift`:\n- Copy mutable data to `let` before crossing actor boundary\n\n**3. Remove Task capturing self in deinit** in `WidgetDataManager.swift`:\n- Cancel `pathMonitor` directly without `Task { await ... }`\n\n**4. Fix nonisolated(unsafe)** in `WidgetHistoryStore.swift`:\n- Remove `nonisolated(unsafe)` or restructure timer management\n\n**Size:** M (multiple files, similar patterns)\n**Files:**\n- `Tonic/Tonic/Models/WidgetConfiguration.swift`\n- `Tonic/Tonic/Models/VisualizationType.swift`\n- `Tonic/Tonic/Services/CloudStorageScanner.swift`\n- `Tonic/Tonic/Services/DeepCleanEngine.swift`\n- `Tonic/Tonic/Services/ProjectArtifactPurge.swift`\n- `Tonic/Tonic/Services/SpeedTestService.swift`\n- `Tonic/Tonic/Services/WidgetDataManager.swift`\n- `Tonic/Tonic/MenuBarWidgets/WidgetHistoryStore.swift`\n\n## Approach\n\n**Rules:**\n1. Prefer explicit `Sendable` conformance over `@unchecked Sendable`\n2. Use `@unchecked Sendable` only with proper synchronization (locks)\n3. Remove `Sendable` from classes that don't need it (e.g., `@MainActor` classes)\n\n**Enum pattern:**\n```swift\n// OLD\nenum WidgetDisplayMode {\n    case oneView\n    case individual\n}\n\n// NEW\nenum WidgetDisplayMode: Sendable {\n    case oneView\n    case individual\n}\n```\n\n**For classes with internal state:**\n- If using `@MainActor`, `Sendable` is automatic - remove explicit conformance\n- If manual synchronization via locks, keep `@unchecked Sendable`\n\n## Key Context\n\n- Enums with only Sendable associated values are implicitly Sendable\n- Adding explicit `: Sendable` clarifies intent\n- `@Observable` classes on `@MainActor` don't need explicit Sendable\n\n## References\n\n- Apple: [Sendable Protocol](https://developer.apple.com/documentation/swift/sendable)\n- Apple: [Adopting strict concurrency](https://developer.apple.com/documentation/swift/adoptingswift6)\n- WWDC 2024: [Migrate to Swift 6](https://developer.apple.com/videos/play/wwdc2024/10169/)\n## Acceptance\n- [ ] All enums have explicit `Sendable` conformance\n- [ ] SpeedTestService closure capture warning fixed\n- [ ] WidgetDataManager deinit no longer uses Task { await }\n- [ ] WidgetHistoryStore nonisolated(unsafe) warning fixed\n- [ ] No new `@unchecked Sendable` without proper locks\n- [ ] No Sendable-conformance warnings remain\n- [ ] Build succeeds\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"Sendable\" | wc -l\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:37.036211Z",
+        "depends_on": [
+          "fn-9-co9.4"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.5",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.5.md",
+        "status": "todo",
+        "title": "Phase 4: Deprecated macOS API Migration",
+        "updated_at": "2026-02-03T10:36:51.128222Z"
+      },
+      "id": "fn-9-co9.5",
+      "runtime": null,
+      "spec": "# fn-9-co9.5 Phase 4: Deprecated macOS API Migration\n\n## Description\n# Phase 4: Deprecated macOS API Migration\n\nReplace ~13 deprecated AppKit/ServiceManagement APIs.\n\n## What to Fix\n\n**1. NSUserNotification \u2192 UNUserNotificationCenter** (~2 warnings)\n- File: `Tonic/Tonic/MenuBar/MenuBarController.swift:656-661`\n- Replace with `UNUserNotificationCenter`, `UNMutableNotificationContent`, `UNNotificationRequest`\n\n**2. NSWorkspace.launchApplication** (~8 warnings)\n- Create helper extension in `Tonic/Tonic/Utilities/NSWorkspace+Launch.swift`\n- Replace all `NSWorkspace.shared.launchApplication(\"Activity Monitor\")` with new helper\n- Files: `ProcessListComponents.swift`, `PopoverTemplate.swift`, all Popover views\n\n**3. SMJobBless/SMJobRemove/SMJobCopyDictionary \u2192 SMAppService** (~3 warnings)\n- File: `Tonic/Tonic/Services/PrivilegedHelperManager.swift:41,69`\n- Use `SMAppService` for macOS 13+ with fallback for macOS 12\n\n**Size:** M (3 distinct API migrations)\n**Files:**\n- `Tonic/Tonic/MenuBar/MenuBarController.swift`\n- `Tonic/Tonic/Utilities/NSWorkspace+Launch.swift` (new file)\n- `Tonic/Tonic/MenuBarWidgets/ProcessListComponents.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/PopoverTemplate.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/CPUPopoverView.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/MemoryPopoverView.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/GPUPopoverView.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/DiskPopoverView.swift`\n- `Tonic/Tonic/MenuBarWidgets/Popovers/NetworkPopoverView.swift`\n- `Tonic/Tonic/Services/PrivilegedHelperManager.swift`\n\n## Approach\n\n**NSUserNotification \u2192 UserNotifications:**\n```swift\n// OLD\nlet notification = NSUserNotification()\nnotification.title = \"Title\"\nnotification.informativeText = \"Message\"\nNSUserNotificationCenter.default.deliver(notification)\n\n// NEW\nlet center = UNUserNotificationCenter.current()\nlet content = UNMutableNotificationContent()\ncontent.title = \"Title\"\ncontent.body = \"Message\"\nlet request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)\ncenter.add(request)\n```\n\n**NSWorkspace helper:**\n```swift\n// In NSWorkspace+Launch.swift\nextension NSWorkspace {\n    func openActivityMonitor() {\n        if let url = urlForApplication(withBundleIdentifier: \"com.apple.ActivityMonitor\") {\n            openApplication(at: url, configuration: .init())\n        }\n    }\n}\n```\n\n**SMJobBless \u2192 SMAppService:**\n```swift\n@available(macOS 13.0, *)\nfunc registerModernHelper() throws {\n    let service = SMAppService.daemonService(plistName: \"com.tonic.TonicHelper.plist\")\n    try service.register()\n}\n\nfunc installHelper() async throws {\n    if #available(macOS 13.0, *) {\n        try await registerModernHelper()\n    } else {\n        try installLegacyHelper()  // SMJobBless fallback\n    }\n}\n```\n\n## Key Context\n\n- Tonic targets macOS 14.0+, so `UNUserNotificationCenter` and `SMAppService` are fully available\n- Keep fallback for macOS 12/13 edge cases\n- Activity Monitor bundle ID: `com.apple.ActivityMonitor`\n\n## References\n\n- Apple: [UNUserNotificationCenter](https://developer.apple.com/documentation/usernotifications)\n- Apple: [openApplication(at:configuration:)](https://developer.apple.com/documentation/appkit/nsworkspace/openapplication(at:configuration:completionHandler:))\n- Apple: [SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice)\n- theevilbit blog: [SMAppService API](https://theevilbit.github.io/posts/smappservice/)\n## Acceptance\n- [ ] NSUserNotification warnings gone\n- [ ] NSWorkspace.launchApplication warnings gone\n- [ ] SMJobBless warnings gone\n- [ ] NSWorkspace+Launch.swift helper created\n- [ ] Notifications still appear as before\n- [ ] Activity Monitor button still works (test from popover)\n- [ ] Helper tool registration works (test if privileged helper is used)\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"deprecated.*launchApplication|NSUserNotification|SMJobBless\" | wc -l\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:37.313857Z",
+        "depends_on": [
+          "fn-9-co9.5"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.6",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.6.md",
+        "status": "todo",
+        "title": "Phase 5: Codable / Init Warnings",
+        "updated_at": "2026-02-03T10:37:16.222621Z"
+      },
+      "id": "fn-9-co9.6",
+      "runtime": null,
+      "spec": "# fn-9-co9.6 Phase 5: Codable / Init Warnings\n\n## Description\n# Phase 5: Codable / Init Warnings\n\nFix 9 Codable default property warnings and deprecated `String(cString:)` usage.\n\n## What to Fix\n\n**Codable warnings** - immutable properties with initial values block decoding:\n- `Tonic/Tonic/Models/NotificationRule.swift:186` (RuleTrigger)\n- `Tonic/Tonic/Models/WeatherData.swift:124` (HourlyForecast)\n- `Tonic/Tonic/Models/WeatherData.swift:148` (DailyForecast)\n- `Tonic/Tonic/Services/WidgetDataManager.swift:665` (DeviceBatteryLevel)\n- `Tonic/Tonic/Services/AppUpdater.swift:622` (AppDependency)\n\n**String(cString:) deprecation:**\n- Check for usage in FeedbackService.swift, PreferencesView.swift\n\n**Size:** S-M (5 files, known pattern)\n**Files:**\n- `Tonic/Tonic/Models/NotificationRule.swift`\n- `Tonic/Tonic/Models/WeatherData.swift`\n- `Tonic/Tonic/Services/WidgetDataManager.swift`\n- `Tonic/Tonic/Services/AppUpdater.swift`\n- (Any files using `String(cString:)`)\n\n## Approach\n\n**Codable pattern - exclude from CodingKeys:**\n```swift\nstruct RuleTrigger: Codable {\n    let id = UUID()\n    var condition: String\n\n    enum CodingKeys: String, CodingKey {\n        case condition  // id excluded\n    }\n}\n```\n\n**OR custom init(from:) for more control:**\n```swift\nstruct RuleTrigger: Codable {\n    let id: UUID\n    var condition: String\n\n    init(id: UUID = UUID(), condition: String) {\n        self.id = id\n        self.condition = condition\n    }\n\n    init(from decoder: Decoder) throws {\n        let container = try decoder.container(keyedBy: CodingKeys.self)\n        self.id = UUID()  // Generate new on decode\n        self.condition = try container.decode(String.self, forKey: .condition)\n    }\n\n    enum CodingKeys: String, CodingKey {\n        case condition\n    }\n}\n```\n\n**String(cString:) replacement:**\n```swift\n// OLD\nlet str = String(cString: ptr)\n\n// NEW\nlet str = String(decodingCString: ptr, as: UTF8.self)\n```\n\n## Key Context\n\n- Properties with default values (`let id = UUID()`) won't be decoded\n- Excluding from CodingKeys allows decoding to skip the property\n- The default value is still used when creating new instances\n- On decode, a new UUID is generated (acceptable for IDs)\n\n## References\n\n- Swift: [Decoding and Encoding](https://docs.swift.org/swift-book/LanguageGuide/Codable.html)\n## Acceptance\n- [ ] All Codable warnings removed (5 structs)\n- [ ] String(cString:) warnings removed\n- [ ] Decode behavior unchanged (IDs generated on decode as before)\n- [ ] Existing persisted data still decodes correctly\n- [ ] Build succeeds\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"immutable property.*will not be decoded|String\\(cString\" | wc -l\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:37.595140Z",
+        "depends_on": [
+          "fn-9-co9.6"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.7",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.7.md",
+        "status": "todo",
+        "title": "Phase 6: Logic & Cleanup Warnings",
+        "updated_at": "2026-02-03T10:37:47.016764Z"
+      },
+      "id": "fn-9-co9.7",
+      "runtime": null,
+      "spec": "# fn-9-co9.7 Phase 6: Logic & Cleanup Warnings\n\n## Description\n# Phase 6: Logic & Cleanup Warnings\n\nFix ~50 minor compiler warnings (unused variables, unreachable code, etc.).\n\n## What to Fix\n\n**Unused variables / var \u2192 let:**\n- Variables declared `var` but never mutated (should be `let`)\n- Variables written to but never read (dead stores)\n\n**Structural issues:**\n- Unused results (`let _ = loadAllConfigs()`)\n- Redundant `try` on non-throwing functions\n- Unreachable `catch` blocks (no errors thrown in `do`)\n- Non-optional `??` (nil-coalescing on non-optional)\n- Unreachable `default` in switches\n- Duplicate switch cases\n- Dangling pointer in `PerformanceValidation.swift`\n\n**Size:** M (many files, simple fixes)\n**Files:** Distributed across the codebase (check build output for locations)\n\n## Approach\n\n**var \u2192 let:**\n```swift\n// OLD\nvar url = URL(...)  // Never changed\n\n// NEW\nlet url = URL(...)\n```\n\n**Unused result:**\n```swift\n// OLD\nlet _ = loadAllConfigs()  // Warning about unused result\n\n// NEW\nloadAllConfigs()  // Fixed if return not needed\n```\n\n**Redundant try:**\n```swift\n// OLD\ntry nonThrowingFunction()  // Warning\n\n// NEW\nnonThrowingFunction()\n```\n\n**Unreachable catch:**\n```swift\n// OLD\ndo {\n    let x = 5  // No throwing\n} catch {\n    // Unreachable\n}\n\n// NEW\nlet x = 5  // Remove do-catch entirely\n```\n\n**Non-optional ??:**\n```swift\n// MemoryPopoverView.swift specific fix\nlet value: Int = getInt() ?? 0  // getInt() returns non-optional\nlet value: Int = getInt()\n```\n\n**Dangling pointer (PerformanceValidation.swift):**\n```swift\n// Use proper scoping\nwithUnsafeMutablePointer(to: &value) { ptr in\n    // Safe scope\n}\n```\n\n## Key Context\n\nThese are purely structural fixes - no behavior changes\n- Compile carefully and review each change\n- Some \"unused\" variables may be intentionally unused (use `_` to indicate)\n## Acceptance\n- [ ] No \"unused variable\" warnings\n- [ ] No \"var never mutated\" warnings\n- [ ] No \"unreachable catch\" warnings\n- [ ] No \"redundant try\" warnings\n- [ ] No \"non-optional ??\" warnings\n- [ ] No \"unreachable default\" warnings\n- [ ] No duplicate switch case warnings\n- [ ] Dangling pointer warning fixed\n- [ ] Build succeeds\n\n## Test Commands\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic build 2>&1 | grep -E \"unused|unreachable|redundant\" | wc -l\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    },
+    {
+      "data": {
+        "assignee": null,
+        "claim_note": "",
+        "claimed_at": null,
+        "created_at": "2026-02-03T10:09:37.869582Z",
+        "depends_on": [
+          "fn-9-co9.7"
+        ],
+        "epic": "fn-9-co9",
+        "id": "fn-9-co9.8",
+        "priority": null,
+        "spec_path": ".flow/tasks/fn-9-co9.8.md",
+        "status": "todo",
+        "title": "Phase 7: Final Hardening & Verification",
+        "updated_at": "2026-02-03T10:38:13.058292Z"
+      },
+      "id": "fn-9-co9.8",
+      "runtime": null,
+      "spec": "# fn-9-co9.8 Phase 7: Final Hardening & Verification\n\n## Description\n# Phase 7: Final Hardening & Verification\n\nConfirm zero warnings and optionally remove deprecated token aliases.\n\n## What to Do\n\n1. **Verify zero warnings** - Run clean build and confirm\n2. **Optionally remove deprecated aliases** from `DesignTokens.swift`\n3. **Optional strictness flags** - Consider enabling after warnings are zero\n\n**Size:** S (verification + optional cleanup)\n**Files:**\n- `Tonic/Tonic/Design/DesignTokens.swift` (optional: remove deprecated aliases)\n- Build settings (optional: add strict flags)\n\n## Approach\n\n**1. Verify zero warnings:**\n```bash\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic clean build 2>&1 | grep -E \"warning:\" | wc -l\n# Should return 0\n```\n\n**2. Remove deprecated aliases (optional):**\n- Lines 88-122 in `DesignTokens.swift` contain deprecated color aliases\n- Lines 161-191 contain deprecated typography aliases\n- Only remove after confirming no external code uses them\n\n**3. Optional strictness flags:**\n```bash\n# In project.pbxproj or build settings:\nSWIFT_TREAT_WARNINGS_AS_ERRORS = YES\nSWIFT_STRICT_CONCURRENCY = complete\nSWIFT_ENABLE_STRICT_SENDABLE = YES\n```\n\n## Key Context\n\n- Only remove deprecated aliases if you're confident no external code uses them\n- Strict flags should only be enabled after warnings are confirmed zero\n- Consider keeping deprecated aliases for API compatibility if any\n\n## Documentation Updates\n\nAfter confirming zero warnings, update:\n- `CLAUDE.md` - Remove references to deprecated tokens\n- `Tonic/docs/Design.md` - Update token examples to use new names\n- `README.md` - Update build instructions if Swift 6 settings changed\n## Acceptance\n- [ ] xcodebuild reports 0 warnings\n- [ ] Build passes successfully\n- [ ] App runs without regressions\n- [ ] [Optional] Deprecated aliases removed from DesignTokens.swift\n- [ ] [Optional] Strict flags considered/enabled\n- [ ] CLAUDE.md updated (token references)\n- [ ] Design.md updated (token examples)\n- [ ] README.md updated (if Swift 6 settings changed)\n\n## Verification Commands\n```bash\n# Final zero warning check\nxcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic clean build 2>&1 | grep -E \"warning:\" && echo \"WARNINGS REMAIN\" || echo \"ALL CLEAN\"\n\n# Verify no deprecated token usage in docs\ngrep -r \"headlineSmall\\|displayLarge\\|surfaceHovered\" CLAUDE.md Tonic/docs/Design.md || echo \"Docs clean\"\n```\n## Done summary\nTBD\n\n## Evidence\n- Commits:\n- Tests:\n- PRs:\n"
+    }
+  ]
+}

@@ -76,11 +76,11 @@ struct NetworkActivity: Sendable, Equatable {
 enum WidgetColor {
     static func colorFor(value: Double, threshold: (low: Double, medium: Double, high: Double)) -> Color {
         if value < threshold.low {
-            return DesignTokens.Colors.progressLow
+            return DesignTokens.Colors.success
         } else if value < threshold.medium {
-            return DesignTokens.Colors.progressMedium
+            return DesignTokens.Colors.warning
         } else {
-            return DesignTokens.Colors.progressHigh
+            return DesignTokens.Colors.error
         }
     }
 }
@@ -422,7 +422,7 @@ class MenuBarController: ObservableObject {
     }
 
     private func showExpandedMenu() {
-        guard let button = statusItem?.button else { return }
+        guard statusItem?.button != nil else { return }
 
         let menu = NSMenu()
 
@@ -579,7 +579,7 @@ class MenuBarController: ObservableObject {
         for item in menu.items {
             if let representedObject = item.representedObject as? [String: Any],
                let title = representedObject["title"] as? String,
-               let valueLabel = representedObject["valueLabel"] as? NSTextField,
+               representedObject["valueLabel"] as? NSTextField != nil,
                let containerView = item.view {
 
                 // Find and update the value label
@@ -653,11 +653,8 @@ class MenuBarController: ObservableObject {
     }
 
     private func showNotification(title: String, message: String) {
-        let notification = NSUserNotification()
-        notification.title = title
-        notification.informativeText = message
-        notification.soundName = NSUserNotificationDefaultSoundName
-        NSUserNotificationCenter.default.deliver(notification)
+        // Route through NotificationManager which uses the modern UNUserNotificationCenter
+        NotificationManager.shared.sendNotification(title: title, body: message)
     }
 
     // MARK: - Public Methods
@@ -699,13 +696,13 @@ struct MenuBarPopupView: View {
                     .frame(width: 24, height: 24)
 
                 Text("Tonic")
-                    .font(DesignTokens.Typography.headlineMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.h3)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Spacer()
             }
             .padding(DesignTokens.Spacing.md)
-            .background(DesignTokens.Colors.surfaceElevated)
+            .background(DesignTokens.Colors.backgroundTertiary)
 
             Divider()
 
@@ -788,7 +785,7 @@ struct MenuBarPopupView: View {
             }
         }
         .frame(width: 220)
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
     }
 
     private func cpuColor(_ usage: Double) -> Color {
@@ -825,14 +822,14 @@ struct MenuBarButton: View {
                     .frame(width: 20)
 
                 Text(title)
-                    .font(DesignTokens.Typography.bodyMedium)
-                    .foregroundColor(DesignTokens.Colors.text)
+                    .font(DesignTokens.Typography.subhead)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Spacer()
             }
             .padding(.horizontal, DesignTokens.Spacing.md)
             .padding(.vertical, DesignTokens.Spacing.sm)
-            .background(isHovered ? DesignTokens.Colors.surfaceHovered : Color.clear)
+            .background(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : Color.clear)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -858,15 +855,15 @@ struct MiniStatRow: View {
                 .frame(width: 20)
 
             Text(title)
-                .font(DesignTokens.Typography.bodySmall)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Spacer()
 
             Text(value)
-                .font(DesignTokens.Typography.bodySmall)
+                .font(DesignTokens.Typography.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(DesignTokens.Colors.text)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
         }
     }
 }
@@ -976,7 +973,7 @@ class CPUMiniGraphView: NSView {
                 ctx.addLine(to: CGPoint(x: x, y: y))
             }
 
-            if let lastPoint = dataPoints.last {
+            if dataPoints.last != nil {
                 let lastX = CGFloat(dataPoints.count - 1) * step
                 ctx.addLine(to: CGPoint(x: lastX, y: height))
             }
@@ -1147,7 +1144,7 @@ struct MenuBarWidgetsView: View {
         VStack(spacing: DesignTokens.Spacing.md) {
             HStack {
                 Text("Menu Bar Widgets")
-                    .font(DesignTokens.Typography.headlineMedium)
+                    .font(DesignTokens.Typography.h3)
 
                 Spacer()
 
@@ -1182,7 +1179,7 @@ struct MenuBarWidgetsView: View {
                     ))
                     .toggleStyle(.switch)
                 }
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
             }
 
             if let data = controller.widgetData {
@@ -1215,13 +1212,13 @@ struct CPUWidgetPreview: View {
                 .foregroundColor(colorForUsage(data.cpuUsage))
 
             Text("CPU")
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             GeometryReader { geometry in
                 ZStack {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(DesignTokens.Colors.surface)
+                        .fill(DesignTokens.Colors.backgroundSecondary)
                         .frame(height: 30)
 
                     let points = data.cpuHistory
@@ -1250,7 +1247,7 @@ struct CPUWidgetPreview: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.large)
     }
 
@@ -1269,13 +1266,13 @@ struct MemoryWidgetPreview: View {
                 .foregroundColor(data.memoryPressure.color)
 
             Text("Memory")
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(DesignTokens.Colors.surface)
+                        .fill(DesignTokens.Colors.backgroundSecondary)
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 4)
@@ -1287,7 +1284,7 @@ struct MemoryWidgetPreview: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.large)
     }
 }
@@ -1302,13 +1299,13 @@ struct StorageWidgetPreview: View {
                 .foregroundColor(colorForStorage(data.storagePercentage))
 
             Text("Storage")
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(DesignTokens.Colors.surface)
+                        .fill(DesignTokens.Colors.backgroundSecondary)
                         .frame(height: 12)
 
                     RoundedRectangle(cornerRadius: 4)
@@ -1320,15 +1317,15 @@ struct StorageWidgetPreview: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.large)
     }
 
     private func colorForStorage(_ percentage: Double) -> Color {
         switch percentage {
-        case 0..<70: return DesignTokens.Colors.progressLow
-        case 70..<85: return DesignTokens.Colors.progressMedium
-        default: return DesignTokens.Colors.progressHigh
+        case 0..<70: return DesignTokens.Colors.success
+        case 70..<85: return DesignTokens.Colors.warning
+        default: return DesignTokens.Colors.error
         }
     }
 }
@@ -1340,7 +1337,7 @@ struct NetworkWidgetPreview: View {
         VStack(spacing: DesignTokens.Spacing.xs) {
             ZStack {
                 Circle()
-                    .stroke(DesignTokens.Colors.border, lineWidth: 2)
+                    .stroke(DesignTokens.Colors.separator, lineWidth: 2)
                     .frame(width: 40, height: 40)
 
                 if data.networkActivity.isActive {
@@ -1356,19 +1353,19 @@ struct NetworkWidgetPreview: View {
             }
 
             Text("Network")
-                .font(DesignTokens.Typography.captionMedium)
+                .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Label(data.networkActivity.formattedBytesIn, systemImage: "arrow.down")
                 Label(data.networkActivity.formattedBytesOut, systemImage: "arrow.up")
             }
-            .font(DesignTokens.Typography.captionSmall)
+            .font(DesignTokens.Typography.caption)
             .foregroundColor(DesignTokens.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(DesignTokens.Colors.surface)
+        .background(DesignTokens.Colors.backgroundSecondary)
         .cornerRadius(DesignTokens.CornerRadius.large)
     }
 }

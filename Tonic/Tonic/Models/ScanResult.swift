@@ -15,7 +15,6 @@ struct ScanResult: Identifiable, Codable {
     let junkFiles: JunkCategory
     let performanceIssues: PerformanceCategory
     let appIssues: AppIssueCategory
-    let privacyIssues: PrivacyCategory
     let totalReclaimableSpace: Int64
 
     var totalReclaimableSpaceGB: Double {
@@ -92,14 +91,6 @@ struct AppIssueCategory: Codable {
     let largeApps: [AppMetadata]
     let duplicateApps: [DuplicateAppGroup]
     let orphanedFiles: [OrphanedFile]
-}
-
-/// Privacy-related issues
-struct PrivacyCategory: Codable {
-    let browserHistory: FileGroup
-    let downloadHistory: FileGroup
-    let recentDocuments: FileGroup
-    let clipboardData: FileGroup
 }
 
 /// File group with size and count
@@ -201,7 +192,6 @@ struct ScanConfiguration: Codable {
     var scanOldFiles: Bool
     var scanLaunchAgents: Bool
     var scanLoginItems: Bool
-    var scanBrowserData: Bool
     var scanOrphanedFiles: Bool
 
     var oldFileThresholdDays: Int
@@ -215,7 +205,6 @@ struct ScanConfiguration: Codable {
         scanOldFiles: true,
         scanLaunchAgents: true,
         scanLoginItems: true,
-        scanBrowserData: false,
         scanOrphanedFiles: true,
         oldFileThresholdDays: 90
     )
@@ -229,7 +218,6 @@ struct ScanConfiguration: Codable {
         scanOldFiles: true,
         scanLaunchAgents: true,
         scanLoginItems: true,
-        scanBrowserData: true,
         scanOrphanedFiles: true,
         oldFileThresholdDays: 60
     )

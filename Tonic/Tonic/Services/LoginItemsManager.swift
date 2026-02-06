@@ -52,14 +52,14 @@ final class LoginItemsManager: @unchecked Sendable {
 
     @available(macOS 13.0, *)
     private func fetchModernLoginItems() async -> [LoginItem] {
-        var items: [LoginItem] = []
+        let _: [LoginItem] = []
 
         // SMAppService is the modern way to get login items
         // However, we need to use a different approach since SMAppService.loginItemIdentifier
         // requires the app to be registered as a login item
 
         // Instead, we'll read from the shared file list
-        if let loginItemsURL = URL(string: "file:///Library/Managed Preferences/com.apple.loginitems.plist") {
+        if URL(string: "file:///Library/Managed Preferences/com.apple.loginitems.plist") != nil {
             // This may not exist for all users
         }
 
@@ -260,8 +260,30 @@ final class LoginItemsManager: @unchecked Sendable {
 
     /// Remove a login item
     public func removeLoginItem(_ item: LoginItem) async throws {
-        // Implementation for removing login items
-        errorMessage = "Remove not yet implemented"
+        try await removeLoginItem(atPath: item.path.path)
+    }
+
+    /// Remove a login item by path from the user login items plist
+    public func removeLoginItem(atPath path: String) async throws {
+        let loginItemsPath = NSHomeDirectory() + "/Library/Preferences/com.apple.loginitems.plist"
+        guard let data = FileManager.default.contents(atPath: loginItemsPath),
+              var plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+            throw LoginItemError.notFound
+        }
+
+        guard var items = plist["AutoLaunchedApplicationDictionary"] as? [[String: Any]] else {
+            throw LoginItemError.notFound
+        }
+
+        let originalCount = items.count
+        items.removeAll { ($0["Path"] as? String) == path }
+        guard items.count != originalCount else {
+            throw LoginItemError.notFound
+        }
+
+        plist["AutoLaunchedApplicationDictionary"] = items
+        let updatedData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try updatedData.write(to: URL(fileURLWithPath: loginItemsPath))
     }
 
     /// Add a new login item

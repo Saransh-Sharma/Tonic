@@ -294,8 +294,6 @@ public enum TonicError: LocalizedError, Sendable {
             return "\(fieldName) format is invalid. Expected: \(expectedFormat)"
         case .validationFailed(let fieldName, let reason):
             return "\(fieldName) validation failed: \(reason)"
-        case .invalidURL(let url):
-            return "Invalid URL: \(url)"
 
         // System Errors
         case .outOfMemory:

@@ -79,11 +79,11 @@ struct BatteryInfo: Equatable {
 
     var color: Color {
         if chargePercentage > 50 {
-            return DesignTokens.Colors.progressLow
+            return DesignTokens.Colors.success
         } else if chargePercentage > 20 {
-            return DesignTokens.Colors.progressMedium
+            return DesignTokens.Colors.warning
         } else {
-            return DesignTokens.Colors.progressHigh
+            return DesignTokens.Colors.error
         }
     }
 }
@@ -233,7 +233,6 @@ class SystemMonitor: ObservableObject {
     // MARK: - CPU Monitoring
 
     private func getCPUUsage() -> Double {
-        var numCPUs: UInt32 = 0
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -297,15 +296,8 @@ class SystemMonitor: ObservableObject {
 
     private func getActiveProcessCount() -> Int {
         var count: mach_msg_type_number_t = 0
-        var result = task_info(
-            mach_task_self_,
-            UInt32(TASK_BASIC_INFO),
-            nil,
-            &count
-        )
-
         var info = task_basic_info()
-        result = withUnsafeMutablePointer(to: &info) {
+        _ = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
                 task_info(
                     mach_task_self_,
@@ -317,7 +309,7 @@ class SystemMonitor: ObservableObject {
         }
 
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL]
-        var mibLen: Int = mib.count
+        let mibLen: Int = mib.count
         var size = MemoryLayout<kinfo_proc>.stride
         var procList = [kinfo_proc](repeating: kinfo_proc(), count: 1024)
 

@@ -338,7 +338,7 @@ public final class ClockStatusItem: WidgetStatusItem {
     }
 
     public override func createCompactView() -> AnyView {
-        let dataManager = WidgetDataManager.shared
+        _ = WidgetDataManager.shared
 
         // Use visualization-specific view
         switch configuration.visualizationType {

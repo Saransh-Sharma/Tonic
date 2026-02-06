@@ -149,8 +149,8 @@ public struct GPUDetailView: View {
             }
 
             // Memory bar
-            if let used = dataManager.gpuData.usedMemory,
-               let total = dataManager.gpuData.totalMemory {
+            if dataManager.gpuData.usedMemory != nil,
+               dataManager.gpuData.totalMemory != nil {
                 UsageBar(percentage: percentage, color: .purple)
             }
         }

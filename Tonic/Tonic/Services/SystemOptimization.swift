@@ -7,10 +7,15 @@
 //
 
 import Foundation
+import Darwin
 
 /// Optimization action type
 public enum OptimizationAction: String, CaseIterable, Identifiable, Sendable {
     case flushDNS = "Flush DNS Cache"
+    case freePurgeableSpace = "Free Up Purgeable Space"
+    case reindexSpotlight = "Reindex Spotlight"
+    case repairDiskPermissions = "Repair Disk Permissions"
+    case speedUpMail = "Speed Up Mail"
     case clearRAM = "Clear Inactive Memory"
     case rebuildLaunchServices = "Rebuild Launch Services"
     case cleanQuickLook = "Clean QuickLook Cache"
@@ -21,6 +26,10 @@ public enum OptimizationAction: String, CaseIterable, Identifiable, Sendable {
     var icon: String {
         switch self {
         case .flushDNS: return "network"
+        case .freePurgeableSpace: return "externaldrive.badge.minus"
+        case .reindexSpotlight: return "magnifyingglass"
+        case .repairDiskPermissions: return "wrench.and.screwdriver"
+        case .speedUpMail: return "envelope.badge"
         case .clearRAM: return "memorychip"
         case .rebuildLaunchServices: return "arrow.clockwise"
         case .cleanQuickLook: return "eye"
@@ -31,6 +40,10 @@ public enum OptimizationAction: String, CaseIterable, Identifiable, Sendable {
     var description: String {
         switch self {
         case .flushDNS: return "Clear DNS cache to resolve network issues"
+        case .freePurgeableSpace: return "Request macOS to reclaim purgeable storage"
+        case .reindexSpotlight: return "Rebuild Spotlight index to improve search speed"
+        case .repairDiskPermissions: return "Repair user-level permission metadata"
+        case .speedUpMail: return "Clean Apple Mail cache files"
         case .clearRAM: return "Free up inactive memory (requires helper tool)"
         case .rebuildLaunchServices: return "Rebuild application database"
         case .cleanQuickLook: return "Clear thumbnail and preview cache"
@@ -78,6 +91,14 @@ public final class SystemOptimization: @unchecked Sendable {
         switch action {
         case .flushDNS:
             result = try await flushDNS()
+        case .freePurgeableSpace:
+            result = try await freePurgeableSpace()
+        case .reindexSpotlight:
+            result = try await reindexSpotlight()
+        case .repairDiskPermissions:
+            result = try await repairDiskPermissions()
+        case .speedUpMail:
+            result = try await speedUpMail()
         case .clearRAM:
             result = try await clearRAM()
         case .rebuildLaunchServices:
@@ -98,26 +119,88 @@ public final class SystemOptimization: @unchecked Sendable {
 
     private func flushDNS() async throws -> OptimizationResult {
         // Flush DNS cache using dscacheutil
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/dscacheutil")
-        process.arguments = ["-flushcache"]
-
-        try process.run()
-        process.waitUntilExit()
+        try runProcess("/usr/bin/dscacheutil", arguments: ["-flushcache"])
 
         // Also flush mDNSResponder
-        let mdnsProcess = Process()
-        mdnsProcess.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        mdnsProcess.arguments = ["-HUP", "mDNSResponder"]
-
-        try? mdnsProcess.run()
-        mdnsProcess.waitUntilExit()
+        try runProcess("/usr/bin/killall", arguments: ["-HUP", "mDNSResponder"])
 
         return OptimizationResult(
             action: .flushDNS,
             success: true,
             bytesFreed: 0,
             message: "DNS cache flushed successfully"
+        )
+    }
+
+    private func freePurgeableSpace() async throws -> OptimizationResult {
+        try runProcess("/usr/bin/purge", arguments: [])
+
+        return OptimizationResult(
+            action: .freePurgeableSpace,
+            success: true,
+            bytesFreed: 0,
+            message: "Requested purgeable space cleanup"
+        )
+    }
+
+    private func reindexSpotlight() async throws -> OptimizationResult {
+        try runProcess("/usr/bin/mdutil", arguments: ["-E", NSHomeDirectory()])
+
+        return OptimizationResult(
+            action: .reindexSpotlight,
+            success: true,
+            bytesFreed: 0,
+            message: "Spotlight reindex requested"
+        )
+    }
+
+    private func repairDiskPermissions() async throws -> OptimizationResult {
+        let uid = String(getuid())
+        try runProcess("/usr/sbin/diskutil", arguments: ["resetUserPermissions", "/", uid])
+
+        return OptimizationResult(
+            action: .repairDiskPermissions,
+            success: true,
+            bytesFreed: 0,
+            message: "Disk permission repair requested"
+        )
+    }
+
+    private func speedUpMail() async throws -> OptimizationResult {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        let mailCachePaths: [String] = [
+            home + "/Library/Caches/com.apple.mail",
+            home + "/Library/Containers/com.apple.mail/Data/Library/Caches",
+            home + "/Library/Containers/com.apple.mail/Data/Library/Autosave Information"
+        ]
+
+        var bytesFreed: Int64 = 0
+        var removalFailures = 0
+        var existingPathCount = 0
+        for path in mailCachePaths where fileManager.fileExists(atPath: path) {
+            existingPathCount += 1
+            let size = await getDirectorySize(path)
+            do {
+                try fileManager.removeItem(atPath: path)
+                bytesFreed += size
+            } catch {
+                removalFailures += 1
+            }
+        }
+
+        if existingPathCount > 0, removalFailures == existingPathCount {
+            throw NSError(
+                domain: "SystemOptimization",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to clean Mail cache files"]
+            )
+        }
+
+        return OptimizationResult(
+            action: .speedUpMail,
+            success: true,
+            bytesFreed: bytesFreed,
+            message: "Mail cache cleanup complete"
         )
     }
 
@@ -242,5 +325,28 @@ public final class SystemOptimization: @unchecked Sendable {
     private func expandWildcard(_ path: String) -> [String] {
         // For now, just return the path - wildcard expansion can be added later
         return [path]
+    }
+
+    private func runProcess(_ executable: String, arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = outputPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? "Command failed"
+            throw NSError(
+                domain: "SystemOptimization",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: output]
+            )
+        }
     }
 }

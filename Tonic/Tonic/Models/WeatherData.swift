@@ -121,13 +121,14 @@ public struct WeatherData: Codable, Sendable {
 
 /// Hourly weather forecast
 public struct HourlyForecast: Codable, Sendable, Identifiable {
-    public let id = UUID()
+    public let id: UUID
     public let time: Date
     public let temperature: Double
     public let condition: WeatherCondition
     public let precipitationChance: Double
 
     public init(time: Date, temperature: Double, condition: WeatherCondition, precipitationChance: Double = 0) {
+        self.id = UUID()
         self.time = time
         self.temperature = temperature
         self.condition = condition
@@ -145,7 +146,7 @@ public struct HourlyForecast: Codable, Sendable, Identifiable {
 
 /// Daily weather forecast
 public struct DailyForecast: Codable, Sendable, Identifiable {
-    public let id = UUID()
+    public let id: UUID
     public let date: Date
     public let highTemp: Double
     public let lowTemp: Double
@@ -161,6 +162,7 @@ public struct DailyForecast: Codable, Sendable, Identifiable {
         precipitationChance: Double = 0,
         precipitationAmount: Double = 0
     ) {
+        self.id = UUID()
         self.date = date
         self.highTemp = highTemp
         self.lowTemp = lowTemp

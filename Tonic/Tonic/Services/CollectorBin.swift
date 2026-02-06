@@ -135,7 +135,7 @@ public struct BinRestorationError: Sendable, Error {
     public let itemName: String
     public let reason: RestorationFailureReason
 
-    public enum RestorationFailureReason {
+    public enum RestorationFailureReason: Sendable {
         case fileNotFound
         case permissionDenied
         case diskFull
@@ -362,7 +362,7 @@ public final class CollectorBin: @unchecked Sendable {
         }
 
         // Remove restored items from bin
-        await removeFromBin(itemIds: itemIds)
+        _ = await removeFromBin(itemIds: itemIds)
 
         return BinRestorationResult(
             success: failedCount == 0,
@@ -567,7 +567,7 @@ public final class CollectorBin: @unchecked Sendable {
             includingPropertiesForKeys: [.fileSizeKey],
             options: [.skipsHiddenFiles]
         ) {
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey]),
                    let isDirectory = resourceValues.isDirectory,
                    !isDirectory {

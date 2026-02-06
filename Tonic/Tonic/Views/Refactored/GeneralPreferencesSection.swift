@@ -141,11 +141,7 @@ struct GeneralPreferencesSection: View {
     private func checkForUpdatesNow() {
         // Trigger immediate update check
         Task {
-            do {
-                // await updateChecker.checkForUpdates()
-            } catch let err as TonicError {
-                error = err
-            }
+            // await updateChecker.checkForUpdates()
         }
     }
 

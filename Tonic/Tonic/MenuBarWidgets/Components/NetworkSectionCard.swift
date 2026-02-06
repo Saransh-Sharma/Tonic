@@ -67,7 +67,7 @@ public struct NetworkSectionCard<Content: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(title)
-                        .font(DesignTokens.Typography.captionLarge)
+                        .font(DesignTokens.Typography.captionEmphasized)
                         .fontWeight(.semibold)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
 
@@ -83,7 +83,7 @@ public struct NetworkSectionCard<Content: View>: View {
 
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(DesignTokens.Typography.captionSmall)
+                        .font(DesignTokens.Typography.caption)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
             }
@@ -117,7 +117,7 @@ public struct NetworkSectionCard<Content: View>: View {
     private var cardBorder: some View {
         RoundedRectangle(cornerRadius: 12)
             .stroke(
-                DesignTokens.Colors.border.opacity(0.5),
+                DesignTokens.Colors.separator.opacity(0.5),
                 lineWidth: 1
             )
     }
@@ -156,14 +156,14 @@ public struct CompactConnectionStatus: View {
                 if isConnected {
                     // Network name
                     Text(networkName ?? "Connected")
-                        .font(DesignTokens.Typography.headlineSmall)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .fontWeight(.semibold)
-                        .foregroundColor(DesignTokens.Colors.text)
+                        .foregroundColor(DesignTokens.Colors.textPrimary)
 
                     // Frequency badge
                     if let band = band {
                         Text(band.rawValue)
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .fontWeight(.medium)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .padding(.horizontal, 8)
@@ -174,12 +174,12 @@ public struct CompactConnectionStatus: View {
                             )
                             .overlay(
                                 Capsule()
-                                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                                    .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
                             )
                     }
                 } else {
                     Text("Disconnected")
-                        .font(DesignTokens.Typography.headlineSmall)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .fontWeight(.semibold)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
@@ -190,7 +190,7 @@ public struct CompactConnectionStatus: View {
             // Secondary row: IP address (if connected)
             if isConnected, let ip = ipAddress {
                 Text(ip)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textTertiary)
                     .padding(.leading, 16) // Align with network name
             }
@@ -239,9 +239,9 @@ public struct ConnectionStatusCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(isConnected ? "Connected" : "Disconnected")
-                        .font(DesignTokens.Typography.headlineSmall)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .fontWeight(.semibold)
-                        .foregroundColor(isConnected ? DesignTokens.Colors.text : DesignTokens.Colors.textSecondary)
+                        .foregroundColor(isConnected ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
 
                     // Status dot
                     Circle()
@@ -252,7 +252,7 @@ public struct ConnectionStatusCard: View {
                 if let name = networkName, isConnected {
                     HStack(spacing: 6) {
                         Text(name)
-                            .font(DesignTokens.Typography.bodyMedium)
+                            .font(DesignTokens.Typography.subhead)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         if let band = band {
@@ -260,13 +260,13 @@ public struct ConnectionStatusCard: View {
                                 .foregroundColor(DesignTokens.Colors.textTertiary)
 
                             Text(band.rawValue)
-                                .font(DesignTokens.Typography.captionMedium)
+                                .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textTertiary)
                         }
                     }
                 } else if !isConnected {
                     Text("Not connected to a network")
-                        .font(DesignTokens.Typography.bodyMedium)
+                        .font(DesignTokens.Typography.subhead)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
             }
@@ -301,7 +301,7 @@ public struct ConnectionStatusCard: View {
         )
 
         Divider()
-            .background(DesignTokens.Colors.border.opacity(0.3))
+            .background(DesignTokens.Colors.separator.opacity(0.3))
 
         // Legacy connection status card (for comparison)
         ConnectionStatusCard(

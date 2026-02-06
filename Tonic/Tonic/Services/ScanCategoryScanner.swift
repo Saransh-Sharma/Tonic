@@ -10,7 +10,7 @@ import Foundation
 import OSLog
 
 // Note: Assumes ScanResult.swift models are imported via module
-// Imports: JunkCategory, PerformanceCategory, AppIssueCategory, PrivacyCategory, FileGroup, AppMetadata, DuplicateAppGroup, OrphanedFile, ScanConfiguration
+// Imports: JunkCategory, PerformanceCategory, AppIssueCategory, FileGroup, AppMetadata, DuplicateAppGroup, OrphanedFile, ScanConfiguration
 
 // MARK: - Scan Category Scanner
 
@@ -18,6 +18,7 @@ import OSLog
 final class ScanCategoryScanner: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.tonic.app", category: "ScanCategoryScanner")
     private let fileManager = FileManager.default
+    private let sizeCache = DirectorySizeCache.shared
     private let lock = NSLock()
 
     // MARK: - Junk Files Scanning
@@ -190,27 +191,32 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         let thresholdDate = Date().addingTimeInterval(-TimeInterval(thresholdDays * 24 * 3600))
 
-        guard let enumerator = fileManager.enumerator(
+        guard let contents = try? fileManager.contentsOfDirectory(
             at: URL(fileURLWithPath: downloadsPath),
-            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
             return FileGroup(name: "Old Files", description: "Old files in Downloads", paths: [], size: 0, count: 0)
         }
 
-        for case let url as URL in enumerator {
-            do {
-                let resourceValues = try url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-                if let modDate = resourceValues.contentModificationDate, modDate < thresholdDate {
-                    let size = Int64(resourceValues.fileSize ?? 0)
-                    if size > 0 {
-                        paths.append(url.path)
-                        totalSize += size
-                        fileCount += 1
-                    }
+        for url in contents {
+            guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                continue
+            }
+            guard let modDate = resourceValues.contentModificationDate, modDate < thresholdDate else { continue }
+            if resourceValues.isDirectory == true {
+                if let size = sizeCache.size(for: url.path, includeHidden: false) {
+                    paths.append(url.path)
+                    totalSize += size
+                    fileCount += 1
                 }
-            } catch {
-                logger.debug("Error reading file attributes: \(error.localizedDescription)")
+            } else {
+                let size = Int64(resourceValues.fileSize ?? 0)
+                if size > 0 {
+                    paths.append(url.path)
+                    totalSize += size
+                    fileCount += 1
+                }
             }
         }
 
@@ -468,137 +474,41 @@ final class ScanCategoryScanner: @unchecked Sendable {
         return orphanedFiles.sorted { $0.size > $1.size }
     }
 
-    // MARK: - Privacy Issues Scanning
-
-    func scanPrivacyIssues() async -> PrivacyCategory {
-        let browserHistory = await scanBrowserHistory()
-        let downloadHistory = await scanDownloadHistory()
-        let recentDocuments = await scanRecentDocuments()
-        let clipboardData = FileGroup(name: "Clipboard", description: "System clipboard data", paths: [], size: 0, count: 0)
-
-        return PrivacyCategory(
-            browserHistory: browserHistory,
-            downloadHistory: downloadHistory,
-            recentDocuments: recentDocuments,
-            clipboardData: clipboardData
-        )
-    }
-
-    private func scanBrowserHistory() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let historyPaths = [
-            home + "/Library/Safari/History.db",
-            home + "/Library/Application Support/Google/Chrome/Default/History",
-            home + "/Library/Application Support/Firefox/Profiles"
-        ]
-
-        for path in historyPaths where fileManager.fileExists(atPath: path) {
-            let (size, count) = await measureFilesInPath(path)
-            if size > 0 {
-                paths.append(path)
-                totalSize += size
-                fileCount += count
-            }
-        }
-
-        return FileGroup(
-            name: "Browser History",
-            description: "Web browsing history from installed browsers",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
-    }
-
-    private func scanDownloadHistory() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let downloadsPath = home + "/Downloads"
-
-        if fileManager.fileExists(atPath: downloadsPath) {
-            let (size, count) = await measureFilesInPath(downloadsPath)
-            if size > 0 {
-                paths.append(downloadsPath)
-                totalSize = size
-                fileCount = count
-            }
-        }
-
-        return FileGroup(
-            name: "Download History",
-            description: "Files in Downloads folder",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
-    }
-
-    private func scanRecentDocuments() async -> FileGroup {
-        var paths: [String] = []
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
-        let home = fileManager.homeDirectoryForCurrentUser.path
-        let recentPath = home + "/Library/Preferences/com.apple.LaunchServices.QuarantineResolve"
-
-        if fileManager.fileExists(atPath: recentPath) {
-            let (size, count) = await measureFilesInPath(recentPath)
-            if size > 0 {
-                paths.append(recentPath)
-                totalSize = size
-                fileCount = count
-            }
-        }
-
-        return FileGroup(
-            name: "Recent Documents",
-            description: "Recent file access records",
-            paths: paths,
-            size: totalSize,
-            count: fileCount
-        )
-    }
-
     // MARK: - Helper Methods
 
     private func measureFilesInPath(_ path: String, minAgeHours: Int = 0) async -> (size: Int64, count: Int) {
-        var totalSize: Int64 = 0
-        var fileCount = 0
         let minAgeDate = minAgeHours > 0 ? Date().addingTimeInterval(-TimeInterval(minAgeHours * 3600)) : nil
+        let baseURL = URL(fileURLWithPath: path)
 
-        guard let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles]
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: baseURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
             return (0, 0)
         }
 
-        for case let url as URL in enumerator {
-            do {
-                let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-                let fileSize = Int64(resourceValues.fileSize ?? 0)
+        var totalSize: Int64 = 0
+        var fileCount = 0
 
-                if fileSize > 0 {
-                    if let minAge = minAgeDate, let modDate = resourceValues.contentModificationDate {
-                        if modDate < minAge {
-                            totalSize += fileSize
-                            fileCount += 1
-                        }
-                    } else {
-                        totalSize += fileSize
-                        fileCount += 1
-                    }
+        for url in contents {
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                continue
+            }
+
+            if let minAge = minAgeDate, let modDate = values.contentModificationDate, modDate >= minAge {
+                continue
+            }
+
+            if values.isDirectory == true {
+                if let size = sizeCache.size(for: url.path, includeHidden: false) {
+                    totalSize += size
+                    fileCount += 1
                 }
-            } catch {
-                logger.debug("Error reading file attributes: \(error.localizedDescription)")
+            } else {
+                let size = Int64(values.fileSize ?? 0)
+                totalSize += size
+                fileCount += 1
             }
         }
 

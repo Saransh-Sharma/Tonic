@@ -183,7 +183,7 @@ public enum Condition: String, CaseIterable, Codable, Sendable {
 
 /// History of rule triggers for logging
 public struct RuleTrigger: Identifiable, Codable, Sendable {
-    public let id = UUID()
+    public let id: UUID
     public let ruleId: UUID
     public let ruleName: String
     public let triggeredAt: Date
@@ -191,6 +191,7 @@ public struct RuleTrigger: Identifiable, Codable, Sendable {
     public let threshold: Double
 
     public init(ruleId: UUID, ruleName: String, triggeredAt: Date = Date(), value: Double, threshold: Double) {
+        self.id = UUID()
         self.ruleId = ruleId
         self.ruleName = ruleName
         self.triggeredAt = triggeredAt

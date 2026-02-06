@@ -138,7 +138,7 @@ public struct TachometerWidgetView: View {
             let center = CGPoint(x: config.size / 2, y: config.size / 2)
             let radius = (config.size / 2) - 2
 
-            var startAngle = Angle.degrees(135)
+            let startAngle = Angle.degrees(135)
             let endAngle = Angle.degrees(405)
 
             path.addArc(

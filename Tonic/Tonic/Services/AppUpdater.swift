@@ -65,8 +65,8 @@ struct AppUpdate: Identifiable, Sendable, Codable {
 
         // Pad the shorter array with zeros
         let maxLength = max(currentComponents.count, latestComponents.count)
-        var paddedCurrent = currentComponents + [Int](repeating: 0, count: maxLength - currentComponents.count)
-        var paddedLatest = latestComponents + [Int](repeating: 0, count: maxLength - latestComponents.count)
+        let paddedCurrent = currentComponents + [Int](repeating: 0, count: maxLength - currentComponents.count)
+        let paddedLatest = latestComponents + [Int](repeating: 0, count: maxLength - latestComponents.count)
 
         for i in 0..<maxLength {
             if paddedCurrent[i] < paddedLatest[i] {
@@ -259,12 +259,6 @@ final class AppUpdater: @unchecked Sendable {
                                 bundleIdentifier: app.bundleIdentifier,
                                 errorType: .noVersionInfo,
                                 underlyingError: nil
-                            ))
-                        } catch {
-                            return (nil, UpdateCheckError(
-                                bundleIdentifier: app.bundleIdentifier,
-                                errorType: .unknown,
-                                underlyingError: error.localizedDescription
                             ))
                         }
                     }
@@ -619,12 +613,38 @@ final class AppUpdater: @unchecked Sendable {
 
 /// Represents a framework or library dependency
 struct AppDependency: Identifiable, Sendable, Codable {
-    let id = UUID()
+    let id: UUID
     let name: String
     let type: DependencyType
     let path: URL
     let size: Int64
     let version: String?
+
+    // CodingKeys includes 'id' to preserve it when present in encoded data
+    enum CodingKeys: String, CodingKey {
+        case id, name, type, path, size, version
+    }
+
+    init(name: String, type: DependencyType, path: URL, size: Int64, version: String?) {
+        self.id = UUID()
+        self.name = name
+        self.type = type
+        self.path = path
+        self.size = size
+        self.version = version
+    }
+
+    // Custom init from decoder to preserve ID when present, generate when missing
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Preserve existing ID if present, otherwise generate new one
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.name = try container.decode(String.self, forKey: .name)
+        self.type = try container.decode(DependencyType.self, forKey: .type)
+        self.path = try container.decode(URL.self, forKey: .path)
+        self.size = try container.decode(Int64.self, forKey: .size)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version)
+    }
 
     enum DependencyType: String, Sendable, Codable {
         case framework = "Framework"

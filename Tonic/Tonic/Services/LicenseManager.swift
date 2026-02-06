@@ -10,7 +10,7 @@ import Foundation
 import StoreKit
 
 /// License tier
-public enum LicenseTier: String, CaseIterable, Identifiable {
+public enum LicenseTier: String, Sendable, CaseIterable, Identifiable {
     case free = "Free"
     case pro = "Pro"
     case lifetime = "Lifetime"
@@ -33,7 +33,7 @@ public enum LicenseTier: String, CaseIterable, Identifiable {
             return [
                 "All Free features",
                 "Unlimited cleaning",
-                "Deep clean all categories",
+                "Advanced maintenance toolkit",
                 "Smart scan recommendations",
                 "App uninstaller",
                 "System optimization",
@@ -143,7 +143,7 @@ public final class LicenseManager: NSObject, @unchecked Sendable {
     }
 
     private func listenForTransactions() -> Task<Void, Error> {
-        return Task.detached { [weak self] in
+        return Task.detached {
             // This would be the actual StoreKit transaction listener
             // For now, just keep the task alive
             while !Task.isCancelled {
@@ -200,16 +200,6 @@ public final class LicenseManager: NSObject, @unchecked Sendable {
                     isLocked: true,
                     tierRequired: .pro,
                     message: "Upgrade to Pro for unlimited cleaning"
-                )
-            }
-            return .unlocked
-
-        case .deepClean:
-            if currentTier == .free {
-                return FeatureLock(
-                    isLocked: true,
-                    tierRequired: .pro,
-                    message: "Deep clean requires Pro"
                 )
             }
             return .unlocked
@@ -339,7 +329,6 @@ public enum Feature {
     case systemDashboard
     case appInventory
     case unlimitedCleaning
-    case deepClean
     case smartScan
     case appUninstaller
     case systemOptimization

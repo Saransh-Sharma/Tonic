@@ -14,52 +14,200 @@ import OSLog
 final class HealthScoreCalculator {
     private let logger = Logger(subsystem: "com.tonic.app", category: "HealthScoreCalculator")
 
+    struct SystemHealthMetrics {
+        let cpuUsagePercent: Double
+        let memoryUsedPercent: Double
+        let memoryPressure: MemoryPressure
+        let diskUsedPercent: Double?
+        let cpuTemperatureCelsius: Double?
+        let diskReadMBps: Double
+        let diskWriteMBps: Double
+    }
+
     // Score weightings (total 100 points available)
     private let diskUsageWeight = 30
     private let cacheWeight = 25
     private let junkFilesWeight = 20
     private let appIssuesWeight = 15
     private let orphanedFilesWeight = 10
-    private let privacyWeight = 5
 
     func calculateScore(
         diskUsage: DiskUsageSummary?,
         junkFiles: JunkCategory,
         performanceIssues: PerformanceCategory,
-        appIssues: AppIssueCategory,
-        privacyIssues: PrivacyCategory
+        appIssues: AppIssueCategory
     ) -> Int {
-        var score = 100
-
-        // Deduct for disk usage (0-30 points)
-        let diskPenalty = calculateDiskPenalty(diskUsage: diskUsage)
-        score -= diskPenalty
-
-        // Deduct for cache size (0-25 points)
-        let cachePenalty = calculateCachePenalty(performanceIssues: performanceIssues)
-        score -= cachePenalty
-
-        // Deduct for junk files (0-20 points)
-        let junkPenalty = calculateJunkPenalty(junkFiles: junkFiles)
-        score -= junkPenalty
-
-        // Deduct for app issues (0-15 points)
-        let appPenalty = calculateAppPenalty(appIssues: appIssues)
-        score -= appPenalty
-
-        // Deduct for orphaned files (0-10 points)
-        let orphanedPenalty = calculateOrphanedPenalty(appIssues: appIssues)
-        score -= orphanedPenalty
-
-        // Deduct for privacy issues (0-5 points)
-        let privacyPenalty = calculatePrivacyPenalty(privacyIssues: privacyIssues)
-        score -= privacyPenalty
+        let penalties = penaltyBreakdown(
+            diskUsage: diskUsage,
+            junkFiles: junkFiles,
+            performanceIssues: performanceIssues,
+            appIssues: appIssues
+        )
+        let score = 100 - penalties.total
 
         logger.info(
-            "Health score calculated: \(max(score, 0))/100 (disk: -\(diskPenalty), cache: -\(cachePenalty), junk: -\(junkPenalty), app: -\(appPenalty), orphaned: -\(orphanedPenalty), privacy: -\(privacyPenalty))"
+            "Health score calculated: \(max(score, 0))/100 (disk: -\(penalties.disk), cache: -\(penalties.cache), junk: -\(penalties.junk), app: -\(penalties.app), orphaned: -\(penalties.orphaned))"
         )
 
         return max(score, 0)
+    }
+
+    struct ScorePenaltyBreakdown {
+        let disk: Int
+        let cache: Int
+        let junk: Int
+        let app: Int
+        let orphaned: Int
+
+        var total: Int {
+            disk + cache + junk + app + orphaned
+        }
+    }
+
+    func penaltyBreakdown(
+        diskUsage: DiskUsageSummary?,
+        junkFiles: JunkCategory,
+        performanceIssues: PerformanceCategory,
+        appIssues: AppIssueCategory
+    ) -> ScorePenaltyBreakdown {
+        let diskPenalty = calculateDiskPenalty(diskUsage: diskUsage)
+        let cachePenalty = calculateCachePenalty(performanceIssues: performanceIssues)
+        let junkPenalty = calculateJunkPenalty(junkFiles: junkFiles)
+        let appPenalty = calculateAppPenalty(appIssues: appIssues)
+        let orphanedPenalty = calculateOrphanedPenalty(appIssues: appIssues)
+
+        return ScorePenaltyBreakdown(
+            disk: diskPenalty,
+            cache: cachePenalty,
+            junk: junkPenalty,
+            app: appPenalty,
+            orphaned: orphanedPenalty
+        )
+    }
+
+    // MARK: - System Health Score (Mole parity)
+
+    func calculateSystemScore(metrics: SystemHealthMetrics) -> (score: Int, message: String) {
+        let cpuNormalThreshold = 30.0
+        let cpuHighThreshold = 70.0
+        let memNormalThreshold = 50.0
+        let memHighThreshold = 80.0
+        let memPressureWarnPenalty = 5.0
+        let memPressureCritPenalty = 15.0
+        let diskWarnThreshold = 70.0
+        let diskCritThreshold = 90.0
+        let thermalNormalThreshold = 60.0
+        let thermalHighThreshold = 85.0
+        let ioNormalThreshold = 50.0
+        let ioHighThreshold = 150.0
+
+        let healthCPUWeight = 30.0
+        let healthMemWeight = 25.0
+        let healthDiskWeight = 20.0
+        let healthThermalWeight = 15.0
+        let healthIOWeight = 10.0
+
+        var score = 100.0
+        var issues: [String] = []
+
+        // CPU penalty
+        if metrics.cpuUsagePercent > cpuNormalThreshold {
+            let cpuPenalty: Double
+            if metrics.cpuUsagePercent > cpuHighThreshold {
+                cpuPenalty = healthCPUWeight * (metrics.cpuUsagePercent - cpuNormalThreshold) / cpuHighThreshold
+            } else {
+                cpuPenalty = (healthCPUWeight / 2) * (metrics.cpuUsagePercent - cpuNormalThreshold) / (cpuHighThreshold - cpuNormalThreshold)
+            }
+            score -= cpuPenalty
+            if metrics.cpuUsagePercent > cpuHighThreshold {
+                issues.append("High CPU")
+            }
+        }
+
+        // Memory penalty
+        if metrics.memoryUsedPercent > memNormalThreshold {
+            let memPenalty: Double
+            if metrics.memoryUsedPercent > memHighThreshold {
+                memPenalty = healthMemWeight * (metrics.memoryUsedPercent - memNormalThreshold) / memNormalThreshold
+            } else {
+                memPenalty = (healthMemWeight / 2) * (metrics.memoryUsedPercent - memNormalThreshold) / (memHighThreshold - memNormalThreshold)
+            }
+            score -= memPenalty
+            if metrics.memoryUsedPercent > memHighThreshold {
+                issues.append("High Memory")
+            }
+        }
+
+        // Memory pressure penalty
+        switch metrics.memoryPressure {
+        case .warning:
+            score -= memPressureWarnPenalty
+            issues.append("Memory Pressure")
+        case .critical:
+            score -= memPressureCritPenalty
+            issues.append("Critical Memory")
+        case .normal:
+            break
+        }
+
+        // Disk penalty
+        if let diskUsage = metrics.diskUsedPercent, diskUsage > diskWarnThreshold {
+            let diskPenalty: Double
+            if diskUsage > diskCritThreshold {
+                diskPenalty = healthDiskWeight * (diskUsage - diskWarnThreshold) / (100 - diskWarnThreshold)
+            } else {
+                diskPenalty = (healthDiskWeight / 2) * (diskUsage - diskWarnThreshold) / (diskCritThreshold - diskWarnThreshold)
+            }
+            score -= diskPenalty
+            if diskUsage > diskCritThreshold {
+                issues.append("Disk Almost Full")
+            }
+        }
+
+        // Thermal penalty
+        if let cpuTemp = metrics.cpuTemperatureCelsius, cpuTemp > thermalNormalThreshold {
+            if cpuTemp > thermalHighThreshold {
+                score -= healthThermalWeight
+                issues.append("Overheating")
+            } else {
+                let thermalPenalty = healthThermalWeight * (cpuTemp - thermalNormalThreshold) / (thermalHighThreshold - thermalNormalThreshold)
+                score -= thermalPenalty
+            }
+        }
+
+        // Disk IO penalty (MB/s)
+        let totalIO = metrics.diskReadMBps + metrics.diskWriteMBps
+        if totalIO > ioNormalThreshold {
+            let ioPenalty: Double
+            if totalIO > ioHighThreshold {
+                ioPenalty = healthIOWeight
+                issues.append("Heavy Disk IO")
+            } else {
+                ioPenalty = healthIOWeight * (totalIO - ioNormalThreshold) / (ioHighThreshold - ioNormalThreshold)
+            }
+            score -= ioPenalty
+        }
+
+        score = max(0, min(100, score))
+
+        let rating: String
+        switch score {
+        case 90...:
+            rating = "Excellent"
+        case 75..<90:
+            rating = "Good"
+        case 60..<75:
+            rating = "Fair"
+        case 40..<60:
+            rating = "Poor"
+        default:
+            rating = "Critical"
+        }
+
+        let message = issues.isEmpty ? rating : "\(rating): \(issues.joined(separator: ", "))"
+        logger.info("System health score calculated: \(Int(score))/100 (\(message))")
+
+        return (Int(score), message)
     }
 
     // MARK: - Penalty Calculations
@@ -166,24 +314,6 @@ final class HealthScoreCalculator {
         }
 
         return min(countPenalty + sizePenalty, orphanedFilesWeight)
-    }
-
-    private func calculatePrivacyPenalty(privacyIssues: PrivacyCategory) -> Int {
-        let browserHistorySize = privacyIssues.browserHistory.size
-        let downloadHistorySize = privacyIssues.downloadHistory.size
-
-        // Privacy penalty based on sensitive data presence
-        var penalty = 0
-
-        if browserHistorySize > 100 * 1024 * 1024 {
-            penalty += 2
-        }
-
-        if downloadHistorySize > 1024 * 1024 * 1024 {
-            penalty += 2
-        }
-
-        return min(penalty, privacyWeight)
     }
 
     // MARK: - Helper Methods

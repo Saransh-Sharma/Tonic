@@ -9,7 +9,7 @@
 import Foundation
 
 /// Cloud storage provider
-public enum CloudProvider: String, CaseIterable, Identifiable {
+public enum CloudProvider: String, Sendable, CaseIterable, Identifiable {
     case icloud = "iCloud"
     case dropbox = "Dropbox"
     case googleDrive = "Google Drive"
@@ -174,9 +174,7 @@ public final class CloudStorageScanner: @unchecked Sendable {
             return 0
         }
 
-        var url: URL?
         while let current = enumerator.nextObject() as? URL {
-            url = current
             if let resourceValues = try? current.resourceValues(forKeys: [.fileSizeKey]),
                let size = resourceValues.fileSize {
                 totalSize += Int64(size)
@@ -193,9 +191,7 @@ public final class CloudStorageScanner: @unchecked Sendable {
             return 0
         }
 
-        var url: URL?
         while let current = enumerator.nextObject() as? URL {
-            url = current
             if let resourceValues = try? current.resourceValues(forKeys: [.isDirectoryKey]),
                let isDirectory = resourceValues.isDirectory,
                !isDirectory {

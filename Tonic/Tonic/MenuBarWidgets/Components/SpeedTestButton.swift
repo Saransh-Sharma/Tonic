@@ -84,17 +84,17 @@ public struct SpeedTestButton: View {
                 // Text content
                 VStack(alignment: .leading, spacing: 2) {
                     Text(isRunning ? phase.displayName : "Speed Test")
-                        .font(DesignTokens.Typography.headlineSmall)
+                        .font(DesignTokens.Typography.bodyEmphasized)
                         .fontWeight(.semibold)
-                        .foregroundColor(isRunning ? DesignTokens.Colors.text : DesignTokens.Colors.textSecondary)
+                        .foregroundColor(isRunning ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
 
                     if isRunning {
                         Text("\(Int(progress * 100))%")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                     } else {
                         Text("Test your connection speed")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                     }
                 }
@@ -139,7 +139,7 @@ public struct SpeedTestButton: View {
     private var buttonBorder: some View {
         RoundedRectangle(cornerRadius: 12)
             .stroke(
-                isRunning ? phaseColor.opacity(0.3) : DesignTokens.Colors.border.opacity(0.5),
+                isRunning ? phaseColor.opacity(0.3) : DesignTokens.Colors.separator.opacity(0.5),
                 lineWidth: 1
             )
     }
@@ -168,7 +168,7 @@ public struct SpeedTestResults: View {
             // Speed Test Header
             HStack {
                 Text("Speed Test")
-                    .font(DesignTokens.Typography.captionLarge)
+                    .font(DesignTokens.Typography.captionEmphasized)
                     .fontWeight(.semibold)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
 
@@ -176,7 +176,7 @@ public struct SpeedTestResults: View {
                     .foregroundColor(DesignTokens.Colors.textTertiary)
 
                 Text("Cloudflare")
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textTertiary)
 
                 Spacer()
@@ -194,7 +194,7 @@ public struct SpeedTestResults: View {
                         Image(systemName: "arrow.down")
                             .font(.caption2)
                         Text("Mbps")
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                     }
                     .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
@@ -209,7 +209,7 @@ public struct SpeedTestResults: View {
                         Image(systemName: "arrow.up")
                             .font(.caption2)
                         Text("Mbps")
-                            .font(DesignTokens.Typography.captionSmall)
+                            .font(DesignTokens.Typography.caption)
                     }
                     .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
@@ -220,7 +220,7 @@ public struct SpeedTestResults: View {
                 if let onRetest = onRetest {
                     Button(action: onRetest) {
                         Text("Retest")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -230,7 +230,7 @@ public struct SpeedTestResults: View {
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                                    .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -249,7 +249,7 @@ public struct SpeedTestResults: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -348,7 +348,7 @@ public struct DiagnosticInsightView: View {
 
     public var body: some View {
         Text(attributedMessage)
-            .font(DesignTokens.Typography.captionSmall)
+            .font(DesignTokens.Typography.caption)
             .foregroundColor(DesignTokens.Colors.textSecondary)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -394,17 +394,17 @@ public struct SpeedTestResultsLegacy: View {
                         Image(systemName: "arrow.down.circle.fill")
                             .foregroundColor(TonicColors.success)
                         Text("Download")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
                     if let speed = results.downloadSpeed {
                         Text(String(format: "%.1f Mbps", speed))
-                            .font(DesignTokens.Typography.displaySmall)
+                            .font(DesignTokens.Typography.h2)
                             .foregroundColor(TonicColors.success)
                     } else {
                         Text("--")
-                            .font(DesignTokens.Typography.displaySmall)
+                            .font(DesignTokens.Typography.h2)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                     }
                 }
@@ -415,7 +415,7 @@ public struct SpeedTestResultsLegacy: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 6) {
                         Text("Upload")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                         Image(systemName: "arrow.up.circle.fill")
                             .foregroundColor(.blue)
@@ -423,11 +423,11 @@ public struct SpeedTestResultsLegacy: View {
 
                     if let speed = results.uploadSpeed {
                         Text(String(format: "%.1f Mbps", speed))
-                            .font(DesignTokens.Typography.displaySmall)
+                            .font(DesignTokens.Typography.h2)
                             .foregroundColor(.blue)
                     } else {
                         Text("--")
-                            .font(DesignTokens.Typography.displaySmall)
+                            .font(DesignTokens.Typography.h2)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                     }
                 }
@@ -441,7 +441,7 @@ public struct SpeedTestResultsLegacy: View {
                             .font(.caption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                         Text("Ping: \(Int(ping * 1000))ms")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
@@ -450,7 +450,7 @@ public struct SpeedTestResultsLegacy: View {
                             .font(.caption)
                             .foregroundColor(DesignTokens.Colors.textTertiary)
                         Text("Jitter: \(Int(jitter * 1000))ms")
-                            .font(DesignTokens.Typography.captionMedium)
+                            .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
 
@@ -544,7 +544,7 @@ public struct CompactSpeedTestButton: View {
                         .font(.caption)
                 }
                 Text(isRunning ? "Testing... \(Int(progress * 100))%" : "Run Speed Test")
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
             }
             .foregroundColor(DesignTokens.Colors.textSecondary)
             .frame(maxWidth: .infinity)
@@ -555,7 +555,7 @@ public struct CompactSpeedTestButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(DesignTokens.Colors.border.opacity(0.5), lineWidth: 1)
+                    .stroke(DesignTokens.Colors.separator.opacity(0.5), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

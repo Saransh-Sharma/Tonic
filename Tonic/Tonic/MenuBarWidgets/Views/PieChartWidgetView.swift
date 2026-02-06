@@ -209,7 +209,7 @@ public struct SegmentedDonutView: View {
 
         return Group {
             ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                let segmentAngle = (segment.value / max(total, 0.001)) * 360
+                let _ = (segment.value / max(total, 0.001)) * 360
                 let startAngle = segments.prefix(index).reduce(0.0) { $0 + ($1.value / max(total, 0.001)) * 360 }
 
                 Circle()

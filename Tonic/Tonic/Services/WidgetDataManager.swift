@@ -662,12 +662,13 @@ public struct BluetoothDevice: Sendable, Identifiable {
 
     /// Individual battery level for a device component (Case, Left, Right, etc.)
     public struct DeviceBatteryLevel: Identifiable, Sendable, Codable, Equatable {
-        public let id = UUID()
+        public let id: UUID
         public let label: String
         public let percentage: Int
         public let component: BatteryComponent
 
         public init(label: String, percentage: Int, component: BatteryComponent = .unknown) {
+            self.id = UUID()
             self.label = label
             self.percentage = percentage
             self.component = component
@@ -973,9 +974,9 @@ public final class WidgetDataManager {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        Task { @MainActor in
-            self.pathMonitor?.cancel()
-        }
+        // Cancel path monitor if it exists
+        // Note: pathMonitor cleanup is handled by NWPathMonitor internally on dealloc
+        // We don't need explicit cancellation here since the object is being destroyed
     }
 
     // MARK: - Public Methods
@@ -1298,7 +1299,6 @@ public final class WidgetDataManager {
         let finalOverall = overallFreq ?? pCoreFreq
 
         return (finalOverall, eCoreFreq, pCoreFreq)
-
         #else
         // Intel Macs - get CPU frequency
         var frequency: Int64 = 0
@@ -1307,9 +1307,9 @@ public final class WidgetDataManager {
         if sysctlbyname("hw.cpufrequency", &frequency, &size, nil, 0) == 0 {
             return (Double(frequency) / 1_000_000_000, nil, nil)
         }
-        #endif
 
         return (nil, nil, nil)
+        #endif
     }
 
     /// Get CPU temperature in Celsius
@@ -1852,10 +1852,8 @@ public final class WidgetDataManager {
         var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
         let result = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
 
-        guard result > 0,
-              let path = String(cString: pathBuffer) as String? else {
-            return nil
-        }
+        guard result > 0 else { return nil }
+        let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 
         // Check if this is an app bundle
         if path.contains(".app/") {
@@ -2202,7 +2200,7 @@ public final class WidgetDataManager {
 
         defer { IOObjectRelease(iterator) }
 
-        var nvmeService: io_service_t = IOIteratorNext(iterator)
+        let nvmeService: io_service_t = IOIteratorNext(iterator)
         guard nvmeService != 0 else {
             return getFallbackSMARTData()
         }
@@ -2272,9 +2270,8 @@ public final class WidgetDataManager {
             try task.run()
             task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard task.terminationStatus == 0,
-                  let output = String(data: data, encoding: .utf8) else {
+            let _ = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard task.terminationStatus == 0 else {
                 return nil
             }
 
@@ -2344,15 +2341,13 @@ public final class WidgetDataManager {
             var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
             let pathResult = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
 
-            guard pathResult > 0,
-                  let path = String(cString: pathBuffer) as String? else {
-                continue
-            }
+            guard pathResult > 0 else { continue }
+            let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
 
             let processName = (path as NSString).lastPathComponent
 
             // Get icon if possible
-            let icon = getAppIconForProcess(pid: pid, name: processName)
+            let _ = getAppIconForProcess(pid: pid, name: processName)
 
             processes.append(ProcessUsage(
                 id: pid,
@@ -2671,7 +2666,7 @@ public final class WidgetDataManager {
                                             &hostname, socklen_t(hostname.count),
                                             nil, socklen_t(0), NI_NUMERICHOST)
                     if result == 0 {
-                        address = String(cString: hostname)
+                        address = String(decodingCString: hostname.map { UInt8(bitPattern: $0) }, as: UTF8.self)
                     }
                 }
             }
@@ -3278,7 +3273,7 @@ public final class WidgetDataManager {
         // On unified memory, GPU + CPU share the same pool
         // GPU typically uses 5-15% when idle, up to 50%+ under load
         if let total = totalMemory {
-            let memPercent = memoryData.usagePercentage
+            let _ = memoryData.usagePercentage
             // Estimate GPU memory based on activity and system memory pressure
             // This is an approximation since Apple doesn't expose exact GPU memory allocation
             let estimatedGPUMemoryPercent = usage ?? 10.0 // Default 10% idle
@@ -3352,7 +3347,7 @@ public final class WidgetDataManager {
         let gpuTemp: Double? = nil
 
         // Apple Silicon thermal zones
-        let thermalZones = [
+        let _ = [
             "TC0E", // CPU
             "TC0F", // CPU
             "TC0c", // CPU
@@ -3363,7 +3358,7 @@ public final class WidgetDataManager {
         while true {
             let service = IOIteratorNext(iterator)
             guard service != 0 else { break }
-            if let properties = IORegistryEntryCreateCFProperty(service, kIOPropertyThermalInformationKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
+            if let _ = IORegistryEntryCreateCFProperty(service, kIOPropertyThermalInformationKey as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
                 // Try to parse thermal info
                 IOObjectRelease(service)
                 // Thermal info parsing is complex - return nil for now

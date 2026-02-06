@@ -52,7 +52,7 @@ public struct NetworkMetricRow: View {
             HStack(spacing: 12) {
                 // Label
                 Text(label)
-                    .font(DesignTokens.Typography.captionMedium)
+                    .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .frame(width: 60, alignment: .leading)
 
@@ -63,7 +63,7 @@ public struct NetworkMetricRow: View {
                         .frame(width: 6, height: 6)
 
                     Text(value)
-                        .font(DesignTokens.Typography.monoMedium)
+                        .font(DesignTokens.Typography.monoSubhead)
                         .fontWeight(.semibold)
                         .foregroundColor(color.swiftUIColor)
                 }
@@ -82,7 +82,7 @@ public struct NetworkMetricRow: View {
                 }
 
                 // Info button if tooltip available
-                if let tooltip = tooltip {
+                if tooltip != nil {
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             isExpanded.toggle()
@@ -155,8 +155,8 @@ public struct ContextualTipView: View {
     public var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Text(text)
-                .font(DesignTokens.Typography.captionSmall)
-                .foregroundColor(DesignTokens.Colors.text)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 

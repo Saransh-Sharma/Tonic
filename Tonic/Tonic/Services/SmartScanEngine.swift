@@ -35,7 +35,6 @@ final class SmartScanEngine: @unchecked Sendable {
         var junkFiles: JunkCategory?
         var performanceIssues: PerformanceCategory?
         var appIssues: AppIssueCategory?
-        var privacyIssues: PrivacyCategory?
         var recommendations: [ScanRecommendation] = []
         var stageProgress: Double = 0
     }
@@ -101,7 +100,7 @@ final class SmartScanEngine: @unchecked Sendable {
         lock.locked { _scanData.junkFiles = junkFiles }
 
         // Update disk usage with junk file totals
-        if var existing = _scanData.diskUsage {
+        if let existing = _scanData.diskUsage {
             _scanData.diskUsage = DiskUsageSummary(
                 totalSpace: existing.totalSpace,
                 usedSpace: existing.usedSpace,
@@ -138,10 +137,6 @@ final class SmartScanEngine: @unchecked Sendable {
         // Scan performance issues using category scanner
         let performanceIssues = await categoryScanner.scanPerformanceIssues()
         lock.locked { _scanData.performanceIssues = performanceIssues }
-
-        // Scan privacy issues using category scanner
-        let privacyIssues = await categoryScanner.scanPrivacyIssues()
-        lock.locked { _scanData.privacyIssues = privacyIssues }
 
         let baseProgress = ScanStage.preparing.progressWeight +
                           ScanStage.scanningDisk.progressWeight +
@@ -202,21 +197,15 @@ final class SmartScanEngine: @unchecked Sendable {
             orphanedFiles: []
         )
 
-        let privacyIssues = lock.locked { _scanData.privacyIssues } ?? PrivacyCategory(
-            browserHistory: FileGroup(name: "Browser History", description: ""),
-            downloadHistory: FileGroup(name: "Downloads", description: ""),
-            recentDocuments: FileGroup(name: "Recent", description: ""),
-            clipboardData: FileGroup(name: "Clipboard", description: "")
-        )
-
-        // Calculate health score using new comprehensive calculator
-        let healthScore = healthScoreCalculator.calculateScore(
+        let legacyHealthScore = healthScoreCalculator.calculateScore(
             diskUsage: diskUsage,
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
-            appIssues: appIssues,
-            privacyIssues: privacyIssues
+            appIssues: appIssues
         )
+        // Use scan-derived score only for Smart Scan to ensure stable results
+        // when the scan findings haven't changed.
+        let systemHealthScore = legacyHealthScore
 
         // Calculate total reclaimable space from all categories
         let unusedAppsSize = appIssues.unusedApps.reduce(Int64(0)) { $0 + $1.totalSize }
@@ -231,21 +220,69 @@ final class SmartScanEngine: @unchecked Sendable {
                                    unusedAppsSize +
                                    largeAppsSize +
                                    duplicateAppsSize +
-                                   orphanedFilesSize +
-                                   privacyIssues.browserHistory.size +
-                                   privacyIssues.downloadHistory.size +
-                                   privacyIssues.recentDocuments.size
+                                   orphanedFilesSize
 
         return ScanResult(
             id: UUID(),
             timestamp: Date(),
-            healthScore: healthScore,
+            healthScore: systemHealthScore,
             junkFiles: junkFiles,
             performanceIssues: performanceIssues,
             appIssues: appIssues,
-            privacyIssues: privacyIssues,
             totalReclaimableSpace: totalReclaimableSpace
         )
+    }
+
+    private func calculateSystemHealthScore(fallbackScore: Int) async -> Int {
+        await ensureSystemMetrics()
+        let metrics = await snapshotSystemMetrics()
+        guard metrics.cpuUsagePercent > 0 || metrics.memoryUsedPercent > 0 || metrics.diskUsedPercent != nil else {
+            return fallbackScore
+        }
+        return healthScoreCalculator.calculateSystemScore(metrics: metrics).score
+    }
+
+    private func ensureSystemMetrics() async {
+        let hasMonitoring = await MainActor.run {
+            WidgetDataManager.shared.isMonitoring
+        }
+        if !hasMonitoring {
+            await MainActor.run {
+                WidgetDataManager.shared.startMonitoring()
+            }
+        }
+
+        let snapshot = await MainActor.run {
+            (WidgetDataManager.shared.cpuData, WidgetDataManager.shared.memoryData, WidgetDataManager.shared.diskVolumes)
+        }
+
+        let hasData = snapshot.0.totalUsage > 0 || snapshot.1.totalBytes > 0 || !snapshot.2.isEmpty
+        if !hasData {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+    }
+
+    private func snapshotSystemMetrics() async -> HealthScoreCalculator.SystemHealthMetrics {
+        await MainActor.run {
+            let cpu = WidgetDataManager.shared.cpuData
+            let memory = WidgetDataManager.shared.memoryData
+            let disk = WidgetDataManager.shared.diskVolumes.first(where: { $0.isBootVolume }) ?? WidgetDataManager.shared.diskVolumes.first
+            let sensors = WidgetDataManager.shared.sensorsData
+
+            let cpuTemp = cpu.temperature ?? sensors.temperatures.map({ $0.value }).max()
+            let diskReadMBps = (disk?.readBytesPerSecond ?? 0) / 1_000_000
+            let diskWriteMBps = (disk?.writeBytesPerSecond ?? 0) / 1_000_000
+
+            return HealthScoreCalculator.SystemHealthMetrics(
+                cpuUsagePercent: cpu.totalUsage,
+                memoryUsedPercent: memory.usagePercentage,
+                memoryPressure: memory.pressure,
+                diskUsedPercent: disk?.usagePercentage,
+                cpuTemperatureCelsius: cpuTemp,
+                diskReadMBps: diskReadMBps,
+                diskWriteMBps: diskWriteMBps
+            )
+        }
     }
 
     // MARK: - Fix Actions
@@ -260,23 +297,18 @@ final class SmartScanEngine: @unchecked Sendable {
 
         for recommendation in recommendations where recommendation.safeToFix {
             for path in recommendation.affectedPaths {
-                do {
-                    // Get size before deletion
-                    let attrs = try? fileManager.attributesOfItem(atPath: path)
-                    let size = (attrs?[.size] as? Int64) ?? 0
+                // Get size before deletion
+                let attrs = try? fileManager.attributesOfItem(atPath: path)
+                let size = (attrs?[.size] as? Int64) ?? 0
 
-                    // Delete using FileOperations
-                    let result = await fileOps.deleteFiles(atPaths: [path])
+                // Delete using FileOperations
+                let result = await fileOps.deleteFiles(atPaths: [path])
 
-                    if result.success {
-                        itemsFixed += result.filesProcessed
-                        spaceFreed += size
-                    } else {
-                        errors += result.errors.count
-                    }
-                } catch {
-                    errors += 1
-                    logger.error("Error deleting \(path): \(error.localizedDescription)")
+                if result.success {
+                    itemsFixed += result.filesProcessed
+                    spaceFreed += size
+                } else {
+                    errors += result.errors.count
                 }
             }
         }

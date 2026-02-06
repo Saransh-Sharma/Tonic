@@ -44,7 +44,7 @@ public struct PerformanceValidation {
     }
 
     public func generateReport() -> String {
-        var report = """
+        let report = """
         # Tonic Widget Performance Validation Report
         **Date:** \(validationDate)
 
@@ -176,13 +176,15 @@ public final class PerformanceProfiler {
                 var threadInfo = thread_basic_info()
                 var threadInfoCount = mach_msg_type_number_t(THREAD_INFO_MAX)
                 let infoResult = withUnsafeMutablePointer(to: &threadInfo) {
-                    $0.withMemoryRebound(to: integer_t.self, capacity: Int(MemoryLayout<thread_basic_info>.stride) / MemoryLayout<integer_t>.size) {
-                        thread_info(
-                            threads[index],
-                            thread_flavor_t(THREAD_BASIC_INFO),
-                            $0,
-                            UnsafeMutablePointer<mach_msg_type_number_t>(mutating: &threadInfoCount)
-                        )
+                    $0.withMemoryRebound(to: integer_t.self, capacity: Int(MemoryLayout<thread_basic_info>.stride) / MemoryLayout<integer_t>.size) { infoPtr in
+                        withUnsafeMutablePointer(to: &threadInfoCount) { countPtr in
+                            thread_info(
+                                threads[index],
+                                thread_flavor_t(THREAD_BASIC_INFO),
+                                infoPtr,
+                                countPtr
+                            )
+                        }
                     }
                 }
 

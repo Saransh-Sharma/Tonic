@@ -69,14 +69,34 @@ struct ActivityItem: Identifiable, Equatable {
 // MARK: - Recommendation Model
 
 struct Recommendation: Identifiable, Equatable {
-    let id = UUID()
+    let id: UUID
     let title: String
     let description: String
     let type: RecommendationType
     let category: RecommendationCategory
     let priority: Priority
     let actionText: String
+    let scanRecommendation: ScanRecommendation
+    let scoreImpact: Int
     var isCompleted: Bool = false
+
+    init(
+        scanRecommendation: ScanRecommendation,
+        type: RecommendationType,
+        category: RecommendationCategory,
+        priority: Priority,
+        actionText: String
+    ) {
+        id = scanRecommendation.id
+        title = scanRecommendation.title
+        description = scanRecommendation.description
+        self.type = type
+        self.category = category
+        self.priority = priority
+        self.actionText = actionText
+        self.scanRecommendation = scanRecommendation
+        scoreImpact = scanRecommendation.scoreImpact
+    }
 
     /// Category for grouping recommendations
     enum RecommendationCategory: String, CaseIterable {
@@ -177,35 +197,34 @@ class SmartScanManager: ObservableObject {
     @Published var isScanning = false
     @Published var scanProgress: Double = 0.0
     @Published var currentPhase: ScanPhase = .idle
-    @Published var lastScanResult: ScanResult?
-    @Published var healthScore: Int = 85
+    @Published var healthScore: Int = 0
+    @Published var hasScanResult: Bool = false
     @Published var activityHistory: [ActivityItem] = []
     @Published var recommendations: [Recommendation] = []
 
-    private var systemMonitor = SystemMonitor()
+    private let scanEngine = SmartScanEngine()
 
     enum ScanPhase: String, CaseIterable {
         case idle = "Ready"
-        case analyzing = "Analyzing system"
-        case scanningJunk = "Scanning junk files"
-        case checkingMemory = "Checking memory pressure"
-        case evaluatingApps = "Evaluating applications"
+        case preparing = "Preparing"
+        case scanningDisk = "Scanning disk"
+        case checkingApps = "Checking apps"
+        case analyzingSystem = "Analyzing system"
         case complete = "Complete"
 
         var icon: String {
             switch self {
             case .idle: return "circle"
-            case .analyzing: return "magnifyingglass"
-            case .scanningJunk: return "doc.fill"
-            case .checkingMemory: return "memorychip"
-            case .evaluatingApps: return "app.badge"
+            case .preparing: return "gearshape.2"
+            case .scanningDisk: return "externaldrive.fill"
+            case .checkingApps: return "app.badge"
+            case .analyzingSystem: return "chart.line.uptrend.xyaxis"
             case .complete: return "checkmark.circle.fill"
             }
         }
     }
 
     init() {
-        loadSampleData()
     }
 
     // MARK: - Smart Scan
@@ -214,33 +233,17 @@ class SmartScanManager: ObservableObject {
         guard !isScanning else { return }
         isScanning = true
         scanProgress = 0.0
+        currentPhase = .preparing
 
-        // Phase 1: Analyzing
-        currentPhase = .analyzing
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        scanProgress = 0.2
+        let stages: [ScanStage] = [.preparing, .scanningDisk, .checkingApps, .analyzingSystem]
+        for stage in stages {
+            currentPhase = mapPhase(from: stage)
+            scanProgress = await scanEngine.runStage(stage)
+        }
 
-        // Phase 2: Scanning junk files
-        currentPhase = .scanningJunk
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        scanProgress = 0.4
-
-        // Phase 3: Checking memory
-        currentPhase = .checkingMemory
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        scanProgress = 0.6
-
-        // Phase 4: Evaluating apps
-        currentPhase = .evaluatingApps
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        scanProgress = 0.8
-
-        // Generate results
-        let result = generateScanResult()
-        lastScanResult = result
-        healthScore = result.healthScore
-
-        // Update recommendations based on scan
+        let result = await scanEngine.finalizeScan()
+        healthScore = result.systemHealthScore
+        hasScanResult = true
         updateRecommendations(from: result)
 
         // Add to activity
@@ -248,8 +251,8 @@ class SmartScanManager: ObservableObject {
             timestamp: Date(),
             type: .scan,
             title: "Smart Scan Completed",
-            description: "Found \(formatBytes(result.totalReclaimableSpace)) of reclaimable space",
-            impact: result.totalReclaimableSpace > 1_000_000_000 ? .high : .medium
+            description: "Found \(formatBytes(result.totalSpaceToReclaim)) of reclaimable space",
+            impact: activityImpact(for: result.totalSpaceToReclaim)
         )
         activityHistory.insert(activity, at: 0)
         if activityHistory.count > 10 {
@@ -298,158 +301,74 @@ class SmartScanManager: ObservableObject {
 
     // MARK: - Helpers
 
-    private func generateScanResult() -> ScanResult {
-        // Simulated scan result - in production, this would use real data
-        let junkSize = Int64.random(in: 500_000_000...3_000_000_000)
-        let healthScore = max(Int(100 - (Int(junkSize) / 100_000_000)), 50)
+    private func updateRecommendations(from result: SmartScanResult) {
+        recommendations = result.recommendations.map { recommendation(from: $0) }
+    }
 
-        return ScanResult(
-            id: UUID(),
-            timestamp: Date(),
-            healthScore: healthScore,
-            junkFiles: JunkCategory(
-                tempFiles: FileGroup(name: "Temporary Files", description: "App temp files", size: junkSize / 3, count: 1240),
-                cacheFiles: FileGroup(name: "Cache Files", description: "Application cache", size: junkSize / 2, count: 850),
-                logFiles: FileGroup(name: "Log Files", description: "Old log files", size: junkSize / 6, count: 320),
-                trashItems: FileGroup(name: "Trash", description: "Items in trash", size: 0, count: 0),
-                languageFiles: FileGroup(name: "Language Files", description: "Unused localizations", size: 150_000_000, count: 4500),
-                oldFiles: FileGroup(name: "Old Files", description: "Files older than 90 days", size: 200_000_000, count: 150)
-            ),
-            performanceIssues: PerformanceCategory(
-                launchAgents: FileGroup(name: "Launch Agents", description: "Disabled", size: 0, count: 0),
-                loginItems: FileGroup(name: "Login Items", description: "5 items", size: 0, count: 5),
-                browserCaches: FileGroup(name: "Browser Cache", description: "Chrome, Safari", size: 450_000_000, count: 1200),
-                memoryIssues: ["High memory pressure detected"],
-                diskFragmentation: nil
-            ),
-            appIssues: AppIssueCategory(
-                unusedApps: [],
-                largeApps: [],
-                duplicateApps: [],
-                orphanedFiles: []
-            ),
-            privacyIssues: PrivacyCategory(
-                browserHistory: FileGroup(name: "Browser History", description: "History data", size: 25_000_000, count: 5000),
-                downloadHistory: FileGroup(name: "Downloads", description: "Download history", size: 5_000_000, count: 150),
-                recentDocuments: FileGroup(name: "Recent Documents", description: "Recent items", size: 1_000_000, count: 50),
-                clipboardData: FileGroup(name: "Clipboard", description: "Clipboard data", size: 0, count: 0)
-            ),
-            totalReclaimableSpace: junkSize
+    private func mapPhase(from stage: ScanStage) -> ScanPhase {
+        switch stage {
+        case .preparing: return .preparing
+        case .scanningDisk: return .scanningDisk
+        case .checkingApps: return .checkingApps
+        case .analyzingSystem: return .analyzingSystem
+        case .complete: return .complete
+        }
+    }
+
+    private func recommendation(from scanRecommendation: ScanRecommendation) -> Recommendation {
+        Recommendation(
+            scanRecommendation: scanRecommendation,
+            type: recommendationType(for: scanRecommendation),
+            category: recommendationCategory(for: scanRecommendation),
+            priority: recommendationPriority(for: scanRecommendation),
+            actionText: actionText(for: scanRecommendation)
         )
     }
 
-    private func updateRecommendations(from result: ScanResult) {
-        recommendations.removeAll()
-
-        // Add junk file recommendation (Cache category)
-        if result.junkFiles.totalSize > 100_000_000 {
-            recommendations.append(Recommendation(
-                title: "Clean Junk Files",
-                description: formatBytes(result.junkFiles.totalSize) + " of junk files found",
-                type: .clean,
-                category: .cache,
-                priority: result.junkFiles.totalSize > 1_000_000_000 ? .high : .medium,
-                actionText: "Clean Now"
-            ))
-        }
-
-        // Add memory recommendation (System category)
-        if !result.performanceIssues.memoryIssues.isEmpty {
-            recommendations.append(Recommendation(
-                title: "Optimize Memory",
-                description: "High memory pressure detected",
-                type: .optimize,
-                category: .system,
-                priority: .high,
-                actionText: "Optimize"
-            ))
-        }
-
-        // Add login items recommendation (System category)
-        if result.performanceIssues.loginItems.count > 3 {
-            recommendations.append(Recommendation(
-                title: "Review Login Items",
-                description: "\(result.performanceIssues.loginItems.count) items slowing startup",
-                type: .optimize,
-                category: .system,
-                priority: .medium,
-                actionText: "Review"
-            ))
-        }
-
-        // Add browser cache recommendation (Cache category)
-        if result.performanceIssues.browserCaches.size > 100_000_000 {
-            recommendations.append(Recommendation(
-                title: "Clear Browser Cache",
-                description: formatBytes(result.performanceIssues.browserCaches.size) + " of cached data",
-                type: .clean,
-                category: .cache,
-                priority: .low,
-                actionText: "Clear"
-            ))
+    private func recommendationType(for scanRecommendation: ScanRecommendation) -> Recommendation.RecommendationType {
+        switch scanRecommendation.type {
+        case .launchAgents: return .optimize
+        case .cache, .logs, .tempFiles, .trash, .oldFiles, .languageFiles, .duplicates, .oldApps, .largeApps, .largeFiles, .hiddenSpace:
+            return .clean
         }
     }
 
-    private func loadSampleData() {
-        // Sample activity history
-        activityHistory = [
-            ActivityItem(
-                timestamp: Date().addingTimeInterval(-3600),
-                type: .clean,
-                title: "Cache Cleaned",
-                description: "450 MB of browser cache removed",
-                impact: .medium
-            ),
-            ActivityItem(
-                timestamp: Date().addingTimeInterval(-86400),
-                type: .scan,
-                title: "Scheduled Scan",
-                description: "System health is good",
-                impact: .low
-            ),
-            ActivityItem(
-                timestamp: Date().addingTimeInterval(-172800),
-                type: .optimize,
-                title: "Memory Optimized",
-                description: "Freed 1.2 GB of memory",
-                impact: .high
-            ),
-            ActivityItem(
-                timestamp: Date().addingTimeInterval(-259200),
-                type: .info,
-                title: "Tonic Updated",
-                description: "Version 0.1.0 installed",
-                impact: .low
-            )
-        ]
+    private func recommendationCategory(for scanRecommendation: ScanRecommendation) -> Recommendation.RecommendationCategory {
+        switch scanRecommendation.type {
+        case .cache, .tempFiles: return .cache
+        case .logs: return .logs
+        case .oldApps, .largeApps: return .apps
+        case .launchAgents: return .system
+        case .trash, .oldFiles, .languageFiles, .duplicates, .largeFiles, .hiddenSpace: return .other
+        }
+    }
 
-        // Initial recommendations with categories
-        recommendations = [
-            Recommendation(
-                title: "Clean Junk Files",
-                description: "1.2 GB of junk files found",
-                type: .clean,
-                category: .cache,
-                priority: .high,
-                actionText: "Clean Now"
-            ),
-            Recommendation(
-                title: "Review Login Items",
-                description: "5 items slowing startup",
-                type: .optimize,
-                category: .system,
-                priority: .medium,
-                actionText: "Review"
-            ),
-            Recommendation(
-                title: "Clear Browser Cache",
-                description: "450 MB of cached data",
-                type: .clean,
-                category: .cache,
-                priority: .low,
-                actionText: "Clear"
-            )
-        ]
+    private func recommendationPriority(for scanRecommendation: ScanRecommendation) -> Recommendation.Priority {
+        let bytes = scanRecommendation.spaceToReclaim
+        if bytes >= 1_000_000_000 { return .high }
+        if bytes >= 250_000_000 { return .medium }
+        if bytes > 0 { return .low }
+        switch scanRecommendation.type {
+        case .launchAgents:
+            return .medium
+        default:
+            return .low
+        }
+    }
+
+    private func actionText(for scanRecommendation: ScanRecommendation) -> String {
+        switch recommendationType(for: scanRecommendation) {
+        case .clean: return "Clean Now"
+        case .optimize: return "Optimize"
+        case .update: return "Update"
+        case .security: return "Review"
+        }
+    }
+
+    private func activityImpact(for reclaimableBytes: Int64) -> ActivityItem.ImpactLevel {
+        if reclaimableBytes >= 1_000_000_000 { return .high }
+        if reclaimableBytes >= 250_000_000 { return .medium }
+        return .low
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -469,6 +388,8 @@ struct DashboardView: View {
     @State private var showWidgetOnboarding = false
     @State private var showHealthScoreExplanation = false
     @State private var isActivityExpanded = false
+    @State private var detailRecommendation: ScanRecommendation?
+    @State private var showingRecommendationDetail = false
 
     var body: some View {
         ScrollView {
@@ -507,6 +428,16 @@ struct DashboardView: View {
         .sheet(isPresented: $showWidgetOnboarding) {
             WidgetOnboardingView()
         }
+        .sheet(isPresented: $showingRecommendationDetail, onDismiss: {
+            detailRecommendation = nil
+        }) {
+            if let recommendation = detailRecommendation {
+                RecommendationDetailView(
+                    recommendation: recommendation,
+                    isPresented: $showingRecommendationDetail
+                )
+            }
+        }
         .onAppear {
             if !widgetDataManager.isMonitoring {
                 widgetDataManager.startMonitoring()
@@ -525,14 +456,14 @@ struct DashboardView: View {
                     .frame(width: 140, height: 140)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(scanManager.healthScore) / 100)
+                    .trim(from: 0, to: CGFloat(displayHealthScore) / 100)
                     .stroke(healthScoreColor, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .frame(width: 140, height: 140)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: scanManager.healthScore)
+                    .animation(.easeInOut(duration: 0.5), value: displayHealthScore)
 
                 VStack(spacing: DesignTokens.Spacing.xxxs) {
-                    Text("\(scanManager.healthScore)")
+                    Text(displayHealthScoreText)
                         .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundColor(healthScoreColor)
 
@@ -543,7 +474,7 @@ struct DashboardView: View {
             }
             .padding(.vertical, DesignTokens.Spacing.sm)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("System health score: \(scanManager.healthScore) out of 100, \(healthRatingText)")
+            .accessibilityLabel(healthScoreAccessibilityLabel)
 
             // Health Score Explanation Button
             Button {
@@ -610,6 +541,9 @@ struct DashboardView: View {
     }
 
     private var healthScoreColor: Color {
+        if !scanManager.hasScanResult {
+            return DesignTokens.Colors.textSecondary
+        }
         switch scanManager.healthScore {
         case 90...100: return DesignTokens.Colors.success
         case 75..<90: return DesignTokens.Colors.success
@@ -619,6 +553,9 @@ struct DashboardView: View {
     }
 
     private var healthRatingText: String {
+        if !scanManager.hasScanResult {
+            return "Not Scanned"
+        }
         switch scanManager.healthScore {
         case 90...100: return "Excellent"
         case 75..<90: return "Good"
@@ -626,6 +563,21 @@ struct DashboardView: View {
         case 25..<50: return "Poor"
         default: return "Critical"
         }
+    }
+
+    private var displayHealthScore: Int {
+        scanManager.hasScanResult ? scanManager.healthScore : 0
+    }
+
+    private var displayHealthScoreText: String {
+        scanManager.hasScanResult ? "\(scanManager.healthScore)" : "--"
+    }
+
+    private var healthScoreAccessibilityLabel: String {
+        if scanManager.hasScanResult {
+            return "System health score: \(scanManager.healthScore) out of 100, \(healthRatingText)"
+        }
+        return "System health score: not scanned yet"
     }
 
     // MARK: - Smart Scan Button (Primary CTA)
@@ -801,11 +753,18 @@ struct DashboardView: View {
                         // Recommendations in this category, sorted by priority
                         let sortedRecommendations = categoryRecommendations.sorted { $0.priority.sortOrder < $1.priority.sortOrder }
                         ForEach(Array(sortedRecommendations.enumerated()), id: \.element.id) { index, recommendation in
-                            DashboardRecommendationRow(recommendation: recommendation) {
-                                Task {
-                                    await handleRecommendation(recommendation)
+                            DashboardRecommendationRow(
+                                recommendation: recommendation,
+                                showDetails: {
+                                    detailRecommendation = recommendation.scanRecommendation
+                                    showingRecommendationDetail = true
+                                },
+                                action: {
+                                    Task {
+                                        await handleRecommendation(recommendation)
+                                    }
                                 }
-                            }
+                            )
 
                             if index < sortedRecommendations.count - 1 {
                                 Divider()
@@ -884,44 +843,61 @@ struct DashboardView: View {
 
 struct DashboardRecommendationRow: View {
     let recommendation: Recommendation
+    let showDetails: () -> Void
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            // Priority icon with background tint
-            ZStack {
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
-                    .fill(recommendation.priority.backgroundColor)
-                    .frame(width: 32, height: 32)
+            Button(action: showDetails) {
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    // Priority icon with background tint
+                    ZStack {
+                        RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
+                            .fill(recommendation.priority.backgroundColor)
+                            .frame(width: 32, height: 32)
 
-                Image(systemName: recommendation.priority.icon)
-                    .foregroundColor(recommendation.priority.color)
-                    .font(.system(size: 14))
+                        Image(systemName: recommendation.priority.icon)
+                            .foregroundColor(recommendation.priority.color)
+                            .font(.system(size: 14))
+                    }
+
+                    // Content
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recommendation.title)
+                            .font(DesignTokens.Typography.subhead)
+                            .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                        Text(recommendation.description)
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    // Priority badge
+                    Text(recommendation.priority.label)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(recommendation.priority.color)
+                        .padding(.horizontal, DesignTokens.Spacing.xxs)
+                        .padding(.vertical, 2)
+                        .background(recommendation.priority.backgroundColor)
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+
+                    // Score impact badge
+                    Text("Score +\(recommendation.scoreImpact)")
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.accent)
+                        .padding(.horizontal, DesignTokens.Spacing.xxs)
+                        .padding(.vertical, 2)
+                        .background(DesignTokens.Colors.accent.opacity(0.12))
+                        .cornerRadius(DesignTokens.CornerRadius.small)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-
-            // Content
-            VStack(alignment: .leading, spacing: 2) {
-                Text(recommendation.title)
-                    .font(DesignTokens.Typography.subhead)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text(recommendation.description)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            // Priority badge
-            Text(recommendation.priority.label)
-                .font(DesignTokens.Typography.caption)
-                .foregroundColor(recommendation.priority.color)
-                .padding(.horizontal, DesignTokens.Spacing.xxs)
-                .padding(.vertical, 2)
-                .background(recommendation.priority.backgroundColor)
-                .cornerRadius(DesignTokens.CornerRadius.small)
+            .buttonStyle(.plain)
 
             // Action Button
             Button(action: action) {
@@ -945,7 +921,7 @@ struct DashboardRecommendationRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(recommendation.title), \(recommendation.priority.label) priority")
-        .accessibilityHint("Double tap to \(recommendation.actionText.lowercased())")
+        .accessibilityHint("Double tap to view details or \(recommendation.actionText.lowercased())")
     }
 }
 

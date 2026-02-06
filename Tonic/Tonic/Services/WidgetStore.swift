@@ -34,14 +34,14 @@ final class WidgetStore {
 
     private init() {
         migrateLegacyConfig()
-        loadAllConfigs()
+        _ = loadAllConfigs()
     }
 
     // MARK: - Public API
 
     /// Save a widget configuration
     func saveConfig(_ config: WidgetConfiguration) {
-        var updatedConfig = config
+        let updatedConfig = config
         cache[config.id.uuidString] = updatedConfig
 
         let allConfigs = Array(cache.values)
@@ -108,7 +108,7 @@ final class WidgetStore {
 
         // Re-run migration to set up defaults
         migrateLegacyConfig()
-        loadAllConfigs()
+        _ = loadAllConfigs()
     }
 
     // MARK: - Migration

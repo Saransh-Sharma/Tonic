@@ -1,0 +1,34 @@
+# SwiftFormat configuration for Tonic
+# https://github.com/nicklockwood/SwiftFormat
+
+# Formatting options
+--indent 4
+--tabwidth 4
+--spacesaroundoperators
+--truncateblanklines
+--insertblanklines
+
+--patternlet inline
+--wraparguments preserve
+--wrapcollections preserve
+--wrapparameters preserve
+
+--hexliteralcase lowercase
+--decimalgrouping none
+--binarygrouping none
+--octalgrouping none
+
+--importgrouping testable
+--sortimports inline
+
+--semicolons insert
+--comments ignore
+--linebreaks lf
+
+# Swift version
+--swiftversion 6.0
+
+# Rules to disable
+--disable blankLinesAtStartOfScope
+--disable blankLinesAtEndOfScope
+--disable rebindHeadVariable
