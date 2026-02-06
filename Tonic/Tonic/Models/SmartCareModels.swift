@@ -12,7 +12,6 @@ import SwiftUI
 
 enum SmartCareDomain: String, CaseIterable, Identifiable, Sendable {
     case cleanup
-    case protection
     case performance
     case applications
 
@@ -21,7 +20,6 @@ enum SmartCareDomain: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .cleanup: return "Cleanup"
-        case .protection: return "Protection"
         case .performance: return "Performance"
         case .applications: return "Applications"
         }
@@ -30,7 +28,6 @@ enum SmartCareDomain: String, CaseIterable, Identifiable, Sendable {
     var icon: String {
         switch self {
         case .cleanup: return "trash.fill"
-        case .protection: return "hand.raised.fill"
         case .performance: return "bolt.fill"
         case .applications: return "app.badge.fill"
         }
