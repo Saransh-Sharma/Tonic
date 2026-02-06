@@ -9,9 +9,11 @@
 import SwiftUI
 
 struct DesignSandboxView: View {
-    @State private var selectedTab: SandboxTab = .cards
+    @State private var selectedTab: SandboxTab = .theme
 
     enum SandboxTab {
+        case theme
+        case smartScan
         case cards
         case metrics
         case preferences
@@ -21,6 +23,8 @@ struct DesignSandboxView: View {
 
         var icon: String {
             switch self {
+            case .theme: return "paintpalette"
+            case .smartScan: return "sparkles"
             case .cards: return "square.grid.2x2"
             case .metrics: return "chart.line.uptrend.xyaxis"
             case .preferences: return "list.bullet"
@@ -32,6 +36,8 @@ struct DesignSandboxView: View {
 
         var label: String {
             switch self {
+            case .theme: return "Theme"
+            case .smartScan: return "Smart Scan"
             case .cards: return "Cards"
             case .metrics: return "Metrics"
             case .preferences: return "Preferences"
@@ -46,7 +52,7 @@ struct DesignSandboxView: View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach([SandboxTab.cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
+                ForEach([SandboxTab.theme, .smartScan, .cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
                     VStack(spacing: DesignTokens.Spacing.xxxs) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 14, weight: .semibold))
@@ -75,6 +81,10 @@ struct DesignSandboxView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     switch selectedTab {
+                    case .theme:
+                        ThemeSandboxShowcase()
+                    case .smartScan:
+                        SmartScanSandboxShowcase()
                     case .cards:
                         CardsShowcase()
                     case .metrics:
@@ -479,6 +489,365 @@ struct MiscShowcase: View {
                 }
                 .background(DesignTokens.Colors.backgroundSecondary)
                 .cornerRadius(DesignTokens.CornerRadius.medium)
+            }
+        }
+    }
+}
+
+// MARK: - Theme Sandbox
+
+struct ThemeSandboxShowcase: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Tonic Theme")
+                .font(DesignTokens.Typography.h2)
+
+            Text("Immersive world canvases, glass surfaces, typography, depth, and calm motion tokens.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            SectionShowcase(title: "World Canvases") {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignTokens.Spacing.md) {
+                    ForEach(TonicWorld.allCases) { world in
+                        TonicThemeProvider(world: world) {
+                            ZStack {
+                                WorldCanvasBackground()
+                                Text(worldLabel(world))
+                                    .font(TonicTypeToken.caption.weight(.semibold))
+                                    .foregroundStyle(TonicTextToken.primary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(TonicNeutralToken.white.opacity(0.14))
+                                    .clipShape(Capsule())
+                            }
+                            .frame(height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+            }
+
+            SectionShowcase(title: "Glass Surfaces") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        GlassCard {
+                            Text("Glass Card")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+                        }
+                        GlassPanel {
+                            Text("Glass Panel")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+                        }
+                        PageHeader(
+                            title: "Glass Header",
+                            subtitle: "Header variant",
+                            showsBack: true,
+                            searchText: nil,
+                            onBack: {},
+                            trailing: nil
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Typography Scale") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            DisplayText("Display")
+                            TitleText("Title")
+                            BodyText("Body text for paragraph content.")
+                            CaptionText("Caption text")
+                            MicroText("Micro text")
+                        }
+                    }
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Shadow / Radius / Spacing") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(alignment: .leading, spacing: TonicSpaceToken.three) {
+                        HStack(spacing: TonicSpaceToken.two) {
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.s)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.m)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.l)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                        }
+
+                        Text("Spacing scale: 8, 12, 16, 24, 32, 48, 64")
+                            .font(TonicTypeToken.micro)
+                            .foregroundStyle(TonicTextToken.secondary)
+                    }
+                    .padding(TonicSpaceToken.three)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Motion Preview") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(TonicTextToken.primary)
+                            .breathingHero()
+
+                        PrimaryActionButton(title: "Hover + Press", icon: "hand.tap", action: {})
+                            .calmHover()
+                    }
+                    .padding(TonicSpaceToken.three)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        }
+    }
+
+    private func worldLabel(_ world: TonicWorld) -> String {
+        switch world {
+        case .smartScanPurple: return "Smart Scan Purple"
+        case .cleanupGreen: return "Cleanup Green"
+        case .clutterTeal: return "Clutter Teal"
+        case .applicationsBlue: return "Applications Blue"
+        case .performanceOrange: return "Performance Orange"
+        case .protectionMagenta: return "Protection Magenta"
+        }
+    }
+}
+
+// MARK: - Smart Scan Sandbox
+
+struct SmartScanSandboxShowcase: View {
+    @State private var query = ""
+    @State private var includeInAction = true
+    @State private var permanentDelete = false
+    @State private var selectedAppFilter: AppFilter = .all
+    @State private var selectedRowA = false
+    @State private var selectedRowB = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Smart Scan Components")
+                .font(DesignTokens.Typography.h2)
+
+            Text("Hub, managers, shell layout, rows, actions, and safety patterns.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            SectionShowcase(title: "Hub Hero States") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        ScanHeroModule(state: .ready)
+                        ScanHeroModule(state: .scanning(progress: 0.44))
+                        ScanHeroModule(state: .results(space: "80.55 GB", performance: "18 items", apps: "38 apps"))
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Timeline + Live Counters") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        ScanTimelineStepper(
+                            stages: ["Space", "Performance", "Apps"],
+                            activeIndex: 1,
+                            completed: [0]
+                        )
+                        HStack(spacing: TonicSpaceToken.two) {
+                            LiveCounterChip(label: "Space", value: "32.4 GB")
+                            LiveCounterChip(label: "Performance", value: "12 items")
+                            LiveCounterChip(label: "Apps", value: "38 apps")
+                        }
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Result Pillar Cards") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    ResultPillarCard(
+                        title: "Space",
+                        metric: "80.55 GB",
+                        summary: "Cleanup + Clutter",
+                        preview: [
+                            ResultContributor(id: "xcodeJunk", title: "Xcode Junk", subtitle: "Developer artifacts", metric: "40.5 GB"),
+                            ResultContributor(id: "downloads", title: "Downloads", subtitle: "Old downloads", metric: "18.2 GB"),
+                            ResultContributor(id: "duplicates", title: "Duplicates", subtitle: "Duplicate file groups", metric: "448 MB")
+                        ],
+                        reviewTitle: "Review Space",
+                        onReviewSection: {},
+                        onReviewContributor: { _ in }
+                    )
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "ManagerShell States") {
+                TonicThemeProvider(world: .cleanupGreen) {
+                    ManagerShell(
+                        header: AnyView(
+                            PageHeader(
+                                title: "Space Manager",
+                                subtitle: "Three-pane shell",
+                                showsBack: true,
+                                searchText: $query,
+                                onBack: {},
+                                trailing: nil
+                            )
+                        ),
+                        left: {
+                            LeftNavPane {
+                                LeftNavListItem(title: "System Junk", count: 4, isSelected: true, action: {})
+                                LeftNavListItem(title: "Downloads", count: 2, isSelected: false, action: {})
+                            }
+                        },
+                        middle: {
+                            MiddleSummaryPane {
+                                SectionSummaryCard(
+                                    title: "System Junk",
+                                    description: "Subcategory summary",
+                                    metrics: ["All: 8", "Selected: 2", "Space: 12.3 GB"]
+                                )
+                            }
+                        },
+                        right: {
+                            RightItemsPane {
+                                ManagerSummaryStrip(text: "Xcode Junk · 11.2 GB · Safe: 2 · Needs review: 1")
+                                SelectableRow(
+                                    icon: "hammer",
+                                    title: "Derived Data",
+                                    subtitle: "Build artifacts",
+                                    metric: "8.1 GB",
+                                    isSelected: true,
+                                    onSelect: {},
+                                    onToggle: {}
+                                )
+                            }
+                        },
+                        footer: AnyView(
+                            StickyActionBar(
+                                summary: "Selected: 2 items · 8.1 GB",
+                                variant: .cleanUp,
+                                enabled: true,
+                                action: {}
+                            )
+                        )
+                    )
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Row Behavior Matrix") {
+                TonicThemeProvider(world: .applicationsBlue) {
+                    VStack(spacing: TonicSpaceToken.one) {
+                        SelectableRow(
+                            icon: "trash",
+                            title: "Direct cleanable row",
+                            subtitle: "Checkbox only",
+                            metric: "2.4 GB",
+                            isSelected: selectedRowA,
+                            onSelect: {},
+                            onToggle: { selectedRowA.toggle() }
+                        )
+
+                        DrilldownRow(
+                            icon: "folder",
+                            title: "Drilldown row",
+                            subtitle: "Chevron only",
+                            metric: "14 groups",
+                            action: {}
+                        )
+
+                        HybridRow(
+                            icon: "app.badge",
+                            title: "Hybrid row",
+                            subtitle: "Row opens details, checkbox selects",
+                            metric: "4.8 GB",
+                            isSelected: selectedRowB,
+                            badges: [.unused, .large],
+                            onSelect: {},
+                            onToggle: { selectedRowB.toggle() }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "StickyActionBar Variants") {
+                TonicThemeProvider(world: .performanceOrange) {
+                    VStack(spacing: TonicSpaceToken.one) {
+                        StickyActionBar(summary: "Cleanup selection", variant: .cleanUp, enabled: true, action: {})
+                        StickyActionBar(summary: "Run tasks", variant: .run, enabled: true, action: {})
+                        StickyActionBar(summary: "Disable startup items", variant: .disable, enabled: true, action: {})
+                        StickyActionBar(summary: "Uninstall apps", variant: .uninstall, enabled: true, action: {})
+                        StickyActionBar(summary: "Remove leftovers", variant: .remove, enabled: true, action: {})
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Detail + Confirmation + Risk") {
+                TonicThemeProvider(world: .cleanupGreen) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        DetailPane(
+                            title: "Xcode Junk",
+                            subtitle: "Developer artifacts and simulators",
+                            riskText: "Review shared simulator runtimes before removing.",
+                            includeExcludeTitle: "Include in cleanup",
+                            include: $includeInAction
+                        )
+
+                        DeleteModeToggle(permanent: $permanentDelete)
+
+                        ActionConfirmationModal(
+                            title: "Confirm Cleanup",
+                            message: "You're about to remove 12 items (4.2 GB).",
+                            confirmTitle: "Run",
+                            onConfirm: {},
+                            onCancel: {}
+                        )
+
+                        SegmentedFilter(
+                            options: AppFilter.allCases,
+                            selected: $selectedAppFilter,
+                            title: { $0.title }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
             }
         }
     }
