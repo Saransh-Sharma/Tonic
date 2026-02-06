@@ -8,6 +8,7 @@
 
 import Foundation
 import Darwin
+import OSLog
 
 /// Categories of cleanable items
 public enum DeepCleanCategory: String, Sendable, CaseIterable, Identifiable {
