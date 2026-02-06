@@ -373,17 +373,22 @@ struct TrailingMetric: View {
 
 struct CounterChip: View {
     let title: String
-    let value: String
+    let value: String?
     var world: TonicWorld? = nil
+    var isActive = false
+    var isComplete = false
 
     var body: some View {
         HStack(spacing: TonicSpaceToken.one) {
             Text(title)
-                .font(TonicTypeToken.micro)
-                .foregroundStyle(TonicTextToken.tertiary)
-            Text(value)
-                .font(TonicTypeToken.micro.weight(.semibold))
-                .foregroundStyle(TonicTextToken.primary)
+                .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
+                .foregroundStyle((isActive || isComplete) ? TonicTextToken.primary : TonicTextToken.secondary)
+
+            if let value, !value.isEmpty {
+                Text(value)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+            }
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, 6)
@@ -402,6 +407,9 @@ struct CounterChip: View {
                 .allowsHitTesting(false)
         )
         .clipShape(Capsule())
+        .scaleEffect(isActive ? 1.08 : 1)
+        .animation(.easeInOut(duration: TonicMotionToken.hover), value: isActive)
+        .animation(.easeInOut(duration: TonicMotionToken.fade), value: isComplete)
     }
 }
 
@@ -874,13 +882,17 @@ struct ScanTimelineStepper: View {
 
 struct LiveCounterChip: View {
     let label: String
-    let value: String
+    var value: String? = nil
+    var isActive = false
+    var isComplete = false
 
     var body: some View {
         CounterChip(
             title: label,
             value: value,
-            world: worldForLabel(label)
+            world: worldForLabel(label),
+            isActive: isActive,
+            isComplete: isComplete
         )
     }
 
