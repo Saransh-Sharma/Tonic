@@ -808,10 +808,10 @@ struct HelperSettingsContent: View {
                         .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
 
                     SettingsHelperFeatureRow(
-                        icon: "trash.fill",
-                        title: "Deep Clean",
-                        description: "Remove system-level cache and temporary files",
-                        color: TonicColors.error
+                        icon: "sparkles",
+                        title: "Smart Scan",
+                        description: "Run intelligent system scans and cleanup recommendations",
+                        color: TonicColors.accent
                     )
                     .padding(.vertical, DesignTokens.Spacing.sm)
                     .padding(.horizontal, DesignTokens.Spacing.md)
@@ -1091,7 +1091,7 @@ struct UpdatesSettingsContent: View {
                     ReleaseNoteItem(
                         version: "0.1.0",
                         title: "Initial Release",
-                        description: "Smart scan, deep clean, system monitoring, and menu bar widgets."
+                        description: "Smart scan, system monitoring, and menu bar widgets."
                     )
                 }
                 .padding(.vertical, DesignTokens.Spacing.sm)
