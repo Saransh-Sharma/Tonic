@@ -1,6 +1,17 @@
 import Foundation
 import SwiftUI
 
+struct SmartScanQuickActionSheetState: Identifiable {
+    let id = UUID()
+    let tileID: SmartScanTileID
+    let action: SmartScanTileActionKind
+    let scope: SmartScanQuickActionScope
+    let title: String
+    let subtitle: String
+    let items: [SmartCareItem]
+    let estimatedSpace: Int64
+}
+
 @MainActor
 final class SmartCareSessionStore: ObservableObject {
     @Published var destination: Destination = .smartScan
@@ -14,14 +25,20 @@ final class SmartCareSessionStore: ObservableObject {
     @Published var recommendedItemIDs: Set<UUID> = []
     @Published var selectedItemIDs: Set<UUID> = []
     @Published private(set) var runSummary: SmartScanRunSummary?
+    @Published var quickActionSheet: SmartScanQuickActionSheetState?
+    @Published var quickActionProgress: Double = 0
+    @Published var quickActionSummary: SmartScanRunSummary?
+    @Published var quickActionIsRunning = false
 
     private let engine = SmartCareEngine()
     private var scanTask: Task<Void, Never>?
     private var runTask: Task<Void, Never>?
+    private var quickActionTask: Task<Void, Never>?
 
     deinit {
         scanTask?.cancel()
         runTask?.cancel()
+        quickActionTask?.cancel()
     }
 
     var runSummaryText: String? {
@@ -66,6 +83,7 @@ final class SmartCareSessionStore: ObservableObject {
     func startScan() {
         scanTask?.cancel()
         runTask?.cancel()
+        quickActionTask?.cancel()
 
         destination = .smartScan
         hubMode = .scanning
@@ -79,6 +97,10 @@ final class SmartCareSessionStore: ObservableObject {
         currentStage = .space
         completedStages = []
         liveCounters = .zero
+        quickActionSheet = nil
+        quickActionProgress = 0
+        quickActionSummary = nil
+        quickActionIsRunning = false
 
         scanTask = Task { [weak self] in
             guard let self else { return }
@@ -115,6 +137,11 @@ final class SmartCareSessionStore: ObservableObject {
     }
 
     func stopCurrentOperation() {
+        if quickActionIsRunning {
+            stopQuickActionRun()
+            return
+        }
+
         switch hubMode {
         case .scanning:
             scanTask?.cancel()
@@ -133,6 +160,7 @@ final class SmartCareSessionStore: ObservableObject {
     }
 
     func runSmartClean() {
+        guard !quickActionIsRunning, quickActionSheet == nil else { return }
         guard let scanResult else { return }
 
         let recommended = runnableItems(in: scanResult, from: recommendedItemIDs)
@@ -148,10 +176,82 @@ final class SmartCareSessionStore: ObservableObject {
     }
 
     func runSelected(_ requestedItems: [SmartCareItem]) {
+        guard !quickActionIsRunning, quickActionSheet == nil else { return }
         startRun(with: requestedItems)
     }
 
+    func presentQuickAction(for tile: SmartScanTileID, action: SmartScanTileActionKind) {
+        guard hubMode == .results, let scanResult else { return }
+        guard !quickActionIsRunning, hubMode != .running else { return }
+
+        let items = quickActionItems(for: tile, in: scanResult)
+        let runnable = items.filter { $0.safeToRun && $0.action.isRunnable }
+        quickActionSheet = SmartScanQuickActionSheetState(
+            tileID: tile,
+            action: action,
+            scope: .tile(tile),
+            title: quickActionTitle(for: tile, action: action),
+            subtitle: quickActionSubtitle(for: tile, action: action, runnableCount: runnable.count),
+            items: runnable,
+            estimatedSpace: runnable.reduce(0) { $0 + $1.size }
+        )
+        quickActionProgress = 0
+        quickActionSummary = nil
+    }
+
+    func startQuickActionRun() {
+        guard let quickActionSheet else { return }
+        guard !quickActionIsRunning, hubMode != .running else { return }
+
+        if quickActionSheet.items.isEmpty {
+            quickActionSummary = SmartScanRunSummary(
+                tasksRun: 0,
+                spaceFreed: 0,
+                errors: 0,
+                scoreImprovement: 0,
+                message: "No runnable items available for this action."
+            )
+            return
+        }
+
+        quickActionTask?.cancel()
+        quickActionProgress = 0
+        quickActionSummary = nil
+        quickActionIsRunning = true
+
+        quickActionTask = Task { [weak self] in
+            guard let self else { return }
+            let summary = await self.performRun(items: quickActionSheet.items) { progress in
+                self.quickActionProgress = progress
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self.quickActionIsRunning = false
+                self.quickActionProgress = 1
+                self.quickActionSummary = summary
+            }
+        }
+    }
+
+    func stopQuickActionRun() {
+        quickActionTask?.cancel()
+        quickActionTask = nil
+        quickActionIsRunning = false
+        quickActionProgress = 0
+        quickActionSummary = nil
+    }
+
+    func dismissQuickActionSummary() {
+        quickActionTask?.cancel()
+        quickActionTask = nil
+        quickActionIsRunning = false
+        quickActionProgress = 0
+        quickActionSummary = nil
+        quickActionSheet = nil
+    }
+
     private func startRun(with requestedItems: [SmartCareItem]) {
+        guard !quickActionIsRunning else { return }
         let items = requestedItems.filter { $0.safeToRun && $0.action.isRunnable }
         guard !items.isEmpty else { return }
 
@@ -163,7 +263,9 @@ final class SmartCareSessionStore: ObservableObject {
 
         runTask = Task { [weak self] in
             guard let self else { return }
-            let summary = await self.performRun(items: items)
+            let summary = await self.performRun(items: items) { progress in
+                self.runProgress = progress
+            }
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.runSummary = summary
@@ -179,7 +281,94 @@ final class SmartCareSessionStore: ObservableObject {
             .filter { ids.contains($0.id) && $0.safeToRun && $0.action.isRunnable }
     }
 
-    private func performRun(items: [SmartCareItem]) async -> SmartScanRunSummary {
+    private func quickActionItems(for tile: SmartScanTileID, in result: SmartCareResult) -> [SmartCareItem] {
+        let cleanup = result.domainResults[.cleanup]
+        let performance = result.domainResults[.performance]
+        let applications = result.domainResults[.applications]
+
+        func cleanupItems(containing value: String) -> [SmartCareItem] {
+            cleanup?.groups
+                .filter { $0.title.lowercased().contains(value) }
+                .flatMap(\.items) ?? []
+        }
+
+        func performanceItems(named group: String) -> [SmartCareItem] {
+            performance?.groups.first(where: { $0.title == group })?.items ?? []
+        }
+
+        switch tile {
+        case .spaceSystemJunk:
+            return cleanupItems(containing: "system junk")
+        case .spaceTrashBins:
+            return cleanupItems(containing: "trash")
+        case .spaceExtraBinaries:
+            return cleanupItems(containing: "hidden")
+        case .spaceXcodeJunk:
+            return cleanupItems(containing: "xcode")
+        case .performanceMaintenanceTasks:
+            return performanceItems(named: "Maintenance Tasks")
+        case .performanceLoginItems:
+            return performanceItems(named: "Login Items")
+        case .performanceBackgroundItems:
+            return performanceItems(named: "Background Items")
+        case .appsUpdates:
+            return []
+        case .appsUnused:
+            return applications?.items.filter { $0.title.lowercased().contains("unused") } ?? []
+        case .appsLeftovers:
+            return applications?.items.filter { $0.title.lowercased().contains("orphaned") } ?? []
+        case .appsInstallationFiles:
+            return applications?.items.filter { $0.title.lowercased().contains("installation") || $0.title.lowercased().contains("large") } ?? []
+        }
+    }
+
+    private func quickActionTitle(for tile: SmartScanTileID, action: SmartScanTileActionKind) -> String {
+        let verb: String
+        switch action {
+        case .review: verb = "Review"
+        case .clean: verb = "Clean"
+        case .remove: verb = "Remove"
+        case .run: verb = "Run"
+        case .update: verb = "Update"
+        }
+
+        let subject: String
+        switch tile {
+        case .spaceSystemJunk: subject = "System Junk"
+        case .spaceTrashBins: subject = "Trash Bins"
+        case .spaceExtraBinaries: subject = "Extra Binaries"
+        case .spaceXcodeJunk: subject = "Xcode Junk"
+        case .performanceMaintenanceTasks: subject = "Maintenance Tasks"
+        case .performanceLoginItems: subject = "Login Items"
+        case .performanceBackgroundItems: subject = "Background Items"
+        case .appsUpdates: subject = "App Updates"
+        case .appsUnused: subject = "Unused Apps"
+        case .appsLeftovers: subject = "App Leftovers"
+        case .appsInstallationFiles: subject = "Installation Files"
+        }
+
+        return "\(verb) \(subject)"
+    }
+
+    private func quickActionSubtitle(for tile: SmartScanTileID, action: SmartScanTileActionKind, runnableCount: Int) -> String {
+        if runnableCount == 0 {
+            return "No runnable items were found for this tile."
+        }
+
+        let noun: String
+        switch tile.pillar {
+        case .space: noun = "cleanup items"
+        case .performance: noun = "tasks"
+        case .apps: noun = "app actions"
+        }
+
+        return "About to \(action.rawValue) \(runnableCount) \(noun)."
+    }
+
+    private func performRun(
+        items: [SmartCareItem],
+        progressUpdate: @MainActor @escaping (Double) -> Void
+    ) async -> SmartScanRunSummary {
         var bytesFreed: Int64 = 0
         var errors = 0
 
@@ -206,7 +395,7 @@ final class SmartCareSessionStore: ObservableObject {
             }
 
             await MainActor.run {
-                self.runProgress = Double(index + 1) / Double(items.count)
+                progressUpdate(Double(index + 1) / Double(items.count))
             }
         }
 
@@ -225,8 +414,12 @@ struct SmartScanRunSummary {
     let spaceFreed: Int64
     let errors: Int
     let scoreImprovement: Int
+    var message: String? = nil
 
     var formattedSummary: String {
+        if let message {
+            return message
+        }
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useGB, .useMB]
         formatter.countStyle = .file
