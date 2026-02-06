@@ -22,6 +22,7 @@ struct SmartCareView: View {
     @State private var selectedItems: Set<UUID> = []
     @State private var reviewDomain: SmartCareDomain?
     @State private var reviewCleanupGroupId: UUID?
+    @State private var reviewPerformanceSection: PerformanceManagerSection?
     @State private var runProgress: Double = 0
     @State private var runSummary: SmartCareRunSummary?
     @State private var scanTask: Task<Void, Never>?
@@ -39,11 +40,13 @@ struct SmartCareView: View {
         }
         .sheet(item: $reviewDomain, onDismiss: {
             reviewCleanupGroupId = nil
+            reviewPerformanceSection = nil
         }) { domain in
             if let result = domainResult(for: domain) {
                 SmartCareDomainReviewView(
                     domainResult: result,
                     focusGroupId: domain == .cleanup ? reviewCleanupGroupId : nil,
+                    focusPerformanceSection: domain == .performance ? reviewPerformanceSection : nil,
                     selectedItems: $selectedItems,
                     onDone: { reviewDomain = nil },
                     onRunItems: { items in
@@ -187,42 +190,57 @@ struct SmartCareView: View {
     }
 
     private var resultsContent: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 6) {
-                Text("Your tasks are ready to run. Look what we found:")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(.white)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 20) {
+                VStack(spacing: 6) {
+                    Text("Your tasks are ready to run. Look what we found:")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(.white)
 
-                Text("Review any category, or run the smartly selected tasks.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.white.opacity(0.65))
-            }
-            .multilineTextAlignment(.center)
-
-            if let cleanupResult {
-                CleanupSectionView(
-                    result: cleanupResult,
-                    onReviewAll: { openCleanupReview(groupId: nil) },
-                    onReviewGroup: { group in openCleanupReview(groupId: group.id) },
-                    onCleanGroup: { group in startGroupRun(group) }
-                )
-            }
-
-            SmartCareCompactGridView(
-                cards: buildCardData(),
-                domains: compactDomains,
-                onToggle: toggleDomainSelection,
-                onReview: { domain in
-                    reviewCleanupGroupId = nil
-                    reviewDomain = domain
+                    Text("Review any category, or run the smartly selected tasks.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.65))
                 }
-            )
+                .multilineTextAlignment(.center)
 
-            SmartCarePrimaryButton(title: runButtonTitle, icon: "play.fill") {
-                startRunFlow()
+                if let cleanupResult {
+                    CleanupSectionView(
+                        result: cleanupResult,
+                        onReviewAll: { openCleanupReview(groupId: nil) },
+                        onReviewGroup: { group in openCleanupReview(groupId: group.id) },
+                        onCleanGroup: { group in startGroupRun(group) }
+                    )
+                }
+
+                if let performanceResult {
+                    PerformanceSectionView(
+                        result: performanceResult,
+                        onViewAllTasks: { openPerformanceReview(section: .maintenanceTasks) },
+                        onReviewMaintenance: { openPerformanceReview(section: .maintenanceTasks) },
+                        onRunMaintenance: { startPerformanceMaintenanceRun() },
+                        onReviewLoginItems: { openPerformanceReview(section: .loginItems) },
+                        onReviewBackgroundItems: { openPerformanceReview(section: .backgroundItems) }
+                    )
+                }
+
+                SmartCareCompactGridView(
+                    cards: buildCardData(),
+                    domains: compactDomains,
+                    onToggle: toggleDomainSelection,
+                    onReview: { domain in
+                        reviewCleanupGroupId = nil
+                        reviewPerformanceSection = nil
+                        reviewDomain = domain
+                    }
+                )
+
+                SmartCarePrimaryButton(title: runButtonTitle, icon: "play.fill") {
+                    startRunFlow()
+                }
+                .disabled(!hasRunnableSelection)
+                .opacity(hasRunnableSelection ? 1 : 0.5)
             }
-            .disabled(!hasRunnableSelection)
-            .opacity(hasRunnableSelection ? 1 : 0.5)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -311,7 +329,20 @@ struct SmartCareView: View {
 
     private func openCleanupReview(groupId: UUID?) {
         reviewCleanupGroupId = groupId
+        reviewPerformanceSection = nil
         reviewDomain = .cleanup
+    }
+
+    private func openPerformanceReview(section: PerformanceManagerSection) {
+        reviewCleanupGroupId = nil
+        reviewPerformanceSection = section
+        reviewDomain = .performance
+    }
+
+    private func startPerformanceMaintenanceRun() {
+        guard let performance = performanceResult else { return }
+        guard let maintenanceGroup = performance.groups.first(where: { $0.title == PerformanceManagerSection.maintenanceTasks.groupTitle }) else { return }
+        startGroupRun(maintenanceGroup)
     }
 
     private func startGroupRun(_ group: SmartCareGroup) {
@@ -350,6 +381,7 @@ struct SmartCareView: View {
         selectedItems.removeAll()
         reviewDomain = nil
         reviewCleanupGroupId = nil
+        reviewPerformanceSection = nil
         phase = .idle
     }
 
@@ -443,15 +475,19 @@ struct SmartCareView: View {
     // MARK: - Data Helpers
 
     private var primaryDomains: [SmartCareDomain] {
-        [.cleanup, .protection, .performance, .applications]
+        [.cleanup, .performance, .applications]
     }
 
     private var compactDomains: [SmartCareDomain] {
-        [.protection, .performance, .applications]
+        [.applications]
     }
 
     private var cleanupResult: SmartCareDomainResult? {
         domainResult(for: .cleanup)
+    }
+
+    private var performanceResult: SmartCareDomainResult? {
+        domainResult(for: .performance)
     }
 
     private func domainResult(for domain: SmartCareDomain) -> SmartCareDomainResult? {
@@ -495,18 +531,6 @@ struct SmartCareView: View {
                 primaryValue: total > 0 ? formatBytes(total) : "No junk",
                 secondaryValue: total > 0 ? "to clean" : "found",
                 detail: total > 0 ? "\(result.totalUnitCount) items" : "You're all set",
-                scoreImpact: result.scoreImpact,
-                isSelected: isDomainSelected(domain),
-                reviewAvailable: !result.items.isEmpty
-            )
-        case .protection:
-            let count = result.totalUnitCount
-            return SmartCareCardData(
-                domain: domain,
-                title: domain.title,
-                primaryValue: count == 0 ? "No threats" : "\(count) items",
-                secondaryValue: count == 0 ? "to remove" : "to review",
-                detail: count == 0 ? "Your Mac looks safe" : "Sensitive data",
                 scoreImpact: result.scoreImpact,
                 isSelected: isDomainSelected(domain),
                 reviewAvailable: !result.items.isEmpty
@@ -634,12 +658,6 @@ private enum SmartCareTheme {
         case .cleanup:
             return LinearGradient(
                 colors: [Color(red: 0.26, green: 0.74, blue: 0.52), Color(red: 0.14, green: 0.45, blue: 0.34)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .protection:
-            return LinearGradient(
-                colors: [Color(red: 0.84, green: 0.34, blue: 0.70), Color(red: 0.40, green: 0.12, blue: 0.44)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -892,6 +910,306 @@ private struct CleanupGroupCard: View {
     }
 }
 
+private enum PerformanceManagerSection: String, CaseIterable, Identifiable {
+    case maintenanceTasks
+    case loginItems
+    case backgroundItems
+
+    var id: String { rawValue }
+
+    var groupTitle: String {
+        switch self {
+        case .maintenanceTasks: return "Maintenance Tasks"
+        case .loginItems: return "Login Items"
+        case .backgroundItems: return "Background Items"
+        }
+    }
+
+    var sidebarTitle: String {
+        groupTitle
+    }
+
+    var description: String {
+        switch self {
+        case .maintenanceTasks:
+            return "Essential Mac care includes both general and specific tasks that help you keep your software and hardware in shape. Run your maintenance activities in one place."
+        case .loginItems:
+            return "Manage the list of applications that get automatically opened every time you log in. Don't make your Mac waste its performance on the processes you don't need."
+        case .backgroundItems:
+            return "Manage the list of processes and applications that run in the background. You may not need or want part of them."
+        }
+    }
+
+    var primaryButtonTitle: String {
+        switch self {
+        case .maintenanceTasks: return "Run"
+        case .loginItems, .backgroundItems: return "Remove"
+        }
+    }
+
+    var emptySelectionText: String {
+        switch self {
+        case .maintenanceTasks: return "No Tasks Selected"
+        case .loginItems, .backgroundItems: return "No Items Selected"
+        }
+    }
+}
+
+private struct PerformanceSectionView: View {
+    let result: SmartCareDomainResult
+    let onViewAllTasks: () -> Void
+    let onReviewMaintenance: () -> Void
+    let onRunMaintenance: () -> Void
+    let onReviewLoginItems: () -> Void
+    let onReviewBackgroundItems: () -> Void
+
+    private var maintenanceGroup: SmartCareGroup {
+        group(for: .maintenanceTasks)
+    }
+
+    private var loginGroup: SmartCareGroup {
+        group(for: .loginItems)
+    }
+
+    private var backgroundGroup: SmartCareGroup {
+        group(for: .backgroundItems)
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 10) {
+                Text("Apply curated recommendations\nor run performance tasks manually.")
+                    .font(.system(size: 26, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white)
+
+                Button("View All Tasks", action: onViewAllTasks)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 26)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+
+            HStack(alignment: .top, spacing: 16) {
+                maintenanceCard
+                    .frame(width: 470, height: 450)
+
+                VStack(spacing: 16) {
+                    detailCard(
+                        title: loginGroup.items.isEmpty ? "No Login Items Found" : "You Have \(loginGroup.items.count) Login Items",
+                        subtitle: "Review the list of applications that open automatically when you start up your Mac. You may want to disable some of them.",
+                        rightContent: {
+                            HStack(spacing: 10) {
+                                ForEach(Array(loginGroup.items.prefix(3)), id: \.id) { item in
+                                    AppIconView(path: item.paths.first)
+                                        .frame(width: 52, height: 52)
+                                }
+                            }
+                        },
+                        onReview: onReviewLoginItems,
+                        reviewEnabled: !loginGroup.items.isEmpty
+                    )
+
+                    detailCard(
+                        title: backgroundGroup.items.isEmpty ? "No Background Items Found" : "\(backgroundGroup.items.count) Background Items Found",
+                        subtitle: "Review the list of background processes that are allowed to run on your Mac. Do you need all of them?",
+                        rightContent: {
+                            Image(systemName: "rocket.fill")
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundColor(Color(red: 0.98, green: 0.73, blue: 0.36))
+                                .frame(width: 52, height: 52)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        },
+                        onReview: onReviewBackgroundItems,
+                        reviewEnabled: !backgroundGroup.items.isEmpty
+                    )
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 28)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.36, green: 0.12, blue: 0.06), Color(red: 0.55, green: 0.16, blue: 0.07)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+
+    private var maintenanceCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(maintenanceGroup.items.isEmpty ? "No Maintenance Tasks Recommended" : "\(maintenanceGroup.items.count) Maintenance Tasks Recommended")
+                .font(.system(size: 51, weight: .bold))
+                .foregroundColor(.white)
+
+            Text("Your weekly maintenance cocktail is ready to be served! Run these tasks to keep your Mac in shape.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.white.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+
+            HStack(spacing: 10) {
+                ForEach(Array(maintenanceGroup.items.prefix(3)), id: \.id) { item in
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.16))
+                        .frame(width: 86, height: 86)
+                        .overlay(
+                            Image(systemName: maintenanceIcon(for: item))
+                                .font(.system(size: 34, weight: .semibold))
+                                .foregroundColor(Color(red: 1.0, green: 0.8, blue: 0.36))
+                        )
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: 10) {
+                sectionActionButton(
+                    title: "Review",
+                    foreground: .white,
+                    background: Color.white.opacity(0.16),
+                    enabled: !maintenanceGroup.items.isEmpty,
+                    action: onReviewMaintenance
+                )
+                sectionActionButton(
+                    title: "Run Tasks",
+                    foreground: Color(red: 0.33, green: 0.11, blue: 0.07),
+                    background: Color.white.opacity(0.95),
+                    enabled: maintenanceGroup.items.contains(where: { $0.safeToRun && $0.action.isRunnable }),
+                    action: onRunMaintenance
+                )
+            }
+        }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white.opacity(0.11))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func detailCard(
+        title: String,
+        subtitle: String,
+        @ViewBuilder rightContent: () -> some View,
+        onReview: @escaping () -> Void,
+        reviewEnabled: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(.system(size: 33, weight: .bold))
+                        .foregroundColor(.white)
+
+                    Text(subtitle)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.86))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 12)
+                rightContent()
+            }
+
+            Spacer(minLength: 8)
+
+            HStack {
+                Spacer()
+                sectionActionButton(
+                    title: "Review",
+                    foreground: .white,
+                    background: Color.white.opacity(0.16),
+                    enabled: reviewEnabled,
+                    action: onReview
+                )
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, minHeight: 214)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.white.opacity(0.11))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func sectionActionButton(
+        title: String,
+        foreground: Color,
+        background: Color,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(foreground)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .opacity(enabled ? 1 : 0.45)
+            .disabled(!enabled)
+    }
+
+    private func maintenanceIcon(for item: SmartCareItem) -> String {
+        let title = item.title.lowercased()
+        if title.contains("dns") { return "network" }
+        if title.contains("purgeable") { return "externaldrive.badge.minus" }
+        if title.contains("spotlight") { return "magnifyingglass" }
+        if title.contains("permissions") { return "wrench.and.screwdriver" }
+        if title.contains("mail") { return "envelope.badge" }
+        return "bolt.fill"
+    }
+
+    private func group(for section: PerformanceManagerSection) -> SmartCareGroup {
+        result.groups.first(where: { $0.title == section.groupTitle }) ??
+            SmartCareGroup(domain: .performance, title: section.groupTitle, description: section.description, items: [])
+    }
+}
+
+private struct AppIconView: View {
+    let path: String?
+
+    var body: some View {
+        if let path, !path.isEmpty {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+        } else {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.12))
+                .overlay(
+                    Image(systemName: "app.fill")
+                        .foregroundColor(.white.opacity(0.75))
+                )
+        }
+    }
+}
+
 // MARK: - Grid View
 
 private struct SmartCareGridView: View {
@@ -1021,15 +1339,9 @@ private struct SmartCareCardView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        if domain == .protection {
-                            Text("Protection by Moonlock")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.75))
-                        } else {
-                            Text(domain.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.8))
-                        }
+                        Text(domain.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.8))
                     }
 
                     Spacer()
@@ -1117,6 +1429,7 @@ private struct SmartCareCardView: View {
 private struct SmartCareDomainReviewView: View {
     let domainResult: SmartCareDomainResult
     let focusGroupId: UUID?
+    let focusPerformanceSection: PerformanceManagerSection?
     @Binding var selectedItems: Set<UUID>
     let onDone: () -> Void
     let onRunItems: ([SmartCareItem]) -> Void
@@ -1135,9 +1448,13 @@ private struct SmartCareDomainReviewView: View {
             case .applications:
                 ApplicationsManagerView(domainResult: domainResult, selectedItems: $selectedItems, onDone: onDone)
             case .performance:
-                PerformanceManagerView(domainResult: domainResult, selectedItems: $selectedItems, onDone: onDone)
-            case .protection:
-                ProtectionManagerView(domainResult: domainResult, selectedItems: $selectedItems, onDone: onDone)
+                PerformanceManagerView(
+                    domainResult: domainResult,
+                    focusSection: focusPerformanceSection,
+                    selectedItems: $selectedItems,
+                    onDone: onDone,
+                    onRunItems: onRunItems
+                )
             }
         }
     }
@@ -1603,59 +1920,268 @@ private struct ApplicationsManagerView: View {
 
 private struct PerformanceManagerView: View {
     let domainResult: SmartCareDomainResult
+    let focusSection: PerformanceManagerSection?
     @Binding var selectedItems: Set<UUID>
     let onDone: () -> Void
+    let onRunItems: ([SmartCareItem]) -> Void
+
+    @State private var selectedSection: PerformanceManagerSection
+    @State private var sortOption: PerformanceSortOption = .name
+    @State private var selectionPreset: SelectionPreset = .none
+    @State private var removedItemIDs: Set<UUID> = []
+    @State private var isApplyingPrimaryAction = false
+    @State private var actionMessage: String?
+
+    private let accent = Color(red: 0.95, green: 0.20, blue: 0.78)
+
+    init(
+        domainResult: SmartCareDomainResult,
+        focusSection: PerformanceManagerSection?,
+        selectedItems: Binding<Set<UUID>>,
+        onDone: @escaping () -> Void,
+        onRunItems: @escaping ([SmartCareItem]) -> Void
+    ) {
+        self.domainResult = domainResult
+        self.focusSection = focusSection
+        self._selectedItems = selectedItems
+        self.onDone = onDone
+        self.onRunItems = onRunItems
+        self._selectedSection = State(initialValue: focusSection ?? .maintenanceTasks)
+    }
+
+    private var activeGroup: SmartCareGroup {
+        domainResult.groups.first(where: { $0.title == selectedSection.groupTitle }) ??
+            SmartCareGroup(domain: .performance, title: selectedSection.groupTitle, description: selectedSection.description, items: [])
+    }
+
+    private var sectionItems: [SmartCareItem] {
+        let base = activeGroup.items.filter { !removedItemIDs.contains($0.id) }
+        switch sortOption {
+        case .name:
+            return base.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        }
+    }
+
+    private var selectedSectionItems: [SmartCareItem] {
+        sectionItems.filter { selectedItems.contains($0.id) }
+    }
+
+    private var selectedRunnableItems: [SmartCareItem] {
+        selectedSectionItems.filter { $0.safeToRun && $0.action.isRunnable }
+    }
+
+    private var footerTitle: String {
+        guard !selectedSectionItems.isEmpty else { return selectedSection.emptySelectionText }
+        switch selectedSection {
+        case .maintenanceTasks:
+            return selectedSectionItems.count == 1 ? "1 Task Selected" : "\(selectedSectionItems.count) Tasks Selected"
+        case .loginItems, .backgroundItems:
+            return selectedSectionItems.count == 1 ? "1 Item Selected" : "\(selectedSectionItems.count) Items Selected"
+        }
+    }
+
+    private var primaryActionEnabled: Bool {
+        switch selectedSection {
+        case .maintenanceTasks:
+            return !selectedRunnableItems.isEmpty && !isApplyingPrimaryAction
+        case .loginItems, .backgroundItems:
+            return !selectedSectionItems.isEmpty && !isApplyingPrimaryAction
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            reviewHeader(title: "Performance Manager", searchText: .constant(""), sortOption: nil, onDone: onDone, showsSearch: false)
+            managerHeader
             Divider()
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Maintenance Tasks")
-                    .font(.system(size: 16, weight: .semibold))
+            HStack(spacing: 0) {
+                sidebar
+                Divider()
+                contentPane
+            }
+            Divider()
+            footer
+        }
+        .frame(width: 1120, height: 680)
+        .background(Color.white)
+        .onChange(of: selectedSection) { _, _ in
+            selectionPreset = .none
+            actionMessage = nil
+        }
+    }
 
-                Text("Essential Mac care includes both general and specific tasks that help you keep your software and hardware in shape. Run your maintenance activities in one place.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+    private var managerHeader: some View {
+        HStack {
+            Button {
+                onDone()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(accent)
+                    Text("Back")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black)
+                }
+            }
+            .buttonStyle(.plain)
 
-                VStack(spacing: 12) {
-                    ForEach(domainResult.items) { item in
-                        HStack(spacing: 12) {
-                            Button {
-                                toggleItemSelection(item)
-                            } label: {
-                                Image(systemName: selectedItems.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(.purple)
-                            }
-                            .buttonStyle(.plain)
+            Spacer()
 
-                            Image(systemName: "bolt.fill")
-                                .foregroundColor(.orange)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.title)
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text(item.subtitle.isEmpty ? "Recommended task" : item.subtitle)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "info.circle")
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(12)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(10)
+            Text("Performance Manager")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.black)
+
+            Spacer()
+
+            HStack(spacing: 24) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(accent)
+
+                Menu {
+                    ForEach(PerformanceSortOption.allCases, id: \.self) { option in
+                        Button(option.title) { sortOption = option }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Sort by:")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.black)
+                        Text(sortOption.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(accent)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(accent)
                     }
                 }
-
-                Spacer()
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
-            .padding(24)
-            Divider()
-            selectionFooter(items: domainResult.items, selectedItems: $selectedItems, onDone: onDone)
         }
-        .frame(width: 980, height: 560)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(PerformanceManagerSection.allCases) { section in
+                Button {
+                    selectedSection = section
+                } label: {
+                    HStack {
+                        Text(section.sidebarTitle)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.black.opacity(0.88))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(selectedSection == section ? accent.opacity(0.16) : Color.clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .frame(width: 260)
+    }
+
+    private var contentPane: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(selectedSection.groupTitle)
+                    .font(.system(size: 46, weight: .bold))
+                    .foregroundColor(.black)
+
+                Text(selectedSection.description)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.gray)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if selectedSection != .maintenanceTasks {
+                HStack(spacing: 10) {
+                    Text("Select:")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                    Menu(selectionPreset.title) {
+                        ForEach(SelectionPreset.allCases, id: \.self) { preset in
+                            Button(preset.title) {
+                                selectionPreset = preset
+                                applySelectionPreset(preset)
+                            }
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(accent)
+                }
+            }
+
+            if let actionMessage, !actionMessage.isEmpty {
+                Text(actionMessage)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(sectionItems) { item in
+                        PerformanceManagerRow(
+                            item: item,
+                            section: selectedSection,
+                            isSelected: selectedItems.contains(item.id),
+                            accent: accent,
+                            onToggle: { toggleItemSelection(item) }
+                        )
+                    }
+
+                    if sectionItems.isEmpty {
+                        Text("No items found.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 12)
+                    }
+                }
+                .padding(.bottom, 12)
+            }
+
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var footer: some View {
+        ZStack {
+            Text(footerTitle)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack {
+                Spacer()
+                Button(selectedSection.primaryButtonTitle) {
+                    performPrimaryAction()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white.opacity(primaryActionEnabled ? 1 : 0.65))
+                .padding(.horizontal, 28)
+                .padding(.vertical, 12)
+                .background(primaryActionEnabled ? accent.opacity(0.92) : accent.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .disabled(!primaryActionEnabled)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
     }
 
     private func toggleItemSelection(_ item: SmartCareItem) {
@@ -1663,76 +2189,203 @@ private struct PerformanceManagerView: View {
             selectedItems.remove(item.id)
         } else {
             selectedItems.insert(item.id)
+        }
+    }
+
+    private func applySelectionPreset(_ preset: SelectionPreset) {
+        let ids = sectionItems.map { $0.id }
+        switch preset {
+        case .smartly:
+            let smart = sectionItems.filter { $0.isSmartSelected }.map { $0.id }
+            selectedItems.subtract(ids)
+            selectedItems.formUnion(smart)
+        case .all:
+            selectedItems.formUnion(ids)
+        case .none:
+            selectedItems.subtract(ids)
+        }
+    }
+
+    private func performPrimaryAction() {
+        switch selectedSection {
+        case .maintenanceTasks:
+            guard !selectedRunnableItems.isEmpty else { return }
+            onRunItems(selectedRunnableItems)
+            onDone()
+        case .loginItems, .backgroundItems:
+            let selected = selectedSectionItems
+            guard !selected.isEmpty else { return }
+            isApplyingPrimaryAction = true
+            actionMessage = nil
+
+            Task {
+                var removedIDs: [UUID] = []
+                var failures = 0
+
+                for item in selected {
+                    guard let path = item.paths.first, !path.isEmpty else {
+                        failures += 1
+                        continue
+                    }
+
+                    let removed: Bool
+                    switch selectedSection {
+                    case .loginItems:
+                        removed = await removeLoginItem(atPath: path)
+                    case .backgroundItems:
+                        removed = await removeBackgroundItem(atPath: path)
+                    case .maintenanceTasks:
+                        removed = false
+                    }
+
+                    if removed {
+                        removedIDs.append(item.id)
+                    } else {
+                        failures += 1
+                    }
+                }
+
+                await MainActor.run {
+                    removedItemIDs.formUnion(removedIDs)
+                    selectedItems.subtract(selected.map { $0.id })
+                    isApplyingPrimaryAction = false
+                    actionMessage = failures == 0
+                        ? "Removed \(removedIDs.count) item(s)."
+                        : "Removed \(removedIDs.count) item(s), \(failures) failed."
+                }
+            }
+        }
+    }
+
+    private func removeLoginItem(atPath path: String) async -> Bool {
+        do {
+            try await LoginItemsManager.shared.removeLoginItem(atPath: path)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func removeBackgroundItem(atPath path: String) async -> Bool {
+        let result = await FileOperations.shared.deleteFiles(atPaths: [path])
+        return result.errors.isEmpty
+    }
+}
+
+private enum PerformanceSortOption: String, CaseIterable {
+    case name
+
+    var title: String {
+        switch self {
+        case .name: return "Name"
         }
     }
 }
 
-// MARK: - Protection Manager
-
-private struct ProtectionManagerView: View {
-    let domainResult: SmartCareDomainResult
-    @Binding var selectedItems: Set<UUID>
-    let onDone: () -> Void
+private struct PerformanceManagerRow: View {
+    let item: SmartCareItem
+    let section: PerformanceManagerSection
+    let isSelected: Bool
+    let accent: Color
+    let onToggle: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            reviewHeader(title: "Protection Manager", searchText: .constant(""), sortOption: nil, onDone: onDone, showsSearch: false)
-            Divider()
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Privacy Items")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Review sensitive history and downloads before removing.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-
-                VStack(spacing: 12) {
-                    ForEach(domainResult.items) { item in
-                        HStack(spacing: 12) {
-                            Button {
-                                toggleItemSelection(item)
-                            } label: {
-                                Image(systemName: selectedItems.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(.purple)
-                            }
-                            .buttonStyle(.plain)
-
-                            Image(systemName: "hand.raised.fill")
-                                .foregroundColor(.pink)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.title)
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text(item.subtitle)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Text(item.formattedSize)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(12)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(10)
-                    }
-                }
-
-                Spacer()
+        HStack(spacing: 12) {
+            Button(action: onToggle) {
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(accent, lineWidth: 1.5)
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(accent)
+                            .opacity(isSelected ? 1 : 0)
+                    )
             }
-            .padding(24)
-            Divider()
-            selectionFooter(items: domainResult.items, selectedItems: $selectedItems, onDone: onDone)
+            .buttonStyle(.plain)
+
+            rowIcon
+                .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.black)
+                if !item.subtitle.isEmpty {
+                    Text(item.subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            if section == .maintenanceTasks {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Text("i")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.black.opacity(0.8))
+                    )
+            }
         }
-        .frame(width: 980, height: 560)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 10)
     }
 
-    private func toggleItemSelection(_ item: SmartCareItem) {
-        if selectedItems.contains(item.id) {
-            selectedItems.remove(item.id)
-        } else {
-            selectedItems.insert(item.id)
+    @ViewBuilder
+    private var rowIcon: some View {
+        switch section {
+        case .maintenanceTasks:
+            RoundedRectangle(cornerRadius: 8)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 1.0, green: 0.69, blue: 0.21), Color(red: 0.93, green: 0.33, blue: 0.20)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    Image(systemName: maintenanceIcon)
+                        .foregroundColor(.white)
+                )
+        case .loginItems:
+            if let path = item.paths.first {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.2))
+                    .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
+            }
+        case .backgroundItems:
+            if let path = item.paths.first {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.12))
+                    .overlay(
+                        Image(systemName: "doc.text.fill")
+                            .foregroundColor(.gray)
+                    )
+            }
         }
+    }
+
+    private var maintenanceIcon: String {
+        let title = item.title.lowercased()
+        if title.contains("dns") { return "network" }
+        if title.contains("purgeable") { return "externaldrive.badge.minus" }
+        if title.contains("spotlight") { return "magnifyingglass" }
+        if title.contains("permissions") { return "wrench.and.screwdriver" }
+        if title.contains("mail") { return "envelope.badge" }
+        return "bolt.fill"
     }
 }
 
