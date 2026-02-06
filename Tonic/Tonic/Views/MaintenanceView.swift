@@ -8,11 +8,13 @@
 import SwiftUI
 
 struct MaintenanceView: View {
+    @ObservedObject var smartCareSession: SmartCareSessionStore
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            SmartCareView()
+            SmartCareView(smartCareSession: smartCareSession)
         }
         .background(DesignTokens.Colors.background)
     }
@@ -31,6 +33,6 @@ struct MaintenanceView: View {
 }
 
 #Preview("Maintenance View") {
-    MaintenanceView()
+    MaintenanceView(smartCareSession: SmartCareSessionStore())
         .frame(width: 800, height: 600)
 }
