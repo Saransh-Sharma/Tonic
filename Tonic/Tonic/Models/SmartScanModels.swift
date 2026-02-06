@@ -66,7 +66,6 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
         case largeFiles = "Large Files"
         case hiddenSpace = "Hidden Space"
         case launchAgents = "Launch Agents"
-        case privacyData = "Privacy Data"
     }
 
     var formattedSpace: String {
@@ -87,7 +86,6 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
         case .largeFiles: return "arrow.up.doc"
         case .hiddenSpace: return "eye.slash"
         case .launchAgents: return "play.circle"
-        case .privacyData: return "lock.shield"
         }
     }
 
@@ -102,7 +100,6 @@ public struct ScanRecommendation: Identifiable, Hashable, Sendable {
         case .largeFiles: return .yellow
         case .hiddenSpace: return .gray
         case .launchAgents: return .indigo
-        case .privacyData: return .pink
         }
     }
 }
