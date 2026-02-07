@@ -29,6 +29,7 @@ struct SmartScanHubView: View {
     let onQuickActionStart: () -> Void
     let onQuickActionStop: () -> Void
     let onQuickActionDone: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -62,7 +63,7 @@ struct SmartScanHubView: View {
             .padding(TonicSpaceToken.three)
 
             if let quickActionSheet {
-                Color.black.opacity(0.35)
+                TonicGlassToken.baseVignette.opacity(colorScheme == .dark ? 1 : 0.7)
                     .ignoresSafeArea()
                     .onTapGesture {
                         if !quickActionIsRunning {
@@ -151,12 +152,10 @@ struct SmartScanHubView: View {
                 }
                 .padding(TonicSpaceToken.two)
                 .background(sectionBackground(for: section.world))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
-                        .stroke(TonicStrokeToken.subtle, lineWidth: 1)
-                        .allowsHitTesting(false)
+                .glassSurface(
+                    radius: TonicRadiusToken.container,
+                    variant: colorScheme == .dark ? .sunken : .raised
                 )
-                .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
             }
         }
     }
@@ -483,27 +482,26 @@ struct SmartScanHubView: View {
     }
 
     private func sectionBackground(for world: TonicWorld) -> some View {
-        let token = world.token
-        return ZStack {
-            RadialGradient(
-                gradient: Gradient(colors: [token.mid.opacity(0.45), token.dark.opacity(0.68)]),
-                center: UnitPoint(x: 0.52, y: 0.28),
-                startRadius: 40,
-                endRadius: 600
-            )
-
-            LinearGradient(
-                colors: [token.light.opacity(0.08), token.dark.opacity(0.50)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            RadialGradient(
-                gradient: Gradient(colors: [.clear, Color.black.opacity(0.24)]),
-                center: .center,
-                startRadius: 120,
-                endRadius: 700
-            )
+        ZStack {
+            if colorScheme == .light {
+                TonicNeutralToken.neutral1
+                world.token.mid.opacity(0.04)
+                RadialGradient(
+                    colors: [world.token.light.opacity(0.08), .clear],
+                    center: .topLeading,
+                    startRadius: 22,
+                    endRadius: 320
+                )
+            } else {
+                TonicCanvasTokens.fill(for: world, colorScheme: colorScheme)
+                TonicCanvasTokens.tint(for: world, colorScheme: colorScheme)
+                RadialGradient(
+                    colors: [TonicCanvasTokens.edgeGlow(for: world, colorScheme: colorScheme), .clear],
+                    center: .topLeading,
+                    startRadius: 24,
+                    endRadius: 340
+                )
+            }
         }
     }
 
