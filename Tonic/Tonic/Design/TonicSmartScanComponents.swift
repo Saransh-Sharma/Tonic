@@ -463,6 +463,8 @@ struct TrailingMetric: View {
             role: world.map { .world($0) } ?? .semantic(.neutral),
             strength: .subtle
         )
+        .contentTransition(.numericText())
+        .animation(TonicMotionToken.springTap, value: value)
     }
 }
 
@@ -480,9 +482,11 @@ struct CounterChip: View {
             strength: isActive ? .strong : .subtle,
             controlState: chipControlState
         )
+        .contentTransition(.numericText())
         .scaleEffect(isActive ? 1.08 : 1)
         .animation(.easeInOut(duration: TonicMotionToken.hover), value: isActive)
         .animation(.easeInOut(duration: TonicMotionToken.fade), value: isComplete)
+        .animation(TonicMotionToken.springTap, value: chipText)
     }
 
     private var chipText: String {
@@ -517,6 +521,149 @@ struct RowAccessoryInfoButton: View {
                 .foregroundStyle(TonicTextToken.secondary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+enum ParentSelectionState {
+    case none
+    case some
+    case all
+
+    var iconName: String {
+        switch self {
+        case .none:
+            return "square"
+        case .some:
+            return "minus.square.fill"
+        case .all:
+            return "checkmark.square.fill"
+        }
+    }
+}
+
+struct ExpandableSelectionChild: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let isSelected: Bool
+}
+
+struct ExpandableSelectionRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let metric: String
+    let selectionState: ParentSelectionState
+    let isExpandable: Bool
+    let isExpanded: Bool
+    var badges: [MetaBadgeStyle] = []
+    let children: [ExpandableSelectionChild]
+    var onToggleParent: () -> Void
+    var onToggleExpanded: () -> Void
+    var onToggleChild: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: TonicSpaceToken.one) {
+            HStack(spacing: TonicSpaceToken.two) {
+                Button(action: onToggleParent) {
+                    Image(systemName: selectionState.iconName)
+                        .foregroundStyle(TonicTextToken.primary)
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: icon)
+                    .foregroundStyle(TonicTextToken.secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+                    Text(subtitle)
+                        .font(TonicTypeToken.micro)
+                        .foregroundStyle(TonicTextToken.tertiary)
+                    if !badges.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                                MetaBadge(style: badge)
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+                TrailingMetric(value: metric)
+
+                if isExpandable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+            }
+            .padding(.horizontal, TonicSpaceToken.two)
+            .padding(.vertical, TonicSpaceToken.two)
+            .background(TonicGlassToken.fill)
+            .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onToggleExpanded)
+
+            if isExpandable, isExpanded {
+                VStack(spacing: 6) {
+                    ForEach(children) { child in
+                        ExpandableSelectionChildRow(
+                            title: child.title,
+                            subtitle: child.subtitle,
+                            isSelected: child.isSelected,
+                            onToggle: { onToggleChild(child.id) }
+                        )
+                    }
+                }
+                .padding(.leading, TonicSpaceToken.five)
+            }
+        }
+    }
+}
+
+private struct ExpandableSelectionChildRow: View {
+    let title: String
+    let subtitle: String?
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Button(action: onToggle) {
+                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(TonicTextToken.primary)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(TonicTypeToken.micro)
+                        .foregroundStyle(TonicTextToken.tertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, TonicSpaceToken.two)
+        .padding(.vertical, 6)
+        .background(TonicGlassToken.fill.opacity(0.7))
+        .overlay(
+            RoundedRectangle(cornerRadius: TonicRadiusToken.s)
+                .stroke(TonicGlassToken.stroke.opacity(0.7), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.s))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onToggle)
     }
 }
 
@@ -900,16 +1047,22 @@ enum ScanHeroState {
 
 struct ScanHeroModule: View {
     let state: ScanHeroState
+    var currentScanItem: String? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.tonicTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var completionGlowOpacity: Double = 0
+    @State private var previouslyScanning = false
 
     var body: some View {
         GlassPanel(radius: TonicRadiusToken.container, variant: .raised) {
             VStack(spacing: TonicSpaceToken.three) {
                 Image(systemName: "shield.lefthalf.filled.badge.checkmark")
-                    .font(.system(size: 70, weight: .semibold))
+                    .font(.system(size: heroIconSize, weight: .semibold))
                     .foregroundStyle(TonicTextToken.primary)
                     .heroBloom()
                     .breathingHero()
+                    .animation(TonicMotionToken.resultMetricSpring, value: heroIconSize)
 
                 switch state {
                 case .ready:
@@ -924,20 +1077,66 @@ struct ScanHeroModule: View {
                         showPercentage: true
                     )
                         .frame(maxWidth: 260)
+                    if let currentScanItem, !currentScanItem.isEmpty {
+                        Text(currentScanItem)
+                            .font(TonicTypeToken.micro.monospaced())
+                            .foregroundStyle(TonicTextToken.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 300)
+                            .contentTransition(.numericText())
+                            .animation(.easeInOut(duration: TonicMotionToken.fast), value: currentScanItem)
+                            .accessibilityAddTraits(.updatesFrequently)
+                    }
                     BodyText("We are analyzing your Mac across all pillars.")
                 case .results(let space, let performance, let apps):
                     DisplayText("Scan Complete")
-                    BodyText("Reclaim \(space) • Improve startup by \(performance) • Review \(apps)")
+                    HStack(spacing: TonicSpaceToken.two) {
+                        CounterChip(title: "Space", value: space, world: .cleanupGreen, isComplete: true)
+                        CounterChip(title: "Perf", value: performance, world: .performanceOrange, isComplete: true)
+                        CounterChip(title: "Apps", value: apps, world: .applicationsBlue, isComplete: true)
+                    }
                 }
             }
             .multilineTextAlignment(.center)
         }
-        .progressGlow(scanProgress)
-        .heroSweep(active: isScanning)
+        .overlay(
+            RoundedRectangle(cornerRadius: TonicRadiusToken.container)
+                .stroke(theme.worldToken.light.opacity(completionGlowOpacity), lineWidth: 2)
+                .shadow(color: theme.worldToken.light.opacity(completionGlowOpacity), radius: 20, x: 0, y: 0)
+                .allowsHitTesting(false)
+        )
+        .progressGlow(scanProgress, radius: TonicRadiusToken.container)
+        .heroSweep(active: isScanning, radius: TonicRadiusToken.container)
+        .onChange(of: isResults) { _, isNowResults in
+            if isNowResults && previouslyScanning {
+                triggerCompletionGlow()
+            }
+        }
+        .onChange(of: isScanning) { _, scanning in
+            if scanning {
+                previouslyScanning = true
+            }
+        }
+    }
+
+    private var heroIconSize: CGFloat {
+        switch state {
+        case .ready: return 70
+        case .scanning: return 50
+        case .results: return 40
+        }
     }
 
     private var isScanning: Bool {
         if case .scanning = state {
+            return true
+        }
+        return false
+    }
+
+    private var isResults: Bool {
+        if case .results = state {
             return true
         }
         return false
@@ -949,33 +1148,34 @@ struct ScanHeroModule: View {
         }
         return 0
     }
+
+    private func triggerCompletionGlow() {
+        guard !reduceMotion else { return }
+        withAnimation(.easeIn(duration: 0.3)) {
+            completionGlowOpacity = 0.40
+        }
+        withAnimation(.easeOut(duration: 1.2).delay(0.3)) {
+            completionGlowOpacity = 0
+        }
+    }
 }
 
 struct ScanTimelineStepper: View {
     let stages: [String]
     let activeIndex: Int
     let completed: Set<Int>
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: TonicSpaceToken.two) {
             ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
-                let isActive = index == activeIndex
-                let isComplete = completed.contains(index)
-                let world = worldForStage(stage)
-
-                HStack(spacing: TonicSpaceToken.one) {
-                    Circle()
-                        .fill(isComplete || isActive ? TonicNeutralToken.white : TonicNeutralToken.white.opacity(0.40))
-                        .frame(width: 7, height: 7)
-                    Text(stage)
-                        .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
-                        .foregroundStyle(isActive || isComplete ? TonicTextToken.primary : TonicTextToken.secondary)
-                }
-                .padding(.horizontal, TonicSpaceToken.two)
-                .padding(.vertical, 6)
-                .background(PillarWorldCanvas(world: world))
-                .glassSurface(radius: 999, variant: .sunken)
-                .opacity(isActive || isComplete ? 1 : 0.55)
+                StageStepperItem(
+                    stage: stage,
+                    isActive: index == activeIndex,
+                    isComplete: completed.contains(index),
+                    world: worldForStage(stage),
+                    reduceMotion: reduceMotion
+                )
             }
         }
     }
@@ -990,6 +1190,45 @@ struct ScanTimelineStepper: View {
             return .applicationsBlue
         default:
             return .smartScanPurple
+        }
+    }
+}
+
+private struct StageStepperItem: View {
+    let stage: String
+    let isActive: Bool
+    let isComplete: Bool
+    let world: TonicWorld
+    let reduceMotion: Bool
+    @State private var pulseScale: CGFloat = 1.0
+    @State private var wasComplete = false
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.one) {
+            Circle()
+                .fill(isComplete || isActive ? TonicNeutralToken.white : TonicNeutralToken.white.opacity(0.40))
+                .frame(width: 7, height: 7)
+            Text(stage)
+                .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
+                .foregroundStyle(isActive || isComplete ? TonicTextToken.primary : TonicTextToken.secondary)
+        }
+        .padding(.horizontal, TonicSpaceToken.two)
+        .padding(.vertical, 6)
+        .background(PillarWorldCanvas(world: world))
+        .glassSurface(radius: 999, variant: .sunken)
+        .opacity(isActive || isComplete ? 1 : 0.55)
+        .scaleEffect(pulseScale)
+        .onChange(of: isComplete) { _, nowComplete in
+            if nowComplete && !wasComplete && !reduceMotion {
+                // Stage completion pulse
+                withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+                    pulseScale = 1.12
+                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7).delay(0.15)) {
+                    pulseScale = 1.0
+                }
+            }
+            wasComplete = nowComplete
         }
     }
 }
@@ -1034,6 +1273,10 @@ struct SmartScanCommandDock: View {
     var primaryAccessibilityIdentifier: String = "smartscan.primary.action"
     var secondaryAccessibilityIdentifier: String = "smartscan.review.customize"
 
+    @Environment(\.tonicTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dotPulsing = false
+
     private var primaryTitle: String {
         switch mode {
         case .ready:
@@ -1056,12 +1299,37 @@ struct SmartScanCommandDock: View {
         }
     }
 
+    private var isScanning: Bool {
+        mode == .scanning || mode == .running
+    }
+
     var body: some View {
         HStack(spacing: TonicSpaceToken.two) {
+            if isScanning {
+                Circle()
+                    .fill(theme.worldToken.light)
+                    .frame(width: 6, height: 6)
+                    .opacity(dotPulsing ? 1.0 : 0.4)
+                    .onAppear {
+                        guard !reduceMotion else {
+                            dotPulsing = true
+                            return
+                        }
+                        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            dotPulsing = true
+                        }
+                    }
+                    .onDisappear {
+                        dotPulsing = false
+                    }
+            }
+
             Text(summary)
                 .font(TonicTypeToken.caption)
                 .foregroundStyle(TonicTextToken.secondary)
                 .lineLimit(2)
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: TonicMotionToken.fast), value: summary)
 
             Spacer()
 
@@ -1139,6 +1407,8 @@ struct MetricHeadline: View {
                 .font(TonicTypeToken.tileMetric)
                 .monospacedDigit()
                 .foregroundStyle(TonicTextToken.primary)
+                .contentTransition(.numericText())
+                .animation(TonicMotionToken.resultCardSpring, value: value)
             Text(title)
                 .font(TonicTypeToken.caption.weight(.semibold))
                 .foregroundStyle(TonicTextToken.primary)
@@ -1265,13 +1535,9 @@ struct BentoTile: View {
                 .font(TonicTypeToken.body)
                 .foregroundStyle(TonicTextToken.secondary)
                 .lineLimit(2)
-                .mask(
-                    LinearGradient(
-                        colors: [.white, .white, .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .multilineTextAlignment(.leading)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
 
