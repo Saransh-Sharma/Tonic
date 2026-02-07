@@ -44,29 +44,32 @@ struct PrimaryScanButton: View {
     var size: CGFloat = 84
 
     @Environment(\.tonicTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let style = TonicButtonTokens.style(
+            variant: .primary,
+            state: .default,
+            colorScheme: colorScheme,
+            accent: theme.accent
+        )
+
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.worldToken.light, theme.worldToken.mid],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(Circle().stroke(TonicNeutralToken.white.opacity(0.28), lineWidth: 1))
-                    .shadow(color: theme.glow, radius: 20, x: 0, y: 8)
+                    .fill(style.background)
+                    .overlay(Circle().fill(theme.worldToken.light.opacity(colorScheme == .dark ? 0.10 : 0.06)))
+                    .overlay(Circle().stroke(style.stroke, lineWidth: 1))
+                    .shadow(color: theme.glowSoft.opacity(colorScheme == .dark ? 1 : 0.35), radius: 18, x: 0, y: 7)
 
                 Image(systemName: icon)
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(TonicNeutralToken.white)
+                    .foregroundStyle(style.foreground)
             }
             .frame(width: size, height: size)
             .accessibilityLabel(title)
         }
-        .buttonStyle(PressEffect())
+        .buttonStyle(PressEffect(focusShape: .circle))
     }
 }
 
@@ -76,9 +79,11 @@ struct PrimaryActionButton: View {
     let action: () -> Void
     var isEnabled = true
 
-    @Environment(\.tonicTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let style = TonicButtonTokens.style(variant: .primary, colorScheme: colorScheme)
+
         Button(action: action) {
             HStack(spacing: TonicSpaceToken.two) {
                 if let icon {
@@ -87,13 +92,17 @@ struct PrimaryActionButton: View {
                 Text(title)
                     .font(TonicTypeToken.body.weight(.semibold))
             }
-            .foregroundStyle(TonicNeutralToken.white.opacity(isEnabled ? 1 : 0.6))
+            .foregroundStyle(style.foreground.opacity(isEnabled ? 1 : 0.6))
             .padding(.horizontal, TonicSpaceToken.four)
             .padding(.vertical, TonicSpaceToken.two)
-            .background(theme.accent.opacity(isEnabled ? 0.95 : 0.30))
+            .background(style.background.opacity(isEnabled ? 1 : 0.4))
+            .overlay(
+                Capsule()
+                    .stroke(style.stroke.opacity(isEnabled ? 1 : 0.4), lineWidth: 1)
+            )
             .clipShape(Capsule())
         }
-        .buttonStyle(PressEffect())
+        .buttonStyle(PressEffect(focusShape: .capsule))
         .disabled(!isEnabled)
     }
 }
@@ -102,21 +111,24 @@ struct SecondaryPillButton: View {
     let title: String
     let action: () -> Void
     var accessibilityIdentifier: String? = nil
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let style = TonicButtonTokens.style(variant: .secondary, colorScheme: colorScheme)
+
         Button(action: action) {
             Text(title)
                 .font(TonicTypeToken.caption.weight(.medium))
-                .foregroundStyle(TonicTextToken.primary)
+                .foregroundStyle(style.foreground)
                 .padding(.horizontal, TonicSpaceToken.three)
                 .padding(.vertical, TonicSpaceToken.two)
-                .background(TonicNeutralToken.white.opacity(0.10))
+                .background(style.background)
                 .overlay(
-                    Capsule().stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                    Capsule().stroke(style.stroke, lineWidth: 1)
                 )
                 .clipShape(Capsule())
         }
-        .buttonStyle(PressEffect())
+        .buttonStyle(PressEffect(focusShape: .capsule))
         .optionalAccessibilityIdentifier(accessibilityIdentifier)
     }
 }
@@ -136,17 +148,24 @@ struct TertiaryGhostButton: View {
 struct IconOnlyButton: View {
     let systemName: String
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let style = TonicButtonTokens.style(variant: .secondary, colorScheme: colorScheme)
+
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(TonicTextToken.primary)
+                .foregroundStyle(style.foreground)
                 .frame(width: 30, height: 30)
-                .background(TonicNeutralToken.white.opacity(0.10))
+                .background(style.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: TonicRadiusToken.m)
+                        .stroke(style.stroke, lineWidth: 1)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
         }
-        .buttonStyle(PressEffect())
+        .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.m)))
     }
 }
 
@@ -167,8 +186,8 @@ struct SearchField: View {
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, TonicSpaceToken.one)
-        .background(TonicNeutralToken.white.opacity(0.10))
-        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicStrokeToken.subtle, lineWidth: 1))
+        .background(TonicGlassToken.fill)
+        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
     }
 }
@@ -192,7 +211,7 @@ struct SortMenuButton<Option: Hashable & CaseIterable & RawRepresentable>: View 
             .foregroundStyle(TonicTextToken.primary)
             .padding(.horizontal, TonicSpaceToken.two)
             .padding(.vertical, TonicSpaceToken.one)
-            .background(TonicNeutralToken.white.opacity(0.10))
+            .background(TonicGlassToken.fill)
             .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
         }
         .menuStyle(.borderlessButton)
@@ -215,14 +234,14 @@ struct SegmentedFilter<Option: Hashable & Identifiable>: View {
                         .foregroundStyle(selected.id == option.id ? TonicNeutralToken.white : TonicTextToken.secondary)
                         .padding(.horizontal, TonicSpaceToken.two)
                         .padding(.vertical, 6)
-                        .background(selected.id == option.id ? TonicNeutralToken.white.opacity(0.18) : Color.clear)
+                        .background(selected.id == option.id ? TonicGlassToken.stroke : Color.clear)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(4)
-        .background(TonicNeutralToken.white.opacity(0.10))
+        .background(TonicGlassToken.fill)
         .clipShape(Capsule())
     }
 }
@@ -243,14 +262,18 @@ struct SidebarSectionHeader: View {
 
 struct SidebarBadge: View {
     let count: Int
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let status = TonicStatusPalette.style(.neutral, for: colorScheme)
+
         Text("\(count)")
             .font(TonicTypeToken.micro.weight(.semibold))
-            .foregroundStyle(TonicTextToken.primary)
+            .foregroundStyle(status.text)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(TonicNeutralToken.white.opacity(0.14))
+            .background(status.fill)
+            .overlay(Capsule().stroke(status.stroke, lineWidth: 1))
             .clipShape(Capsule())
     }
 }
@@ -289,6 +312,56 @@ struct SidebarWorldItem: View {
 
 // MARK: - Badges & Metrics
 
+struct GlassChip: View {
+    let title: String
+    var icon: String? = nil
+    var role: TonicChipRole = .semantic(.neutral)
+    var strength: TonicChipStrength = .subtle
+    var controlState: TonicControlState = .default
+    var isEnabled = true
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let style = TonicChipTokens.style(
+            role: role,
+            strength: strength,
+            colorScheme: colorScheme,
+            state: controlState,
+            isEnabled: isEnabled
+        )
+        let shape = RoundedRectangle(cornerRadius: style.radius, style: .continuous)
+
+        HStack(spacing: 6) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: style.iconSize, weight: .semibold))
+                    .foregroundStyle(style.icon)
+            }
+            Text(title)
+                .font(style.font)
+                .kerning(style.tracking)
+                .monospacedDigit()
+                .foregroundStyle(style.text)
+        }
+        .lineLimit(1)
+        .padding(.horizontal, style.paddingX)
+        .padding(.vertical, style.paddingY)
+        .frame(minHeight: style.height)
+        .background(style.backgroundBase)
+        .background(style.backgroundTint)
+        .overlay(
+            shape
+                .stroke(style.stroke, lineWidth: style.strokeWidth)
+        )
+        .overlay(
+            shape
+                .stroke(style.strokeOverlay, lineWidth: style.strokeWidth)
+        )
+        .clipShape(shape)
+    }
+}
+
 enum MetaBadgeStyle {
     case safe
     case needsReview
@@ -316,15 +389,40 @@ enum MetaBadgeStyle {
 
     var color: Color {
         switch self {
-        case .safe: return .green
-        case .needsReview: return .orange
-        case .risky: return .red
-        case .recommended: return .blue
-        case .unused: return .gray
-        case .suspicious: return .pink
-        case .large: return .purple
-        case .leftovers: return .cyan
-        case .store: return .mint
+        case .safe, .store:
+            return TonicStatusPalette.text(.success)
+        case .needsReview, .large:
+            return TonicStatusPalette.text(.warning)
+        case .risky, .suspicious:
+            return TonicStatusPalette.text(.danger)
+        case .recommended, .leftovers:
+            return TonicStatusPalette.text(.info)
+        case .unused:
+            return TonicStatusPalette.text(.neutral)
+        }
+    }
+
+    var chipRole: TonicChipRole {
+        switch self {
+        case .safe, .store:
+            return .semantic(.success)
+        case .needsReview, .large:
+            return .semantic(.warning)
+        case .risky, .suspicious:
+            return .semantic(.danger)
+        case .recommended, .leftovers:
+            return .semantic(.info)
+        case .unused:
+            return .semantic(.neutral)
+        }
+    }
+
+    var chipStrength: TonicChipStrength {
+        switch self {
+        case .risky, .suspicious:
+            return .strong
+        default:
+            return .subtle
         }
     }
 }
@@ -333,13 +431,11 @@ struct MetaBadge: View {
     let style: MetaBadgeStyle
 
     var body: some View {
-        Text(style.text)
-            .font(TonicTypeToken.micro.weight(.semibold))
-            .foregroundStyle(TonicNeutralToken.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(style.color.opacity(0.70))
-            .clipShape(Capsule())
+        GlassChip(
+            title: style.text,
+            role: style.chipRole,
+            strength: style.chipStrength
+        )
     }
 }
 
@@ -359,15 +455,14 @@ struct RecommendationBadge: View {
 
 struct TrailingMetric: View {
     let value: String
+    var world: TonicWorld? = nil
 
     var body: some View {
-        Text(value)
-            .font(TonicTypeToken.micro.weight(.semibold))
-            .foregroundStyle(TonicTextToken.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(TonicNeutralToken.white.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.s))
+        GlassChip(
+            title: value,
+            role: world.map { .world($0) } ?? .semantic(.neutral),
+            strength: .subtle
+        )
     }
 }
 
@@ -379,37 +474,35 @@ struct CounterChip: View {
     var isComplete = false
 
     var body: some View {
-        HStack(spacing: TonicSpaceToken.one) {
-            Text(title)
-                .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
-                .foregroundStyle((isActive || isComplete) ? TonicTextToken.primary : TonicTextToken.secondary)
-
-            if let value, !value.isEmpty {
-                Text(value)
-                    .font(TonicTypeToken.micro.weight(.semibold))
-                    .foregroundStyle(TonicTextToken.primary)
-            }
-        }
-        .padding(.horizontal, TonicSpaceToken.two)
-        .padding(.vertical, 6)
-        .background(
-            Group {
-                if let world {
-                    PillarWorldCanvas(world: world)
-                } else {
-                    TonicNeutralToken.white.opacity(0.10)
-                }
-            }
+        GlassChip(
+            title: chipText,
+            role: world.map { .world($0) } ?? .semantic(.neutral),
+            strength: isActive ? .strong : .subtle,
+            controlState: chipControlState
         )
-        .overlay(
-            Capsule()
-                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
-        .clipShape(Capsule())
         .scaleEffect(isActive ? 1.08 : 1)
         .animation(.easeInOut(duration: TonicMotionToken.hover), value: isActive)
         .animation(.easeInOut(duration: TonicMotionToken.fade), value: isComplete)
+    }
+
+    private var chipText: String {
+        if title.isEmpty {
+            return value ?? ""
+        }
+        guard let value, !value.isEmpty else {
+            return title
+        }
+        return "\(title) \(value)"
+    }
+
+    private var chipControlState: TonicControlState {
+        if isActive {
+            return .focused
+        }
+        if isComplete {
+            return .hover
+        }
+        return .default
     }
 }
 
@@ -461,8 +554,8 @@ struct SelectableRow: View {
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, TonicSpaceToken.two)
-        .background(TonicNeutralToken.white.opacity(0.08))
-        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicStrokeToken.subtle, lineWidth: 1))
+        .background(TonicGlassToken.fill)
+        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
@@ -498,8 +591,8 @@ struct DrilldownRow: View {
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, TonicSpaceToken.two)
-        .background(TonicNeutralToken.white.opacity(0.08))
-        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicStrokeToken.subtle, lineWidth: 1))
+        .background(TonicGlassToken.fill)
+        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
         .contentShape(Rectangle())
         .onTapGesture(perform: action)
@@ -551,8 +644,8 @@ struct HybridRow: View {
         }
         .padding(.horizontal, TonicSpaceToken.two)
         .padding(.vertical, TonicSpaceToken.two)
-        .background(TonicNeutralToken.white.opacity(0.08))
-        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicStrokeToken.subtle, lineWidth: 1))
+        .background(TonicGlassToken.fill)
+        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
@@ -712,7 +805,11 @@ struct ManagerSummaryStrip: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, TonicSpaceToken.two)
             .padding(.vertical, TonicSpaceToken.one)
-            .background(TonicNeutralToken.white.opacity(0.10))
+            .background(TonicGlassToken.fill)
+            .overlay(
+                RoundedRectangle(cornerRadius: TonicRadiusToken.m)
+                    .stroke(TonicGlassToken.stroke, lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
     }
 }
@@ -726,7 +823,7 @@ struct LeftNavPane<Content: View>: View {
             Spacer()
         }
         .padding(TonicSpaceToken.three)
-        .glassSurface(radius: TonicRadiusToken.l)
+        .glassSurface(radius: TonicRadiusToken.container, variant: .sunken)
     }
 }
 
@@ -739,7 +836,7 @@ struct MiddleSummaryPane<Content: View>: View {
             Spacer()
         }
         .padding(TonicSpaceToken.three)
-        .glassSurface(radius: TonicRadiusToken.l)
+        .glassSurface(radius: TonicRadiusToken.container, variant: .sunken)
     }
 }
 
@@ -752,7 +849,7 @@ struct RightItemsPane<Content: View>: View {
             Spacer()
         }
         .padding(TonicSpaceToken.three)
-        .glassSurface(radius: TonicRadiusToken.l)
+        .glassSurface(radius: TonicRadiusToken.container, variant: .sunken)
     }
 }
 
@@ -803,9 +900,10 @@ enum ScanHeroState {
 
 struct ScanHeroModule: View {
     let state: ScanHeroState
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GlassPanel(radius: TonicRadiusToken.xl) {
+        GlassPanel(radius: TonicRadiusToken.container, variant: .raised) {
             VStack(spacing: TonicSpaceToken.three) {
                 Image(systemName: "shield.lefthalf.filled.badge.checkmark")
                     .font(.system(size: 70, weight: .semibold))
@@ -819,7 +917,12 @@ struct ScanHeroModule: View {
                     BodyText("Run an intelligent scan across Space, Performance, and Apps.")
                 case .scanning(let progress):
                     DisplayText("Scanning")
-                    ProgressBar(value: progress, total: 1.0, color: TonicNeutralToken.white, showPercentage: true)
+                    ProgressBar(
+                        value: progress,
+                        total: 1.0,
+                        color: colorScheme == .dark ? TonicNeutralToken.white.opacity(0.9) : TonicNeutralToken.black.opacity(0.84),
+                        showPercentage: true
+                    )
                         .frame(maxWidth: 260)
                     BodyText("We are analyzing your Mac across all pillars.")
                 case .results(let space, let performance, let apps):
@@ -829,6 +932,22 @@ struct ScanHeroModule: View {
             }
             .multilineTextAlignment(.center)
         }
+        .progressGlow(scanProgress)
+        .heroSweep(active: isScanning)
+    }
+
+    private var isScanning: Bool {
+        if case .scanning = state {
+            return true
+        }
+        return false
+    }
+
+    private var scanProgress: Double {
+        if case .scanning(let value) = state {
+            return value
+        }
+        return 0
     }
 }
 
@@ -855,12 +974,7 @@ struct ScanTimelineStepper: View {
                 .padding(.horizontal, TonicSpaceToken.two)
                 .padding(.vertical, 6)
                 .background(PillarWorldCanvas(world: world))
-                .overlay(
-                    Capsule()
-                        .stroke(TonicStrokeToken.subtle, lineWidth: 1)
-                        .allowsHitTesting(false)
-                )
-                .clipShape(Capsule())
+                .glassSurface(radius: 999, variant: .sunken)
                 .opacity(isActive || isComplete ? 1 : 0.55)
             }
         }
@@ -969,7 +1083,7 @@ struct SmartScanCommandDock: View {
         }
         .padding(.horizontal, TonicSpaceToken.four)
         .padding(.vertical, TonicSpaceToken.three)
-        .glassSurface(radius: TonicRadiusToken.xl)
+        .glassSurface(radius: TonicRadiusToken.container, variant: .sunken)
     }
 }
 
@@ -981,17 +1095,19 @@ struct PillarSectionHeader: View {
     let world: TonicWorld
     var sectionAccessibilityIdentifier: String? = nil
     let onSectionAction: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
             HStack(alignment: .top, spacing: TonicSpaceToken.two) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(TonicTypeToken.title)
+                        .font(TonicTypeToken.pillarTitle)
                         .foregroundStyle(TonicTextToken.primary)
                     Text(subtitle)
                         .font(TonicTypeToken.caption)
                         .foregroundStyle(TonicTextToken.secondary)
+                        .lineLimit(1)
                     Text(summary)
                         .font(TonicTypeToken.body.weight(.semibold))
                         .foregroundStyle(TonicTextToken.primary)
@@ -1007,19 +1123,9 @@ struct PillarSectionHeader: View {
             }
         }
         .padding(TonicSpaceToken.three)
-        .background(
-            PillarWorldCanvas(world: world)
-                .saturation(0.78)
-                .brightness(-0.14)
-                .overlay(Color.black.opacity(0.18))
-                .overlay(TonicNeutralToken.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
-                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
+        .background(PillarHeaderSurface(world: world))
+        .glassSurface(radius: TonicRadiusToken.container, variant: .raised)
+        .softShadow(colorScheme == .dark ? TonicShadowToken.elev2 : TonicShadowToken.lightE1)
     }
 }
 
@@ -1030,7 +1136,8 @@ struct MetricHeadline: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(TonicTypeToken.title)
+                .font(TonicTypeToken.tileMetric)
+                .monospacedDigit()
                 .foregroundStyle(TonicTextToken.primary)
             Text(title)
                 .font(TonicTypeToken.caption.weight(.semibold))
@@ -1041,16 +1148,17 @@ struct MetricHeadline: View {
 
 struct IconCluster: View {
     let symbols: [String]
+    @Environment(\.tonicTheme) private var theme
 
     var body: some View {
         HStack(spacing: TonicSpaceToken.one) {
-            ForEach(Array(symbols.prefix(3).enumerated()), id: \.offset) { _, symbol in
+            ForEach(Array(symbols.prefix(1).enumerated()), id: \.offset) { _, symbol in
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(TonicTextToken.primary)
+                    .foregroundStyle(theme.worldToken.light.opacity(0.85))
                     .frame(width: 28, height: 28)
-                    .background(TonicNeutralToken.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+                    .background(TonicGlassToken.fill)
+                    .glassSurface(radius: TonicRadiusToken.m, variant: .base)
             }
         }
     }
@@ -1062,34 +1170,12 @@ struct BentoTileActions: View {
     let onReview: (SmartScanReviewTarget) -> Void
     let reviewTarget: SmartScanReviewTarget
     let onAction: (SmartScanTileID, SmartScanTileActionKind) -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: TonicSpaceToken.one) {
             ForEach(actions) { action in
-                Button {
-                    if action.kind == .review {
-                        onReview(reviewTarget)
-                    } else {
-                        onAction(tileID, action.kind)
-                    }
-                } label: {
-                    Text(action.title)
-                        .font(TonicTypeToken.caption.weight(.semibold))
-                        .foregroundStyle(
-                            action.kind == .review
-                                ? TonicTextToken.primary
-                                : TonicNeutralToken.black.opacity(0.9)
-                        )
-                        .padding(.horizontal, TonicSpaceToken.two)
-                        .padding(.vertical, 7)
-                        .background(
-                            action.kind == .review
-                                ? TonicNeutralToken.white.opacity(0.12)
-                                : TonicNeutralToken.white.opacity(0.92)
-                        )
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+                tileActionButton(for: action)
                 .disabled(!action.enabled)
                 .opacity(action.enabled ? 1 : 0.45)
                 .accessibilityIdentifier(buttonAccessibilityIdentifier(for: action))
@@ -1111,6 +1197,32 @@ struct BentoTileActions: View {
             return "smartscan.execute.update.\(tileID.rawValue)"
         }
     }
+
+    @ViewBuilder
+    private func tileActionButton(for action: SmartScanBentoTileActionModel) -> some View {
+        Button {
+            if action.kind == .review {
+                onReview(reviewTarget)
+            } else {
+                onAction(tileID, action.kind)
+            }
+        } label: {
+            let isReview = action.kind == .review
+            let style = isReview ? TonicButtonTokens.secondary(for: colorScheme) : TonicButtonTokens.primary(for: colorScheme)
+
+            Text(action.title)
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(style.foreground)
+                .padding(.horizontal, TonicSpaceToken.two)
+                .padding(.vertical, 7)
+                .background(style.background)
+                .overlay(
+                    Capsule().stroke(style.stroke, lineWidth: 1)
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(PressEffect(focusShape: .capsule))
+    }
 }
 
 struct BentoTile: View {
@@ -1130,12 +1242,21 @@ struct BentoTile: View {
         }
     }
 
+    private var tileRadius: CGFloat {
+        switch model.size {
+        case .small:
+            return TonicRadiusToken.l
+        case .large, .wide:
+            return TonicRadiusToken.xl
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
             HStack(alignment: .top) {
                 MetricHeadline(value: model.metricTitle, title: model.title)
                 Spacer()
-                if !model.iconSymbols.isEmpty {
+                if !model.iconSymbols.isEmpty && model.size != .large {
                     IconCluster(symbols: model.iconSymbols)
                 }
             }
@@ -1143,7 +1264,14 @@ struct BentoTile: View {
             Text(model.subtitle)
                 .font(TonicTypeToken.body)
                 .foregroundStyle(TonicTextToken.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .mask(
+                    LinearGradient(
+                        colors: [.white, .white, .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
 
             Spacer(minLength: 0)
 
@@ -1160,19 +1288,8 @@ struct BentoTile: View {
         }
         .padding(TonicSpaceToken.three)
         .frame(maxWidth: .infinity, minHeight: tileHeight, maxHeight: tileHeight, alignment: .topLeading)
-        .background(
-            PillarWorldCanvas(world: world)
-                .saturation(0.82)
-                .brightness(-0.08)
-                .overlay(Color.black.opacity(0.22))
-                .overlay(TonicNeutralToken.white.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
-                .stroke(TonicStrokeToken.subtle, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
+        .background(BentoTileSurface(world: world))
+        .glassSurface(radius: tileRadius, variant: .raised)
         .depthLift()
     }
 }
@@ -1189,13 +1306,13 @@ struct BentoGrid: View {
         let smallTiles = tiles.filter { $0.size == .small }
 
         if let large = largeTiles.first, wideTiles.count >= 1, smallTiles.count >= 2 {
-            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
                 BentoTile(model: large, world: world, onReview: onReview, onAction: onAction)
                     .frame(maxWidth: .infinity, alignment: .top)
 
-                VStack(spacing: TonicSpaceToken.two) {
+                VStack(spacing: TonicSpaceToken.gridGap) {
                     BentoTile(model: wideTiles[0], world: world, onReview: onReview, onAction: onAction)
-                    HStack(spacing: TonicSpaceToken.two) {
+                    HStack(spacing: TonicSpaceToken.gridGap) {
                         BentoTile(model: smallTiles[0], world: world, onReview: onReview, onAction: onAction)
                         BentoTile(model: smallTiles[1], world: world, onReview: onReview, onAction: onAction)
                     }
@@ -1203,11 +1320,11 @@ struct BentoGrid: View {
                 .frame(maxWidth: .infinity, alignment: .top)
             }
         } else if let large = largeTiles.first, wideTiles.count >= 2 {
-            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
                 BentoTile(model: large, world: world, onReview: onReview, onAction: onAction)
                     .frame(maxWidth: .infinity, alignment: .top)
 
-                VStack(spacing: TonicSpaceToken.two) {
+                VStack(spacing: TonicSpaceToken.gridGap) {
                     BentoTile(model: wideTiles[0], world: world, onReview: onReview, onAction: onAction)
                     BentoTile(model: wideTiles[1], world: world, onReview: onReview, onAction: onAction)
                 }
@@ -1216,10 +1333,10 @@ struct BentoGrid: View {
         } else {
             LazyVGrid(
                 columns: [
-                    GridItem(.flexible(), spacing: TonicSpaceToken.two),
-                    GridItem(.flexible(), spacing: TonicSpaceToken.two)
+                    GridItem(.flexible(), spacing: TonicSpaceToken.gridGap),
+                    GridItem(.flexible(), spacing: TonicSpaceToken.gridGap)
                 ],
-                spacing: TonicSpaceToken.two
+                spacing: TonicSpaceToken.gridGap
             ) {
                 ForEach(tiles) { tile in
                     BentoTile(model: tile, world: world, onReview: onReview, onAction: onAction)
@@ -1345,22 +1462,83 @@ struct ResultContributorList: View {
 
 private struct PillarWorldCanvas: View {
     let world: TonicWorld
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let token = world.token
         ZStack {
+            TonicCanvasTokens.fill(for: world, colorScheme: colorScheme)
+            TonicCanvasTokens.tint(for: world, colorScheme: colorScheme)
+
             RadialGradient(
-                gradient: Gradient(colors: [token.mid.opacity(0.94), token.mid, token.dark]),
-                center: UnitPoint(x: 0.55, y: 0.35),
-                startRadius: 24,
-                endRadius: 520
+                colors: [TonicCanvasTokens.edgeGlow(for: world, colorScheme: colorScheme), .clear],
+                center: .topLeading,
+                startRadius: 16,
+                endRadius: 320
             )
 
-            LinearGradient(
-                colors: [token.mid.opacity(0.22), token.dark.opacity(0.44)],
-                startPoint: .top,
-                endPoint: .bottom
+            RadialGradient(
+                colors: [TonicCanvasTokens.edgeGlow(for: world, colorScheme: colorScheme).opacity(0.8), .clear],
+                center: .bottomTrailing,
+                startRadius: 16,
+                endRadius: 320
             )
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct PillarHeaderSurface: View {
+    let world: TonicWorld
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            if colorScheme == .light {
+                TonicNeutralToken.neutral2
+                world.token.mid.opacity(0.05)
+                RadialGradient(
+                    colors: [world.token.light.opacity(0.10), .clear],
+                    center: .topLeading,
+                    startRadius: 14,
+                    endRadius: 260
+                )
+            } else {
+                PillarWorldCanvas(world: world)
+                RadialGradient(
+                    colors: [world.token.light.opacity(0.12), .clear],
+                    center: .topLeading,
+                    startRadius: 10,
+                    endRadius: 300
+                )
+                LinearGradient(
+                    colors: [.clear, TonicNeutralToken.black.opacity(0.20)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+private struct BentoTileSurface: View {
+    let world: TonicWorld
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            if colorScheme == .light {
+                TonicNeutralToken.neutral3
+                world.token.mid.opacity(0.04)
+                RadialGradient(
+                    colors: [world.token.light.opacity(0.08), .clear],
+                    center: .topLeading,
+                    startRadius: 12,
+                    endRadius: 220
+                )
+            } else {
+                PillarWorldCanvas(world: world)
+            }
         }
         .allowsHitTesting(false)
     }
@@ -1378,7 +1556,7 @@ struct ResultPillarCard: View {
     let onReviewContributor: (ResultContributor) -> Void
 
     var body: some View {
-        GlassCard(radius: TonicRadiusToken.xl) {
+        GlassCard(radius: TonicRadiusToken.xl, variant: .raised) {
             VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
                 HStack {
                     Text(title)
@@ -1404,7 +1582,7 @@ struct ResultPillarCard: View {
         .background {
             if let world {
                 PillarWorldCanvas(world: world)
-                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.xl))
+                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.container))
             }
         }
         .depthLift()
@@ -1415,17 +1593,24 @@ struct ResultPillarCard: View {
 
 struct RiskExplanationBlock: View {
     let text: String
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let warning = TonicStatusPalette.style(.warning, for: colorScheme)
+
         HStack(alignment: .top, spacing: TonicSpaceToken.two) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(warning.text)
             Text(text)
                 .font(TonicTypeToken.micro)
                 .foregroundStyle(TonicTextToken.secondary)
         }
         .padding(TonicSpaceToken.two)
-        .background(TonicNeutralToken.white.opacity(0.10))
+        .background(TonicGlassToken.fill)
+        .overlay(
+            RoundedRectangle(cornerRadius: TonicRadiusToken.m)
+                .stroke(warning.stroke, lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
     }
 }
