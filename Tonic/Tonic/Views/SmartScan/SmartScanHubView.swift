@@ -52,6 +52,7 @@ struct SmartScanHubView: View {
                     onBack: nil,
                     trailing: nil
                 )
+                .frame(minHeight: 56)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: TonicSpaceToken.three) {
@@ -106,7 +107,9 @@ struct SmartScanHubView: View {
 
                 commandDock
             }
-            .padding(TonicSpaceToken.three)
+            .padding(.horizontal, TonicSpaceToken.three)
+            .padding(.bottom, TonicSpaceToken.three)
+            .padding(.top, 4)
             .animation(
                 reduceMotion ? .none : TonicMotionToken.resultMetricSpring,
                 value: mode
