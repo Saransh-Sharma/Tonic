@@ -8,7 +8,8 @@ struct PerformanceManagerView: View {
     let onRunSelected: ([SmartCareItem]) -> Void
 
     @State private var selectedNav: PerformanceNav
-    @State private var focusedItemID: UUID?
+    @State private var expandedItemIDs: Set<UUID> = []
+    @State private var childSelectionByParent: [UUID: Set<String>] = [:]
 
     init(
         domainResult: SmartCareDomainResult?,
@@ -95,9 +96,15 @@ struct PerformanceManagerView: View {
                             LeftNavListItem(
                                 title: item.title,
                                 count: item.count,
-                                isSelected: focusedItemID == item.id,
+                                isSelected: expandedItemIDs.contains(item.id),
                                 action: {
-                                    focusedItemID = item.id
+                                    if isExpandable(item) {
+                                        if expandedItemIDs.contains(item.id) {
+                                            expandedItemIDs.remove(item.id)
+                                        } else {
+                                            expandedItemIDs.insert(item.id)
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -117,54 +124,30 @@ struct PerformanceManagerView: View {
                         ScrollView {
                             VStack(spacing: TonicSpaceToken.one) {
                                 ForEach(currentItems) { item in
-                                    if selectedNav == .maintenanceTasks {
-                                        SelectableRow(
-                                            icon: "bolt.circle",
-                                            title: item.title,
-                                            subtitle: item.subtitle,
-                                            metric: "Task",
-                                            isSelected: selectedItemIDs.contains(item.id),
-                                            onSelect: {
-                                                focusedItemID = item.id
-                                            },
-                                            onToggle: {
-                                                toggleSelection(for: item.id)
+                                    ExpandableSelectionRow(
+                                        icon: selectedNav == .maintenanceTasks ? "bolt.circle" : "power",
+                                        title: item.title,
+                                        subtitle: item.subtitle,
+                                        metric: selectedNav == .maintenanceTasks ? "Task" : item.formattedSize,
+                                        selectionState: selectionState(for: item),
+                                        isExpandable: isExpandable(item),
+                                        isExpanded: expandedItemIDs.contains(item.id),
+                                        badges: selectedNav == .maintenanceTasks ? [] : (item.safeToRun ? [.recommended] : [.needsReview]),
+                                        children: childRows(for: item),
+                                        onToggleParent: {
+                                            toggleParentSelection(for: item)
+                                        },
+                                        onToggleExpanded: {
+                                            guard isExpandable(item) else { return }
+                                            if expandedItemIDs.contains(item.id) {
+                                                expandedItemIDs.remove(item.id)
+                                            } else {
+                                                expandedItemIDs.insert(item.id)
                                             }
-                                        )
-                                    } else {
-                                        HybridRow(
-                                            icon: "power",
-                                            title: item.title,
-                                            subtitle: item.subtitle,
-                                            metric: item.formattedSize,
-                                            isSelected: selectedItemIDs.contains(item.id),
-                                            badges: item.safeToRun ? [.recommended] : [.needsReview],
-                                            onSelect: {
-                                                focusedItemID = item.id
-                                            },
-                                            onToggle: {
-                                                toggleSelection(for: item.id)
-                                            }
-                                        )
-                                    }
-                                }
-
-                                if let focusedItem = currentItems.first(where: { $0.id == focusedItemID }) {
-                                    DetailPane(
-                                        title: focusedItem.title,
-                                        subtitle: focusedItem.subtitle,
-                                        riskText: focusedItem.safeToRun ? nil : "This startup item is system-managed. Use System Settings when needed.",
-                                        includeExcludeTitle: selectedNav == .maintenanceTasks ? "Include task" : "Include item",
-                                        include: Binding(
-                                            get: { selectedItemIDs.contains(focusedItem.id) },
-                                            set: { include in
-                                                if include {
-                                                    selectedItemIDs.insert(focusedItem.id)
-                                                } else {
-                                                    selectedItemIDs.remove(focusedItem.id)
-                                                }
-                                            }
-                                        )
+                                        },
+                                        onToggleChild: { childID in
+                                            toggleChildSelection(for: item, childID: childID)
+                                        }
                                     )
                                 }
                             }
@@ -210,7 +193,7 @@ struct PerformanceManagerView: View {
     }
 
     private var selectedInCurrent: [SmartCareItem] {
-        currentItems.filter { selectedItemIDs.contains($0.id) }
+        currentItems.compactMap(projectedSelectedItem(for:))
     }
 
     private var selectedRunnableItems: [SmartCareItem] {
@@ -256,11 +239,131 @@ struct PerformanceManagerView: View {
         return domainResult?.groups.first(where: { $0.title == groupTitle })?.items ?? []
     }
 
-    private func toggleSelection(for id: UUID) {
-        if selectedItemIDs.contains(id) {
-            selectedItemIDs.remove(id)
+    private func selectedChildIDs(for item: SmartCareItem) -> Set<String> {
+        let childIDs = childEntries(for: item).map(\.id)
+        if let explicit = childSelectionByParent[item.id] {
+            return explicit.intersection(Set(childIDs))
+        }
+        if selectedItemIDs.contains(item.id) {
+            return Set(childIDs)
+        }
+        return []
+    }
+
+    private func selectionState(for item: SmartCareItem) -> ParentSelectionState {
+        let total = childEntries(for: item).count
+        let selected = selectedChildIDs(for: item).count
+        if selected == 0 { return .none }
+        if selected >= total { return .all }
+        return .some
+    }
+
+    private func isExpandable(_ item: SmartCareItem) -> Bool {
+        childEntries(for: item).count > 1
+    }
+
+    private func childRows(for item: SmartCareItem) -> [ExpandableSelectionChild] {
+        let childEntries = childEntries(for: item)
+        let selected = selectedChildIDs(for: item)
+
+        return childEntries.map { entry in
+            ExpandableSelectionChild(
+                id: entry.id,
+                title: entry.title,
+                subtitle: entry.subtitle,
+                isSelected: selected.contains(entry.id)
+            )
+        }
+    }
+
+    private func childEntries(for item: SmartCareItem) -> [(id: String, title: String, subtitle: String?)] {
+        let uniquePaths = uniqueOrderedPaths(item.paths)
+        if !uniquePaths.isEmpty {
+            return uniquePaths.map { path in
+                let fileName = URL(fileURLWithPath: path).lastPathComponent
+                return (id: path, title: fileName.isEmpty ? path : fileName, subtitle: path)
+            }
+        }
+
+        if item.count > 1 {
+            return (1...item.count).map { index in
+                let id = "\(item.id.uuidString)-\(index)"
+                return (id: id, title: "\(item.title) \(index)", subtitle: nil)
+            }
+        }
+
+        return [(id: "__self__", title: item.title, subtitle: nil)]
+    }
+
+    private func uniqueOrderedPaths(_ paths: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for path in paths where !seen.contains(path) {
+            seen.insert(path)
+            result.append(path)
+        }
+        return result
+    }
+
+    private func toggleParentSelection(for item: SmartCareItem) {
+        let childIDs = Set(childEntries(for: item).map(\.id))
+        let currentlySelected = selectedChildIDs(for: item)
+        let shouldSelectAll = currentlySelected.count < childIDs.count
+        let updated = shouldSelectAll ? childIDs : []
+        childSelectionByParent[item.id] = updated
+        syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
+    }
+
+    private func toggleChildSelection(for item: SmartCareItem, childID: String) {
+        var updated = selectedChildIDs(for: item)
+        if updated.contains(childID) {
+            updated.remove(childID)
         } else {
-            selectedItemIDs.insert(id)
+            updated.insert(childID)
+        }
+        childSelectionByParent[item.id] = updated
+        syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
+    }
+
+    private func syncParentSelectionFlag(itemID: UUID, selectedChildCount: Int) {
+        if selectedChildCount > 0 {
+            selectedItemIDs.insert(itemID)
+        } else {
+            selectedItemIDs.remove(itemID)
+        }
+    }
+
+    private func projectedSelectedItem(for item: SmartCareItem) -> SmartCareItem? {
+        let selectedChildIDs = selectedChildIDs(for: item)
+        guard !selectedChildIDs.isEmpty else { return nil }
+
+        switch item.action {
+        case .delete:
+            let paths = uniqueOrderedPaths(item.paths).filter { selectedChildIDs.contains($0) }
+            guard !paths.isEmpty else { return nil }
+            let fullCount = max(uniqueOrderedPaths(item.paths).count, 1)
+            let proportion = Double(paths.count) / Double(fullCount)
+            let scaledSize = Int64((Double(item.size) * proportion).rounded())
+            let adjustedSize = item.size == 0 ? 0 : max(1, scaledSize)
+
+            return SmartCareItem(
+                id: item.id,
+                domain: item.domain,
+                groupId: item.groupId,
+                title: item.title,
+                subtitle: item.subtitle,
+                size: adjustedSize,
+                count: paths.count,
+                safeToRun: item.safeToRun,
+                isSmartSelected: item.isSmartSelected,
+                action: .delete(paths: paths),
+                paths: paths,
+                scoreImpact: item.scoreImpact
+            )
+        case .runOptimization:
+            return item
+        case .none:
+            return item
         }
     }
 }
