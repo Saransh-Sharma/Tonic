@@ -18,6 +18,8 @@ struct SmartCareView: View {
                 }
             }
         }
+        .tonicGlassRenderingMode(defaultGlassRenderingMode)
+        .tonicForceLegacyGlass(false)
     }
 
     private var hubView: some View {
@@ -93,6 +95,14 @@ struct SmartCareView: View {
             get: { smartCareSession.selectedItemIDs },
             set: { smartCareSession.selectedItemIDs = $0 }
         )
+    }
+
+    private var defaultGlassRenderingMode: TonicGlassRenderingMode {
+        if #available(macOS 26.0, *) {
+            return .liquid
+        } else {
+            return .legacy
+        }
     }
 }
 
