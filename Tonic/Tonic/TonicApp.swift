@@ -68,6 +68,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set app activation policy to accessory for menu bar behavior
         // Use .regular for now to keep dock icon visible
         NSApp.setActivationPolicy(.regular)
+        if let dockIcon = TonicBrandAssets.appNSImage()?.copy() as? NSImage {
+            NSApp.applicationIconImage = dockIcon
+        }
 
         // Initialize user defaults
         setupUserDefaults()
