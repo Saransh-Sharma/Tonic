@@ -48,23 +48,42 @@ extension EnvironmentValues {
 }
 
 struct TonicThemeProvider<Content: View>: View {
-    let theme: TonicTheme
+    let world: TonicWorld
     @ViewBuilder let content: () -> Content
+    private var preferences = AppearancePreferences.shared
 
     init(world: TonicWorld, @ViewBuilder content: @escaping () -> Content) {
-        self.theme = TonicTheme(world: world)
+        self.world = world
         self.content = content
     }
 
     var body: some View {
+        // Reading colorPalette in body creates an Observation tracking dependency.
+        // SwiftUI will re-render when the palette changes, causing world.token
+        // to return updated colors for the new palette.
+        let _ = preferences.colorPalette
         content()
-            .environment(\.tonicTheme, theme)
+            .environment(\.tonicTheme, TonicTheme(world: world))
+    }
+}
+
+struct TonicThemeModifier: ViewModifier {
+    let world: TonicWorld
+    private var preferences = AppearancePreferences.shared
+
+    init(world: TonicWorld) {
+        self.world = world
+    }
+
+    func body(content: Content) -> some View {
+        let _ = preferences.colorPalette
+        content.environment(\.tonicTheme, TonicTheme(world: world))
     }
 }
 
 extension View {
     func tonicTheme(_ world: TonicWorld) -> some View {
-        environment(\.tonicTheme, TonicTheme(world: world))
+        modifier(TonicThemeModifier(world: world))
     }
 
     func tonicGlassRenderingMode(_ mode: TonicGlassRenderingMode) -> some View {
