@@ -130,39 +130,332 @@ enum TonicWorld: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 
     var token: TonicWorldColorToken {
+        let palette = AppearancePreferences.shared.colorPalette
+        return palette.worldToken(for: self)
+    }
+
+    /// The original default purple palette colors, used as the canonical fallback.
+    var defaultToken: TonicWorldColorToken {
+        TonicColorPalette.defaultPurple.worldToken(for: self)
+    }
+}
+
+// MARK: - Color Palette
+
+public enum TonicColorPalette: String, CaseIterable, Identifiable, Sendable {
+    case defaultPurple
+    case ocean
+    case sunset
+    case forest
+    case lavender
+    case midnight
+    case roseGold
+    case arctic
+
+    public var id: String { rawValue }
+
+    var displayName: String {
         switch self {
-        case .smartScanPurple:
+        case .defaultPurple: return "Default Purple"
+        case .ocean: return "Ocean"
+        case .sunset: return "Sunset"
+        case .forest: return "Forest"
+        case .lavender: return "Lavender"
+        case .midnight: return "Midnight"
+        case .roseGold: return "Rose Gold"
+        case .arctic: return "Arctic"
+        }
+    }
+
+    var mood: String {
+        switch self {
+        case .defaultPurple: return "Creative, focused, modern"
+        case .ocean: return "Cool, professional, trustworthy"
+        case .sunset: return "Warm, energetic, optimistic"
+        case .forest: return "Natural, grounding, serene"
+        case .lavender: return "Elegant, calm, contemplative"
+        case .midnight: return "Dramatic, modern, powerful"
+        case .roseGold: return "Luxurious, warm, sophisticated"
+        case .arctic: return "Clean, minimal, precise"
+        }
+    }
+
+    /// Primary accent color for swatch previews.
+    var primaryAccent: TonicWorldModeColorToken {
+        switch self {
+        case .defaultPurple: return .init(darkHex: "AFA6E6", midHex: "2E295E", lightHex: "5B4EF0")
+        case .ocean: return .init(darkHex: "7CC4E8", midHex: "1B3E5E", lightHex: "1A6FB5")
+        case .sunset: return .init(darkHex: "F0A873", midHex: "6E3A18", lightHex: "D45A1E")
+        case .forest: return .init(darkHex: "8ABF8A", midHex: "2A5234", lightHex: "2D6E3A")
+        case .lavender: return .init(darkHex: "C8A8E0", midHex: "3E2860", lightHex: "7A3EB0")
+        case .midnight: return .init(darkHex: "7A8CF0", midHex: "1E2258", lightHex: "3040C8")
+        case .roseGold: return .init(darkHex: "E8A8A0", midHex: "5E3030", lightHex: "C0504A")
+        case .arctic: return .init(darkHex: "94B8D0", midHex: "2A4458", lightHex: "3A6888")
+        }
+    }
+
+    // swiftlint:disable function_body_length cyclomatic_complexity
+    func worldToken(for world: TonicWorld) -> TonicWorldColorToken {
+        switch (self, world) {
+
+        // MARK: Default Purple
+        case (.defaultPurple, .smartScanPurple):
             return .init(
                 darkMode: .init(darkHex: "0C0B1B", midHex: "2E295E", lightHex: "AFA6E6"),
                 lightMode: .init(darkHex: "F1F0FF", midHex: "D6D1FF", lightHex: "5B4EF0")
             )
-        case .cleanupGreen:
+        case (.defaultPurple, .cleanupGreen):
             return .init(
                 darkMode: .init(darkHex: "0A1712", midHex: "254A38", lightHex: "85CBA6"),
                 lightMode: .init(darkHex: "EDFBF2", midHex: "CFEEDD", lightHex: "1F6A4A")
             )
-        case .clutterTeal:
+        case (.defaultPurple, .clutterTeal):
             return .init(
                 darkMode: .init(darkHex: "071417", midHex: "244A50", lightHex: "79BEC4"),
                 lightMode: .init(darkHex: "EAFBFC", midHex: "CDEFF1", lightHex: "1E6E74")
             )
-        case .applicationsBlue:
+        case (.defaultPurple, .applicationsBlue):
             return .init(
                 darkMode: .init(darkHex: "0A1323", midHex: "2A3F78", lightHex: "86A6E6"),
                 lightMode: .init(darkHex: "EEF3FF", midHex: "D2DEFF", lightHex: "2B4ED6")
             )
-        case .performanceOrange:
+        case (.defaultPurple, .performanceOrange):
             return .init(
                 darkMode: .init(darkHex: "160E09", midHex: "6E341B", lightHex: "E8B08E"),
                 lightMode: .init(darkHex: "FFF3EC", midHex: "FFDCCB", lightHex: "A8441C")
             )
-        case .protectionMagenta:
+        case (.defaultPurple, .protectionMagenta):
             return .init(
                 darkMode: .init(darkHex: "170A14", midHex: "62234F", lightHex: "E4A0CA"),
                 lightMode: .init(darkHex: "FFEFF8", midHex: "FFD1EB", lightHex: "8E1D63")
             )
+
+        // MARK: Ocean
+        case (.ocean, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "080F18", midHex: "1B3E5E", lightHex: "7CC4E8"),
+                lightMode: .init(darkHex: "EDF6FC", midHex: "C4E2F6", lightHex: "1A6FB5")
+            )
+        case (.ocean, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "091610", midHex: "1E4A3A", lightHex: "6DC8A4"),
+                lightMode: .init(darkHex: "ECFAF2", midHex: "C8EDDA", lightHex: "1B7050")
+            )
+        case (.ocean, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "081317", midHex: "1E4650", lightHex: "68C0CC"),
+                lightMode: .init(darkHex: "EAFAFC", midHex: "C2EEF2", lightHex: "17727C")
+            )
+        case (.ocean, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "08101F", midHex: "203A6E", lightHex: "6BA0E0"),
+                lightMode: .init(darkHex: "ECF2FE", midHex: "C6D8F8", lightHex: "2252C8")
+            )
+        case (.ocean, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "140E08", midHex: "5E3218", lightHex: "D8A680"),
+                lightMode: .init(darkHex: "FFF2EB", midHex: "FFD6C2", lightHex: "9A4018")
+            )
+        case (.ocean, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "140912", midHex: "522048", lightHex: "D494BC"),
+                lightMode: .init(darkHex: "FEEFF6", midHex: "F8CCE6", lightHex: "801B5E")
+            )
+
+        // MARK: Sunset
+        case (.sunset, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "161008", midHex: "6E3A18", lightHex: "F0A873"),
+                lightMode: .init(darkHex: "FFF5EC", midHex: "FFDCBA", lightHex: "D45A1E")
+            )
+        case (.sunset, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "10140A", midHex: "3C4E20", lightHex: "A8CC6E"),
+                lightMode: .init(darkHex: "F4FAE8", midHex: "DCEEC0", lightHex: "4A7A1A")
+            )
+        case (.sunset, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "0E1410", midHex: "345040", lightHex: "8AC4A0"),
+                lightMode: .init(darkHex: "EFFAF0", midHex: "D2EED6", lightHex: "2A7248")
+            )
+        case (.sunset, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "140C08", midHex: "5A2E18", lightHex: "E09468"),
+                lightMode: .init(darkHex: "FFF0E6", midHex: "FFD0B0", lightHex: "B84418")
+            )
+        case (.sunset, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "181008", midHex: "784018", lightHex: "F0B868"),
+                lightMode: .init(darkHex: "FFF6E6", midHex: "FFE0AA", lightHex: "B86A10")
+            )
+        case (.sunset, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "180A0A", midHex: "6E2020", lightHex: "E88888"),
+                lightMode: .init(darkHex: "FFF0F0", midHex: "FFD0D0", lightHex: "B82828")
+            )
+
+        // MARK: Forest
+        case (.forest, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "0A120A", midHex: "2A5234", lightHex: "8ABF8A"),
+                lightMode: .init(darkHex: "EEF6EE", midHex: "C8E4CC", lightHex: "2D6E3A")
+            )
+        case (.forest, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "0C140C", midHex: "2E5830", lightHex: "7EC882"),
+                lightMode: .init(darkHex: "ECFAEC", midHex: "C4EACA", lightHex: "1E6824")
+            )
+        case (.forest, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "0A1210", midHex: "264A3E", lightHex: "72B8A0"),
+                lightMode: .init(darkHex: "ECF8F4", midHex: "C4E8DC", lightHex: "1A6650")
+            )
+        case (.forest, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "0C100E", midHex: "304238", lightHex: "88B498"),
+                lightMode: .init(darkHex: "F0F6F2", midHex: "D0E2D6", lightHex: "2E5E42")
+            )
+        case (.forest, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "12100A", midHex: "564024", lightHex: "C8A472"),
+                lightMode: .init(darkHex: "FAF4EC", midHex: "ECD8B8", lightHex: "886030")
+            )
+        case (.forest, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "120C10", midHex: "4E2844", lightHex: "C088B0"),
+                lightMode: .init(darkHex: "FAF0F6", midHex: "E8D0DE", lightHex: "7A2E60")
+            )
+
+        // MARK: Lavender
+        case (.lavender, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "0E0A14", midHex: "3E2860", lightHex: "C8A8E0"),
+                lightMode: .init(darkHex: "F6F0FC", midHex: "E2D0F4", lightHex: "7A3EB0")
+            )
+        case (.lavender, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "0A1210", midHex: "264A38", lightHex: "7CC4A0"),
+                lightMode: .init(darkHex: "EEFAF2", midHex: "CCEED8", lightHex: "1E6A46")
+            )
+        case (.lavender, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "080E14", midHex: "203E50", lightHex: "6CB0C8"),
+                lightMode: .init(darkHex: "ECF4FA", midHex: "C6DEF0", lightHex: "186878")
+            )
+        case (.lavender, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "0A0C18", midHex: "283468", lightHex: "8898D8"),
+                lightMode: .init(darkHex: "F0F0FC", midHex: "D2D4F4", lightHex: "3240B8")
+            )
+        case (.lavender, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "140C08", midHex: "5E2E18", lightHex: "D89870"),
+                lightMode: .init(darkHex: "FFF2EA", midHex: "FFD4B8", lightHex: "983C16")
+            )
+        case (.lavender, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "140A10", midHex: "522040", lightHex: "D090B8"),
+                lightMode: .init(darkHex: "FCEFF6", midHex: "F4CCE2", lightHex: "7E1C58")
+            )
+
+        // MARK: Midnight
+        case (.midnight, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "06060F", midHex: "1E2258", lightHex: "7A8CF0"),
+                lightMode: .init(darkHex: "F0F0FF", midHex: "D0D4FC", lightHex: "3040C8")
+            )
+        case (.midnight, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "06100C", midHex: "183E2E", lightHex: "58C890"),
+                lightMode: .init(darkHex: "ECFAF0", midHex: "C4ECD6", lightHex: "146E40")
+            )
+        case (.midnight, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "060E10", midHex: "183A44", lightHex: "50BCC8"),
+                lightMode: .init(darkHex: "ECF8FA", midHex: "C0E8EE", lightHex: "106A78")
+            )
+        case (.midnight, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "060A18", midHex: "182E68", lightHex: "6888E8"),
+                lightMode: .init(darkHex: "EEF0FE", midHex: "C8D2FA", lightHex: "2244D0")
+            )
+        case (.midnight, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "100A06", midHex: "502C12", lightHex: "D89460"),
+                lightMode: .init(darkHex: "FFF0E6", midHex: "FFD0AA", lightHex: "8E3810")
+            )
+        case (.midnight, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "100614", midHex: "441E50", lightHex: "C07CE0"),
+                lightMode: .init(darkHex: "F8EEFE", midHex: "E8CEF8", lightHex: "701E98")
+            )
+
+        // MARK: Rose Gold
+        case (.roseGold, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "140C0A", midHex: "5E3030", lightHex: "E8A8A0"),
+                lightMode: .init(darkHex: "FCF2F0", midHex: "F0D0CC", lightHex: "C0504A")
+            )
+        case (.roseGold, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "0C1410", midHex: "2A5038", lightHex: "80C496"),
+                lightMode: .init(darkHex: "EEF8F0", midHex: "CCECD4", lightHex: "20684A")
+            )
+        case (.roseGold, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "0A1214", midHex: "224850", lightHex: "70BAC2"),
+                lightMode: .init(darkHex: "ECF8FA", midHex: "C8ECF0", lightHex: "1A6C74")
+            )
+        case (.roseGold, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "0E0C18", midHex: "383060", lightHex: "9890D0"),
+                lightMode: .init(darkHex: "F2F0FA", midHex: "DCD6F0", lightHex: "4840A0")
+            )
+        case (.roseGold, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "160E0A", midHex: "6A3820", lightHex: "E0A880"),
+                lightMode: .init(darkHex: "FEF4EC", midHex: "FFD8C0", lightHex: "A04820")
+            )
+        case (.roseGold, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "160A0E", midHex: "5E2038", lightHex: "E090A8"),
+                lightMode: .init(darkHex: "FEF0F2", midHex: "FFC8D8", lightHex: "901840")
+            )
+
+        // MARK: Arctic
+        case (.arctic, .smartScanPurple):
+            return .init(
+                darkMode: .init(darkHex: "0A0E12", midHex: "2A4458", lightHex: "94B8D0"),
+                lightMode: .init(darkHex: "F2F6F8", midHex: "D4E2EC", lightHex: "3A6888")
+            )
+        case (.arctic, .cleanupGreen):
+            return .init(
+                darkMode: .init(darkHex: "0A1210", midHex: "264838", lightHex: "78C0A0"),
+                lightMode: .init(darkHex: "EEF8F2", midHex: "CCE8D8", lightHex: "1E6648")
+            )
+        case (.arctic, .clutterTeal):
+            return .init(
+                darkMode: .init(darkHex: "0A1014", midHex: "243E4C", lightHex: "72B0C0"),
+                lightMode: .init(darkHex: "EEF6FA", midHex: "CCE4EE", lightHex: "1C6472")
+            )
+        case (.arctic, .applicationsBlue):
+            return .init(
+                darkMode: .init(darkHex: "0A0E16", midHex: "263860", lightHex: "7898CC"),
+                lightMode: .init(darkHex: "F0F2FA", midHex: "D2DAF0", lightHex: "2848A0")
+            )
+        case (.arctic, .performanceOrange):
+            return .init(
+                darkMode: .init(darkHex: "120E0A", midHex: "503418", lightHex: "C89C70"),
+                lightMode: .init(darkHex: "F8F4EE", midHex: "ECD8C0", lightHex: "7C5028")
+            )
+        case (.arctic, .protectionMagenta):
+            return .init(
+                darkMode: .init(darkHex: "100A10", midHex: "40203E", lightHex: "B080AA"),
+                lightMode: .init(darkHex: "F6F0F6", midHex: "E2D0E0", lightHex: "6A2864")
+            )
         }
     }
+    // swiftlint:enable function_body_length cyclomatic_complexity
 }
 
 // MARK: - Neutral / Text / Stroke
@@ -365,6 +658,34 @@ enum TonicMotionToken {
     static var springTap: Animation {
         .spring(response: springTapResponse, dampingFraction: springTapDamping)
     }
+
+    // MARK: Hero Breathing
+
+    static let breathingScale: ClosedRange<CGFloat> = 1.0 ... 1.015
+    static let breathingDuration: Double = 4.5
+
+    // MARK: Scan Pulse
+
+    static let scanPulseAmplitude: Double = 0.04
+    static let scanPulseDuration: Double = 2.0
+
+    // MARK: Stage Transitions
+
+    static let stageExitDuration: Double = 0.20
+    static var stageEnterSpring: Animation { .spring(response: 0.40, dampingFraction: 0.85) }
+    static var stageCheckmarkSpring: Animation { .spring(response: 0.30, dampingFraction: 0.60) }
+
+    // MARK: Result Reveal
+
+    static let resultStaggerDelay: Double = 0.08
+    static var resultCardSpring: Animation { .spring(response: 0.45, dampingFraction: 0.82) }
+    static var resultMetricSpring: Animation { .spring(response: 0.50, dampingFraction: 0.75) }
+    static let resultCountUpDuration: Double = 0.80
+
+    // MARK: Modal
+
+    static var modalPresentSpring: Animation { .spring(response: 0.50, dampingFraction: 0.86) }
+    static var modalDismissSpring: Animation { .spring(response: 0.30, dampingFraction: 0.90) }
 }
 
 enum TonicControlState: String, CaseIterable, Sendable {
@@ -455,23 +776,23 @@ enum TonicGlassToken {
     static func alphaProfile(for colorScheme: ColorScheme, variant: TonicGlassVariant = .base) -> TonicGlassAlphaProfile {
         let isDark = colorScheme == .dark
 
-        // In light mode, glass is a finishing layer over solid surfaces, not the primary material.
-        var fillAlpha = isDark ? 0.06 : 0.02
-        var vignetteAlpha = isDark ? 0.22 : 0.03
-        var strokeAlpha = isDark ? 0.10 : 0.10
-        let innerHighlightAlpha = isDark ? 0.06 : 0.16
-        var shadowAlpha = isDark ? 0.35 : 0.06
+        // Premium glass: slightly higher fill for depth, refined vignette for richness.
+        var fillAlpha = isDark ? 0.07 : 0.025
+        var vignetteAlpha = isDark ? 0.24 : 0.035
+        var strokeAlpha = isDark ? 0.11 : 0.10
+        let innerHighlightAlpha = isDark ? 0.07 : 0.18
+        var shadowAlpha = isDark ? 0.38 : 0.07
 
         switch variant {
         case .base:
             break
         case .raised:
-            fillAlpha += 0.02
+            fillAlpha += 0.025
             strokeAlpha += 0.02
-            shadowAlpha += 0.05
+            shadowAlpha += 0.06
         case .sunken:
-            vignetteAlpha += 0.04
-            fillAlpha -= 0.01
+            vignetteAlpha += 0.05
+            fillAlpha -= 0.015
         }
 
         return TonicGlassAlphaProfile(
