@@ -285,3 +285,253 @@ final class DesignTokensTests: XCTestCase {
         XCTAssertNotNil(DesignTokens.Layout.self)
     }
 }
+
+final class TonicThemeTokensTests: XCTestCase {
+
+    func testMutedProWorldTokenHexValues() {
+        let smartScan = TonicWorld.smartScanPurple.token
+        XCTAssertEqual(smartScan.darkMode.darkHex, "0C0B1B")
+        XCTAssertEqual(smartScan.darkMode.midHex, "2E295E")
+        XCTAssertEqual(smartScan.darkMode.lightHex, "AFA6E6")
+        XCTAssertEqual(smartScan.lightMode.darkHex, "F1F0FF")
+        XCTAssertEqual(smartScan.lightMode.midHex, "D6D1FF")
+        XCTAssertEqual(smartScan.lightMode.lightHex, "5B4EF0")
+
+        let cleanup = TonicWorld.cleanupGreen.token
+        XCTAssertEqual(cleanup.darkMode.darkHex, "0A1712")
+        XCTAssertEqual(cleanup.lightMode.lightHex, "1F6A4A")
+
+        let clutter = TonicWorld.clutterTeal.token
+        XCTAssertEqual(clutter.darkMode.midHex, "244A50")
+        XCTAssertEqual(clutter.lightMode.midHex, "CDEFF1")
+
+        let apps = TonicWorld.applicationsBlue.token
+        XCTAssertEqual(apps.darkMode.lightHex, "86A6E6")
+        XCTAssertEqual(apps.lightMode.lightHex, "2B4ED6")
+
+        let performance = TonicWorld.performanceOrange.token
+        XCTAssertEqual(performance.darkMode.midHex, "6E341B")
+        XCTAssertEqual(performance.lightMode.darkHex, "FFF3EC")
+
+        let protection = TonicWorld.protectionMagenta.token
+        XCTAssertEqual(protection.darkMode.lightHex, "E4A0CA")
+        XCTAssertEqual(protection.lightMode.midHex, "FFD1EB")
+    }
+
+    func testDerivedGlowAndGlassProfiles() {
+        let theme = TonicTheme(world: .smartScanPurple)
+        XCTAssertNotNil(theme.glowSoft)
+        XCTAssertNotNil(theme.glowStrong)
+        XCTAssertNotNil(theme.glow) // back-compat alias
+
+        let darkBase = TonicGlassToken.alphaProfile(for: .dark, variant: .base)
+        let darkRaised = TonicGlassToken.alphaProfile(for: .dark, variant: .raised)
+        let darkSunken = TonicGlassToken.alphaProfile(for: .dark, variant: .sunken)
+        let lightBase = TonicGlassToken.alphaProfile(for: .light, variant: .base)
+        let lightRaised = TonicGlassToken.alphaProfile(for: .light, variant: .raised)
+        let lightSunken = TonicGlassToken.alphaProfile(for: .light, variant: .sunken)
+
+        XCTAssertEqual(darkBase.fill, 0.06, accuracy: 0.0001)
+        XCTAssertEqual(darkBase.vignette, 0.22, accuracy: 0.0001)
+        XCTAssertEqual(darkBase.stroke, 0.10, accuracy: 0.0001)
+        XCTAssertEqual(darkBase.innerHighlight, 0.06, accuracy: 0.0001)
+        XCTAssertEqual(darkBase.shadow, 0.35, accuracy: 0.0001)
+
+        XCTAssertEqual(darkRaised.fill, 0.08, accuracy: 0.0001)
+        XCTAssertEqual(darkRaised.stroke, 0.12, accuracy: 0.0001)
+        XCTAssertEqual(darkRaised.shadow, 0.40, accuracy: 0.0001)
+
+        XCTAssertEqual(darkSunken.vignette, 0.26, accuracy: 0.0001)
+        XCTAssertEqual(darkSunken.fill, 0.05, accuracy: 0.0001)
+
+        XCTAssertEqual(lightBase.fill, 0.02, accuracy: 0.0001)
+        XCTAssertEqual(lightBase.vignette, 0.03, accuracy: 0.0001)
+        XCTAssertEqual(lightBase.stroke, 0.10, accuracy: 0.0001)
+        XCTAssertEqual(lightBase.innerHighlight, 0.16, accuracy: 0.0001)
+        XCTAssertEqual(lightBase.shadow, 0.06, accuracy: 0.0001)
+
+        XCTAssertEqual(lightRaised.fill, 0.04, accuracy: 0.0001)
+        XCTAssertEqual(lightRaised.stroke, 0.12, accuracy: 0.0001)
+        XCTAssertEqual(lightRaised.shadow, 0.11, accuracy: 0.0001)
+
+        XCTAssertEqual(lightSunken.vignette, 0.07, accuracy: 0.0001)
+        XCTAssertEqual(lightSunken.fill, 0.01, accuracy: 0.0001)
+    }
+
+    func testStatusPaletteHexValues() {
+        let lightSuccess = TonicStatusPalette.style(.success, for: .light)
+        assertColor(lightSuccess.fill, hex: "E6F6ED")
+        assertColor(lightSuccess.stroke, hex: "BFE7CF")
+        assertColor(lightSuccess.text, hex: "116A3C")
+
+        let lightWarning = TonicStatusPalette.style(.warning, for: .light)
+        assertColor(lightWarning.fill, hex: "FFF3E2")
+        assertColor(lightWarning.stroke, hex: "FFD7A6")
+        assertColor(lightWarning.text, hex: "8A4B00")
+
+        let lightDanger = TonicStatusPalette.style(.danger, for: .light)
+        assertColor(lightDanger.fill, hex: "FFE9EA")
+        assertColor(lightDanger.stroke, hex: "FFC0C4")
+        assertColor(lightDanger.text, hex: "8B1D2C")
+
+        let lightInfo = TonicStatusPalette.style(.info, for: .light)
+        assertColor(lightInfo.fill, hex: "E9F1FF")
+        assertColor(lightInfo.stroke, hex: "C7DAFF")
+        assertColor(lightInfo.text, hex: "1C4FA8")
+
+        let lightNeutral = TonicStatusPalette.style(.neutral, for: .light)
+        assertColor(lightNeutral.fill, hex: "EEF0F4")
+        assertColor(lightNeutral.stroke, hex: "D8DCE6")
+        assertColor(lightNeutral.text, hex: "3B4254")
+
+        let darkSuccess = TonicStatusPalette.style(.success, for: .dark)
+        assertColor(darkSuccess.fill, hex: "123022")
+        assertColor(darkSuccess.stroke, hex: "1E5A3C")
+        assertColor(darkSuccess.text, hex: "8BE0B4")
+
+        let darkWarning = TonicStatusPalette.style(.warning, for: .dark)
+        assertColor(darkWarning.fill, hex: "2A1E10")
+        assertColor(darkWarning.stroke, hex: "6C3F12")
+        assertColor(darkWarning.text, hex: "FFC57A")
+
+        let darkDanger = TonicStatusPalette.style(.danger, for: .dark)
+        assertColor(darkDanger.fill, hex: "2C1215")
+        assertColor(darkDanger.stroke, hex: "6B1E2A")
+        assertColor(darkDanger.text, hex: "FF9AA3")
+
+        let darkInfo = TonicStatusPalette.style(.info, for: .dark)
+        assertColor(darkInfo.fill, hex: "0F1D33")
+        assertColor(darkInfo.stroke, hex: "1D3F7A")
+        assertColor(darkInfo.text, hex: "9EC2FF")
+
+        let darkNeutral = TonicStatusPalette.style(.neutral, for: .dark)
+        assertColor(darkNeutral.fill, hex: "161A22")
+        assertColor(darkNeutral.stroke, hex: "2A3242")
+        assertColor(darkNeutral.text, hex: "B9C0D0")
+    }
+
+    func testSemanticDefaultsAndChipGeometry() {
+        XCTAssertNotNil(TonicStatusPalette.fill(.success))
+        XCTAssertNotNil(TonicStatusPalette.fill(.info))
+        XCTAssertNotNil(TonicStatusPalette.fill(.warning))
+        XCTAssertNotNil(TonicStatusPalette.fill(.danger))
+        XCTAssertNotNil(TonicStatusPalette.fill(.neutral))
+
+        let darkSemantic = TonicChipTokens.style(
+            role: .semantic(.warning),
+            strength: .subtle,
+            colorScheme: .dark
+        )
+
+        XCTAssertEqual(darkSemantic.height, 27)
+        XCTAssertEqual(darkSemantic.radius, 999)
+        XCTAssertEqual(darkSemantic.paddingX, 11)
+        XCTAssertEqual(darkSemantic.paddingY, 5)
+        XCTAssertEqual(darkSemantic.iconSize, 12)
+        XCTAssertEqual(darkSemantic.strokeWidth, 1)
+        XCTAssertEqual(alpha(of: darkSemantic.backgroundBase), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: darkSemantic.backgroundTint), 0, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: darkSemantic.stroke), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: darkSemantic.text), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: darkSemantic.icon), 1, accuracy: 0.0001)
+
+        let darkStrong = TonicChipTokens.style(
+            role: .semantic(.warning),
+            strength: .strong,
+            colorScheme: .dark
+        )
+        XCTAssertGreaterThan(alpha(of: darkStrong.backgroundTint), 0.05)
+        XCTAssertEqual(alpha(of: darkStrong.stroke), 1, accuracy: 0.0001)
+
+        let worldChip = TonicChipTokens.style(
+            role: .world(.performanceOrange),
+            strength: .strong,
+            colorScheme: .dark
+        )
+        XCTAssertEqual(worldChip.height, 27)
+        XCTAssertEqual(worldChip.radius, 999)
+        XCTAssertEqual(alpha(of: worldChip.backgroundTint), 0.18, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: worldChip.stroke), 0.34, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: worldChip.icon), 0.85, accuracy: 0.0001)
+
+        let lightSemantic = TonicChipTokens.style(
+            role: .semantic(.info),
+            strength: .subtle,
+            colorScheme: .light
+        )
+        XCTAssertEqual(alpha(of: lightSemantic.backgroundBase), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: lightSemantic.backgroundTint), 0, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: lightSemantic.stroke), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: lightSemantic.text), 1, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: lightSemantic.icon), 1, accuracy: 0.0001)
+
+        let outline = TonicChipTokens.style(
+            role: .semantic(.neutral),
+            strength: .outline,
+            colorScheme: .dark
+        )
+        XCTAssertEqual(alpha(of: outline.backgroundTint), 0, accuracy: 0.0001)
+        XCTAssertEqual(alpha(of: outline.stroke), 1, accuracy: 0.0001)
+        XCTAssertEqual(outline.strokeWidth, 1)
+    }
+
+    func testButtonStateTokensAreDeterministic() {
+        let defaultToken = TonicButtonStateTokens.token(for: .default)
+        XCTAssertEqual(defaultToken.scale, 1)
+        XCTAssertEqual(defaultToken.brightnessDelta, 0, accuracy: 0.0001)
+        XCTAssertEqual(defaultToken.strokeBoostOpacity, 0, accuracy: 0.0001)
+
+        let hover = TonicButtonStateTokens.token(for: .hover)
+        XCTAssertEqual(hover.scale, 1)
+        XCTAssertEqual(hover.brightnessDelta, 0.06, accuracy: 0.0001)
+        XCTAssertEqual(hover.strokeBoostOpacity, 0.16, accuracy: 0.0001)
+
+        let pressed = TonicButtonStateTokens.token(for: .pressed)
+        XCTAssertEqual(pressed.scale, 0.98, accuracy: 0.0001)
+        XCTAssertEqual(pressed.shadowMultiplier, 0.7, accuracy: 0.0001)
+
+        let focused = TonicButtonStateTokens.token(for: .focused)
+        XCTAssertEqual(focused.scale, 1)
+        XCTAssertEqual(focused.strokeBoostOpacity, 0.10, accuracy: 0.0001)
+
+        let disabled = TonicButtonStateTokens.token(for: .disabled)
+        XCTAssertEqual(disabled.contentOpacity, 0.5, accuracy: 0.0001)
+    }
+
+    func testButtonTokenBaseValues() {
+        let lightPrimary = TonicButtonTokens.primary(for: .light)
+        assertColor(lightPrimary.background, hex: "111318")
+        assertColor(lightPrimary.foreground, hex: "FFFFFF")
+
+        let darkPrimary = TonicButtonTokens.primary(for: .dark)
+        assertColor(darkPrimary.background, hex: "FFFFFF")
+        assertColor(darkPrimary.foreground, hex: "0B0C10")
+
+        let lightSecondary = TonicButtonTokens.secondary(for: .light)
+        assertColor(lightSecondary.background, hex: "FFFFFF", alpha: 168.0 / 255.0)
+
+        let darkSecondary = TonicButtonTokens.secondary(for: .dark)
+        assertColor(darkSecondary.background, hex: "FFFFFF", alpha: 31.0 / 255.0)
+    }
+
+    private func alpha(of color: Color) -> Double {
+        let nsColor = NSColor(color)
+        return Double((nsColor.usingColorSpace(.deviceRGB) ?? nsColor).alphaComponent)
+    }
+
+    private func assertColor(
+        _ color: Color,
+        hex: String,
+        alpha: Double = 1.0,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let nsColor = NSColor(color).usingColorSpace(.deviceRGB) ?? NSColor(color)
+        let r = Int(round(nsColor.redComponent * 255))
+        let g = Int(round(nsColor.greenComponent * 255))
+        let b = Int(round(nsColor.blueComponent * 255))
+        let actualHex = String(format: "%02X%02X%02X", r, g, b)
+        XCTAssertEqual(actualHex, hex, file: file, line: line)
+        XCTAssertEqual(Double(nsColor.alphaComponent), alpha, accuracy: 0.002, file: file, line: line)
+    }
+}
