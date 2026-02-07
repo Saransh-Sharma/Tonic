@@ -331,4 +331,66 @@ final class DashboardViewTests: XCTestCase {
         let metric = "RAM: 8.2 GB (50%)"
         XCTAssertFalse(metric.isEmpty)
     }
+
+    // MARK: - Smart Scan Session Persistence
+
+    @MainActor
+    func testDashboardSharedScanManagerPersistsAcrossViewRecreation() {
+        let manager = SmartScanManager()
+        manager.hasScanResult = true
+        manager.healthScore = 88
+
+        let recommendation = ScanRecommendation(
+            type: .cache,
+            title: "Clean cache files",
+            description: "Remove reclaimable cache data",
+            actionable: true,
+            safeToFix: true,
+            spaceToReclaim: 512 * 1024 * 1024,
+            affectedPaths: ["/tmp/cache"],
+            scoreImpact: 6
+        )
+        manager.recommendations = [
+            Recommendation(
+                scanRecommendation: recommendation,
+                type: .clean,
+                category: .cache,
+                priority: .medium,
+                actionText: "Clean Now"
+            ),
+        ]
+        manager.activityHistory = [
+            ActivityItem(
+                timestamp: Date(),
+                type: .scan,
+                title: "Smart Scan Completed",
+                description: "Found reclaimable files",
+                impact: .medium
+            ),
+        ]
+
+        let firstView = DashboardView(scanManager: manager)
+        let secondView = DashboardView(scanManager: manager)
+
+        XCTAssertEqual(ObjectIdentifier(firstView.scanManager), ObjectIdentifier(secondView.scanManager))
+        XCTAssertEqual(firstView.scanManager.healthScore, 88)
+        XCTAssertTrue(secondView.scanManager.hasScanResult)
+        XCTAssertEqual(secondView.scanManager.recommendations.count, 1)
+        XCTAssertEqual(secondView.scanManager.activityHistory.count, 1)
+    }
+
+    @MainActor
+    func testDetailViewReceivesInjectedDashboardScanManager() {
+        let manager = SmartScanManager()
+        let smartCareSession = SmartCareSessionStore()
+
+        let detailView = DetailView(
+            item: .dashboard,
+            onPermissionNeeded: { _ in },
+            smartCareSession: smartCareSession,
+            dashboardScanSession: manager
+        )
+
+        XCTAssertEqual(ObjectIdentifier(detailView.dashboardScanSession), ObjectIdentifier(manager))
+    }
 }

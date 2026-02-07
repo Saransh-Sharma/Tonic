@@ -8,6 +8,24 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Smart Scan Pillar
+
+enum SmartScanStage: String, CaseIterable, Identifiable, Sendable {
+    case space = "Space"
+    case performance = "Performance"
+    case apps = "Apps"
+
+    var id: String { rawValue }
+}
+
+struct SmartScanLiveCounters: Sendable {
+    var spaceBytesFound: Int64
+    var performanceFlaggedCount: Int
+    var appsScannedCount: Int
+
+    static let zero = SmartScanLiveCounters(spaceBytesFound: 0, performanceFlaggedCount: 0, appsScannedCount: 0)
+}
+
 // MARK: - Smart Care Domain
 
 enum SmartCareDomain: String, CaseIterable, Identifiable, Sendable {
@@ -179,4 +197,41 @@ struct SmartCareScanUpdate: Sendable {
     let detail: String
     let progress: Double
     let currentItem: String?
+    let currentStage: SmartScanStage
+    let completedStages: [SmartScanStage]
+    let spaceBytesFound: Int64
+    let performanceFlaggedCount: Int
+    let appsScannedCount: Int
+
+    var liveCounters: SmartScanLiveCounters {
+        SmartScanLiveCounters(
+            spaceBytesFound: spaceBytesFound,
+            performanceFlaggedCount: performanceFlaggedCount,
+            appsScannedCount: appsScannedCount
+        )
+    }
+
+    init(
+        domain: SmartCareDomain,
+        title: String,
+        detail: String,
+        progress: Double,
+        currentItem: String?,
+        currentStage: SmartScanStage = .space,
+        completedStages: [SmartScanStage] = [],
+        spaceBytesFound: Int64 = 0,
+        performanceFlaggedCount: Int = 0,
+        appsScannedCount: Int = 0
+    ) {
+        self.domain = domain
+        self.title = title
+        self.detail = detail
+        self.progress = progress
+        self.currentItem = currentItem
+        self.currentStage = currentStage
+        self.completedStages = completedStages
+        self.spaceBytesFound = spaceBytesFound
+        self.performanceFlaggedCount = performanceFlaggedCount
+        self.appsScannedCount = appsScannedCount
+    }
 }

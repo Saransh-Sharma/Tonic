@@ -170,10 +170,10 @@ public struct PopupSettingsView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("60s")
-                        .font(DesignTokens.Typography.caption2)
+                        .font(DesignTokens.Typography.captionSmall)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
                     Text("300s")
-                        .font(DesignTokens.Typography.caption2)
+                        .font(DesignTokens.Typography.captionSmall)
                         .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
             }
@@ -252,11 +252,11 @@ public struct PopupSettingsView: View {
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
                         ColorPicker("", selection: Binding(
-                            get: { Color(hex: settings.primaryColor) ?? .blue },
+                            get: { Color(hex: settings.primaryColor) },
                             set: { settings.primaryColor = $0.toHex() }
                         ))
                         .labelsHidden()
-                        .supportsOpacity(false)
+                        .frame(width: 44, height: 24)
 
                         Text(settings.primaryColor)
                             .font(DesignTokens.Typography.monoCaption)
@@ -289,7 +289,7 @@ public struct PopupSettingsView: View {
                             ColorPicker("", selection: Binding(
                                 get: {
                                     if let hex = settings.metricColors[metric.key] {
-                                        return Color(hex: hex) ?? DesignTokens.Colors.accent
+                                        return Color(hex: hex)
                                     }
                                     return DesignTokens.Colors.accent
                                 },
@@ -298,7 +298,7 @@ public struct PopupSettingsView: View {
                                 }
                             ))
                             .labelsHidden()
-                            .supportsOpacity(false)
+                            .frame(width: 44, height: 24)
                         }
                         .padding(.vertical, 4)
                     }
@@ -349,7 +349,7 @@ public struct PopupSettingsView: View {
         } label: {
             VStack(spacing: 4) {
                 Circle()
-                    .fill(Color(hex: hex) ?? .blue)
+                    .fill(Color(hex: hex))
                     .frame(width: 32, height: 32)
                     .overlay(
                         Circle()
@@ -357,7 +357,7 @@ public struct PopupSettingsView: View {
                     )
 
                 Text(name)
-                    .font(DesignTokens.Typography.caption2)
+                    .font(DesignTokens.Typography.captionSmall)
                     .foregroundColor(settings.primaryColor == hex ? DesignTokens.Colors.accent : DesignTokens.Colors.textSecondary)
             }
         }
@@ -381,20 +381,6 @@ public struct PopupSettingsView: View {
 // MARK: - Color Extension
 
 extension Color {
-    init?(hex: String) {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
-
-        var rgb: UInt64 = 0
-        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
-
-        let r = Double((rgb & 0xFF0000) >> 16) / 255
-        let g = Double((rgb & 0x00FF00) >> 8) / 255
-        let b = Double(rgb & 0x0000FF) / 255
-
-        self.init(red: r, green: g, blue: b)
-    }
-
     func toHex() -> String {
         #if os(macOS)
         guard let components = NSColor(self).usingColorSpace(.deviceRGB) else {

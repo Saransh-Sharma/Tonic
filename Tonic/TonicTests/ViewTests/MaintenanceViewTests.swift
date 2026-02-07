@@ -323,3 +323,187 @@ final class MaintenanceViewTests: XCTestCase {
         XCTAssertTrue(cleanComplete)
     }
 }
+
+final class SmartScanDeepLinkMapperTests: XCTestCase {
+
+    func testSectionReviewRoutes() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.space)),
+            .manager(.space(.spaceRoot))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.performance)),
+            .manager(.performance(.root(defaultNav: .maintenanceTasks)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .section(.apps)),
+            .manager(.apps(.root(defaultNav: .uninstaller)))
+        )
+    }
+
+    func testContributorReviewRoutes() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "xcodeJunk")),
+            .manager(.space(.cleanup(.systemJunk, categoryId: CleanupCategoryID(raw: "xcodeJunk"), rowId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "downloads")),
+            .manager(.space(.clutter(.downloads, filter: .allFiles, groupId: nil, fileId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "duplicates")),
+            .manager(.space(.clutter(.duplicates, filter: .allFiles, groupId: nil, fileId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "maintenanceTasks")),
+            .manager(.performance(.maintenanceTasks(preselectTaskIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "backgroundItems")),
+            .manager(.performance(.backgroundItems(preselectItemIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "loginItems")),
+            .manager(.performance(.loginItems(preselectItemIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "uninstaller")),
+            .manager(.apps(.uninstaller(filter: .all)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "updater")),
+            .manager(.apps(.updater))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "leftovers")),
+            .manager(.apps(.leftovers))
+        )
+    }
+
+    func testUnknownContributorFallsBackToSmartScan() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .contributor(id: "unknown-contributor")),
+            .smartScan
+        )
+    }
+
+    func testTileReviewRoutes() {
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .tile(.spaceXcodeJunk)),
+            .manager(.space(.cleanup(.systemJunk, categoryId: CleanupCategoryID(raw: "xcodeJunk"), rowId: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .tile(.performanceMaintenanceTasks)),
+            .manager(.performance(.maintenanceTasks(preselectTaskIds: nil)))
+        )
+        XCTAssertEqual(
+            SmartScanDeepLinkMapper.destination(for: .tile(.appsLeftovers)),
+            .manager(.apps(.leftovers))
+        )
+    }
+}
+
+@MainActor
+final class SmartScanReviewFlowTests: XCTestCase {
+
+    func testReviewButtonsFlowToManagerRoutes() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.review(target: .section(.space))
+        XCTAssertEqual(store.destination, .manager(.space(.spaceRoot)))
+
+        store.showHub()
+        store.review(target: .section(.performance))
+        XCTAssertEqual(store.destination, .manager(.performance(.root(defaultNav: .maintenanceTasks))))
+
+        store.showHub()
+        store.review(target: .section(.apps))
+        XCTAssertEqual(store.destination, .manager(.apps(.root(defaultNav: .uninstaller))))
+    }
+
+    func testReviewCustomizeNavigatesFromResults() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.reviewCustomize()
+
+        XCTAssertEqual(store.destination, .manager(.space(.spaceRoot)))
+    }
+
+    func testTileReviewFlowNavigatesToManagerRoutes() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.review(target: .tile(.appsUnused))
+
+        XCTAssertEqual(store.destination, .manager(.apps(.uninstaller(filter: .unused))))
+    }
+
+    func testQuickActionEmptyItemsShowsInformationalSummary() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .results
+
+        store.presentQuickAction(for: .appsUpdates, action: .update)
+        store.startQuickActionRun()
+
+        XCTAssertFalse(store.quickActionIsRunning)
+        XCTAssertEqual(store.quickActionSummary?.message, "No runnable items available for this action.")
+    }
+
+    func testQuickActionPresentationBlockedDuringGlobalRun() {
+        let store = SmartCareSessionStore()
+        store.scanResult = SmartCareResult(timestamp: Date(), duration: 0, domainResults: [:])
+        store.hubMode = .running
+
+        store.presentQuickAction(for: .spaceSystemJunk, action: .clean)
+
+        XCTAssertNil(store.quickActionSheet)
+    }
+
+    func testGlobalRunBlockedWhenQuickActionSheetIsPresented() {
+        let store = SmartCareSessionStore()
+        store.scanResult = sampleResultWithRunnableItem()
+        store.hubMode = .results
+
+        store.presentQuickAction(for: .spaceSystemJunk, action: .clean)
+        XCTAssertNotNil(store.quickActionSheet)
+
+        store.runSmartClean()
+        XCTAssertEqual(store.hubMode, .results)
+    }
+
+    private func sampleResultWithRunnableItem() -> SmartCareResult {
+        let groupID = UUID()
+        let item = SmartCareItem(
+            domain: .cleanup,
+            groupId: groupID,
+            title: "System Junk",
+            subtitle: "Sample",
+            size: 1_024,
+            count: 1,
+            safeToRun: true,
+            isSmartSelected: true,
+            action: .delete(paths: ["/tmp/tonic-test"]),
+            paths: ["/tmp/tonic-test"],
+            scoreImpact: 2
+        )
+        let group = SmartCareGroup(
+            id: groupID,
+            domain: .cleanup,
+            title: "System Junk",
+            description: "Sample cleanup group",
+            items: [item]
+        )
+        let domain = SmartCareDomainResult(domain: .cleanup, groups: [group])
+        return SmartCareResult(
+            timestamp: Date(),
+            duration: 0.5,
+            domainResults: [.cleanup: domain]
+        )
+    }
+}

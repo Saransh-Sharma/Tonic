@@ -37,6 +37,34 @@ public enum TonicColors {
     public static let categoryUtilities = Color(red: 0.6, green: 0.5, blue: 0.3)
 }
 
+enum TonicBrandAssets {
+    private static let preferredAssetNames = [
+        "AppBrand",
+        "Potion Thiings Collection Image"
+    ]
+
+    static func appImage() -> Image {
+        if let image = appNSImage() {
+            return Image(nsImage: image)
+        }
+        return Image(systemName: "app.fill")
+    }
+
+    static func appNSImage() -> NSImage? {
+        for assetName in preferredAssetNames {
+            if let image = NSImage(named: NSImage.Name(assetName)) {
+                return image
+            }
+        }
+
+        if let image = NSImage(named: NSImage.applicationIconName) {
+            return image
+        }
+
+        return NSApp.applicationIconImage
+    }
+}
+
 extension Color {
     /// Initialize from RGB values (0-1)
     init(red: Double, green: Double, blue: Double) {

@@ -44,6 +44,7 @@ public final class AppearancePreferences: @unchecked Sendable {
     public var reduceTransparency: Bool = false
     public var reduceMotion: Bool = false
     public var useHighContrast: Bool = false
+    public var colorPalette: TonicColorPalette = .defaultPurple
 
     private init() {
         loadFromUserDefaults()
@@ -56,6 +57,7 @@ public final class AppearancePreferences: @unchecked Sendable {
         static let reduceTransparency = "tonic.appearance.reduceTransparency"
         static let reduceMotion = "tonic.appearance.reduceMotion"
         static let useHighContrast = "tonic.appearance.useHighContrast"
+        static let colorPalette = "tonic.appearance.colorPalette"
     }
 
     public func setThemeMode(_ mode: ThemeMode) {
@@ -86,7 +88,12 @@ public final class AppearancePreferences: @unchecked Sendable {
     public func setUseHighContrast(_ use: Bool) {
         useHighContrast = use
         UserDefaults.standard.set(use, forKey: Keys.useHighContrast)
-        // Notify observers of theme change
+        NotificationCenter.default.post(name: NSNotification.Name("TonicThemeDidChange"), object: nil)
+    }
+
+    public func setColorPalette(_ palette: TonicColorPalette) {
+        colorPalette = palette
+        UserDefaults.standard.set(palette.rawValue, forKey: Keys.colorPalette)
         NotificationCenter.default.post(name: NSNotification.Name("TonicThemeDidChange"), object: nil)
     }
 
@@ -104,6 +111,11 @@ public final class AppearancePreferences: @unchecked Sendable {
         if let styleString = UserDefaults.standard.string(forKey: Keys.iconStyle),
            let style = IconStyle(rawValue: styleString) {
             iconStyle = style
+        }
+
+        if let paletteString = UserDefaults.standard.string(forKey: Keys.colorPalette),
+           let palette = TonicColorPalette(rawValue: paletteString) {
+            colorPalette = palette
         }
 
         reduceTransparency = UserDefaults.standard.bool(forKey: Keys.reduceTransparency)

@@ -131,7 +131,7 @@ struct PreferencesView: View {
         VStack(spacing: 0) {
             // Header
             VStack(spacing: DesignTokens.Spacing.xs) {
-                Image("AppBrand")
+                TonicBrandAssets.appImage()
                     .resizable()
                     .scaledToFit()
                     .frame(width: 44, height: 44)
@@ -362,6 +362,26 @@ struct GeneralSettingsContent: View {
                                 }
                             }
                         }
+                    }
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md)
+
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                        Text("Color Palette")
+                            .font(DesignTokens.Typography.captionEmphasized)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+
+                        PalettePickerView(
+                            selectedPalette: preferences.colorPalette,
+                            onSelect: { palette in
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    preferences.setColorPalette(palette)
+                                }
+                            }
+                        )
                     }
                     .padding(.vertical, DesignTokens.Spacing.sm)
                     .padding(.horizontal, DesignTokens.Spacing.md)
@@ -1590,7 +1610,7 @@ struct AboutSettingsContent: View {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     // App icon with gradient
                     ZStack {
-                        Image("AppBrand")
+                        TonicBrandAssets.appImage()
                             .resizable()
                             .scaledToFit()
                             .frame(width: 64, height: 64)
@@ -1770,6 +1790,103 @@ struct TechBadge: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Palette Picker
+
+struct PalettePickerView: View {
+    let selectedPalette: TonicColorPalette
+    let onSelect: (TonicColorPalette) -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: DesignTokens.Spacing.sm), count: 4),
+            spacing: DesignTokens.Spacing.sm
+        ) {
+            ForEach(TonicColorPalette.allCases) { palette in
+                PaletteSwatchView(
+                    palette: palette,
+                    isSelected: selectedPalette == palette,
+                    colorScheme: colorScheme
+                ) {
+                    onSelect(palette)
+                }
+            }
+        }
+    }
+}
+
+struct PaletteSwatchView: View {
+    let palette: TonicColorPalette
+    let isSelected: Bool
+    let colorScheme: ColorScheme
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    private var accent: TonicWorldModeColorToken { palette.primaryAccent }
+
+    private var darkColor: Color { Color(hex: accent.darkHex) }
+    private var midColor: Color { Color(hex: accent.midHex) }
+    private var lightColor: Color { Color(hex: accent.lightHex) }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(
+                            LinearGradient(
+                                colors: [darkColor, midColor, lightColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(height: 36)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(
+                                    isSelected
+                                        ? lightColor.opacity(0.9)
+                                        : (isHovered ? lightColor.opacity(0.4) : Color.clear),
+                                    lineWidth: isSelected ? 2.5 : 1.5
+                                )
+                        )
+                        .shadow(
+                            color: isSelected ? lightColor.opacity(0.3) : .clear,
+                            radius: 6, x: 0, y: 2
+                        )
+
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
+                    }
+                }
+
+                Text(palette.displayName)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(
+                        isSelected
+                            ? DesignTokens.Colors.textPrimary
+                            : DesignTokens.Colors.textSecondary
+                    )
+                    .lineLimit(1)
+            }
+            .scaleEffect(isHovered ? 1.04 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(palette.displayName) palette\(isSelected ? ", selected" : "")")
+        .accessibilityHint(palette.mood)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 

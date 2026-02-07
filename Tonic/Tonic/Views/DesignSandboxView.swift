@@ -9,9 +9,11 @@
 import SwiftUI
 
 struct DesignSandboxView: View {
-    @State private var selectedTab: SandboxTab = .cards
+    @State private var selectedTab: SandboxTab = .theme
 
     enum SandboxTab {
+        case theme
+        case smartScan
         case cards
         case metrics
         case preferences
@@ -21,6 +23,8 @@ struct DesignSandboxView: View {
 
         var icon: String {
             switch self {
+            case .theme: return "paintpalette"
+            case .smartScan: return "sparkles"
             case .cards: return "square.grid.2x2"
             case .metrics: return "chart.line.uptrend.xyaxis"
             case .preferences: return "list.bullet"
@@ -32,6 +36,8 @@ struct DesignSandboxView: View {
 
         var label: String {
             switch self {
+            case .theme: return "Theme"
+            case .smartScan: return "Smart Scan"
             case .cards: return "Cards"
             case .metrics: return "Metrics"
             case .preferences: return "Preferences"
@@ -46,7 +52,7 @@ struct DesignSandboxView: View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach([SandboxTab.cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
+                ForEach([SandboxTab.theme, .smartScan, .cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
                     VStack(spacing: DesignTokens.Spacing.xxxs) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 14, weight: .semibold))
@@ -75,6 +81,10 @@ struct DesignSandboxView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     switch selectedTab {
+                    case .theme:
+                        ThemeSandboxShowcase()
+                    case .smartScan:
+                        SmartScanSandboxShowcase()
                     case .cards:
                         CardsShowcase()
                     case .metrics:
@@ -481,6 +491,570 @@ struct MiscShowcase: View {
                 .cornerRadius(DesignTokens.CornerRadius.medium)
             }
         }
+    }
+}
+
+// MARK: - Theme Sandbox
+
+struct ThemeSandboxShowcase: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Tonic Theme")
+                .font(DesignTokens.Typography.h2)
+
+            Text("Immersive world canvases, glass surfaces, typography, depth, and calm motion tokens.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            SectionShowcase(title: "World Canvases") {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: DesignTokens.Spacing.md) {
+                    ForEach(TonicWorld.allCases) { world in
+                        TonicThemeProvider(world: world) {
+                            ZStack {
+                                WorldCanvasBackground()
+                                Text(worldLabel(world))
+                                    .font(TonicTypeToken.caption.weight(.semibold))
+                                    .foregroundStyle(TonicTextToken.primary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(TonicNeutralToken.white.opacity(0.14))
+                                    .clipShape(Capsule())
+                            }
+                            .frame(height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+            }
+
+            SectionShowcase(title: "Glass Surfaces") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        GlassCard {
+                            Text("Glass Card")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+                        }
+                        GlassPanel {
+                            Text("Glass Panel")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+                        }
+                        PageHeader(
+                            title: "Glass Header",
+                            subtitle: "Header variant",
+                            showsBack: true,
+                            searchText: nil,
+                            onBack: {},
+                            trailing: nil
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Typography Scale") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            DisplayText("Display")
+                            TitleText("Title")
+                            BodyText("Body text for paragraph content.")
+                            CaptionText("Caption text")
+                            MicroText("Micro text")
+                        }
+                    }
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Shadow / Radius / Spacing") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(alignment: .leading, spacing: TonicSpaceToken.three) {
+                        HStack(spacing: TonicSpaceToken.two) {
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.s)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.m)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.l)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                            RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                                .fill(TonicGlassToken.fill)
+                                .frame(width: 70, height: 44)
+                        }
+
+                        Text("Spacing scale: 8, 12, 16, 24, 32, 48, 64")
+                            .font(TonicTypeToken.micro)
+                            .foregroundStyle(TonicTextToken.secondary)
+                    }
+                    .padding(TonicSpaceToken.three)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Motion Preview") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundStyle(TonicTextToken.primary)
+                            .breathingHero()
+
+                        PrimaryActionButton(title: "Hover + Press", icon: "hand.tap", action: {})
+                            .calmHover()
+                    }
+                    .padding(TonicSpaceToken.three)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        }
+    }
+
+    private func worldLabel(_ world: TonicWorld) -> String {
+        switch world {
+        case .smartScanPurple: return "Smart Scan Purple"
+        case .cleanupGreen: return "Cleanup Green"
+        case .clutterTeal: return "Clutter Teal"
+        case .applicationsBlue: return "Applications Blue"
+        case .performanceOrange: return "Performance Orange"
+        case .protectionMagenta: return "Protection Magenta"
+        }
+    }
+}
+
+// MARK: - Smart Scan Sandbox
+
+struct SmartScanSandboxShowcase: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Smart Scan Components")
+                .font(DesignTokens.Typography.h2)
+
+            Text("Bento layouts, command dock states, quick action overlays, and badge mapping.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            SectionShowcase(title: "Glass Rendering Modes") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            Text("Legacy")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+
+                            GlassPanel(radius: TonicRadiusToken.xl) {
+                                VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                                    Text("Smart Scan Legacy Glass")
+                                        .font(TonicTypeToken.body.weight(.semibold))
+                                        .foregroundStyle(TonicTextToken.primary)
+                                    Text("Custom fill + stroke + highlight surface.")
+                                        .font(TonicTypeToken.caption)
+                                        .foregroundStyle(TonicTextToken.secondary)
+                                }
+                            }
+
+                            SmartScanCommandDock(
+                                mode: .results,
+                                summary: "Recommended: 18 tasks • Space: 80.55 GB • Apps: 38 apps",
+                                primaryEnabled: true,
+                                secondaryTitle: "Customize",
+                                onSecondaryAction: {},
+                                action: {}
+                            )
+                        }
+                        .tonicGlassRenderingMode(.legacy)
+                        .tonicForceLegacyGlass(true)
+
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            Text("Liquid")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+
+                            GlassPanel(radius: TonicRadiusToken.xl) {
+                                VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                                    Text("Smart Scan Liquid Glass")
+                                        .font(TonicTypeToken.body.weight(.semibold))
+                                        .foregroundStyle(TonicTextToken.primary)
+                                    Text("Apple liquid glass surface on macOS 26+.")
+                                        .font(TonicTypeToken.caption)
+                                        .foregroundStyle(TonicTextToken.secondary)
+                                }
+                            }
+
+                            SmartScanQuickActionCard(
+                                sheet: demoQuickSheet,
+                                progress: 0.33,
+                                summary: nil,
+                                isRunning: true,
+                                onStart: {},
+                                onStop: {},
+                                onDone: {}
+                            )
+                        }
+                        .tonicGlassRenderingMode(.liquid)
+                        .tonicForceLegacyGlass(false)
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Command Dock States") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        SmartScanCommandDock(
+                            mode: .ready,
+                            summary: "Run Smart Scan across Space, Performance, and Apps.",
+                            primaryEnabled: true,
+                            secondaryTitle: nil,
+                            onSecondaryAction: nil,
+                            action: {}
+                        )
+                        SmartScanCommandDock(
+                            mode: .scanning,
+                            summary: "Scanning: 44% • Space: 32.4 GB • Performance: 12 items • Apps: 38 apps",
+                            primaryEnabled: true,
+                            secondaryTitle: nil,
+                            onSecondaryAction: nil,
+                            action: {}
+                        )
+                        SmartScanCommandDock(
+                            mode: .results,
+                            summary: "Recommended: 18 tasks • Space: 80.55 GB • Apps: 38 apps",
+                            primaryEnabled: true,
+                            secondaryTitle: "Customize",
+                            onSecondaryAction: {},
+                            action: {}
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Pillar Header Variants") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        PillarSectionHeader(
+                            title: "Space",
+                            subtitle: "Cleanup + Clutter",
+                            summary: "107.47 GB reclaimable",
+                            sectionActionTitle: "Review All Junk",
+                            world: .cleanupGreen,
+                            onSectionAction: {}
+                        )
+                        PillarSectionHeader(
+                            title: "Performance",
+                            subtitle: "Optimize + Startup Control",
+                            summary: "23 items affecting startup",
+                            sectionActionTitle: "View All Tasks",
+                            world: .performanceOrange,
+                            onSectionAction: {}
+                        )
+                        PillarSectionHeader(
+                            title: "Apps",
+                            subtitle: "Uninstall + Updates + Leftovers",
+                            summary: "88 apps found",
+                            sectionActionTitle: "Manage My Applications",
+                            world: .applicationsBlue,
+                            onSectionAction: {}
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Bento Grid Layout Matrix") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        BentoGrid(
+                            world: .cleanupGreen,
+                            tiles: demoSpaceTiles,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                        BentoGrid(
+                            world: .performanceOrange,
+                            tiles: demoPerformanceTiles,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Bento Tile Actions") {
+                TonicThemeProvider(world: .applicationsBlue) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        BentoTile(
+                            model: demoAppsTiles[0],
+                            world: .applicationsBlue,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                        BentoTile(
+                            model: demoAppsTiles[2],
+                            world: .applicationsBlue,
+                            onReview: { _ in },
+                            onAction: { _, _ in }
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Quick Action Card States") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 0,
+                            summary: nil,
+                            isRunning: false,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 0.47,
+                            summary: nil,
+                            isRunning: true,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                        SmartScanQuickActionCard(
+                            sheet: demoQuickSheet,
+                            progress: 1,
+                            summary: SmartScanRunSummary(tasksRun: 4, spaceFreed: 2_484_000_000, errors: 1, scoreImprovement: 6),
+                            isRunning: false,
+                            onStart: {},
+                            onStop: {},
+                            onDone: {}
+                        )
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Full Results Composition") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        PillarSectionHeader(
+                            title: "Space",
+                            subtitle: "Cleanup + Clutter",
+                            summary: "144 GB reclaimable",
+                            sectionActionTitle: "Review All Junk",
+                            world: .cleanupGreen,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .cleanupGreen, tiles: demoSpaceTiles, onReview: { _ in }, onAction: { _, _ in })
+                        PillarSectionHeader(
+                            title: "Performance",
+                            subtitle: "Optimize + Startup Control",
+                            summary: "23 items affecting startup",
+                            sectionActionTitle: "View All Tasks",
+                            world: .performanceOrange,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .performanceOrange, tiles: demoPerformanceTiles, onReview: { _ in }, onAction: { _, _ in })
+                        PillarSectionHeader(
+                            title: "Apps",
+                            subtitle: "Uninstall + Updates + Leftovers",
+                            summary: "88 apps found",
+                            sectionActionTitle: "Manage My Applications",
+                            world: .applicationsBlue,
+                            onSectionAction: {}
+                        )
+                        BentoGrid(world: .applicationsBlue, tiles: demoAppsTiles, onReview: { _ in }, onAction: { _, _ in })
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
+            SectionShowcase(title: "Badge World Mapping") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.two) {
+                        ScanTimelineStepper(
+                            stages: ["Space", "Performance", "Apps"],
+                            activeIndex: 1,
+                            completed: [0]
+                        )
+                        HStack(spacing: TonicSpaceToken.two) {
+                            LiveCounterChip(label: "Space", value: "32.4 GB")
+                            LiveCounterChip(label: "Performance", value: "12 items")
+                            LiveCounterChip(label: "Apps", value: "38 apps")
+                        }
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        }
+    }
+
+    private var demoSpaceTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .spaceSystemJunk,
+                size: .large,
+                metricTitle: "22.5 GB",
+                title: "System Junk Found",
+                subtitle: "Clean up all unneeded files generated by your system.",
+                iconSymbols: ["gearshape.2.fill", "clock.fill", "person.crop.circle"],
+                reviewTarget: .tile(.spaceSystemJunk),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Clean", kind: .clean)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceTrashBins,
+                size: .wide,
+                metricTitle: "327 MB",
+                title: "Trash Bins Found",
+                subtitle: "Delete trash bin contents for good.",
+                iconSymbols: ["trash.fill"],
+                reviewTarget: .tile(.spaceTrashBins),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Clean", kind: .clean)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceExtraBinaries,
+                size: .small,
+                metricTitle: "3.2 GB",
+                title: "Extra Binaries Found",
+                subtitle: "Binary artifacts detected.",
+                iconSymbols: ["terminal.fill"],
+                reviewTarget: .tile(.spaceExtraBinaries),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .spaceXcodeJunk,
+                size: .small,
+                metricTitle: "118 GB",
+                title: "Xcode Junk Found",
+                subtitle: "Developer caches and runtimes.",
+                iconSymbols: ["hammer.fill", "chevron.left.forwardslash.chevron.right"],
+                reviewTarget: .tile(.spaceXcodeJunk),
+                actions: [.init(title: "Review", kind: .review)]
+            )
+        ]
+    }
+
+    private var demoPerformanceTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .performanceMaintenanceTasks,
+                size: .large,
+                metricTitle: "5 Tasks",
+                title: "Maintenance Tasks Recommended",
+                subtitle: "Run weekly maintenance tasks to keep your Mac in shape.",
+                iconSymbols: ["wrench.and.screwdriver.fill", "magnifyingglass"],
+                reviewTarget: .tile(.performanceMaintenanceTasks),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Run Tasks", kind: .run)]
+            ),
+            SmartScanBentoTileModel(
+                id: .performanceLoginItems,
+                size: .wide,
+                metricTitle: "6 Items",
+                title: "You Have 6 Login Items",
+                subtitle: "Review applications that open automatically when your Mac starts.",
+                iconSymbols: ["shippingbox.fill", "app.fill", "chevron.left.forwardslash.chevron.right"],
+                reviewTarget: .tile(.performanceLoginItems),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .performanceBackgroundItems,
+                size: .wide,
+                metricTitle: "17 Items",
+                title: "Background Items Found",
+                subtitle: "Review background processes allowed to run on your Mac.",
+                iconSymbols: ["bolt.horizontal.circle.fill"],
+                reviewTarget: .tile(.performanceBackgroundItems),
+                actions: [.init(title: "Review", kind: .review)]
+            )
+        ]
+    }
+
+    private var demoAppsTiles: [SmartScanBentoTileModel] {
+        [
+            SmartScanBentoTileModel(
+                id: .appsUpdates,
+                size: .large,
+                metricTitle: "17 Updates",
+                title: "Application Updates Available",
+                subtitle: "Update software to keep up with latest features.",
+                iconSymbols: ["square.and.arrow.down.fill", "arrow.triangle.2.circlepath", "app.badge.fill"],
+                reviewTarget: .tile(.appsUpdates),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Update", kind: .update)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsUnused,
+                size: .wide,
+                metricTitle: "2 Apps",
+                title: "Unused Applications Found",
+                subtitle: "Unused apps still consume space on your Mac.",
+                iconSymbols: ["folder.fill"],
+                reviewTarget: .tile(.appsUnused),
+                actions: [.init(title: "Review", kind: .review)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsLeftovers,
+                size: .small,
+                metricTitle: "715 MB",
+                title: "App Leftovers Found",
+                subtitle: "Remove orphaned files.",
+                iconSymbols: ["trash.square.fill"],
+                reviewTarget: .tile(.appsLeftovers),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Remove", kind: .remove)]
+            ),
+            SmartScanBentoTileModel(
+                id: .appsInstallationFiles,
+                size: .small,
+                metricTitle: "10.4 GB",
+                title: "Installation Files Found",
+                subtitle: "Installer payloads and archives.",
+                iconSymbols: ["shippingbox.fill"],
+                reviewTarget: .tile(.appsInstallationFiles),
+                actions: [.init(title: "Review", kind: .review), .init(title: "Remove", kind: .remove)]
+            )
+        ]
+    }
+
+    private var demoQuickSheet: SmartScanQuickActionSheetState {
+        SmartScanQuickActionSheetState(
+            tileID: .spaceSystemJunk,
+            action: .clean,
+            scope: .tile(.spaceSystemJunk),
+            title: "Clean System Junk",
+            subtitle: "About to clean selected system junk files.",
+            items: [],
+            estimatedSpace: 2_484_000_000
+        )
     }
 }
 

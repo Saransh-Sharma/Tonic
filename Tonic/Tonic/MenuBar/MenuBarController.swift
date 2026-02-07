@@ -266,7 +266,7 @@ class MenuBarController: ObservableObject {
     }
 
     private func createMenuBarIcon() -> NSImage {
-        if let image = NSImage(named: "AppBrand") {
+        if let image = TonicBrandAssets.appNSImage()?.copy() as? NSImage {
             image.isTemplate = false
             return image
         }
@@ -690,7 +690,7 @@ struct MenuBarPopupView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Image("AppBrand")
+                TonicBrandAssets.appImage()
                     .resizable()
                     .scaledToFit()
                     .frame(width: 24, height: 24)

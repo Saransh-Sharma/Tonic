@@ -64,7 +64,7 @@ struct OnboardingView: View {
 
     private var welcomePage: some View {
         VStack(spacing: 24) {
-            Image("AppBrand")
+            TonicBrandAssets.appImage()
                 .resizable()
                 .scaledToFit()
                 .frame(width: 72, height: 72)
