@@ -20,6 +20,7 @@ struct SmartScanHubView: View {
     let quickActionProgress: Double
     let quickActionSummary: SmartScanRunSummary?
     let quickActionIsRunning: Bool
+    var currentScanItem: String? = nil
     let onStartScan: () -> Void
     let onStopScan: () -> Void
     let onRunSmartClean: () -> Void
@@ -30,6 +31,15 @@ struct SmartScanHubView: View {
     let onQuickActionStop: () -> Void
     let onQuickActionDone: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Collapsible hero state
+    @State private var heroCompact = false
+
+    // Staggered entrance state
+    @State private var sectionsRevealed = false
+
+    private let scrollCoordinateSpace = "smartScanScroll"
 
     var body: some View {
         ZStack {
@@ -45,10 +55,33 @@ struct SmartScanHubView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: TonicSpaceToken.three) {
-                        ScanHeroModule(state: heroState)
+                        // Hero module with scroll tracking for collapse
+                        if mode == .results && heroCompact {
+                            compactHeroBar
+                                .transition(.opacity)
+                        } else {
+                            ScanHeroModule(
+                                state: heroState,
+                                currentScanItem: currentScanItem
+                            )
+                            .transition(.opacity)
+                        }
+
+                        // Scroll offset tracker (invisible)
+                        if mode == .results {
+                            GeometryReader { geo in
+                                Color.clear
+                                    .preference(
+                                        key: ScrollOffsetPreferenceKey.self,
+                                        value: geo.frame(in: .named(scrollCoordinateSpace)).minY
+                                    )
+                            }
+                            .frame(height: 0)
+                        }
 
                         if mode == .scanning || mode == .running || mode == .results {
                             timelineAndCounters
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
 
                         if mode == .results {
@@ -57,22 +90,44 @@ struct SmartScanHubView: View {
                     }
                     .padding(.bottom, TonicSpaceToken.three)
                 }
+                .coordinateSpace(name: scrollCoordinateSpace)
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                    let shouldCompact = offset < -80
+                    if shouldCompact != heroCompact {
+                        if reduceMotion {
+                            heroCompact = shouldCompact
+                        } else {
+                            withAnimation(TonicMotionToken.stageEnterSpring) {
+                                heroCompact = shouldCompact
+                            }
+                        }
+                    }
+                }
 
                 commandDock
             }
             .padding(TonicSpaceToken.three)
+            .animation(
+                reduceMotion ? .none : TonicMotionToken.resultMetricSpring,
+                value: mode
+            )
 
-            if let quickActionSheet {
+            // Quick action overlay with slide-up transition
+            if quickActionSheet != nil {
                 TonicGlassToken.baseVignette.opacity(colorScheme == .dark ? 1 : 0.7)
+                    .background(.ultraThinMaterial.opacity(0.3))
                     .ignoresSafeArea()
                     .onTapGesture {
                         if !quickActionIsRunning {
                             onQuickActionDone()
                         }
                     }
+                    .accessibilityLabel("Dismiss overlay")
+                    .accessibilityAddTraits(.isButton)
+                    .transition(.opacity)
 
                 SmartScanQuickActionCard(
-                    sheet: quickActionSheet,
+                    sheet: quickActionSheet!,
                     progress: quickActionProgress,
                     summary: quickActionSummary,
                     isRunning: quickActionIsRunning,
@@ -81,9 +136,76 @@ struct SmartScanHubView: View {
                     onDone: onQuickActionDone
                 )
                 .padding(TonicSpaceToken.four)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .move(edge: .bottom).combined(with: .opacity)
+                )
+            }
+        }
+        .animation(
+            reduceMotion ? .none : TonicMotionToken.modalPresentSpring,
+            value: quickActionSheet != nil
+        )
+        .onAppear {
+            // When returning to this screen with an already-complete result, mode may
+            // still be `.results` and no mode-change event will fire. Ensure sections
+            // become visible on reappear.
+            guard mode == .results, !sectionsRevealed else { return }
+            if reduceMotion {
+                sectionsRevealed = true
+            } else {
+                withAnimation(TonicMotionToken.resultCardSpring) {
+                    sectionsRevealed = true
+                }
+            }
+        }
+        .onChange(of: mode) { _, newMode in
+            if newMode == .results {
+                if reduceMotion {
+                    sectionsRevealed = true
+                } else {
+                    // Slight delay to let the hero transition complete first
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        withAnimation(TonicMotionToken.resultCardSpring) {
+                            sectionsRevealed = true
+                        }
+                    }
+                }
+            } else {
+                sectionsRevealed = false
+                heroCompact = false
             }
         }
     }
+
+    // MARK: - Compact Hero Bar
+
+    private var compactHeroBar: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Image(systemName: "shield.lefthalf.filled.badge.checkmark")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            Text("Scan Complete")
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            Spacer()
+
+            CounterChip(title: "", value: spaceResultMetric, world: .cleanupGreen, isComplete: true)
+                .accessibilityLabel("Space: \(spaceResultMetric)")
+            CounterChip(title: "", value: performanceResultMetric, world: .performanceOrange, isComplete: true)
+                .accessibilityLabel("Performance: \(performanceResultMetric)")
+            CounterChip(title: "", value: appsResultMetric, world: .applicationsBlue, isComplete: true)
+                .accessibilityLabel("Apps: \(appsResultMetric)")
+        }
+        .padding(.horizontal, TonicSpaceToken.three)
+        .padding(.vertical, TonicSpaceToken.two)
+        .glassSurface(radius: TonicRadiusToken.l)
+    }
+
+    // MARK: - Subtitle
 
     private var headerSubtitle: String {
         if let runSummaryText {
@@ -102,6 +224,8 @@ struct SmartScanHubView: View {
         }
     }
 
+    // MARK: - Hero State
+
     private var heroState: ScanHeroState {
         switch mode {
         case .ready:
@@ -119,6 +243,8 @@ struct SmartScanHubView: View {
         }
     }
 
+    // MARK: - Timeline & Counters
+
     private var timelineAndCounters: some View {
         HStack(spacing: TonicSpaceToken.two) {
             stageBadge(for: .space)
@@ -127,38 +253,66 @@ struct SmartScanHubView: View {
         }
     }
 
+    // MARK: - Results Sections (Staggered)
+
     private var resultsSections: some View {
         VStack(spacing: TonicSpaceToken.three) {
-            ForEach(sectionModels) { section in
-                VStack(spacing: TonicSpaceToken.two) {
-                    PillarSectionHeader(
-                        title: section.title,
-                        subtitle: section.subtitle,
-                        summary: section.summary,
-                        sectionActionTitle: section.sectionActionTitle,
-                        world: section.world,
-                        sectionAccessibilityIdentifier: sectionAccessibilityIdentifier(for: section.pillar),
-                        onSectionAction: {
-                            onReviewTarget(section.sectionReviewTarget)
-                        }
+            ForEach(Array(sectionModels.enumerated()), id: \.element.id) { index, section in
+                pillarSectionView(for: section)
+                    .opacity(sectionOpacity(for: index))
+                    .offset(y: sectionOffset(for: index))
+                    .animation(
+                        reduceMotion ? .none : sectionAnimation(for: index),
+                        value: sectionsRevealed
                     )
-
-                    BentoGrid(
-                        world: section.world,
-                        tiles: section.tiles,
-                        onReview: onReviewTarget,
-                        onAction: onTileAction
-                    )
-                }
-                .padding(TonicSpaceToken.two)
-                .background(sectionBackground(for: section.world))
-                .glassSurface(
-                    radius: TonicRadiusToken.container,
-                    variant: colorScheme == .dark ? .sunken : .raised
-                )
             }
         }
     }
+
+    private func pillarSectionView(for section: SmartScanPillarSectionModel) -> some View {
+        VStack(spacing: TonicSpaceToken.two) {
+            PillarSectionHeader(
+                title: section.title,
+                subtitle: section.subtitle,
+                summary: section.summary,
+                sectionActionTitle: section.sectionActionTitle,
+                world: section.world,
+                sectionAccessibilityIdentifier: sectionAccessibilityIdentifier(for: section.pillar),
+                onSectionAction: {
+                    onReviewTarget(section.sectionReviewTarget)
+                }
+            )
+
+            BentoGrid(
+                world: section.world,
+                tiles: section.tiles,
+                onReview: onReviewTarget,
+                onAction: onTileAction
+            )
+        }
+        .padding(TonicSpaceToken.two)
+        .background(sectionBackground(for: section.world))
+        .glassSurface(
+            radius: TonicRadiusToken.container,
+            variant: colorScheme == .dark ? .sunken : .raised
+        )
+    }
+
+    private func sectionOpacity(for index: Int) -> Double {
+        sectionsRevealed ? 1 : 0
+    }
+
+    private func sectionOffset(for index: Int) -> CGFloat {
+        sectionsRevealed ? 0 : 16
+    }
+
+    private func sectionAnimation(for index: Int) -> Animation {
+        // Stagger: Space(0ms), Performance(80ms), Apps(160ms)
+        TonicMotionToken.resultCardSpring
+            .delay(Double(index) * TonicMotionToken.resultStaggerDelay)
+    }
+
+    // MARK: - Command Dock
 
     private var commandDock: some View {
         SmartScanCommandDock(
@@ -204,6 +358,8 @@ struct SmartScanHubView: View {
         }
     }
 
+    // MARK: - Metrics
+
     private var spaceResultMetric: String {
         guard let result = scanResult?.domainResults[.cleanup] else { return "0 KB" }
         return formatBytes(result.totalSize)
@@ -226,6 +382,8 @@ struct SmartScanHubView: View {
             .filter { $0.safeToRun && $0.action.isRunnable && $0.isSmartSelected }
             .count
     }
+
+    // MARK: - Section Models
 
     private var sectionModels: [SmartScanPillarSectionModel] {
         [spaceSection, performanceSection, appsSection]
@@ -419,6 +577,8 @@ struct SmartScanHubView: View {
         )
     }
 
+    // MARK: - Data Helpers
+
     private func cleanupItems(containing text: String) -> [SmartCareItem] {
         scanResult?.domainResults[.cleanup]?.groups
             .filter { $0.title.lowercased().contains(text) }
@@ -448,6 +608,8 @@ struct SmartScanHubView: View {
     private func formatBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
+
+    // MARK: - Stage Badges
 
     private func stageBadge(for stage: SmartScanStage) -> some View {
         LiveCounterChip(
@@ -480,6 +642,8 @@ struct SmartScanHubView: View {
             return "\(counters.appsScannedCount) apps"
         }
     }
+
+    // MARK: - Section Background
 
     private func sectionBackground(for world: TonicWorld) -> some View {
         ZStack {
@@ -514,5 +678,15 @@ struct SmartScanHubView: View {
         case .apps:
             return "smartscan.review.apps"
         }
+    }
+}
+
+// MARK: - Scroll Offset Preference Key
+
+private struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
