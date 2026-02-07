@@ -21,7 +21,7 @@ struct MaintenanceView: View {
 
     private var header: some View {
         HStack(spacing: DesignTokens.Spacing.md) {
-            Label("Maintenance", systemImage: "wrench.and.screwdriver")
+            Label("Smart Scan", systemImage: "shield.lefthalf.filled.badge.checkmark")
                 .font(DesignTokens.Typography.bodyEmphasized)
 
             Spacer()
