@@ -29,6 +29,7 @@ final class SmartCareSessionStore: ObservableObject {
     @Published var quickActionProgress: Double = 0
     @Published var quickActionSummary: SmartScanRunSummary?
     @Published var quickActionIsRunning = false
+    @Published var currentScanItem: String?
 
     private let engine = SmartCareEngine()
     private var scanTask: Task<Void, Never>?
@@ -101,6 +102,7 @@ final class SmartCareSessionStore: ObservableObject {
         quickActionProgress = 0
         quickActionSummary = nil
         quickActionIsRunning = false
+        currentScanItem = nil
 
         scanTask = Task { [weak self] in
             guard let self else { return }
@@ -111,11 +113,13 @@ final class SmartCareSessionStore: ObservableObject {
                     self.currentStage = update.currentStage
                     self.completedStages = update.completedStages
                     self.liveCounters = update.liveCounters
+                    self.currentScanItem = update.currentItem
                 }
             }
 
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                self.currentScanItem = nil
                 self.scanResult = result
                 self.recommendedItemIDs = Set(
                     result.domainResults.values
@@ -150,6 +154,7 @@ final class SmartCareSessionStore: ObservableObject {
             currentStage = .space
             completedStages = []
             liveCounters = .zero
+            currentScanItem = nil
         case .running:
             runTask?.cancel()
             hubMode = scanResult == nil ? .ready : .results
