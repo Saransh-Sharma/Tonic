@@ -30,8 +30,8 @@ struct SidebarView: View {
     /// Grouped navigation sections following the new IA
     private let sections: [SidebarSection] = [
         SidebarSection(nil, items: [.dashboard]),
-        SidebarSection("Maintenance", items: [.systemCleanup]),
-        SidebarSection("Explore", items: [.diskAnalysis, .appManager, .liveMonitoring]),
+        SidebarSection("Maintenance", items: [.systemCleanup, .diskAnalysis, .appManager]),
+        SidebarSection("Explore", items: [.liveMonitoring]),
         SidebarSection("Menu Bar", items: [.menuBarWidgets]),
         SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
         SidebarSection(nil, items: [.settings])
@@ -112,7 +112,7 @@ extension NavigationDestination {
     var sidebarDisplayName: String {
         switch self {
         case .dashboard: return "Dashboard"
-        case .systemCleanup: return "Maintenance"
+        case .systemCleanup: return "Smart Scan"
         case .appManager: return "Apps"
         case .diskAnalysis: return "Disk"
         case .liveMonitoring: return "Activity"
