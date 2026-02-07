@@ -11,24 +11,7 @@ struct MaintenanceView: View {
     @ObservedObject var smartCareSession: SmartCareSessionStore
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            SmartCareView(smartCareSession: smartCareSession)
-        }
-        .background(DesignTokens.Colors.background)
-    }
-
-    private var header: some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Label("Smart Scan", systemImage: "shield.lefthalf.filled.badge.checkmark")
-                .font(DesignTokens.Typography.bodyEmphasized)
-
-            Spacer()
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.vertical, DesignTokens.Spacing.sm)
-        .background(DesignTokens.Colors.backgroundSecondary)
+        SmartCareView(smartCareSession: smartCareSession)
     }
 }
 
