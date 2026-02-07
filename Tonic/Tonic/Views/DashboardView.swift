@@ -382,7 +382,7 @@ class SmartScanManager: ObservableObject {
 // MARK: - Main Dashboard View
 
 struct DashboardView: View {
-    @StateObject private var scanManager = SmartScanManager()
+    @ObservedObject var scanManager: SmartScanManager
     @State private var widgetDataManager = WidgetDataManager.shared
     @State private var showWidgetCustomization = false
     @State private var showWidgetOnboarding = false
@@ -390,6 +390,10 @@ struct DashboardView: View {
     @State private var isActivityExpanded = false
     @State private var detailRecommendation: ScanRecommendation?
     @State private var showingRecommendationDetail = false
+
+    init(scanManager: SmartScanManager) {
+        self.scanManager = scanManager
+    }
 
     var body: some View {
         ScrollView {
@@ -973,6 +977,6 @@ struct CompactActivityRow: View {
 // MARK: - Preview
 
 #Preview {
-    DashboardView()
+    DashboardView(scanManager: SmartScanManager())
         .frame(width: 900, height: 700)
 }
