@@ -7,6 +7,24 @@
 
 import SwiftUI
 
+private struct AnyInsettableShape: InsettableShape {
+    private let pathBuilder: @Sendable (CGRect) -> Path
+    private let insetBuilder: @Sendable (CGFloat) -> AnyInsettableShape
+
+    init<S: InsettableShape & Sendable>(_ shape: S) {
+        self.pathBuilder = { rect in shape.path(in: rect) }
+        self.insetBuilder = { amount in AnyInsettableShape(shape.inset(by: amount)) }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        pathBuilder(rect)
+    }
+
+    func inset(by amount: CGFloat) -> AnyInsettableShape {
+        insetBuilder(amount)
+    }
+}
+
 // MARK: - Typography Primitives
 
 struct DisplayText: View {
@@ -20,6 +38,7 @@ struct DisplayText: View {
         Text(value)
             .font(TonicTypeToken.display)
             .foregroundStyle(TonicTextToken.primary)
+            .lineSpacing(4)
     }
 }
 
@@ -34,6 +53,7 @@ struct TitleText: View {
         Text(value)
             .font(TonicTypeToken.title)
             .foregroundStyle(TonicTextToken.primary)
+            .lineSpacing(3)
     }
 }
 
@@ -48,6 +68,7 @@ struct BodyText: View {
         Text(value)
             .font(TonicTypeToken.body)
             .foregroundStyle(TonicTextToken.secondary)
+            .lineSpacing(2)
     }
 }
 
@@ -89,6 +110,7 @@ struct WorldGradientRecipe {
 
 struct WorldCanvasBackground: View {
     @Environment(\.tonicTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     let recipe: WorldGradientRecipe
 
     init(recipe: WorldGradientRecipe = .default) {
@@ -97,17 +119,30 @@ struct WorldCanvasBackground: View {
 
     var body: some View {
         ZStack {
+            TonicCanvasTokens.fill(for: theme.world, colorScheme: colorScheme)
+
+            TonicCanvasTokens.tint(for: theme.world, colorScheme: colorScheme)
+
             RadialGradient(
-                gradient: Gradient(colors: [theme.canvasMid.opacity(0.92), theme.canvasMid, theme.canvasDark]),
-                center: recipe.center,
-                startRadius: 40,
-                endRadius: 900
+                colors: [TonicCanvasTokens.edgeGlow(for: theme.world, colorScheme: colorScheme), .clear],
+                center: .topLeading,
+                startRadius: 20,
+                endRadius: 360
             )
 
-            LinearGradient(
-                colors: [theme.canvasMid.opacity(0.22), theme.canvasDark.opacity(0.45)],
-                startPoint: .top,
-                endPoint: .bottom
+            RadialGradient(
+                colors: [TonicCanvasTokens.edgeGlow(for: theme.world, colorScheme: colorScheme).opacity(0.85), .clear],
+                center: .bottomTrailing,
+                startRadius: 20,
+                endRadius: 360
+            )
+
+            // Keep a subtle mid-tone wash so the world identity stays visible.
+            RadialGradient(
+                gradient: Gradient(colors: [theme.canvasMid.opacity(colorScheme == .dark ? 0.14 : 0.10), .clear]),
+                center: recipe.center,
+                startRadius: 30,
+                endRadius: 680
             )
         }
         .ignoresSafeArea()
@@ -126,63 +161,140 @@ struct SectionTintOverlay: ViewModifier {
 
 // MARK: - Glass
 
-struct GlassSurface: ViewModifier {
+struct TonicLegacyGlassSurface: ViewModifier {
     let radius: CGFloat
+    let variant: TonicGlassVariant
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        content
-            .background(
-                TonicGlassToken.fill
+        let style = TonicGlassToken.style(for: colorScheme, variant: variant)
+        let shadow = variant == .raised ? TonicShadowToken.level2(for: colorScheme) : TonicShadowToken.level1(for: colorScheme)
+
+        return content
+            .background(style.fill)
+            .overlay(
+                style.vignette
                     .allowsHitTesting(false)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: radius)
-                    .stroke(TonicGlassToken.stroke, lineWidth: 1)
+                    .stroke(style.stroke, lineWidth: 1)
                     .allowsHitTesting(false)
             )
             .clipShape(RoundedRectangle(cornerRadius: radius))
             .overlay(
                 LinearGradient(
-                    colors: [TonicNeutralToken.white.opacity(0.10), .clear],
+                    colors: [style.innerHighlight, .clear],
                     startPoint: .top,
                     endPoint: .center
                 )
                 .clipShape(RoundedRectangle(cornerRadius: radius))
                 .allowsHitTesting(false)
             )
-            .shadow(color: TonicShadowToken.elev2.color, radius: TonicShadowToken.elev2.blur, x: 0, y: TonicShadowToken.elev2.y)
+            .shadow(color: style.shadow, radius: shadow.blur, x: 0, y: shadow.y)
+    }
+}
+
+@available(macOS 26.0, *)
+struct TonicLiquidGlassSurface: ViewModifier {
+    let radius: CGFloat
+    let variant: TonicGlassVariant
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let style = TonicGlassToken.style(for: colorScheme, variant: variant)
+        let shadow = variant == .raised ? TonicShadowToken.level2(for: colorScheme) : TonicShadowToken.level1(for: colorScheme)
+
+        return content
+            .clipShape(RoundedRectangle(cornerRadius: radius))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+            .overlay(
+                style.fill
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius)
+                    .stroke(style.stroke, lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+            .shadow(color: style.shadow, radius: shadow.blur, x: 0, y: shadow.y)
+    }
+}
+
+struct TonicAdaptiveGlassSurface: ViewModifier {
+    let radius: CGFloat
+    let variant: TonicGlassVariant
+    @Environment(\.tonicGlassRenderingMode) private var renderingMode
+    @Environment(\.tonicForceLegacyGlass) private var forceLegacy
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if shouldUseLiquidGlass {
+            if #available(macOS 26.0, *) {
+                content.modifier(TonicLiquidGlassSurface(radius: radius, variant: variant))
+            } else {
+                content.modifier(TonicLegacyGlassSurface(radius: radius, variant: variant))
+            }
+        } else {
+            content.modifier(TonicLegacyGlassSurface(radius: radius, variant: variant))
+        }
+    }
+
+    private var shouldUseLiquidGlass: Bool {
+        !forceLegacy && renderingMode == .liquid
+    }
+}
+
+struct GlassSurface: ViewModifier {
+    let radius: CGFloat
+    let variant: TonicGlassVariant
+
+    func body(content: Content) -> some View {
+        content.modifier(TonicAdaptiveGlassSurface(radius: radius, variant: variant))
     }
 }
 
 struct GlassCard<Content: View>: View {
     let radius: CGFloat
+    let variant: TonicGlassVariant
     @ViewBuilder let content: () -> Content
 
-    init(radius: CGFloat = TonicRadiusToken.l, @ViewBuilder content: @escaping () -> Content) {
+    init(
+        radius: CGFloat = TonicRadiusToken.l,
+        variant: TonicGlassVariant = .base,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         self.radius = radius
+        self.variant = variant
         self.content = content
     }
 
     var body: some View {
         content()
             .padding(TonicSpaceToken.three)
-            .modifier(GlassSurface(radius: radius))
+            .modifier(GlassSurface(radius: radius, variant: variant))
     }
 }
 
 struct GlassPanel<Content: View>: View {
     let radius: CGFloat
+    let variant: TonicGlassVariant
     @ViewBuilder let content: () -> Content
 
-    init(radius: CGFloat = TonicRadiusToken.xl, @ViewBuilder content: @escaping () -> Content) {
+    init(
+        radius: CGFloat = TonicRadiusToken.xl,
+        variant: TonicGlassVariant = .base,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         self.radius = radius
+        self.variant = variant
         self.content = content
     }
 
     var body: some View {
         content()
             .padding(TonicSpaceToken.four)
-            .modifier(GlassSurface(radius: radius))
+            .modifier(GlassSurface(radius: radius, variant: variant))
     }
 }
 
@@ -200,7 +312,7 @@ struct GlassInnerHighlight: View {
 
     var body: some View {
         LinearGradient(
-            colors: [TonicNeutralToken.white.opacity(0.10), .clear],
+            colors: [TonicGlassToken.fill, .clear],
             startPoint: .top,
             endPoint: .center
         )
@@ -224,18 +336,44 @@ struct HeroBloom: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .shadow(color: theme.glow, radius: 40, x: 0, y: 0)
+            .shadow(color: theme.glowSoft, radius: 34, x: 0, y: 0)
+    }
+}
+
+struct ProgressGlowEffect: ViewModifier {
+    @Environment(\.tonicTheme) private var theme
+    let progress: Double
+
+    func body(content: Content) -> some View {
+        let clamped = min(max(progress, 0), 1)
+        let intensity = 0.12 + (0.16 * clamped)
+
+        return content
+            .overlay(
+                RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                    .stroke(theme.worldToken.light.opacity(intensity), lineWidth: 1.3)
+            )
+            .shadow(color: theme.worldToken.light.opacity(intensity), radius: 28, x: 0, y: 0)
     }
 }
 
 struct DepthLiftEffect: ViewModifier {
     @State private var hovering = false
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
+        let resting = colorScheme == .dark ? TonicShadowToken.elev2 : TonicShadowToken.lightE1
+        let lifted = colorScheme == .dark ? TonicShadowToken.elev3 : TonicShadowToken.lightE2
+
         content
-            .offset(y: hovering ? -2 : 0)
-            .shadow(color: TonicShadowToken.elev1.color, radius: hovering ? TonicShadowToken.elev2.blur : TonicShadowToken.elev1.blur, x: 0, y: hovering ? TonicShadowToken.elev2.y : TonicShadowToken.elev1.y)
-            .animation(.easeInOut(duration: TonicMotionToken.hover), value: hovering)
+            .offset(y: hovering ? (colorScheme == .dark ? -3 : -2) : 0)
+            .shadow(
+                color: hovering ? lifted.color : resting.color,
+                radius: hovering ? lifted.blur : resting.blur,
+                x: 0,
+                y: hovering ? lifted.y : resting.y
+            )
+            .animation(.easeInOut(duration: TonicMotionToken.med), value: hovering)
             .onHover { isHovering in
                 hovering = isHovering
             }
@@ -250,18 +388,80 @@ struct CalmHoverEffect: ViewModifier {
     func body(content: Content) -> some View {
         content
             .scaleEffect(isHovering ? 1.01 : 1.0)
-            .animation(.easeInOut(duration: TonicMotionToken.hover), value: isHovering)
-            .onHover { isHovering in
-                self.isHovering = isHovering
+            .animation(.easeInOut(duration: TonicMotionToken.fast), value: isHovering)
+            .onHover { hovering in
+                isHovering = hovering
             }
     }
 }
 
 struct PressEffect: ButtonStyle {
+    enum FocusShape {
+        case capsule
+        case rounded(CGFloat)
+        case circle
+    }
+
+    var focusShape: FocusShape = .capsule
+
     func makeBody(configuration: Configuration) -> some View {
+        StatefulPressEffectBody(configuration: configuration, focusShape: focusShape)
+    }
+}
+
+private struct StatefulPressEffectBody: View {
+    let configuration: PressEffect.Configuration
+    let focusShape: PressEffect.FocusShape
+
+    @Environment(\.tonicTheme) private var theme
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovering = false
+    @FocusState private var isFocused: Bool
+
+    private var state: TonicControlState {
+        if !isEnabled { return .disabled }
+        if configuration.isPressed { return .pressed }
+        if isFocused { return .focused }
+        if isHovering { return .hover }
+        return .default
+    }
+
+    private var token: TonicControlStateToken {
+        TonicButtonStateTokens.token(for: state)
+    }
+
+    var body: some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.easeInOut(duration: TonicMotionToken.press), value: configuration.isPressed)
+            .brightness(token.brightnessDelta)
+            .scaleEffect(token.scale)
+            .opacity(token.contentOpacity)
+            .overlay(
+                shape
+                    .stroke((colorScheme == .dark ? TonicNeutralToken.white : TonicNeutralToken.black).opacity(token.strokeBoostOpacity), lineWidth: 1)
+            )
+            .overlay(
+                shape
+                    .inset(by: -3)
+                    .stroke(state == .focused ? TonicFocusToken.ring(for: theme.accent) : .clear, lineWidth: 2)
+            )
+            .focusable(true)
+            .focused($isFocused)
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .animation(.easeInOut(duration: TonicMotionToken.fast), value: state)
+    }
+
+    private var shape: AnyInsettableShape {
+        switch focusShape {
+        case .capsule:
+            return AnyInsettableShape(Capsule())
+        case .rounded(let cornerRadius):
+            return AnyInsettableShape(RoundedRectangle(cornerRadius: cornerRadius))
+        case .circle:
+            return AnyInsettableShape(Circle())
+        }
     }
 }
 
@@ -281,11 +481,40 @@ struct BreathingHeroAnimation: ViewModifier {
     }
 }
 
+struct HeroHighlightSweep: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let active: Bool
+    @State private var xOffset: CGFloat = -280
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if active && !reduceMotion {
+                    LinearGradient(
+                        colors: [.clear, TonicNeutralToken.white.opacity(0.12), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .frame(width: 180)
+                    .rotationEffect(.degrees(18))
+                    .offset(x: xOffset)
+                    .onAppear {
+                        xOffset = -280
+                        withAnimation(.linear(duration: 3.4).repeatForever(autoreverses: false)) {
+                            xOffset = 280
+                        }
+                    }
+                }
+            }
+            .clipped()
+    }
+}
+
 struct SectionTransitionEffect: ViewModifier {
     func body(content: Content) -> some View {
         content
             .transition(.opacity)
-            .animation(.easeInOut(duration: TonicMotionToken.fade), value: UUID())
+            .animation(.easeInOut(duration: TonicMotionToken.med), value: UUID())
     }
 }
 
@@ -294,8 +523,8 @@ extension View {
         modifier(SectionTintOverlay(opacity: opacity))
     }
 
-    func glassSurface(radius: CGFloat = TonicRadiusToken.l) -> some View {
-        modifier(GlassSurface(radius: radius))
+    func glassSurface(radius: CGFloat = TonicRadiusToken.l, variant: TonicGlassVariant = .base) -> some View {
+        modifier(GlassSurface(radius: radius, variant: variant))
     }
 
     func softShadow(_ style: TonicShadowStyle) -> some View {
@@ -304,6 +533,10 @@ extension View {
 
     func heroBloom() -> some View {
         modifier(HeroBloom())
+    }
+
+    func progressGlow(_ progress: Double) -> some View {
+        modifier(ProgressGlowEffect(progress: progress))
     }
 
     func depthLift() -> some View {
@@ -316,5 +549,9 @@ extension View {
 
     func breathingHero() -> some View {
         modifier(BreathingHeroAnimation())
+    }
+
+    func heroSweep(active: Bool) -> some View {
+        modifier(HeroHighlightSweep(active: active))
     }
 }
