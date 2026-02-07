@@ -204,19 +204,13 @@ struct TonicLiquidGlassSurface: ViewModifier {
     func body(content: Content) -> some View {
         let style = TonicGlassToken.style(for: colorScheme, variant: variant)
         let shadow = variant == .raised ? TonicShadowToken.level2(for: colorScheme) : TonicShadowToken.level1(for: colorScheme)
+        let shape = RoundedRectangle(cornerRadius: radius)
 
         return content
-            .clipShape(RoundedRectangle(cornerRadius: radius))
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
-            .overlay(
-                style.fill
-                    .allowsHitTesting(false)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: radius)
-                    .stroke(style.stroke, lineWidth: 1)
-                    .allowsHitTesting(false)
-            )
+            .clipShape(shape)
+            .glassEffect(.regular, in: shape)
+            .overlay(shape.fill(style.fill).allowsHitTesting(false))
+            .overlay(shape.stroke(style.stroke, lineWidth: 1).allowsHitTesting(false))
             .shadow(color: style.shadow, radius: shadow.blur, x: 0, y: shadow.y)
     }
 }
@@ -343,17 +337,20 @@ struct HeroBloom: ViewModifier {
 struct ProgressGlowEffect: ViewModifier {
     @Environment(\.tonicTheme) private var theme
     let progress: Double
+    let radius: CGFloat
 
     func body(content: Content) -> some View {
         let clamped = min(max(progress, 0), 1)
-        let intensity = 0.12 + (0.16 * clamped)
+        let intensity = clamped > 0 ? (0.12 + (0.16 * clamped)) : 0
+        let shape = RoundedRectangle(cornerRadius: radius)
 
         return content
             .overlay(
-                RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                shape
                     .stroke(theme.worldToken.light.opacity(intensity), lineWidth: 1.3)
+                    .shadow(color: theme.worldToken.light.opacity(intensity), radius: 28, x: 0, y: 0)
+                    .allowsHitTesting(false)
             )
-            .shadow(color: theme.worldToken.light.opacity(intensity), radius: 28, x: 0, y: 0)
     }
 }
 
@@ -367,6 +364,7 @@ struct DepthLiftEffect: ViewModifier {
 
         content
             .offset(y: hovering ? (colorScheme == .dark ? -3 : -2) : 0)
+            .scaleEffect(hovering ? 1.005 : 1.0)
             .shadow(
                 color: hovering ? lifted.color : resting.color,
                 radius: hovering ? lifted.blur : resting.blur,
@@ -446,6 +444,7 @@ private struct StatefulPressEffectBody: View {
                     .stroke(state == .focused ? TonicFocusToken.ring(for: theme.accent) : .clear, lineWidth: 2)
             )
             .focusable(true)
+            .focusEffectDisabled()
             .focused($isFocused)
             .onHover { hovering in
                 isHovering = hovering
@@ -467,15 +466,105 @@ private struct StatefulPressEffectBody: View {
 
 struct BreathingHeroAnimation: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tonicTheme) private var theme
     @State private var expanded = false
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(reduceMotion ? 1 : (expanded ? 1.02 : 1.0))
+            .scaleEffect(reduceMotion ? 1 : (expanded ? TonicMotionToken.breathingScale.upperBound : TonicMotionToken.breathingScale.lowerBound))
+            .shadow(
+                color: theme.glowSoft.opacity(reduceMotion ? 0.22 : (expanded ? 0.22 : 0.10)),
+                radius: reduceMotion ? 32 : (expanded ? 36 : 28),
+                x: 0,
+                y: expanded ? 10 : 6
+            )
             .onAppear {
                 guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 5).repeatForever(autoreverses: true)) {
+                withAnimation(.easeInOut(duration: TonicMotionToken.breathingDuration).repeatForever(autoreverses: true)) {
                     expanded = true
+                }
+            }
+    }
+}
+
+struct StaggeredReveal: ViewModifier {
+    let index: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 16)
+            .scaleEffect(appeared ? 1 : 0.96)
+            .onAppear {
+                let delay = reduceMotion ? 0 : TonicMotionToken.resultStaggerDelay * Double(index)
+                withAnimation(reduceMotion ? .none : TonicMotionToken.resultCardSpring.delay(delay)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+struct CompletionBurst: ViewModifier {
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tonicTheme) private var theme
+    @State private var burst = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                Circle()
+                    .fill(theme.worldToken.light.opacity(burst ? 0.0 : 0.40))
+                    .scaleEffect(burst ? 2.5 : 0.8)
+                    .opacity(burst ? 0 : 1)
+                    .allowsHitTesting(false)
+            )
+            .onChange(of: active) { _, isActive in
+                guard isActive, !reduceMotion else { return }
+                burst = false
+                withAnimation(.easeOut(duration: 0.6)) {
+                    burst = true
+                }
+            }
+    }
+}
+
+struct PulseGlow: ViewModifier {
+    let active: Bool
+    let progress: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tonicTheme) private var theme
+    @State private var pulsing = false
+
+    func body(content: Content) -> some View {
+        let baseOpacity = 0.08 + (0.18 * min(max(progress, 0), 1))
+        let pulseOffset = pulsing ? TonicMotionToken.scanPulseAmplitude : -TonicMotionToken.scanPulseAmplitude
+        let glowOpacity = reduceMotion ? baseOpacity : (baseOpacity + pulseOffset)
+        let glowRadius = 20 + (20 * min(max(progress, 0), 1))
+
+        content
+            .shadow(
+                color: theme.worldToken.light.opacity(active ? glowOpacity : 0),
+                radius: active ? glowRadius : 0,
+                x: 0, y: 0
+            )
+            .onAppear {
+                guard active, !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: TonicMotionToken.scanPulseDuration).repeatForever(autoreverses: true)) {
+                    pulsing = true
+                }
+            }
+            .onChange(of: active) { _, isActive in
+                if !isActive {
+                    pulsing = false
+                    return
+                }
+                guard !reduceMotion else { return }
+                pulsing = false
+                withAnimation(.easeInOut(duration: TonicMotionToken.scanPulseDuration).repeatForever(autoreverses: true)) {
+                    pulsing = true
                 }
             }
     }
@@ -484,10 +573,11 @@ struct BreathingHeroAnimation: ViewModifier {
 struct HeroHighlightSweep: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let active: Bool
+    let radius: CGFloat?
     @State private var xOffset: CGFloat = -280
 
     func body(content: Content) -> some View {
-        content
+        let swept = content
             .overlay {
                 if active && !reduceMotion {
                     LinearGradient(
@@ -506,7 +596,12 @@ struct HeroHighlightSweep: ViewModifier {
                     }
                 }
             }
-            .clipped()
+
+        if let radius {
+            swept.clipShape(RoundedRectangle(cornerRadius: radius))
+        } else {
+            swept.clipped()
+        }
     }
 }
 
@@ -535,8 +630,8 @@ extension View {
         modifier(HeroBloom())
     }
 
-    func progressGlow(_ progress: Double) -> some View {
-        modifier(ProgressGlowEffect(progress: progress))
+    func progressGlow(_ progress: Double, radius: CGFloat = TonicRadiusToken.xl) -> some View {
+        modifier(ProgressGlowEffect(progress: progress, radius: radius))
     }
 
     func depthLift() -> some View {
@@ -551,7 +646,19 @@ extension View {
         modifier(BreathingHeroAnimation())
     }
 
-    func heroSweep(active: Bool) -> some View {
-        modifier(HeroHighlightSweep(active: active))
+    func heroSweep(active: Bool, radius: CGFloat? = nil) -> some View {
+        modifier(HeroHighlightSweep(active: active, radius: radius))
+    }
+
+    func staggeredReveal(index: Int) -> some View {
+        modifier(StaggeredReveal(index: index))
+    }
+
+    func completionBurst(active: Bool) -> some View {
+        modifier(CompletionBurst(active: active))
+    }
+
+    func pulseGlow(active: Bool, progress: Double) -> some View {
+        modifier(PulseGlow(active: active, progress: progress))
     }
 }
