@@ -49,7 +49,8 @@ struct SpaceManagerView: View {
 
     @State private var selectedSidebar: SidebarItem
     @State private var selectedCategoryID: String?
-    @State private var focusedItemID: UUID?
+    @State private var expandedItemIDs: Set<UUID> = []
+    @State private var childSelectionByParent: [UUID: Set<String>] = [:]
 
     init(
         domainResult: SmartCareDomainResult?,
@@ -143,7 +144,6 @@ struct SpaceManagerView: View {
                                 isSelected: category.id == activeCategory?.id,
                                 action: {
                                     selectedCategoryID = category.id
-                                    focusedItemID = nil
                                 }
                             )
                         }
@@ -165,25 +165,6 @@ struct SpaceManagerView: View {
                                 VStack(spacing: TonicSpaceToken.one) {
                                     ForEach(activeCategory.items) { item in
                                         row(for: item)
-                                    }
-
-                                    if let focusedItem = activeCategory.items.first(where: { $0.id == focusedItemID }) {
-                                        DetailPane(
-                                            title: focusedItem.title,
-                                            subtitle: focusedItem.subtitle,
-                                            riskText: focusedItem.safeToRun ? nil : "This item requires manual review before cleanup.",
-                                            includeExcludeTitle: "Include in cleanup",
-                                            include: Binding(
-                                                get: { selectedItemIDs.contains(focusedItem.id) },
-                                                set: { isIncluded in
-                                                    if isIncluded {
-                                                        selectedItemIDs.insert(focusedItem.id)
-                                                    } else {
-                                                        selectedItemIDs.remove(focusedItem.id)
-                                                    }
-                                                }
-                                            )
-                                        )
                                     }
                                 }
                             }
@@ -257,13 +238,14 @@ struct SpaceManagerView: View {
     }
 
     private var selectedCount: Int {
-        categories.flatMap(\.items).filter { selectedItemIDs.contains($0.id) }.count
+        categories.flatMap(\.items).filter { hasSelection(for: $0) }.count
     }
 
     private var selectedRunnableItems: [SmartCareItem] {
         categories
             .flatMap(\.items)
-            .filter { selectedItemIDs.contains($0.id) && $0.safeToRun && $0.action.isRunnable }
+            .compactMap(projectedSelectedItem(for:))
+            .filter { $0.safeToRun && $0.action.isRunnable }
     }
 
     private var summaryText: String {
@@ -280,31 +262,30 @@ struct SpaceManagerView: View {
 
     @ViewBuilder
     private func row(for item: SmartCareItem) -> some View {
-        if item.safeToRun && item.action.isRunnable {
-            SelectableRow(
-                icon: iconName(for: item),
-                title: item.title,
-                subtitle: item.subtitle,
-                metric: item.formattedSize,
-                isSelected: selectedItemIDs.contains(item.id),
-                onSelect: {
-                    focusedItemID = item.id
-                },
-                onToggle: {
-                    toggleSelection(for: item.id)
+        ExpandableSelectionRow(
+            icon: iconName(for: item),
+            title: item.title,
+            subtitle: item.subtitle,
+            metric: item.formattedSize,
+            selectionState: selectionState(for: item),
+            isExpandable: isExpandable(item),
+            isExpanded: expandedItemIDs.contains(item.id),
+            children: childRows(for: item),
+            onToggleParent: {
+                toggleParentSelection(for: item)
+            },
+            onToggleExpanded: {
+                guard isExpandable(item) else { return }
+                if expandedItemIDs.contains(item.id) {
+                    expandedItemIDs.remove(item.id)
+                } else {
+                    expandedItemIDs.insert(item.id)
                 }
-            )
-        } else {
-            DrilldownRow(
-                icon: iconName(for: item),
-                title: item.title,
-                subtitle: item.subtitle,
-                metric: item.formattedSize,
-                action: {
-                    focusedItemID = item.id
-                }
-            )
-        }
+            },
+            onToggleChild: { childID in
+                toggleChildSelection(for: item, childID: childID)
+            }
+        )
     }
 
     private func cleanupCategories(for nav: CleanupNav) -> [SpaceCategory] {
@@ -361,11 +342,135 @@ struct SpaceManagerView: View {
         }
     }
 
-    private func toggleSelection(for id: UUID) {
-        if selectedItemIDs.contains(id) {
-            selectedItemIDs.remove(id)
+    private func hasSelection(for item: SmartCareItem) -> Bool {
+        !selectedChildIDs(for: item).isEmpty
+    }
+
+    private func selectedChildIDs(for item: SmartCareItem) -> Set<String> {
+        let childIDs = childEntries(for: item).map(\.id)
+        if let explicit = childSelectionByParent[item.id] {
+            return explicit.intersection(Set(childIDs))
+        }
+        if selectedItemIDs.contains(item.id) {
+            return Set(childIDs)
+        }
+        return []
+    }
+
+    private func selectionState(for item: SmartCareItem) -> ParentSelectionState {
+        let total = childEntries(for: item).count
+        let selected = selectedChildIDs(for: item).count
+        if selected == 0 { return .none }
+        if selected >= total { return .all }
+        return .some
+    }
+
+    private func isExpandable(_ item: SmartCareItem) -> Bool {
+        childEntries(for: item).count > 1
+    }
+
+    private func childRows(for item: SmartCareItem) -> [ExpandableSelectionChild] {
+        let childEntries = childEntries(for: item)
+        let selected = selectedChildIDs(for: item)
+
+        return childEntries.map { entry in
+            ExpandableSelectionChild(
+                id: entry.id,
+                title: entry.title,
+                subtitle: entry.subtitle,
+                isSelected: selected.contains(entry.id)
+            )
+        }
+    }
+
+    private func childEntries(for item: SmartCareItem) -> [(id: String, title: String, subtitle: String?)] {
+        let uniquePaths = uniqueOrderedPaths(item.paths)
+        if !uniquePaths.isEmpty {
+            return uniquePaths.map { path in
+                let fileName = URL(fileURLWithPath: path).lastPathComponent
+                return (id: path, title: fileName.isEmpty ? path : fileName, subtitle: path)
+            }
+        }
+
+        if item.count > 1 {
+            return (1...item.count).map { index in
+                let id = "\(item.id.uuidString)-\(index)"
+                return (id: id, title: "\(item.title) \(index)", subtitle: nil)
+            }
+        }
+
+        return [(id: "__self__", title: item.title, subtitle: nil)]
+    }
+
+    private func uniqueOrderedPaths(_ paths: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for path in paths where !seen.contains(path) {
+            seen.insert(path)
+            result.append(path)
+        }
+        return result
+    }
+
+    private func toggleParentSelection(for item: SmartCareItem) {
+        let childIDs = Set(childEntries(for: item).map(\.id))
+        let currentlySelected = selectedChildIDs(for: item)
+        let shouldSelectAll = currentlySelected.count < childIDs.count
+        let updated = shouldSelectAll ? childIDs : []
+        childSelectionByParent[item.id] = updated
+        syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
+    }
+
+    private func toggleChildSelection(for item: SmartCareItem, childID: String) {
+        var updated = selectedChildIDs(for: item)
+        if updated.contains(childID) {
+            updated.remove(childID)
         } else {
-            selectedItemIDs.insert(id)
+            updated.insert(childID)
+        }
+        childSelectionByParent[item.id] = updated
+        syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
+    }
+
+    private func syncParentSelectionFlag(itemID: UUID, selectedChildCount: Int) {
+        if selectedChildCount > 0 {
+            selectedItemIDs.insert(itemID)
+        } else {
+            selectedItemIDs.remove(itemID)
+        }
+    }
+
+    private func projectedSelectedItem(for item: SmartCareItem) -> SmartCareItem? {
+        let selectedChildIDs = selectedChildIDs(for: item)
+        guard !selectedChildIDs.isEmpty else { return nil }
+
+        switch item.action {
+        case .delete:
+            let paths = uniqueOrderedPaths(item.paths).filter { selectedChildIDs.contains($0) }
+            guard !paths.isEmpty else { return nil }
+            let fullCount = max(uniqueOrderedPaths(item.paths).count, 1)
+            let proportion = Double(paths.count) / Double(fullCount)
+            let scaledSize = Int64((Double(item.size) * proportion).rounded())
+            let adjustedSize = item.size == 0 ? 0 : max(1, scaledSize)
+
+            return SmartCareItem(
+                id: item.id,
+                domain: item.domain,
+                groupId: item.groupId,
+                title: item.title,
+                subtitle: item.subtitle,
+                size: adjustedSize,
+                count: paths.count,
+                safeToRun: item.safeToRun,
+                isSmartSelected: item.isSmartSelected,
+                action: .delete(paths: paths),
+                paths: paths,
+                scoreImpact: item.scoreImpact
+            )
+        case .runOptimization:
+            return item
+        case .none:
+            return item
         }
     }
 
