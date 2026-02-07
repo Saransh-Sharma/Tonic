@@ -36,6 +36,7 @@ struct SmartCareView: View {
             quickActionProgress: smartCareSession.quickActionProgress,
             quickActionSummary: smartCareSession.quickActionSummary,
             quickActionIsRunning: smartCareSession.quickActionIsRunning,
+            currentScanItem: smartCareSession.currentScanItem,
             onStartScan: smartCareSession.startScan,
             onStopScan: smartCareSession.stopCurrentOperation,
             onRunSmartClean: smartCareSession.runSmartClean,
