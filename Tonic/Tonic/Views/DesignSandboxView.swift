@@ -646,6 +646,72 @@ struct SmartScanSandboxShowcase: View {
                 .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
+            SectionShowcase(title: "Glass Rendering Modes") {
+                TonicThemeProvider(world: .smartScanPurple) {
+                    VStack(spacing: TonicSpaceToken.three) {
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            Text("Legacy")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+
+                            GlassPanel(radius: TonicRadiusToken.xl) {
+                                VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                                    Text("Smart Scan Legacy Glass")
+                                        .font(TonicTypeToken.body.weight(.semibold))
+                                        .foregroundStyle(TonicTextToken.primary)
+                                    Text("Custom fill + stroke + highlight surface.")
+                                        .font(TonicTypeToken.caption)
+                                        .foregroundStyle(TonicTextToken.secondary)
+                                }
+                            }
+
+                            SmartScanCommandDock(
+                                mode: .results,
+                                summary: "Recommended: 18 tasks • Space: 80.55 GB • Apps: 38 apps",
+                                primaryEnabled: true,
+                                secondaryTitle: "Customize",
+                                onSecondaryAction: {},
+                                action: {}
+                            )
+                        }
+                        .tonicGlassRenderingMode(.legacy)
+                        .tonicForceLegacyGlass(true)
+
+                        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                            Text("Liquid")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.primary)
+
+                            GlassPanel(radius: TonicRadiusToken.xl) {
+                                VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                                    Text("Smart Scan Liquid Glass")
+                                        .font(TonicTypeToken.body.weight(.semibold))
+                                        .foregroundStyle(TonicTextToken.primary)
+                                    Text("Apple liquid glass surface on macOS 26+.")
+                                        .font(TonicTypeToken.caption)
+                                        .foregroundStyle(TonicTextToken.secondary)
+                                }
+                            }
+
+                            SmartScanQuickActionCard(
+                                sheet: demoQuickSheet,
+                                progress: 0.33,
+                                summary: nil,
+                                isRunning: true,
+                                onStart: {},
+                                onStop: {},
+                                onDone: {}
+                            )
+                        }
+                        .tonicGlassRenderingMode(.liquid)
+                        .tonicForceLegacyGlass(false)
+                    }
+                    .padding(TonicSpaceToken.two)
+                    .background(WorldCanvasBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+
             SectionShowcase(title: "Command Dock States") {
                 TonicThemeProvider(world: .smartScanPurple) {
                     VStack(spacing: TonicSpaceToken.two) {
