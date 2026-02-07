@@ -165,19 +165,19 @@ final class SmartCareSessionStore: ObservableObject {
 
         let recommended = runnableItems(in: scanResult, from: recommendedItemIDs)
         if !recommended.isEmpty {
-            startRun(with: recommended)
+            startRun(with: recommended, emptyMessage: "No recommended tasks are currently runnable.")
             return
         }
 
         let fallback = scanResult.domainResults.values
             .flatMap { $0.items }
             .filter { $0.safeToRun && $0.action.isRunnable }
-        startRun(with: fallback)
+        startRun(with: fallback, emptyMessage: "No runnable tasks found in this Smart Scan result.")
     }
 
     func runSelected(_ requestedItems: [SmartCareItem]) {
         guard !quickActionIsRunning, quickActionSheet == nil else { return }
-        startRun(with: requestedItems)
+        startRun(with: requestedItems, emptyMessage: "None of the selected items can be run right now.")
     }
 
     func presentQuickAction(for tile: SmartScanTileID, action: SmartScanTileActionKind) {
@@ -250,10 +250,21 @@ final class SmartCareSessionStore: ObservableObject {
         quickActionSheet = nil
     }
 
-    private func startRun(with requestedItems: [SmartCareItem]) {
+    private func startRun(with requestedItems: [SmartCareItem], emptyMessage: String) {
         guard !quickActionIsRunning else { return }
         let items = requestedItems.filter { $0.safeToRun && $0.action.isRunnable }
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty else {
+            runSummary = SmartScanRunSummary(
+                tasksRun: 0,
+                spaceFreed: 0,
+                errors: 0,
+                scoreImprovement: 0,
+                message: emptyMessage
+            )
+            hubMode = .results
+            runProgress = 0
+            return
+        }
 
         runTask?.cancel()
         destination = .smartScan
