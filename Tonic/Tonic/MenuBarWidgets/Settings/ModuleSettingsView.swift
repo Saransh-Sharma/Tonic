@@ -32,7 +32,7 @@ public struct ModuleSettingsView: View {
             // Module list
             List {
                 ForEach(Array(moduleSettings.allModules.enumerated()), id: \.offset) { _, module in
-                    ModuleListItem(
+                    WidgetModuleListItem(
                         module: module,
                         isSelected: selectedModule?.widgetType == module.widgetType
                     ) {
@@ -81,7 +81,7 @@ public struct ModuleSettingsView: View {
 
 // MARK: - Module List Item
 
-private struct ModuleListItem: View {
+private struct WidgetModuleListItem: View {
     let module: any ModuleSettingsConfig
     let isSelected: Bool
     let onTap: () -> Void
@@ -108,7 +108,7 @@ private struct ModuleListItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color(nsColor: .selectedControlBackgroundColor) : Color.clear)
+        .background(isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
         .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }
@@ -171,7 +171,7 @@ private struct CPUModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("0.5s").tag(0.5 as TimeInterval)
                     Text("1s").tag(1.0 as TimeInterval)
@@ -185,7 +185,7 @@ private struct CPUModuleSettingsView: View {
             Divider()
 
             // Top Process Count
-            SettingsRow(label: "Top Processes", icon: "list.bullet") {
+            WidgetSettingsRow(label: "Top Processes", icon: "list.bullet") {
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Stepper("\(settings.topProcessCount)", value: $settings.topProcessCount, in: 3...20)
                         .frame(width: 100)
@@ -220,7 +220,7 @@ private struct DiskModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("1s").tag(1.0 as TimeInterval)
                     Text("2s").tag(2.0 as TimeInterval)
@@ -234,7 +234,7 @@ private struct DiskModuleSettingsView: View {
             Divider()
 
             // Top Process Count
-            SettingsRow(label: "Top Processes", icon: "list.bullet") {
+            WidgetSettingsRow(label: "Top Processes", icon: "list.bullet") {
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Stepper("\(settings.topProcessCount)", value: $settings.topProcessCount, in: 3...20)
                         .frame(width: 100)
@@ -266,7 +266,7 @@ private struct NetworkModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("0.5s").tag(0.5 as TimeInterval)
                     Text("1s").tag(1.0 as TimeInterval)
@@ -280,7 +280,7 @@ private struct NetworkModuleSettingsView: View {
             Divider()
 
             // Top Process Count
-            SettingsRow(label: "Top Processes", icon: "list.bullet") {
+            WidgetSettingsRow(label: "Top Processes", icon: "list.bullet") {
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Stepper("\(settings.topProcessCount)", value: $settings.topProcessCount, in: 3...20)
                         .frame(width: 100)
@@ -313,7 +313,7 @@ private struct MemoryModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("0.5s").tag(0.5 as TimeInterval)
                     Text("1s").tag(1.0 as TimeInterval)
@@ -327,7 +327,7 @@ private struct MemoryModuleSettingsView: View {
             Divider()
 
             // Top Process Count
-            SettingsRow(label: "Top Processes", icon: "list.bullet") {
+            WidgetSettingsRow(label: "Top Processes", icon: "list.bullet") {
                 HStack(spacing: DesignTokens.Spacing.sm) {
                     Stepper("\(settings.topProcessCount)", value: $settings.topProcessCount, in: 3...20)
                         .frame(width: 100)
@@ -360,7 +360,7 @@ private struct SensorsModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("0.5s").tag(0.5 as TimeInterval)
                     Text("1s").tag(1.0 as TimeInterval)
@@ -412,7 +412,7 @@ private struct BatteryModuleSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             // Update Interval
-            SettingsRow(label: "Update Interval", icon: "clock") {
+            WidgetSettingsRow(label: "Update Interval", icon: "clock") {
                 Picker("", selection: $settings.updateInterval) {
                     Text("5s").tag(5.0 as TimeInterval)
                     Text("10s").tag(10.0 as TimeInterval)
@@ -456,7 +456,7 @@ private struct BatteryModuleSettingsView: View {
 
 // MARK: - Settings Row Component
 
-private struct SettingsRow<Content: View>: View {
+private struct WidgetSettingsRow<Content: View>: View {
     let label: String
     let icon: String
     let content: Content

@@ -134,45 +134,8 @@ public struct TabbedSettingsView: View {
     }
 }
 
-// MARK: - Module Settings View (Fallback)
-
-/// Fallback definition used when the standalone ModuleSettingsView file is not part of the build target.
-public struct ModuleSettingsView: View {
-    public init() {}
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("Module Settings")
-                .font(.headline)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-
-            Text("Module settings view is unavailable in this build target.")
-                .font(.caption)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .padding(DesignTokens.Spacing.md)
-    }
-}
-
-// MARK: - Popup Settings View (Fallback)
-
-/// Fallback definition used when the standalone PopupSettingsView file is not part of the build target.
-public struct PopupSettingsView: View {
-    public init() {}
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("Popup Settings")
-                .font(.headline)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-
-            Text("Popup settings view is unavailable in this build target.")
-                .font(.caption)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .padding(DesignTokens.Spacing.md)
-    }
-}
+// NOTE: ModuleSettingsView and PopupSettingsView are defined in their own files.
+// Fallback definitions removed to avoid duplicate symbol errors.
 
 
 // MARK: - Widgets Settings View
