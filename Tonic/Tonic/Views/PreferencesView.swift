@@ -131,7 +131,7 @@ struct PreferencesView: View {
         VStack(spacing: 0) {
             // Header
             VStack(spacing: DesignTokens.Spacing.xs) {
-                Image("AppBrand")
+                TonicBrandAssets.appImage()
                     .resizable()
                     .scaledToFit()
                     .frame(width: 44, height: 44)
@@ -1610,7 +1610,7 @@ struct AboutSettingsContent: View {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     // App icon with gradient
                     ZStack {
-                        Image("AppBrand")
+                        TonicBrandAssets.appImage()
                             .resizable()
                             .scaledToFit()
                             .frame(width: 64, height: 64)

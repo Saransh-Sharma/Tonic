@@ -59,7 +59,7 @@ struct SidebarView: View {
 
     private var appHeader: some View {
         HStack(spacing: DesignTokens.Spacing.xxs) {
-            Image("AppBrand")
+            TonicBrandAssets.appImage()
                 .resizable()
                 .scaledToFit()
                 .frame(width: 22, height: 22)
