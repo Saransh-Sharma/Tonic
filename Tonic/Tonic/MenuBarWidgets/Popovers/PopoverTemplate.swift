@@ -714,6 +714,7 @@ struct PopoverTemplate_Previews: PreviewProvider {
         }
     }
 }
+#endif
 
 // MARK: - Activity Monitor Launch Helper
 
@@ -739,4 +740,3 @@ private func openActivityMonitor() {
         }
     }
 }
-#endif
