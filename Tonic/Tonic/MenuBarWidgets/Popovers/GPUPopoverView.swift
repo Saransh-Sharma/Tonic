@@ -72,28 +72,14 @@ public struct GPUPopoverView: View {
             Spacer()
 
             // Activity Monitor button
-            Button {
+            HoverableTextButton(icon: "chart.bar.xaxis", label: "Open Activity Monitor") {
                 openActivityMonitor()
-            } label: {
-                HStack(spacing: PopoverConstants.compactSpacing) {
-                    Image(systemName: PopoverConstants.Icons.activityMonitor)
-                        .font(.system(size: PopoverConstants.mediumIconSize))
-                    Text("Activity Monitor")
-                        .font(PopoverConstants.smallLabelFont)
-                }
-                .foregroundColor(DesignTokens.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
 
             // Settings button
-            Button {
-                // TODO: Open settings to GPU widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: "gearshape") {
+                SettingsDeepLinkNavigator.openModuleSettings(.gpu)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -122,8 +108,8 @@ public struct GPUPopoverView: View {
                     gpuData: gpuData,
                     temperatureHistory: dataManager.gpuTemperatureHistory,
                     utilizationHistory: dataManager.gpuHistory,
-                    renderHistory: [], // TODO: Add render history tracking
-                    tilerHistory: []   // TODO: Add tiler history tracking
+                    renderHistory: dataManager.gpuRenderHistory,
+                    tilerHistory: dataManager.gpuTilerHistory
                 )
             }
 
@@ -176,11 +162,10 @@ public struct GPUPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text("GPU Monitoring Not Available")
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .font(PopoverConstants.sectionTitleFont)
 
             Text("GPU monitoring requires Apple Silicon Mac or supported discrete GPU.")
-                .font(.caption)
+                .font(PopoverConstants.detailLabelFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .multilineTextAlignment(.center)
         }

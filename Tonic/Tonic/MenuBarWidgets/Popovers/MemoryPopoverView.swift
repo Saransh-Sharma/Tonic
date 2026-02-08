@@ -35,23 +35,23 @@ public struct MemoryPopoverView: View {
                     // Dashboard Section
                     dashboardSection
 
-                    Divider()
+                    SoftDivider()
 
                     // History Chart
                     historyChartSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Details Section
                     detailsSection
 
                     // Swap Section (only show if swap is configured)
                     if hasSwapData {
-                        Divider()
+                        SoftDivider()
                         swapSection
                     }
 
-                    Divider()
+                    SoftDivider()
 
                     // Top Processes
                     topProcessesSection
@@ -82,28 +82,14 @@ public struct MemoryPopoverView: View {
             Spacer()
 
             // Activity Monitor button
-            Button {
+            HoverableTextButton(icon: PopoverConstants.Icons.activityMonitor, label: "Activity Monitor") {
                 openActivityMonitor()
-            } label: {
-                HStack(spacing: PopoverConstants.compactSpacing) {
-                    Image(systemName: PopoverConstants.Icons.activityMonitor)
-                        .font(.system(size: PopoverConstants.mediumIconSize))
-                    Text("Activity Monitor")
-                        .font(PopoverConstants.smallLabelFont)
-                }
-                .foregroundColor(DesignTokens.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
 
             // Settings button
-            Button {
-                // TODO: Open settings to Memory widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.memory)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -128,7 +114,7 @@ public struct MemoryPopoverView: View {
                     MetricCard(
                         value: formatBytes(dataManager.memoryData.usedBytes),
                         label: "Used",
-                        color: .blue
+                        color: DesignTokens.Colors.accent
                     )
 
                     // Free memory metric
@@ -136,14 +122,14 @@ public struct MemoryPopoverView: View {
                         MetricCard(
                             value: formatBytes(freeBytes),
                             label: "Free",
-                            color: .green
+                            color: TonicColors.success
                         )
                     }
                 }
             }
             .frame(maxWidth: .infinity)
         }
-        .frame(height: 90) // Stats Master parity: 90px dashboard height
+        .frame(height: PopoverConstants.SectionHeights.dashboard) // Stats Master parity: 90px dashboard height
     }
 
     // MARK: - History Chart Section
@@ -155,11 +141,11 @@ public struct MemoryPopoverView: View {
             NetworkSparklineChart(
                 data: dataManager.memoryHistory,
                 color: DesignTokens.Colors.accent,
-                height: 70,
+                height: PopoverConstants.SectionHeights.historyChart,
                 showArea: true,
                 lineWidth: 1.5
             )
-            .frame(height: 70)
+            .frame(height: PopoverConstants.SectionHeights.historyChart)
         }
     }
 
@@ -169,44 +155,38 @@ public struct MemoryPopoverView: View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             PopoverSectionHeader(title: "Details")
 
-            // Two-column grid for memory details
-            let detailItems = memoryDetailItems
-            let halfCount = (detailItems.count + 1) / 2
-
-            ForEach(0..<halfCount, id: \.self) { index in
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    // Left column item
-                    if index < detailItems.count {
-                        detailRow(for: detailItems[index])
-                    }
-
-                    Spacer()
-
-                    // Right column item
-                    if index + halfCount < detailItems.count {
-                        detailRow(for: detailItems[index + halfCount])
-                    }
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: PopoverConstants.itemSpacing),
+                GridItem(.flexible(), spacing: PopoverConstants.itemSpacing)
+            ], spacing: PopoverConstants.compactSpacing) {
+                ForEach(Array(memoryDetailItems.enumerated()), id: \.offset) { _, item in
+                    detailRow(for: item)
                 }
             }
         }
     }
 
     private func detailRow(for item: MemoryDetailItem) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             if let icon = item.icon {
                 Image(systemName: icon)
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .frame(width: 12)
             }
 
             Text(item.label)
                 .font(PopoverConstants.detailLabelFont)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 2)
 
             Text(item.value)
                 .font(PopoverConstants.detailValueFont)
                 .fontWeight(.medium)
                 .foregroundColor(item.valueColor)
+                .lineLimit(1)
         }
     }
 
@@ -239,7 +219,7 @@ public struct MemoryPopoverView: View {
     private func swapMetricItem(_ label: String, value: UInt64, color: Color) -> some View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(color)
 
             Text(formatBytes(value))

@@ -38,27 +38,27 @@ public struct CPUPopoverView: View {
                     // Dashboard Section
                     dashboardSection
 
-                    Divider()
+                    SoftDivider()
 
                     // History Chart
                     historyChartSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Per-Core Section
                     coreUsageSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Details Section
                     detailsSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Load Average
                     loadAverageSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Frequency Section (Task 48)
                     if dataManager.cpuData.frequency != nil ||
@@ -66,14 +66,14 @@ public struct CPUPopoverView: View {
                        dataManager.cpuData.pCoreFrequency != nil {
                         frequencySection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // CPU Info Section (Task fn-8-v3b.5)
                     if hasCPUInfoData {
                         cpuInfoSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Top Processes
@@ -115,28 +115,14 @@ public struct CPUPopoverView: View {
             Spacer()
 
             // Activity Monitor button
-            Button {
+            HoverableTextButton(icon: PopoverConstants.Icons.activityMonitor, label: "Activity Monitor") {
                 openActivityMonitor()
-            } label: {
-                HStack(spacing: PopoverConstants.compactSpacing) {
-                    Image(systemName: PopoverConstants.Icons.activityMonitor)
-                        .font(.system(size: PopoverConstants.mediumIconSize))
-                    Text("Activity Monitor")
-                        .font(PopoverConstants.smallLabelFont)
-                }
-                .foregroundColor(DesignTokens.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
 
             // Settings button
-            Button {
-                // TODO: Open settings to CPU widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.cpu)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -174,7 +160,7 @@ public struct CPUPopoverView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .frame(height: 90) // Stats Master parity: 90px dashboard height
+        .frame(height: PopoverConstants.SectionHeights.dashboard) // Stats Master parity: 90px dashboard height
     }
 
     // MARK: - History Chart Section
@@ -186,11 +172,11 @@ public struct CPUPopoverView: View {
             NetworkSparklineChart(
                 data: dataManager.cpuHistory,
                 color: DesignTokens.Colors.accent,
-                height: 70,
+                height: PopoverConstants.SectionHeights.historyChart,
                 showArea: true,
                 lineWidth: 1.5
             )
-            .frame(height: 70)
+            .frame(height: PopoverConstants.SectionHeights.historyChart)
         }
     }
 
@@ -213,7 +199,7 @@ public struct CPUPopoverView: View {
     // MARK: - Details Section
 
     private var detailsSection: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: PopoverConstants.sectionSpacing) {
             detailDot("System", value: dataManager.cpuData.systemUsage, color: Color(red: 1.0, green: 0.3, blue: 0.2))
             detailDot("User", value: dataManager.cpuData.userUsage, color: Color(red: 0.2, green: 0.5, blue: 1.0))
             detailDot("Idle", value: dataManager.cpuData.idleUsage, color: Color.gray.opacity(0.3))
@@ -242,7 +228,7 @@ public struct CPUPopoverView: View {
     private func loadItem(_ label: String, value: Double?) -> some View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(String(format: "%.2f", value ?? 0))
@@ -281,7 +267,7 @@ public struct CPUPopoverView: View {
     private func frequencyItem(_ label: String, value: Double, color: Color) -> some View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(color)
 
             Text(String(format: "%.2f", value))
@@ -289,7 +275,7 @@ public struct CPUPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Text("GHz")
-                .font(.system(size: 8))
+                .font(PopoverConstants.tinyLabelFont)
                 .foregroundColor(DesignTokens.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity)
@@ -350,7 +336,7 @@ public struct CPUPopoverView: View {
     private func cpuInfoItem(_ label: String, value: Double, color: Color) -> some View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(color)
 
             Text("\(Int(value))%")
@@ -358,7 +344,7 @@ public struct CPUPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Text("Limit")
-                .font(.system(size: 8))
+                .font(PopoverConstants.tinyLabelFont)
                 .foregroundColor(DesignTokens.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity)
@@ -367,8 +353,8 @@ public struct CPUPopoverView: View {
     private var uptimeItem: some View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             Text("Uptime")
-                .font(.system(size: 9))
-                .foregroundColor(.green)
+                .font(PopoverConstants.processValueFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(formatUptime(dataManager.cpuData.uptime))
                 .font(PopoverConstants.smallValueFont)
