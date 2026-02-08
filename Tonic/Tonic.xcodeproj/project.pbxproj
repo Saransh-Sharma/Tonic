@@ -898,25 +898,25 @@
 			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_3F70BE68-B376-46F3-AA72-1AF4332CEA59" /* Tonic */ = {
+		"TEMP_5F85D345-B083-4EFA-BD53-C0AE8096AB02" /* Tonic */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Tonic;
 			sourceTree = "<group>";
 		};
-		"TEMP_6932859D-4C4A-4B7F-8AF9-713C7EE9C4F7" /* MenuBarWidgets */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = MenuBarWidgets;
-			sourceTree = "<group>";
-		};
-		"TEMP_7A0C8A06-C99F-47FE-A0FF-1934DFE4EB8D" /* Sources */ = {
+		"TEMP_8EC613DC-C3C3-4D79-BCA3-5F0B78779CCB" /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		"TEMP_944FAE35-692A-4E0E-A0DA-4035ECB7B55F" /* MenuBarWidgets */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = MenuBarWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
