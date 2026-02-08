@@ -748,33 +748,46 @@ struct ConnectivityGridView: View {
     private let columns = 60
     private let rows = 6
 
+    private enum CellStatus {
+        case connected
+        case disconnected
+        case noData
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            let cellWidth = geometry.size.width / CGFloat(columns)
-            let cellHeight = geometry.size.height / CGFloat(rows)
+            let cellWidth = (geometry.size.width - CGFloat(columns - 1)) / CGFloat(columns)
+            let cellHeight = (geometry.size.height - CGFloat(rows - 1)) / CGFloat(rows)
 
             LazyVGrid(
-                columns: Array(repeating: GridItem(.fixed(cellWidth), spacing: 0), count: columns),
-                spacing: 0
+                columns: Array(repeating: GridItem(.fixed(cellWidth), spacing: 1), count: columns),
+                spacing: 1
             ) {
                 ForEach(0..<(columns * rows), id: \.self) { index in
                     let status = statusForIndex(index)
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(status ? TonicColors.success : TonicColors.error.opacity(0.5))
-                        .frame(width: cellWidth - 1, height: cellHeight - 1)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(colorForStatus(status))
+                        .frame(width: cellWidth, height: cellHeight)
                 }
             }
         }
-        .padding(1)
     }
 
-    private func statusForIndex(_ index: Int) -> Bool {
+    private func statusForIndex(_ index: Int) -> CellStatus {
         if index == 0 {
-            return isConnected
+            return isConnected ? .connected : .disconnected
         } else if index - 1 < history.count {
-            return history.reversed()[index - 1]
+            return history.reversed()[index - 1] ? .connected : .disconnected
         } else {
-            return isConnected
+            return .noData
+        }
+    }
+
+    private func colorForStatus(_ status: CellStatus) -> Color {
+        switch status {
+        case .connected: return TonicColors.success
+        case .disconnected: return TonicColors.error.opacity(0.5)
+        case .noData: return Color(nsColor: .systemGray).opacity(0.15)
         }
     }
 }
