@@ -191,7 +191,7 @@ public struct SpeedWidgetView: View {
 
     private var chartView: some View {
         HStack(spacing: 6) {
-            // Mini chart placeholder - would need history data
+            // Compact throughput bars scaled against reasonable network ceilings
             VStack(spacing: 2) {
                 SpeedMiniBarChartView(value: min(1, downloadSpeed / 10_000_000), color: config.downloadColor, height: 3)
                 SpeedMiniBarChartView(value: min(1, uploadSpeed / 1_000_000), color: config.uploadColor, height: 3)

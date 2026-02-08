@@ -52,7 +52,7 @@ public struct ClockFormatter {
         let hours = abs(seconds) / 3600
         let minutes = (abs(seconds) % 3600) / 60
         let sign = seconds >= 0 ? "+" : "-"
-        return String(format: "%s%02d:%02d", sign, hours, minutes)
+        return String(format: "%@%02d:%02d", sign, hours, minutes)
     }
 
     /// Check if DST is active for a timezone
