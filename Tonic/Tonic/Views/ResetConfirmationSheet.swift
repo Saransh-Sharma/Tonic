@@ -37,7 +37,8 @@ struct ResetConfirmationSheet: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .frame(width: 480, height: phase == .confirm ? 520 : 420)
+        .frame(width: 480)
+        .frame(minHeight: 300)
         .background(DesignTokens.Colors.background)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: phase)
     }
@@ -45,22 +46,23 @@ struct ResetConfirmationSheet: View {
     // MARK: - Confirmation Phase
 
     private var confirmationContent: some View {
-        VStack(spacing: DesignTokens.Spacing.lg) {
+        ScrollView {
+        VStack(spacing: DesignTokens.Spacing.md) {
             Spacer()
-                .frame(height: DesignTokens.Spacing.sm)
+                .frame(height: DesignTokens.Spacing.xs)
 
             // Warning icon
             ZStack {
                 Circle()
                     .fill(TonicColors.error.opacity(0.15))
-                    .frame(width: 72, height: 72)
+                    .frame(width: 56, height: 56)
 
                 Circle()
                     .fill(TonicColors.error.opacity(0.08))
-                    .frame(width: 88, height: 88)
+                    .frame(width: 68, height: 68)
 
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 32, weight: .medium))
+                    .font(.system(size: 26, weight: .medium))
                     .foregroundColor(TonicColors.error)
             }
             .scaleIn()
@@ -161,6 +163,7 @@ struct ResetConfirmationSheet: View {
                             )
                     )
                     .animation(.easeInOut(duration: 0.2), value: confirmationText == "RESET")
+                    .onSubmit { }
             }
             .fadeInSlideUp(delay: 0.18)
 
@@ -189,18 +192,17 @@ struct ResetConfirmationSheet: View {
                         .padding(.vertical, DesignTokens.Spacing.sm)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(TonicColors.error)
+                .tint(confirmationText == "RESET" ? TonicColors.error : Color.gray)
                 .controlSize(.large)
                 .disabled(confirmationText != "RESET")
-                .opacity(confirmationText == "RESET" ? 1.0 : 0.5)
                 .animation(.easeInOut(duration: 0.2), value: confirmationText == "RESET")
             }
             .fadeInSlideUp(delay: 0.22)
-
-            Spacer()
-                .frame(height: DesignTokens.Spacing.sm)
         }
         .padding(.horizontal, DesignTokens.Spacing.xl)
+        .padding(.bottom, DesignTokens.Spacing.md)
+        }
+        .scrollIndicators(.hidden)
     }
 
     // MARK: - Progress Phase

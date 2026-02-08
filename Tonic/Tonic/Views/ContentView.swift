@@ -13,10 +13,8 @@ struct ContentView: View {
     @State private var selectedDestination: NavigationDestination = .dashboard
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showOnboarding = false
-    @State private var showFeatureTour = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
-    @State private var showWidgetOnboarding = false
     @Binding var showCommandPalette: Bool
     @Environment(\.isHighContrast) private var isHighContrast
 
@@ -48,22 +46,13 @@ struct ContentView: View {
             .navigationTitle("Tonic")
             .frame(minWidth: 800, minHeight: 500)
             .sheet(isPresented: $showOnboarding) {
-                OnboardingView(isPresented: $showOnboarding)
-            }
-            .sheet(isPresented: $showFeatureTour) {
-                OnboardingTourView(isPresented: $showFeatureTour)
+                UnifiedOnboardingView(isPresented: $showOnboarding)
             }
             .sheet(isPresented: $showPermissionPrompt) {
                 PermissionPromptView(
                     feature: missingPermissionFor,
                     isPresented: $showPermissionPrompt
                 )
-            }
-            .sheet(isPresented: $showWidgetOnboarding) {
-                WidgetOnboardingView()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetOnboarding"))) { _ in
-                showWidgetOnboarding = true
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetCustomization"))) { _ in
                 // Open preferences to Widgets tab
@@ -98,15 +87,6 @@ struct ContentView: View {
     private func checkFirstLaunch() {
         if !hasSeenOnboarding {
             showOnboarding = true
-        } else {
-            // Show feature tour for first app launch after permissions are set up
-            let hasSeenFeatureTour = UserDefaults.standard.bool(forKey: "hasSeenFeatureTour")
-            if !hasSeenFeatureTour {
-                // Delay showing tour to allow UI to render first
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showFeatureTour = true
-                }
-            }
         }
 
         // Check permissions on app launch
@@ -178,7 +158,7 @@ struct DetailView: View {
         case .liveMonitoring:
             SystemStatusDashboard()
         case .menuBarWidgets:
-            WidgetsPanelWrapper()
+            WidgetCustomizationView()
         case .developerTools:
             DeveloperToolsView()
         case .designSandbox:
@@ -290,8 +270,8 @@ struct PermissionPromptView: View {
     }
 
     private func grantPermission() {
-        // Open Full Disk Access in System Settings
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
+        // Open Full Disk Access in System Settings (macOS 14+)
+        let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
         NSWorkspace.shared.open(url)
 
         // Recheck permissions after delay
@@ -405,106 +385,6 @@ struct DeveloperToolsView: View {
             Spacer()
         }
         .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Widgets Panel Wrapper
-// Note: WidgetsPanelView is now defined in WidgetsPanelView.swift
-// This wrapper handles onboarding before showing the main panel
-
-struct WidgetsPanelWrapper: View {
-    @State private var showWidgetOnboarding = false
-
-    var body: some View {
-        Group {
-            // Content
-            if WidgetPreferences.shared.hasCompletedOnboarding {
-                // Use the working widget customization view
-                // WidgetsPanelView in WidgetsPanelView.swift shows the new Stats Master-parity UI
-                // but still needs integration work, so we use WidgetCustomizationView for now
-                WidgetCustomizationView()
-            } else {
-                widgetOnboardingPrompt
-            }
-        }
-        .sheet(isPresented: $showWidgetOnboarding) {
-            WidgetOnboardingView()
-        }
-    }
-
-    private var widgetOnboardingPrompt: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(systemName: "square.grid.2x2.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.linearGradient(
-                    colors: [TonicColors.accent, TonicColors.pro],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-
-            VStack(spacing: 12) {
-                Text("Menu Bar Widgets")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
-
-                Text("Monitor your system at a glance with customizable widgets")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "8E8E93"))
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                featureRow("cpu.fill", "CPU & Memory", "Real-time system resource monitoring")
-                featureRow("internaldrive.fill", "Disk", "Track disk usage and activity")
-                featureRow("wifi", "Network", "Monitor network connections and speed")
-                featureRow("cloud.sun.fill", "Weather", "Current conditions and forecasts")
-            }
-            .padding()
-            .background(Color(hex: "1C1C1E"))
-            .cornerRadius(12)
-
-            Button {
-                showWidgetOnboarding = true
-            } label: {
-                Text("Get Started")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(TonicColors.accent)
-                    .cornerRadius(10)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 40)
-
-            Spacer()
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(hex: "0D0E11"))
-    }
-
-    private func featureRow(_ icon: String, _ title: String, _ description: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(TonicColors.accent)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(Color(hex: "8E8E93"))
-            }
-
-            Spacer()
-        }
     }
 }
 

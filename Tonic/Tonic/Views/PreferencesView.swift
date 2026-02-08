@@ -332,6 +332,7 @@ struct SettingsSectionHeader: View {
 struct GeneralSettingsContent: View {
     @State private var preferences = AppearancePreferences.shared
     @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @State private var showResetSheet = false
 
     var body: some View {
         PreferenceList {
@@ -458,11 +459,14 @@ struct GeneralSettingsContent: View {
                     showDivider: false,
                     buttonTitle: "Reset App...",
                     buttonStyle: .destructive,
-                    action: { /* Reset app action */ }
+                    action: { showResetSheet = true }
                 )
             }
         }
         .padding(DesignTokens.Spacing.lg)
+        .sheet(isPresented: $showResetSheet) {
+            ResetConfirmationSheet(isPresented: $showResetSheet)
+        }
     }
 }
 
