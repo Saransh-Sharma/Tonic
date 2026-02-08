@@ -65,6 +65,33 @@ struct ContentView: View {
                     )
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
+                guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
+                      let _ = WidgetType(rawValue: rawModule) else {
+                    return
+                }
+
+                // Navigate to Settings in the main window
+                selectedDestination = .settings
+
+                // After navigation completes, post the module selection notifications
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .openSettingsSection,
+                        object: nil,
+                        userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.modules.rawValue]
+                    )
+
+                    // Small delay to ensure ModulesSettingsContent is ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        NotificationCenter.default.post(
+                            name: .openModuleSettings,
+                            object: nil,
+                            userInfo: notification.userInfo
+                        )
+                    }
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
                 // App was reset — re-read onboarding flag and trigger onboarding
                 hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
