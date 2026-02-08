@@ -104,6 +104,7 @@
 		6BD4A995C6098C614BDF92A7 /* NetworkDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF967F4AD7B4A5A47B76291 /* NetworkDetails.swift */; };
 		6C68AD3252BB9E9BF1A644C2 /* DiskSMARTData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0569C23186B252AFABF47C15 /* DiskSMARTData.swift */; };
 		6C9460B8F8C1C4BF98CD7E5B /* SensorsStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0621C5813344F2968EF19BF4 /* SensorsStatusItem.swift */; };
+		6CB048CE98356342DEF08C39 /* TonicWidgetComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C72FDDBB9BE3EF75653E847 /* TonicWidgetComponents.swift */; };
 		6D7085DC160367DCE4E9ABAF /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6959B3085A8C85E79867968A /* WeatherService.swift */; };
 		6EDA5071C9D5664EF4DA6C94 /* Sparkle.zip in Resources */ = {isa = PBXBuildFile; fileRef = 98CF5D8EB878E9410A28A2B9 /* Sparkle.zip */; };
 		6F6D07822BD1FE900C12E240 /* MemoryWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE5C86B14193919871BD65D /* MemoryWidgetView.swift */; };
@@ -114,7 +115,7 @@
 		73043BBCCA017E4792B30836 /* CollectorBin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC56077AD3AFE41C36422AC /* CollectorBin.swift */; };
 		73182ED2A2CE9729BEF93CDC /* SmartCareModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6300DB5D80C2AAC4EA87C17 /* SmartCareModels.swift */; };
 		74351BBEFAC191C430831676 /* TonicThemeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B7748F6AB12B58318CD3F3 /* TonicThemeProvider.swift */; };
-		750588C02F3917E200BA707B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 750588BF2F3917E200BA707B /* Assets.xcassets */; };
+		750588C22F39290200BA707B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 750588C12F39290200BA707B /* Assets.xcassets */; };
 		784F9456E8CC98C3394EB12F /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2EDCA4C395EBFBC64D865E1 /* PermissionManager.swift */; };
 		7889B70FC26CB6B76DE8BD0F /* SmartScanEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4269563CA42B36BFC346A89C /* SmartScanEngine.swift */; };
 		789FD1127E088C3625A9B84B /* DarkModeThemeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA26FBEE89EB86978EDA8F16 /* DarkModeThemeView.swift */; };
@@ -330,7 +331,7 @@
 		730E17099307E49073F98D40 /* PopupWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupWindow.swift; sourceTree = "<group>"; };
 		73186C7B364467F4917CD6C0 /* LabelStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelStatusItem.swift; sourceTree = "<group>"; };
 		745A4CC580ABC9C477C25CC9 /* SystemStatusDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusDashboard.swift; sourceTree = "<group>"; };
-		750588BF2F3917E200BA707B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		750588C12F39290200BA707B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		765BCE13B288AD8DE0A5C822 /* DiskAnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskAnalysisModels.swift; sourceTree = "<group>"; };
 		77E988B8D22B4F6FB96323BF /* PerformanceOptimizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceOptimizations.swift; sourceTree = "<group>"; };
 		78687C600AFEB863FB9C66A7 /* ModuleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleSettingsView.swift; sourceTree = "<group>"; };
@@ -365,6 +366,7 @@
 		98CF5D8EB878E9410A28A2B9 /* Sparkle.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = Sparkle.zip; sourceTree = "<group>"; };
 		99EA89ABFE8B19B0ADA81356 /* DiskMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskMapView.swift; sourceTree = "<group>"; };
 		9BE1BEA3D71838E48D485BC4 /* SpeedStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedStatusItem.swift; sourceTree = "<group>"; };
+		9C72FDDBB9BE3EF75653E847 /* TonicWidgetComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TonicWidgetComponents.swift; sourceTree = "<group>"; };
 		9CBE8CE926FCCAC1EC3EAB08 /* DiskWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskWidgetView.swift; sourceTree = "<group>"; };
 		9CC502C13392AA4425D70CA7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		9D23CCD48C23AACA84946A2C /* SmartCareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCareView.swift; sourceTree = "<group>"; };
@@ -755,6 +757,7 @@
 				55B7748F6AB12B58318CD3F3 /* TonicThemeProvider.swift */,
 				91BD38276D47C9F278D11ED1 /* TonicThemeTokens.swift */,
 				BD3B0C535FB4FB1363B60993 /* TonicVisualPrimitives.swift */,
+				9C72FDDBB9BE3EF75653E847 /* TonicWidgetComponents.swift */,
 				38BCE5E4FF1CA33C25A7D8EE /* WidgetColors.swift */,
 			);
 			path = Design;
@@ -837,7 +840,7 @@
 				5E19DCB867491F9FA1234D8A /* Tonic */,
 				56DB73707C827138DB7CC11F /* TonicTests */,
 				6FF3BA7E51F504C44E0A8711 /* Products */,
-				750588BF2F3917E200BA707B /* Assets.xcassets */,
+				750588C12F39290200BA707B /* Assets.xcassets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -976,7 +979,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				750588C02F3917E200BA707B /* Assets.xcassets in Resources */,
+				750588C22F39290200BA707B /* Assets.xcassets in Resources */,
 				6EDA5071C9D5664EF4DA6C94 /* Sparkle.zip in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1160,6 +1163,7 @@
 				74351BBEFAC191C430831676 /* TonicThemeProvider.swift in Sources */,
 				2F90CD80DAAC7C765293C45D /* TonicThemeTokens.swift in Sources */,
 				AA4BE028085A64B5E400461C /* TonicVisualPrimitives.swift in Sources */,
+				6CB048CE98356342DEF08C39 /* TonicWidgetComponents.swift in Sources */,
 				3C008E5FA6672E7D82A3D442 /* TooltipPopover.swift in Sources */,
 				B57656D4B544DC87291EB1E2 /* UnifiedOnboardingView.swift in Sources */,
 				2DCADE3F815363F8B27569E0 /* VisualizationType.swift in Sources */,
