@@ -165,3 +165,6 @@ Tonic/CollectorBin/
 # Build outputs and temporary files
 output/
 tmp/
+
+# IDE/Editor cache
+codex/
