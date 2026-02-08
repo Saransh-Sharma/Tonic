@@ -2627,7 +2627,7 @@ public final class WidgetDataManager {
 
             // Update connectivity history (for grid visualization)
             self.connectivityHistory.append(isConnected)
-            if self.connectivityHistory.count > 90 {
+            if self.connectivityHistory.count > 360 {
                 self.connectivityHistory.removeFirst()
             }
 
