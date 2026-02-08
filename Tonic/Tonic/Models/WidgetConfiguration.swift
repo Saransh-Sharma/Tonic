@@ -25,6 +25,10 @@ extension Notification.Name {
     /// Posted to navigate Settings > Modules UI to a specific module.
     /// UserInfo contains: "module" -> WidgetType.rawValue
     static let openModuleSettings = Notification.Name("tonic.openModuleSettings")
+
+    /// Posted to navigate main window to Settings → Modules with specific module selected
+    /// UserInfo contains: "module" -> WidgetType.rawValue
+    static let showModuleSettings = Notification.Name("tonic.showModuleSettings")
 }
 
 enum SettingsDeepLinkUserInfoKey {
