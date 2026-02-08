@@ -27,11 +27,19 @@ public final class TachometerStatusItem: WidgetStatusItem {
             value = 0
         }
 
-        // TODO: Implement TachometerWidgetView
         return AnyView(
-            Text("\(Int(value))%")
-                .font(.system(size: 11))
-                .foregroundColor(configuration.accentColor.colorValue(for: widgetType))
+            TachometerWidgetView(
+                value: value,
+                config: TachometerConfig(
+                    size: 22,
+                    minValue: 0,
+                    maxValue: 100,
+                    showNeedle: true,
+                    showLabel: configuration.showLabel,
+                    colorMode: .dynamic
+                ),
+                fixedColor: configuration.accentColor.colorValue(for: widgetType)
+            )
         )
     }
 

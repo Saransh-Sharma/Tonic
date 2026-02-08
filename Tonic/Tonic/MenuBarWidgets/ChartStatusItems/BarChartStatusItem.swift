@@ -46,7 +46,15 @@ public final class BarChartStatusItem: WidgetStatusItem {
             barWidth: 3,
             barSpacing: 1,
             showLabels: false,
-            colorMode: .ePCores,
+            colorMode: {
+                switch configuration.chartConfig?.barColorMode ?? .ePCores {
+                case .uniform: return .uniform
+                case .gradient: return .gradient
+                case .byValue: return .byValue
+                case .byCategory: return .byCategory
+                case .ePCores: return .ePCores
+                }
+            }(),
             stackedMode: false
         )
 

@@ -32,9 +32,9 @@ public final class LineChartStatusItem: WidgetStatusItem {
         case .network:
             // For network, use download history
             history = dataManager.getNetworkDownloadHistory()
-            currentValue = min(1.0, dataManager.networkData.downloadBytesPerSecond / 10_000_000) // Normalize to 0-1
+            currentValue = history.last ?? dataManager.networkData.downloadBytesPerSecond
         case .gpu:
-            history = dataManager.getCPUHistory() // Reuse CPU history as placeholder
+            history = dataManager.getGPUHistory()
             currentValue = dataManager.gpuData.usagePercentage ?? 0
         default:
             history = []
@@ -49,7 +49,13 @@ public final class LineChartStatusItem: WidgetStatusItem {
             showFrame: configuration.chartConfig?.showFrame ?? false,
             showValue: false,
             showValueOverlay: configuration.chartConfig?.showValue ?? false,
-            fillMode: .gradient,
+            fillMode: {
+                switch configuration.chartConfig?.fillMode ?? .gradient {
+                case .gradient: return .gradient
+                case .solid: return .solid
+                case .lineOnly: return .lineOnly
+                }
+            }(),
             lineColor: .blue
         )
 
