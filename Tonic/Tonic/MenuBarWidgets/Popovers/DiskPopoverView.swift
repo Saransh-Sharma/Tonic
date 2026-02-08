@@ -83,7 +83,7 @@ public struct DiskPopoverView: View {
                         )
                     }
 
-                    Divider()
+                    SoftDivider()
 
                     // Top Processes section
                     topProcessesSection
@@ -113,36 +113,15 @@ public struct DiskPopoverView: View {
 
             Spacer()
 
-            // Process count label
-            if let primary = primaryVolume, let processes = primary.topProcesses {
-                Text("\(processes.count) processes")
-                    .font(PopoverConstants.smallLabelFont)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            // Activity Monitor button
-            Button {
+            // Activity Monitor button (icon-only to prevent header overflow)
+            HoverableButton(systemImage: PopoverConstants.Icons.activityMonitor) {
                 openActivityMonitor()
-            } label: {
-                HStack(spacing: PopoverConstants.compactSpacing) {
-                    Image(systemName: PopoverConstants.Icons.activityMonitor)
-                        .font(.system(size: PopoverConstants.mediumIconSize))
-                    Text("Activity Monitor")
-                        .font(PopoverConstants.smallLabelFont)
-                }
-                .foregroundColor(DesignTokens.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
 
             // Settings button
-            Button {
-                // TODO: Open settings to Disk widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.disk)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -171,7 +150,7 @@ public struct DiskPopoverView: View {
                     Spacer()
 
                     Image(systemName: isProcessesExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10))
+                        .font(PopoverConstants.smallLabelFont)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
                 }
             }
@@ -184,7 +163,7 @@ public struct DiskPopoverView: View {
                         // Header row
                         processHeaderRow
 
-                        Divider()
+                        SoftDivider()
 
                         // Process rows
                         ForEach(processes.prefix(topProcessCount)) { process in
@@ -195,11 +174,7 @@ public struct DiskPopoverView: View {
                     .background(Color(nsColor: .controlBackgroundColor))
                     .cornerRadius(PopoverConstants.innerCornerRadius)
                 } else {
-                    Text("No process data available")
-                        .font(PopoverConstants.detailLabelFont)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, PopoverConstants.itemSpacing)
+                    EmptyStateView(icon: "app.dashed", title: "No process data available")
                 }
             }
         }
@@ -208,20 +183,20 @@ public struct DiskPopoverView: View {
     private var processHeaderRow: some View {
         HStack(spacing: PopoverConstants.compactSpacing) {
             Text("Process")
-                .font(.system(size: 9, weight: .semibold))
+                .font(PopoverConstants.processHeaderFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
                 .frame(width: 100, alignment: .leading)
 
             Spacer()
 
             Text("Read (Total)")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(Color.green)
+                .font(PopoverConstants.processHeaderFont)
+                .foregroundColor(PopoverConstants.readColor)
                 .frame(width: 70, alignment: .trailing)
 
             Text("Write (Total)")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(Color.orange)
+                .font(PopoverConstants.processHeaderFont)
+                .foregroundColor(PopoverConstants.writeColor)
                 .frame(width: 70, alignment: .trailing)
         }
     }
@@ -235,14 +210,14 @@ public struct DiskPopoverView: View {
                     .frame(width: 14, height: 14)
             } else {
                 Image(systemName: "app.fill")
-                    .font(.system(size: 10))
+                    .font(PopoverConstants.smallLabelFont)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .frame(width: 14, height: 14)
             }
 
             // Process name
             Text(process.name)
-                .font(.system(size: 10))
+                .font(PopoverConstants.smallLabelFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
                 .frame(width: 90, alignment: .leading)
                 .lineLimit(1)
@@ -253,12 +228,12 @@ public struct DiskPopoverView: View {
             // Read bytes (cumulative)
             if let readBytes = process.diskReadBytes {
                 Text(formatByteCount(readBytes))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(Color.green)
+                    .font(PopoverConstants.processValueFont)
+                    .foregroundColor(PopoverConstants.readColor)
                     .frame(width: 70, alignment: .trailing)
             } else {
                 Text("--")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(PopoverConstants.processValueFont)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .frame(width: 70, alignment: .trailing)
             }
@@ -266,12 +241,12 @@ public struct DiskPopoverView: View {
             // Write bytes (cumulative)
             if let writeBytes = process.diskWriteBytes {
                 Text(formatByteCount(writeBytes))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(Color.orange)
+                    .font(PopoverConstants.processValueFont)
+                    .foregroundColor(PopoverConstants.writeColor)
                     .frame(width: 70, alignment: .trailing)
             } else {
                 Text("--")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(PopoverConstants.processValueFont)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                     .frame(width: 70, alignment: .trailing)
             }

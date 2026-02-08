@@ -29,13 +29,13 @@ public struct NetworkPopoverView: View {
     @State private var state = NetworkPopoverState()
     @State private var dataManager = WidgetDataManager.shared
 
-    // Colors using NSColor for exact matching
-    private let downloadColor = Color(nsColor: NSColor(red: 0.2, green: 0.5, blue: 1.0, alpha: 1.0))
-    private let uploadColor = Color(nsColor: NSColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0))
-    private let textColor = Color(nsColor: .textColor)
-    private let secondaryTextColor = Color(nsColor: .secondaryLabelColor)
-    private let greenStatus = Color(nsColor: .systemGreen)
-    private let redStatus = Color(nsColor: .systemRed)
+    // Colors using design tokens
+    private let downloadColor = PopoverConstants.downloadColor
+    private let uploadColor = PopoverConstants.uploadColor
+    private let textColor = DesignTokens.Colors.textPrimary
+    private let secondaryTextColor = DesignTokens.Colors.textSecondary
+    private let greenStatus = TonicColors.success
+    private let redStatus = TonicColors.error
 
     // MARK: - Body
 
@@ -75,27 +75,13 @@ public struct NetworkPopoverView: View {
 
             Spacer()
 
-            Button {
+            HoverableTextButton(icon: PopoverConstants.Icons.activityMonitor, label: "Activity Monitor") {
                 openActivityMonitor()
-            } label: {
-                HStack(spacing: PopoverConstants.compactSpacing) {
-                    Image(systemName: PopoverConstants.Icons.activityMonitor)
-                        .font(.system(size: PopoverConstants.mediumIconSize))
-                    Text("Activity Monitor")
-                        .font(PopoverConstants.smallLabelFont)
-                }
-                .foregroundColor(DesignTokens.Colors.textSecondary)
             }
-            .buttonStyle(.plain)
 
-            Button {
-                // TODO: Open settings to Network widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.network)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -113,7 +99,8 @@ public struct NetworkPopoverView: View {
                 color: downloadColor,
                 isActive: downloadSpeed.isActive
             )
-            .frame(width: 140, height: 90)
+            .frame(maxWidth: .infinity)
+            .frame(height: PopoverConstants.SectionHeights.dashboard)
 
             // Upload side
             halfDashboard(
@@ -123,9 +110,10 @@ public struct NetworkPopoverView: View {
                 color: uploadColor,
                 isActive: uploadSpeed.isActive
             )
-            .frame(width: 140, height: 90)
+            .frame(maxWidth: .infinity)
+            .frame(height: PopoverConstants.SectionHeights.dashboard)
         }
-        .frame(height: 90)
+        .frame(height: PopoverConstants.SectionHeights.dashboard)
     }
 
     private func halfDashboard(title: String, value: String, unit: String, color: Color, isActive: Bool) -> some View {
@@ -134,7 +122,7 @@ public struct NetworkPopoverView: View {
                 // Value + unit (top)
                 HStack(spacing: 5) {
                     Text(value)
-                        .font(Font.system(size: 26, weight: .light))
+                        .font(PopoverConstants.networkSpeedFont)
                         .foregroundColor(textColor)
                         .frame(width: valueWidth(value: value), alignment: .trailing)
                         .fixedSize()
@@ -176,11 +164,11 @@ public struct NetworkPopoverView: View {
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(formatRateFromKBps(maxHistoryRate))
-                        .font(.system(size: 8))
+                        .font(PopoverConstants.tinyLabelFont)
                         .foregroundColor(secondaryTextColor)
                     Spacer()
                     Text("0")
-                        .font(.system(size: 8))
+                        .font(PopoverConstants.tinyLabelFont)
                         .foregroundColor(secondaryTextColor)
                 }
                 .frame(width: 40)
@@ -226,9 +214,9 @@ public struct NetworkPopoverView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(Font.system(size: 11))
+            .font(PopoverConstants.mediumValueFont)
             .foregroundColor(secondaryTextColor)
-            .frame(height: 22, alignment: .leading)
+            .frame(height: PopoverConstants.SectionHeights.header, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 0)
     }
@@ -261,42 +249,40 @@ public struct NetworkPopoverView: View {
     }
 
     private func detailRow(title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             Text(title)
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(secondaryTextColor)
-                .frame(width: 120, alignment: .leading)
 
             Spacer()
 
             Text(value)
-                .font(Font.system(size: 11, weight: .semibold))
+                .font(PopoverConstants.subHeaderFont)
                 .foregroundColor(color)
-                .frame(width: 160, alignment: .trailing)
+                .lineLimit(1)
         }
-        .frame(height: 16)
+        .frame(height: PopoverConstants.SectionHeights.detail)
     }
 
     private func detailColorRow(title: String, value: String, color: Color) -> some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             // Color indicator (6x6)
             RoundedRectangle(cornerRadius: 3)
                 .fill(color)
                 .frame(width: 6, height: 6)
 
             Text(title)
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(secondaryTextColor)
-                .frame(width: 114, alignment: .leading)
 
             Spacer()
 
             Text(value)
-                .font(Font.system(size: 11, weight: .semibold))
+                .font(PopoverConstants.subHeaderFont)
                 .foregroundColor(textColor)
-                .frame(width: 160, alignment: .trailing)
+                .lineLimit(1)
         }
-        .frame(height: 16)
+        .frame(height: PopoverConstants.SectionHeights.detail)
     }
 
     // MARK: - Interface Section
@@ -313,44 +299,38 @@ public struct NetworkPopoverView: View {
             detailRow(title: "Physical address:", value: macAddressValue, color: textColor)
 
             // DNS servers with expand/collapse
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 Text("DNS servers:")
-                    .font(Font.system(size: 11))
+                    .font(PopoverConstants.mediumValueFont)
                     .foregroundColor(secondaryTextColor)
-                    .frame(width: 120, alignment: .leading)
 
                 Spacer()
 
                 Button(action: { state.showDNSDetails.toggle() }) {
                     HStack(spacing: 4) {
                         Text(dnsServersValue)
-                            .font(Font.system(size: 11, weight: .semibold))
+                            .font(PopoverConstants.subHeaderFont)
                             .foregroundColor(textColor)
                             .lineLimit(1)
                         Image(systemName: "chevron.right")
-                            .font(Font.system(size: 8))
+                            .font(PopoverConstants.tinyLabelFont)
                             .foregroundColor(secondaryTextColor)
                             .rotationEffect(.degrees(state.showDNSDetails ? 90 : 0))
                     }
                 }
                 .buttonStyle(.plain)
-                .frame(width: 160, alignment: .trailing)
             }
-            .frame(height: 16)
+            .frame(height: PopoverConstants.SectionHeights.detail)
 
             if state.showDNSDetails {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .trailing, spacing: 4) {
                     ForEach(Array(dnsServersList.enumerated()), id: \.offset) { _, dns in
-                        HStack(spacing: 8) {
-                            Spacer()
-                                .frame(width: 120)
-                            Text(dns)
-                                .font(Font.system(size: 10))
-                                .foregroundColor(textColor)
-                            Spacer()
-                        }
+                        Text(dns)
+                            .font(PopoverConstants.smallLabelFont)
+                            .foregroundColor(textColor)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.vertical, 4)
                 .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
             }
@@ -362,31 +342,30 @@ public struct NetworkPopoverView: View {
                 detailRow(title: "Standard:", value: wifi.standard, color: textColor)
 
                 // WiFi details row with extended tooltip
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
                     Text("Channel:")
-                        .font(Font.system(size: 11))
+                        .font(PopoverConstants.mediumValueFont)
                         .foregroundColor(secondaryTextColor)
-                        .frame(width: 120, alignment: .leading)
 
                     Spacer()
 
                     Button(action: { state.showWiFiTooltip.toggle() }) {
                         HStack(spacing: 4) {
                             Text("\(wifi.channel) (\(wifi.band.displayName), \(wifi.channelWidth) MHz)")
-                                .font(Font.system(size: 11, weight: .semibold))
+                                .font(PopoverConstants.subHeaderFont)
                                 .foregroundColor(textColor)
+                                .lineLimit(1)
                             Image(systemName: "info.circle")
-                                .font(Font.system(size: 9))
+                                .font(PopoverConstants.processValueFont)
                                 .foregroundColor(secondaryTextColor)
                         }
                     }
                     .buttonStyle(.plain)
-                    .frame(width: 160, alignment: .trailing)
                     .popover(isPresented: $state.showWiFiTooltip, arrowEdge: .trailing) {
                         wifiTooltipView(wifi)
                     }
                 }
-                .frame(height: 16)
+                .frame(height: PopoverConstants.SectionHeights.detail)
 
                 detailRow(title: "Speed:", value: linkSpeedValue, color: textColor)
             }
@@ -396,11 +375,11 @@ public struct NetworkPopoverView: View {
     // MARK: - WiFi Tooltip View
 
     private func wifiTooltipView(_ wifi: WiFiDetails) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             Text("WiFi Details")
-                .font(.system(size: 12, weight: .semibold))
+                .font(PopoverConstants.subHeaderFont)
                 .foregroundColor(textColor)
-                .padding(.bottom, 4)
+                .padding(.bottom, PopoverConstants.compactSpacing)
 
             wifiDetailRow(label: "Signal Strength", value: "\(wifi.rssi) dBm")
             wifiDetailRow(label: "Noise Level", value: "\(wifi.noise) dBm")
@@ -420,11 +399,11 @@ public struct NetworkPopoverView: View {
     private func wifiDetailRow(label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 10))
+                .font(PopoverConstants.smallLabelFont)
                 .foregroundColor(secondaryTextColor)
             Spacer()
             Text(value)
-                .font(.system(size: 10, weight: .medium))
+                .font(PopoverConstants.smallValueFont)
                 .foregroundColor(textColor)
         }
     }
@@ -516,12 +495,7 @@ public struct NetworkPopoverView: View {
                     }
                 }
             } else {
-                VStack(spacing: 8) {
-                    Text("No process data available")
-                        .font(Font.system(size: 11))
-                        .foregroundColor(secondaryTextColor)
-                }
-                .frame(height: 50)
+                EmptyStateView(icon: "app.dashed", title: "No process data available")
             }
         }
     }
@@ -529,7 +503,7 @@ public struct NetworkPopoverView: View {
     private var processHeaderRow: some View {
         HStack(spacing: 0) {
             Text("Process")
-                .font(.system(size: 9, weight: .semibold))
+                .font(PopoverConstants.processHeaderFont)
                 .foregroundColor(secondaryTextColor)
                 .frame(width: 110, alignment: .leading)
 
@@ -540,7 +514,7 @@ public struct NetworkPopoverView: View {
                     .fill(downloadColor)
                     .frame(width: 6, height: 6)
                 Text("Down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(PopoverConstants.processHeaderFont)
                     .foregroundColor(secondaryTextColor)
             }
             .frame(width: 60, alignment: .trailing)
@@ -550,7 +524,7 @@ public struct NetworkPopoverView: View {
                     .fill(uploadColor)
                     .frame(width: 6, height: 6)
                 Text("Up")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(PopoverConstants.processHeaderFont)
                     .foregroundColor(secondaryTextColor)
             }
             .frame(width: 60, alignment: .trailing)
@@ -569,13 +543,13 @@ public struct NetworkPopoverView: View {
         HStack(spacing: 0) {
             // Icon placeholder (16pt)
             Image(systemName: "app.fill")
-                .font(.system(size: 10))
+                .font(PopoverConstants.smallLabelFont)
                 .foregroundColor(secondaryTextColor)
                 .frame(width: 16)
 
             // Name (90pt)
             Text(process.name)
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(textColor)
                 .frame(width: 94, alignment: .leading)
                 .lineLimit(1)
@@ -585,17 +559,19 @@ public struct NetworkPopoverView: View {
 
             // Download (60pt)
             Text(formattedBytes(process.downloadBytes))
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(downloadColor)
                 .frame(width: 60, alignment: .trailing)
+                .lineLimit(1)
 
             // Upload (60pt)
             Text(formattedBytes(process.uploadBytes))
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(uploadColor)
                 .frame(width: 60, alignment: .trailing)
+                .lineLimit(1)
         }
-        .frame(height: 22)
+        .frame(height: PopoverConstants.SectionHeights.process)
     }
 
     // MARK: - Header with Button
@@ -603,24 +579,19 @@ public struct NetworkPopoverView: View {
     private func headerWithButton(_ title: String, action: @escaping () -> Void) -> some View {
         ZStack {
             Text(title)
-                .font(Font.system(size: 11))
+                .font(PopoverConstants.mediumValueFont)
                 .foregroundColor(secondaryTextColor)
-                .frame(height: 22, alignment: .leading)
+                .frame(height: PopoverConstants.SectionHeights.header, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 0)
 
             HStack {
                 Spacer()
-                Button(action: action) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(nsColor: .lightGray))
-                }
-                .buttonStyle(.plain)
-                .frame(width: 18, height: 18)
+                HoverableButton(systemImage: "arrow.clockwise", action: action)
+                    .frame(width: 18, height: 18)
             }
         }
-        .frame(height: 22)
+        .frame(height: PopoverConstants.SectionHeights.header)
     }
 
     // MARK: - Data Updates
@@ -787,7 +758,7 @@ struct ConnectivityGridView: View {
                 ForEach(0..<(columns * rows), id: \.self) { index in
                     let status = statusForIndex(index)
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(status ? Color(nsColor: .systemGreen) : Color(nsColor: .systemRed).opacity(0.5))
+                        .fill(status ? TonicColors.success : TonicColors.error.opacity(0.5))
                         .frame(width: cellWidth - 1, height: cellHeight - 1)
                 }
             }

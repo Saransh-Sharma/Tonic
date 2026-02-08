@@ -33,26 +33,26 @@ public struct ClockPopoverView: View {
             // Header
             headerView
 
-            Divider()
+            SoftDivider()
 
             ScrollView {
                 VStack(spacing: PopoverConstants.sectionSpacing) {
                     // Local time section - prominent display
                     localTimeSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Date display section
                     dateSection
 
                     if !enabledWorldClocks.isEmpty {
-                        Divider()
+                        SoftDivider()
 
                         // World clocks section
                         worldClocksSection
                     }
 
-                    Divider()
+                    SoftDivider()
 
                     // Calendar button
                     calendarButton
@@ -95,14 +95,9 @@ public struct ClockPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             // Settings button
-            Button {
-                // TODO: Open clock settings
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.clock)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -122,7 +117,7 @@ public struct ClockPopoverView: View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             // Time display (large, prominent)
             Text(currentTimeString)
-                .font(.system(size: 36, weight: .light, design: .rounded))
+                .font(PopoverConstants.clockTimeFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             // Timezone label
@@ -173,7 +168,7 @@ public struct ClockPopoverView: View {
         VStack(spacing: PopoverConstants.compactSpacing) {
             // Full date string
             Text(fullDateString)
-                .font(.system(size: 14, weight: .medium))
+                .font(PopoverConstants.clockDateFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             // Relative day string
@@ -220,7 +215,7 @@ public struct ClockPopoverView: View {
                 icon: "globe"
             )
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.rowSpacing) {
                 ForEach(enabledWorldClocks) { entry in
                     worldClockRow(for: entry)
                 }
@@ -238,7 +233,7 @@ public struct ClockPopoverView: View {
     private func worldClockRow(for entry: ClockEntry) -> some View {
         HStack(spacing: PopoverConstants.itemSpacing) {
             // Location info (left side)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: PopoverConstants.compactSpacing) {
                 Text(entry.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(DesignTokens.Colors.textPrimary)
@@ -253,7 +248,7 @@ public struct ClockPopoverView: View {
                     if entry.timezone.isDaylightSavingTime(for: currentTime) {
                         Text("DST")
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundColor(.orange)
+                            .foregroundColor(TonicColors.warning)
                     }
                 }
             }
@@ -261,9 +256,9 @@ public struct ClockPopoverView: View {
             Spacer()
 
             // Time display (right side)
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: PopoverConstants.compactSpacing) {
                 Text(timezoneTimeString(for: entry))
-                    .font(.system(size: 16, weight: .light, design: .rounded))
+                    .font(PopoverConstants.clockWorldTimeFont)
                     .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 // Day difference indicator
@@ -272,8 +267,8 @@ public struct ClockPopoverView: View {
                     .foregroundColor(dayDifferenceColor(for: entry))
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, PopoverConstants.horizontalPadding)
+        .padding(.vertical, PopoverConstants.itemSpacing)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
@@ -324,9 +319,9 @@ public struct ClockPopoverView: View {
         } else {
             let daysDifference = calendar.dateComponents([.day], from: localDate, to: entryDate).day ?? 0
             if daysDifference > 0 {
-                return .green  // Ahead
+                return TonicColors.success  // Ahead
             } else {
-                return .orange  // Behind
+                return TonicColors.warning  // Behind
             }
         }
     }
