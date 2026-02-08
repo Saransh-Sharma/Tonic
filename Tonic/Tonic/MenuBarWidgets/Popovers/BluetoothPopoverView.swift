@@ -32,12 +32,12 @@ public struct BluetoothPopoverView: View {
                     // Status Section
                     statusSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Connection History Chart
                     historyChartSection
 
-                    Divider()
+                    SoftDivider()
 
                     // Connected Devices
                     devicesSection
@@ -75,14 +75,9 @@ public struct BluetoothPopoverView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             // Settings button
-            Button {
-                // TODO: Open settings to Bluetooth widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.bluetooth)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -144,7 +139,7 @@ public struct BluetoothPopoverView: View {
             if dataManager.bluetoothData.connectedDevices.isEmpty {
                 emptyDevicesView
             } else {
-                VStack(spacing: 6) {
+                VStack(spacing: PopoverConstants.rowSpacing) {
                     ForEach(dataManager.bluetoothData.connectedDevices) { device in
                         deviceCard(device: device)
                     }
@@ -169,7 +164,7 @@ public struct BluetoothPopoverView: View {
                 .frame(width: 28)
 
             // Device info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: PopoverConstants.compactSpacing) {
                 Text(device.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(DesignTokens.Colors.textPrimary)
@@ -201,42 +196,42 @@ public struct BluetoothPopoverView: View {
                 signalIndicator(rssi: signal)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, PopoverConstants.horizontalPadding)
+        .padding(.vertical, PopoverConstants.itemSpacing)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
     /// Mini battery indicator for multi-battery device components
     private func miniBatteryIndicator(level: BluetoothDevice.DeviceBatteryLevel) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: PopoverConstants.compactSpacing) {
             Image(systemName: level.icon)
-                .font(.system(size: 8))
-                .foregroundColor(batteryColor(level.percentage))
+                .font(PopoverConstants.tinyLabelFont)
+                .foregroundColor(PopoverConstants.batteryColor(level.percentage))
 
             Text(level.label)
-                .font(.system(size: 8))
+                .font(PopoverConstants.tinyLabelFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text("\(level.percentage)%")
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
-                .foregroundColor(batteryColor(level.percentage))
+                .font(PopoverConstants.tinyValueFont)
+                .foregroundColor(PopoverConstants.batteryColor(level.percentage))
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
         .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(4)
+        .cornerRadius(PopoverConstants.smallCornerRadius)
     }
 
     private func batteryIndicator(percentage: Int) -> some View {
         HStack(spacing: PopoverConstants.iconTextGap) {
             Image(systemName: batteryIcon(percentage))
                 .font(.system(size: 10))
-                .foregroundColor(batteryColor(percentage))
+                .foregroundColor(PopoverConstants.batteryColor(percentage))
 
             Text("\(percentage)%")
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundColor(batteryColor(percentage))
+                .foregroundColor(PopoverConstants.batteryColor(percentage))
         }
     }
 
@@ -251,18 +246,6 @@ public struct BluetoothPopoverView: View {
             return "battery.75"
         } else {
             return "battery.100"
-        }
-    }
-
-    private func batteryColor(_ percentage: Int) -> Color {
-        if percentage <= 10 {
-            return .red
-        } else if percentage <= 20 {
-            return .orange
-        } else if percentage <= 50 {
-            return .yellow
-        } else {
-            return .green
         }
     }
 
@@ -282,7 +265,7 @@ public struct BluetoothPopoverView: View {
         return HStack(spacing: 1) {
             ForEach(0..<4, id: \.self) { index in
                 Rectangle()
-                    .fill(index < bars ? Color.blue : Color.secondary.opacity(0.3))
+                    .fill(index < bars ? DesignTokens.Colors.accent : Color.secondary.opacity(0.3))
                     .frame(width: 3, height: CGFloat(4 + index * 2))
             }
         }

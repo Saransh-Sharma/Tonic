@@ -41,20 +41,20 @@ public struct SensorsPopoverView: View {
                     // Dashboard Section
                     dashboardSection
 
-                    Divider()
+                    SoftDivider()
 
                     // History Chart
                     if !dataManager.sensorsHistory.isEmpty {
                         historyChartSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Temperature Section
                     if !dataManager.sensorsData.temperatures.isEmpty {
                         temperaturesSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Fan Control Section (integrated from FanControlView)
@@ -62,21 +62,21 @@ public struct SensorsPopoverView: View {
                     if !dataManager.sensorsData.fans.isEmpty && SMCReader.shared.isAvailable && shouldShowFanControl {
                         fanControlSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Fan Section
                     if !dataManager.sensorsData.fans.isEmpty {
                         fansSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Voltage Section (if available)
                     if !dataManager.sensorsData.voltages.isEmpty {
                         voltagesSection
 
-                        Divider()
+                        SoftDivider()
                     }
 
                     // Power Section (if available)
@@ -123,14 +123,9 @@ public struct SensorsPopoverView: View {
             }
 
             // Settings button
-            Button {
-                // TODO: Open settings to Sensors widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.sensors)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -147,7 +142,7 @@ public struct SensorsPopoverView: View {
                 if let maxTemp = dataManager.sensorsData.temperatures.map({ $0.value }).max() {
                     TemperatureGaugeView(
                         temperature: maxTemp,
-                        size: CGSize(width: 90, height: 55),
+                        size: PopoverConstants.gaugeSize,
                         showLabel: true
                     )
                 }
@@ -157,7 +152,7 @@ public struct SensorsPopoverView: View {
                     RPMGaugeView(
                         rpm: Double(firstFan.rpm),
                         maxRPM: Double(firstFan.maxRPM ?? 3000),
-                        size: CGSize(width: 90, height: 55),
+                        size: PopoverConstants.gaugeSize,
                         showLabel: true
                     )
                 }
@@ -169,12 +164,12 @@ public struct SensorsPopoverView: View {
                         .foregroundColor(DesignTokens.Colors.accent)
 
                     Text("Temp Sensors")
-                        .font(.system(size: 9))
+                        .font(PopoverConstants.processValueFont)
                         .foregroundColor(DesignTokens.Colors.textSecondary)
 
                     if !dataManager.sensorsData.fans.isEmpty {
                         Text("\(dataManager.sensorsData.fans.count) Fans")
-                            .font(.system(size: 9))
+                            .font(PopoverConstants.processValueFont)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
                     }
                 }
@@ -209,7 +204,7 @@ public struct SensorsPopoverView: View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             PopoverSectionHeader(title: "Temperatures")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.rowSpacing) {
                 ForEach(dataManager.sensorsData.temperatures) { sensor in
                     sensorRow(sensor: sensor)
                 }
@@ -226,7 +221,7 @@ public struct SensorsPopoverView: View {
             Text(sensor.name)
                 .font(.system(size: 11))
                 .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: PopoverConstants.sensorNameWidth, alignment: .leading)
                 .lineLimit(1)
 
             // Progress bar based on min/max
@@ -263,7 +258,7 @@ public struct SensorsPopoverView: View {
             Text(TemperatureConverter.displayString(sensor.value, unit: temperatureUnit))
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(TemperatureConverter.colorForTemperature(sensor.value, unit: temperatureUnit))
-                .frame(width: 35, alignment: .trailing)
+                .frame(width: PopoverConstants.sensorValueWidth, alignment: .trailing)
         }
     }
 
@@ -273,7 +268,7 @@ public struct SensorsPopoverView: View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             PopoverSectionHeader(title: "Fans")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.rowSpacing) {
                 ForEach(dataManager.sensorsData.fans) { fan in
                     fanRow(fan: fan)
                 }
@@ -293,7 +288,7 @@ public struct SensorsPopoverView: View {
             Text(fan.name)
                 .font(.system(size: 11))
                 .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: PopoverConstants.sensorNameWidth, alignment: .leading)
                 .lineLimit(1)
 
             // Progress bar based on max RPM
@@ -335,7 +330,7 @@ public struct SensorsPopoverView: View {
             // Mode indicator (if available)
             if let mode = fan.mode {
                 Text(mode.displayName)
-                    .font(.system(size: 8))
+                    .font(PopoverConstants.tinyLabelFont)
                     .foregroundColor(.secondary)
             }
         }
@@ -347,7 +342,7 @@ public struct SensorsPopoverView: View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             PopoverSectionHeader(title: "Voltages")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.rowSpacing) {
                 ForEach(dataManager.sensorsData.voltages) { voltage in
                     voltageRow(voltage: voltage)
                 }
@@ -360,14 +355,14 @@ public struct SensorsPopoverView: View {
             // Voltage icon
             Image(systemName: "bolt.fill")
                 .font(.system(size: 10))
-                .foregroundColor(.yellow)
+                .foregroundColor(PopoverConstants.voltageIconColor)
                 .frame(width: 12)
 
             // Voltage name
             Text(voltage.name)
                 .font(.system(size: 11))
                 .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: PopoverConstants.sensorNameWidth, alignment: .leading)
                 .lineLimit(1)
 
             Spacer()
@@ -385,7 +380,7 @@ public struct SensorsPopoverView: View {
         VStack(alignment: .leading, spacing: PopoverConstants.itemSpacing) {
             PopoverSectionHeader(title: "Power")
 
-            VStack(spacing: 6) {
+            VStack(spacing: PopoverConstants.rowSpacing) {
                 ForEach(dataManager.sensorsData.power) { power in
                     powerRow(power: power)
                 }
@@ -394,18 +389,18 @@ public struct SensorsPopoverView: View {
     }
 
     private func powerRow(power: SensorReading) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: PopoverConstants.itemSpacing) {
             // Power icon
             Image(systemName: "powerplug.fill")
                 .font(.system(size: 10))
-                .foregroundColor(.green)
+                .foregroundColor(PopoverConstants.powerIconColor)
                 .frame(width: 12)
 
             // Power name
             Text(power.name)
                 .font(.system(size: 11))
                 .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: PopoverConstants.sensorNameWidth, alignment: .leading)
                 .lineLimit(1)
 
             Spacer()
