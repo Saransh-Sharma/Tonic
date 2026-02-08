@@ -132,7 +132,8 @@ public struct NetworkSparklineChart: View, Equatable {
             } else {
                 normalizedY = 1 - ((value - effectiveMin) / effectiveRange)
             }
-            let y = normalizedY * height
+            let inset: CGFloat = 2
+            let y = inset + normalizedY * (height - inset * 2)
             points.append(CGPoint(x: x, y: y))
         }
         return points

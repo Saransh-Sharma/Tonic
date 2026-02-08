@@ -85,7 +85,7 @@ public struct PerGpuContainer: View {
 
             // GPU model name
             Text(gpuModelName)
-                .font(.system(size: 11, weight: .semibold))
+                .font(PopoverConstants.subHeaderFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
 
             Spacer()
@@ -97,7 +97,7 @@ public struct PerGpuContainer: View {
                 }
             } label: {
                 Text(isDetailsExpanded ? "HIDE" : "DETAILS")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(PopoverConstants.processValueFont)
                     .foregroundColor(isDetailsExpanded ? DesignTokens.Colors.accent : DesignTokens.Colors.textSecondary)
             }
             .buttonStyle(.plain)
@@ -135,14 +135,14 @@ public struct PerGpuContainer: View {
     // MARK: - Gauges Row
 
     private var gaugesRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: PopoverConstants.gaugeSpacing) {
             // Temperature gauge
             gpuGauge(
                 value: gpuData.temperature ?? 0,
                 maxValue: 100,
                 label: "Temp",
                 unit: "°C",
-                color: temperatureColor(gpuData.temperature ?? 0)
+                color: PopoverConstants.temperatureColor(gpuData.temperature ?? 0)
             )
 
             // Utilization gauge
@@ -151,35 +151,29 @@ public struct PerGpuContainer: View {
                 maxValue: 100,
                 label: "Util",
                 unit: "%",
-                color: utilizationColor(gpuData.usagePercentage ?? 0)
+                color: PopoverConstants.utilizationColor(gpuData.usagePercentage ?? 0)
             )
 
-            // Render utilization gauge (if available)
-            if let renderUtil = gpuData.renderUtilization {
+            // Render utilization gauge
+            if let renderUtilization = gpuData.renderUtilization {
                 gpuGauge(
-                    value: renderUtil,
+                    value: renderUtilization,
                     maxValue: 100,
                     label: "Render",
                     unit: "%",
-                    color: utilizationColor(renderUtil)
+                    color: PopoverConstants.utilizationColor(renderUtilization)
                 )
-            } else {
-                // Placeholder for render
-                placeholderGauge(label: "Render")
             }
 
-            // Tiler utilization gauge (if available)
-            if let tilerUtil = gpuData.tilerUtilization {
+            // Tiler utilization gauge
+            if let tilerUtilization = gpuData.tilerUtilization {
                 gpuGauge(
-                    value: tilerUtil,
+                    value: tilerUtilization,
                     maxValue: 100,
                     label: "Tiler",
                     unit: "%",
-                    color: utilizationColor(tilerUtil)
+                    color: PopoverConstants.utilizationColor(tilerUtilization)
                 )
-            } else {
-                // Placeholder for tiler
-                placeholderGauge(label: "Tiler")
             }
         }
         .frame(height: Self.gaugesRowHeight)
@@ -198,32 +192,20 @@ public struct PerGpuContainer: View {
         .overlay(
             VStack(spacing: 0) {
                 Text(label)
-                    .font(.system(size: 7))
+                    .font(PopoverConstants.microFont)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
                 Text("\(Int(value))\(unit)")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(PopoverConstants.tinyValueFont)
                     .foregroundColor(color)
             }
                 .offset(y: 8)
         )
     }
 
-    private func placeholderGauge(label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.system(size: 7))
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-            Text("N/A")
-                .font(.system(size: 8))
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-        }
-        .frame(width: 50, height: 30)
-    }
-
     // MARK: - Charts Row
 
     private var chartsRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: PopoverConstants.gaugeSpacing) {
             // Temperature chart
             gpuChart(
                 data: temperatureHistory,
@@ -245,8 +227,6 @@ public struct PerGpuContainer: View {
                     color: .purple,
                     label: "Render"
                 )
-            } else {
-                placeholderChart(label: "Render")
             }
 
             // Tiler chart
@@ -256,8 +236,6 @@ public struct PerGpuContainer: View {
                     color: .cyan,
                     label: "Tiler"
                 )
-            } else {
-                placeholderChart(label: "Tiler")
             }
         }
         .frame(height: Self.chartsRowHeight)
@@ -274,26 +252,8 @@ public struct PerGpuContainer: View {
             )
 
             Text(label)
-                .font(.system(size: 7))
+                .font(PopoverConstants.microFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func placeholderChart(label: String) -> some View {
-        VStack(spacing: 2) {
-            Rectangle()
-                .fill(Color.gray.opacity(0.1))
-                .frame(height: 35)
-                .overlay(
-                    Text("No data")
-                        .font(.system(size: 7))
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
-                )
-
-            Text(label)
-                .font(.system(size: 7))
-                .foregroundColor(DesignTokens.Colors.textTertiary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -340,12 +300,12 @@ public struct PerGpuContainer: View {
 
                 // Current temperature
                 if let temp = gpuData.temperature {
-                    detailItem("Temperature", value: "\(Int(temp))°C", color: temperatureColor(temp))
+                    detailItem("Temperature", value: "\(Int(temp))°C", color: PopoverConstants.temperatureColor(temp))
                 }
 
                 // Current utilization
                 if let util = gpuData.usagePercentage {
-                    detailItem("Utilization", value: "\(Int(util))%", color: utilizationColor(util))
+                    detailItem("Utilization", value: "\(Int(util))%", color: PopoverConstants.utilizationColor(util))
                 }
             }
         }
@@ -355,34 +315,17 @@ public struct PerGpuContainer: View {
     private func detailItem(_ label: String, value: String, color: Color? = nil) -> some View {
         HStack(spacing: 4) {
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Spacer()
 
             Text(value)
-                .font(.system(size: 9, weight: .medium))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(color ?? DesignTokens.Colors.textPrimary)
         }
     }
 
-    // MARK: - Color Helpers
-
-    private func temperatureColor(_ temp: Double) -> Color {
-        switch temp {
-        case 0..<60: return .green
-        case 60..<75: return .orange
-        default: return .red
-        }
-    }
-
-    private func utilizationColor(_ util: Double) -> Color {
-        switch util {
-        case 0..<60: return .green
-        case 60..<85: return .orange
-        default: return .red
-        }
-    }
 }
 
 // MARK: - Preview
