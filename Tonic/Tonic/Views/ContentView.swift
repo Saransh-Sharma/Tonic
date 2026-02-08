@@ -271,7 +271,7 @@ struct PermissionPromptView: View {
 
     private func grantPermission() {
         // Open Full Disk Access in System Settings (macOS 14+)
-        let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
         NSWorkspace.shared.open(url)
 
         // Recheck permissions after delay
