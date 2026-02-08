@@ -10,6 +10,7 @@ import Foundation
 import Security
 import ApplicationServices
 import AppKit
+import UserNotifications
 
 /// Permission status
 public enum PermissionStatus: String, Sendable {
@@ -111,11 +112,10 @@ public final class PermissionManager: @unchecked Sendable {
     }
 
     public func requestFullDiskAccess() -> Bool {
-        // Open System Settings to Privacy & Security > Full Disk Access
+        // Open System Settings to Privacy & Security > Full Disk Access (macOS 14+)
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
 
         if NSWorkspace.shared.open(url) {
-            // Wait for user to grant permission and check again
             return true
         }
         return false
@@ -138,8 +138,15 @@ public final class PermissionManager: @unchecked Sendable {
     // MARK: - Notifications
 
     private func checkNotificationPermission() async -> PermissionStatus {
-        // This would use UNUserNotificationCenter in production
-        return .notDetermined
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional:
+            return .authorized
+        case .denied:
+            return .denied
+        default:
+            return .notDetermined
+        }
     }
 
     // MARK: - Helper Status

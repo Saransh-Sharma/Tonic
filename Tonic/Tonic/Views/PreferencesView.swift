@@ -125,6 +125,21 @@ struct PreferencesView: View {
                 animateContent = true
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openSettingsSection)) { notification in
+            guard let rawSection = notification.userInfo?[SettingsDeepLinkUserInfoKey.section] as? String,
+                  let section = SettingsSection(rawValue: rawSection) else {
+                return
+            }
+
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                selectedSection = section
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openModuleSettings)) { _ in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                selectedSection = .modules
+            }
+        }
     }
 
     private var settingsSidebar: some View {
@@ -317,6 +332,7 @@ struct SettingsSectionHeader: View {
 struct GeneralSettingsContent: View {
     @State private var preferences = AppearancePreferences.shared
     @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @State private var showResetSheet = false
 
     var body: some View {
         PreferenceList {
@@ -443,11 +459,14 @@ struct GeneralSettingsContent: View {
                     showDivider: false,
                     buttonTitle: "Reset App...",
                     buttonStyle: .destructive,
-                    action: { /* Reset app action */ }
+                    action: { showResetSheet = true }
                 )
             }
         }
         .padding(DesignTokens.Spacing.lg)
+        .sheet(isPresented: $showResetSheet) {
+            ResetConfirmationSheet(isPresented: $showResetSheet)
+        }
     }
 }
 

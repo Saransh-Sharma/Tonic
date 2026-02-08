@@ -151,18 +151,34 @@ public struct PerDiskContainer: View {
     }
 
     private var dualLineChart: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(Color(nsColor: .lightGray).opacity(0.1))
+        Group {
+            if readHistory.isEmpty && writeHistory.isEmpty {
+                HStack {
+                    Spacer()
+                    Text("No I/O history")
+                        .font(PopoverConstants.processValueFont)
+                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                    Spacer()
+                }
+                .frame(height: 30)
+                .background(Color(nsColor: .lightGray).opacity(0.05))
+                .cornerRadius(3)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(nsColor: .lightGray).opacity(0.1))
 
-            DiskDualLineChartView(
-                readData: readHistory,
-                writeData: writeHistory,
-                readColor: readColor,
-                writeColor: writeColor
-            )
+                    DiskDualLineChartView(
+                        readData: readHistory,
+                        writeData: writeHistory,
+                        readColor: readColor,
+                        writeColor: writeColor
+                    )
+                    .padding(.vertical, 2)
+                }
+                .frame(height: Self.chartHeight)
+            }
         }
-        .frame(height: Self.chartHeight)
     }
 
     // MARK: - Details Panel

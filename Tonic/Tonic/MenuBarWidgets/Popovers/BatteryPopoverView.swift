@@ -41,31 +41,33 @@ public struct BatteryPopoverView: View {
                         // Dashboard Section
                         dashboardSection
 
-                        Divider()
+                        SoftDivider()
 
                         // History Chart
                         historyChartSection
 
-                        Divider()
+                        SoftDivider()
 
                         // Details Section
                         detailsSection
 
-                        Divider()
+                        SoftDivider()
 
                         // Battery Info Section
                     batteryInfoSection
+
+                    SoftDivider()
 
                     // Electrical Metrics Section
                     electricalMetricsSection
 
                     // Power Adapter Section (only when charging)
                     if dataManager.batteryData.isCharging {
-                        Divider()
+                        SoftDivider()
                         powerAdapterSection
                     }
 
-                    Divider()
+                    SoftDivider()
 
                     // Top Processes
                     topProcessesSection
@@ -142,14 +144,9 @@ public struct BatteryPopoverView: View {
             }
 
             // Settings button
-            Button {
-                // TODO: Open settings to Battery widget configuration
-            } label: {
-                Image(systemName: PopoverConstants.Icons.settings)
-                    .font(.body)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+            HoverableButton(systemImage: PopoverConstants.Icons.settings) {
+                SettingsDeepLinkNavigator.openModuleSettings(.battery)
             }
-            .buttonStyle(.plain)
         }
         .padding()
         .background(Color(nsColor: .controlBackgroundColor))
@@ -164,11 +161,11 @@ public struct BatteryPopoverView: View {
             NetworkSparklineChart(
                 data: dataManager.batteryHistory,
                 color: batteryColor,
-                height: 70,
+                height: PopoverConstants.SectionHeights.historyChart,
                 showArea: true,
                 lineWidth: 1.5
             )
-            .frame(height: 70)
+            .frame(height: PopoverConstants.SectionHeights.historyChart)
         }
     }
 
@@ -184,6 +181,7 @@ public struct BatteryPopoverView: View {
                     .frame(maxWidth: .infinity)
             }
         }
+        .frame(height: PopoverConstants.SectionHeights.dashboard)
     }
 
     private var batteryVisualView: some View {
@@ -215,7 +213,7 @@ public struct BatteryPopoverView: View {
             if battery.isCharging && !battery.isCharged {
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 14))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(nsColor: .windowBackgroundColor))
             }
         }
         .frame(width: 130, height: 40)
@@ -228,47 +226,32 @@ public struct BatteryPopoverView: View {
             PopoverSectionHeader(title: "Details")
 
             VStack(spacing: PopoverConstants.compactSpacing) {
-                detailRow(label: "Level", value: "\(Int(dataManager.batteryData.chargePercentage))%")
+                PopoverDetailRow(label: "Level", value: "\(Int(dataManager.batteryData.chargePercentage))%")
 
-                detailRow(label: "Source", value: sourceText)
+                PopoverDetailRow(label: "Source", value: sourceText)
 
                 // Time to charge/discharge
                 if let minutes = dataManager.batteryData.estimatedMinutesRemaining {
-                    HStack {
-                        Text(dataManager.batteryData.isCharging ? "Time to charge" : "Time to discharge")
-                            .font(PopoverConstants.detailLabelFont)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                        Spacer()
-
-                        Text(timeString(from: minutes))
-                            .font(PopoverConstants.detailValueFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(DesignTokens.Colors.textPrimary)
-                    }
+                    PopoverDetailRow(label: dataManager.batteryData.isCharging ? "Time to charge" : "Time to discharge", value: timeString(from: minutes))
                 } else if !dataManager.batteryData.isCharged {
-                    detailRow(label: dataManager.batteryData.isCharging ? "Time to charge" : "Time to discharge", value: "Calculating...")
+                    PopoverDetailRow(label: dataManager.batteryData.isCharging ? "Time to charge" : "Time to discharge", value: "Calculating...")
                 }
 
-                // Last charge info (placeholder - would need additional tracking)
-                detailRow(label: "Last charge", value: "Unknown")
+                PopoverDetailRow(label: "Last charge", value: lastChargeText)
             }
         }
     }
 
-    private func detailRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .font(PopoverConstants.detailLabelFont)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-
-            Spacer()
-
-            Text(value)
-                .font(PopoverConstants.detailValueFont)
-                .fontWeight(.medium)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
+    private var lastChargeText: String {
+        guard let timestamp = dataManager.batteryData.lastChargeTimestamp else {
+            return "Unknown"
         }
+
+        let formatter = DateComponentsFormatter()
+        formatter.maximumUnitCount = 2
+        formatter.unitsStyle = .full
+        formatter.allowedUnits = [.day, .hour, .minute]
+        return formatter.string(from: timestamp, to: Date()) ?? "Unknown"
     }
 
     // MARK: - Battery Info Section
@@ -279,32 +262,32 @@ public struct BatteryPopoverView: View {
 
             VStack(spacing: PopoverConstants.compactSpacing) {
                 // Health
-                detailRow(label: "Health", value: healthText)
+                PopoverDetailRow(label: "Health", value: healthText)
                     .overlay(
                         healthBadge
                             .offset(x: -50)
                     )
 
                 // Capacity (would need max/design capacity from IOKit)
-                detailRow(label: "Capacity", value: capacityText)
+                PopoverDetailRow(label: "Capacity", value: capacityText)
 
                 // Cycles
                 if let cycles = dataManager.batteryData.cycleCount {
-                    detailRow(label: "Cycles", value: "\(cycles)")
+                    PopoverDetailRow(label: "Cycles", value: "\(cycles)")
                 } else {
-                    detailRow(label: "Cycles", value: "Unknown")
+                    PopoverDetailRow(label: "Cycles", value: "Unknown")
                 }
 
                 // Temperature
                 if let temp = dataManager.batteryData.temperature {
-                    detailRow(label: "Temperature", value: TemperatureConverter.displayString(temp, unit: temperatureUnit, precision: 1))
+                    PopoverDetailRow(label: "Temperature", value: TemperatureConverter.displayString(temp, unit: temperatureUnit, precision: 1))
                 } else {
-                    detailRow(label: "Temperature", value: "Unknown")
+                    PopoverDetailRow(label: "Temperature", value: "Unknown")
                 }
 
                 // Optimized Charging
                 if let optimized = dataManager.batteryData.optimizedCharging {
-                    detailRow(label: "Optimized Charging", value: optimized ? "Enabled" : "Disabled")
+                    PopoverDetailRow(label: "Optimized Charging", value: optimized ? "Enabled" : "Disabled")
                 }
             }
         }
@@ -318,23 +301,23 @@ public struct BatteryPopoverView: View {
 
             VStack(spacing: PopoverConstants.compactSpacing) {
                 // Is charging
-                detailRow(label: "Is charging", value: dataManager.batteryData.isCharging ? "Yes" : "No")
+                PopoverDetailRow(label: "Is charging", value: dataManager.batteryData.isCharging ? "Yes" : "No")
 
                 // Charger wattage
                 if let wattage = dataManager.batteryData.chargerWattage {
-                    detailRow(label: "Power", value: "\(wattage)W")
+                    PopoverDetailRow(label: "Power", value: "\(wattage)W")
                 } else {
-                    detailRow(label: "Power", value: "Unknown")
+                    PopoverDetailRow(label: "Power", value: "Unknown")
                 }
 
                 // Adapter current (mA)
                 if let current = dataManager.batteryData.chargingCurrent {
-                    detailRow(label: "Current", value: "\(Int(current)) mA")
+                    PopoverDetailRow(label: "Current", value: "\(Int(current)) mA")
                 }
 
                 // Adapter voltage (V)
                 if let voltage = dataManager.batteryData.chargingVoltage {
-                    detailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
+                    PopoverDetailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
                 }
             }
         }
@@ -352,23 +335,23 @@ public struct BatteryPopoverView: View {
                     let amperageText = amperage < 0
                         ? "\(Int(abs(amperage))) mA (charging)"
                         : "\(Int(amperage)) mA (discharging)"
-                    detailRow(label: "Amperage", value: amperageText)
+                    PopoverDetailRow(label: "Amperage", value: amperageText)
                 } else {
-                    detailRow(label: "Amperage", value: "Unknown")
+                    PopoverDetailRow(label: "Amperage", value: "Unknown")
                 }
 
                 // Voltage (V)
                 if let voltage = dataManager.batteryData.voltage {
-                    detailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
+                    PopoverDetailRow(label: "Voltage", value: String(format: "%.2f V", voltage))
                 } else {
-                    detailRow(label: "Voltage", value: "Unknown")
+                    PopoverDetailRow(label: "Voltage", value: "Unknown")
                 }
 
                 // Power (W)
                 if let power = dataManager.batteryData.batteryPower {
-                    detailRow(label: "Power", value: String(format: "%.2f W", power))
+                    PopoverDetailRow(label: "Power", value: String(format: "%.2f W", power))
                 } else {
-                    detailRow(label: "Power", value: "Unknown")
+                    PopoverDetailRow(label: "Power", value: "Unknown")
                 }
             }
         }
@@ -404,7 +387,7 @@ public struct BatteryPopoverView: View {
 
     private var healthBadge: some View {
         Text(healthText)
-            .font(.system(size: 8, weight: .medium))
+            .font(PopoverConstants.tinyValueFont)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(healthColor.opacity(0.2))

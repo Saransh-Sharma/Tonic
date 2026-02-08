@@ -14,14 +14,14 @@ import SwiftUI
 /// Each data source (WidgetType) can use compatible visualizations
 public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Sendable {
     case mini = "mini"                      // Icon + value (default)
-    case lineChart = "lineChart"            // Real-time line graph
-    case barChart = "barChart"              // Per-core/per-zone bars
-    case pieChart = "pieChart"              // Circular progress
+    case lineChart = "line_chart"           // Real-time line graph
+    case barChart = "bar_chart"             // Per-core/per-zone bars
+    case pieChart = "pie_chart"             // Circular progress
     case tachometer = "tachometer"          // Gauge with needle
-    case stack = "stack"                    // Multiple sensor readings
+    case stack = "sensors"                  // Multiple sensor readings
     case speed = "speed"                    // Network up/down display
-    case networkChart = "networkChart"      // Dual-line network chart (upload/download)
-    case batteryDetails = "batteryDetails"  // Extended battery info
+    case networkChart = "network_chart"     // Dual-line network chart (upload/download)
+    case batteryDetails = "battery_details" // Extended battery info
     case label = "label"                    // Static text label
     case state = "state"                    // On/off indicator
     case text = "text"                      // Dynamic formatted text
@@ -145,6 +145,34 @@ public enum VisualizationType: String, CaseIterable, Identifiable, Codable, Send
         default: return false
         }
     }
+
+    // Preserve compatibility with previously stored values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        switch rawValue {
+        case "lineChart": self = .lineChart
+        case "barChart": self = .barChart
+        case "pieChart": self = .pieChart
+        case "stack": self = .stack
+        case "networkChart": self = .networkChart
+        case "batteryDetails": self = .batteryDetails
+        default:
+            guard let value = VisualizationType(rawValue: rawValue) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown visualization type: \(rawValue)"
+                )
+            }
+            self = value
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 // MARK: - Chart Configuration
@@ -156,22 +184,70 @@ public struct ChartConfiguration: Codable, Sendable, Equatable {
     public var showBackground: Bool
     public var showFrame: Bool
     public var showValue: Bool
+    public var fillMode: ChartFillMode
+    public var barColorMode: ChartBarColorMode
 
     public init(
         historySize: Int = 60,
         scaling: ScalingMode = .linear,
         showBackground: Bool = false,
         showFrame: Bool = false,
-        showValue: Bool = false
+        showValue: Bool = false,
+        fillMode: ChartFillMode = .gradient,
+        barColorMode: ChartBarColorMode = .uniform
     ) {
         self.historySize = min(120, max(30, historySize))
         self.scaling = scaling
         self.showBackground = showBackground
         self.showFrame = showFrame
         self.showValue = showValue
+        self.fillMode = fillMode
+        self.barColorMode = barColorMode
     }
 
     public static let `default` = ChartConfiguration()
+}
+
+// MARK: - Chart Fill Mode
+
+/// Fill mode for line chart area
+public enum ChartFillMode: String, CaseIterable, Identifiable, Codable, Sendable, Equatable {
+    case gradient
+    case solid
+    case lineOnly
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .gradient: return "Gradient"
+        case .solid: return "Solid"
+        case .lineOnly: return "Line Only"
+        }
+    }
+}
+
+// MARK: - Chart Bar Color Mode
+
+/// Color mode for bar chart bars
+public enum ChartBarColorMode: String, CaseIterable, Identifiable, Codable, Sendable, Equatable {
+    case uniform
+    case gradient
+    case byValue
+    case byCategory
+    case ePCores
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .uniform: return "Uniform"
+        case .gradient: return "Gradient"
+        case .byValue: return "By Value"
+        case .byCategory: return "By Category"
+        case .ePCores: return "E/P Cores"
+        }
+    }
 }
 
 // MARK: - Scaling Mode

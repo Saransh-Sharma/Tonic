@@ -95,7 +95,7 @@ struct WidgetGalleryView: View {
     // MARK: - Helpers
 
     private var inactiveWidgets: [WidgetType] {
-        WidgetType.allCases.filter { type in
+        WidgetType.parityCases.filter { type in
             preferences.config(for: type)?.isEnabled != true
         }
     }

@@ -306,7 +306,7 @@ struct WidgetCustomizationView: View {
     // MARK: - Available Widgets Section
 
     private var availableWidgetsSection: some View {
-        let availableTypes = WidgetType.allCases.filter { type in
+        let availableTypes = WidgetType.parityCases.filter { type in
             preferences.config(for: type)?.isEnabled != true
         }
 
@@ -1321,6 +1321,16 @@ struct WidgetSettingsSheet: View {
             // Scale Type Picker
             chartScaleTypeRow
 
+            // Fill Mode (line charts only)
+            if config?.visualizationType == .lineChart {
+                chartFillModeRow
+            }
+
+            // Bar Color Mode (bar charts only)
+            if config?.visualizationType == .barChart {
+                chartBarColorModeRow
+            }
+
             // Show Background Toggle
             chartShowBackgroundRow
 
@@ -1399,6 +1409,74 @@ struct WidgetSettingsSheet: View {
         return Button {
             updateChartConfig { config in
                 config.scaling = mode
+            }
+        } label: {
+            Text(mode.displayName)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignTokens.Spacing.xs)
+                .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundTertiary)
+                .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var chartFillModeRow: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+            Text("Fill Mode")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
+                ForEach(ChartFillMode.allCases) { mode in
+                    fillModeButton(mode)
+                }
+            }
+        }
+    }
+
+    private func fillModeButton(_ mode: ChartFillMode) -> some View {
+        let isSelected = config?.chartConfig?.fillMode == mode
+
+        return Button {
+            updateChartConfig { config in
+                config.fillMode = mode
+            }
+        } label: {
+            Text(mode.displayName)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(isSelected ? .white : DesignTokens.Colors.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DesignTokens.Spacing.xs)
+                .background(isSelected ? DesignTokens.Colors.accent : DesignTokens.Colors.backgroundTertiary)
+                .cornerRadius(DesignTokens.CornerRadius.small)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var chartBarColorModeRow: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
+            Text("Bar Color Mode")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: DesignTokens.Spacing.xxxs) {
+                ForEach(ChartBarColorMode.allCases) { mode in
+                    barColorModeButton(mode)
+                }
+            }
+        }
+    }
+
+    private func barColorModeButton(_ mode: ChartBarColorMode) -> some View {
+        let isSelected = config?.chartConfig?.barColorMode == mode
+
+        return Button {
+            updateChartConfig { config in
+                config.barColorMode = mode
             }
         } label: {
             Text(mode.displayName)

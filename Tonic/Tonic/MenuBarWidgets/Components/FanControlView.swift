@@ -36,6 +36,8 @@ public struct FanControlView: View {
     @State private var hasPendingModeChange = false
     @State private var pendingMode: SensorsModuleSettings.FanControlMode = .manual
 
+    private let fanSpeedStorageKey = "tonic.widget.sensors.manualFanSpeeds"
+
     // Privileged helper availability check
     // Uses PrivilegedHelperManager to check if SMC writes are available
     // SMC writes may work directly on Apple Silicon, or require helper on Intel
@@ -212,7 +214,7 @@ public struct FanControlView: View {
             .buttonStyle(.bordered)
         }
         .padding(PopoverConstants.compactSpacing)
-        .background(Color.orange.opacity(0.1))
+        .background(TonicColors.warning.opacity(0.1))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
@@ -242,7 +244,7 @@ public struct FanControlView: View {
             .buttonStyle(.bordered)
         }
         .padding(PopoverConstants.compactSpacing)
-        .background(Color.orange.opacity(0.1))
+        .background(TonicColors.warning.opacity(0.1))
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
@@ -277,6 +279,11 @@ public struct FanControlView: View {
         // Get sensors widget config to read fan control mode
         if let sensorsWidget = WidgetPreferences.shared.widgetConfigs.first(where: { $0.type == .sensors }) {
             currentMode = sensorsWidget.moduleSettings.sensors.fanControlMode
+            if sensorsWidget.moduleSettings.sensors.saveFanSpeed {
+                fanSpeeds = loadPersistedFanSpeeds()
+            } else {
+                fanSpeeds.removeAll()
+            }
         }
     }
 
@@ -287,7 +294,16 @@ public struct FanControlView: View {
     }
 
     private func initializeFanSpeeds() {
+        let saveSpeed = WidgetPreferences.shared.widgetConfigs
+            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.saveFanSpeed ?? false
+        let persistedSpeeds = saveSpeed ? loadPersistedFanSpeeds() : [:]
+
         for fan in dataManager.sensorsData.fans {
+            if let persisted = persistedSpeeds[fan.id] {
+                fanSpeeds[fan.id] = max(0, min(100, persisted))
+                continue
+            }
+
             // Initialize current speed as percentage of max
             if let maxRPM = fan.maxRPM, maxRPM > 0 {
                 fanSpeeds[fan.id] = Int((Double(fan.rpm) / Double(maxRPM)) * 100)
@@ -360,8 +376,28 @@ public struct FanControlView: View {
         let saveSpeed = WidgetPreferences.shared.widgetConfigs
             .first(where: { $0.type == .sensors })?.moduleSettings.sensors.saveFanSpeed ?? false
         if saveSpeed {
-            // TODO: Persist per-fan speeds to UserDefaults
+            persistFanSpeeds()
         }
+    }
+
+    private func persistFanSpeeds() {
+        UserDefaults.standard.set(fanSpeeds, forKey: fanSpeedStorageKey)
+    }
+
+    private func loadPersistedFanSpeeds() -> [String: Int] {
+        guard let raw = UserDefaults.standard.dictionary(forKey: fanSpeedStorageKey), !raw.isEmpty else {
+            return [:]
+        }
+
+        var persisted: [String: Int] = [:]
+        for (fanId, value) in raw {
+            if let speed = value as? Int {
+                persisted[fanId] = speed
+            } else if let speed = value as? Double {
+                persisted[fanId] = Int(speed.rounded())
+            }
+        }
+        return persisted
     }
 
     private func syncAllFans(to speed: Int) {
@@ -460,7 +496,7 @@ struct FanControlRow: View {
                         .padding(.vertical, 2)
                         .background(DesignTokens.Colors.accent.opacity(0.2))
                         .foregroundColor(DesignTokens.Colors.accent)
-                        .cornerRadius(4)
+                        .cornerRadius(PopoverConstants.smallCornerRadius)
                 }
             }
         }

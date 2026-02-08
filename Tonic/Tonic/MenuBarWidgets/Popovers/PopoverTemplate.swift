@@ -182,6 +182,61 @@ struct TitledPopoverSection<Content: View>: View {
     }
 }
 
+// MARK: - Hoverable Button
+
+/// A button with hover effect for interactive icons (settings gear, etc.)
+/// Used across all popovers for consistent hover feedback
+struct HoverableButton: View {
+    let systemImage: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body)
+                .foregroundColor(isHovered ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Hoverable Text Button
+
+/// A button with icon + label and hover effect
+/// Used for Activity Monitor buttons and similar actions
+struct HoverableTextButton: View {
+    let icon: String
+    let label: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: PopoverConstants.compactSpacing) {
+                Image(systemName: icon)
+                    .font(.system(size: PopoverConstants.mediumIconSize))
+                Text(label)
+                    .font(PopoverConstants.smallLabelFont)
+            }
+            .foregroundColor(isHovered ? DesignTokens.Colors.textPrimary : DesignTokens.Colors.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Soft Divider
+
+/// A softer divider that replaces harsh `Divider()` calls
+/// Uses reduced opacity for a more premium feel
+struct SoftDivider: View {
+    var body: some View {
+        Divider().opacity(PopoverConstants.dividerOpacity)
+    }
+}
+
 // MARK: - Detail Row
 
 /// A standardized two-column row for displaying key-value pairs
@@ -515,7 +570,7 @@ struct ProcessRow: View {
             Text(name)
                 .font(PopoverConstants.smallLabelFont)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
-                .frame(width: 70, alignment: .leading)
+                .frame(width: PopoverConstants.processNameWidth, alignment: .leading)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
@@ -536,9 +591,9 @@ struct ProcessRow: View {
             // Percentage
             if showPercentage {
                 Text("\(Int(value))%")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(PopoverConstants.processValueFont)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 30, alignment: .trailing)
+                    .frame(width: PopoverConstants.processValueWidth, alignment: .trailing)
             }
         }
     }
@@ -560,12 +615,12 @@ struct EmptyStateView: View {
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             Text(title)
-                .font(.subheadline)
+                .font(PopoverConstants.sectionTitleFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
 
             if let subtitle = subtitle {
                 Text(subtitle)
-                    .font(.caption)
+                    .font(PopoverConstants.detailLabelFont)
                     .foregroundColor(DesignTokens.Colors.textTertiary)
                     .multilineTextAlignment(.center)
             }
@@ -603,7 +658,7 @@ struct MetricCard: View {
             }
 
             Text(label)
-                .font(.system(size: 9))
+                .font(PopoverConstants.processValueFont)
                 .foregroundColor(DesignTokens.Colors.textSecondary)
         }
     }
@@ -659,6 +714,7 @@ struct PopoverTemplate_Previews: PreviewProvider {
         }
     }
 }
+#endif
 
 // MARK: - Activity Monitor Launch Helper
 
@@ -684,4 +740,3 @@ private func openActivityMonitor() {
         }
     }
 }
-#endif

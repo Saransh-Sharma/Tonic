@@ -32,6 +32,15 @@ struct ModulesSettingsContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignTokens.Colors.background)
+        .onReceive(NotificationCenter.default.publisher(for: .openModuleSettings)) { notification in
+            guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
+                  let module = WidgetType(rawValue: rawModule),
+                  WidgetType.parityCases.contains(module) else {
+                return
+            }
+
+            selectedModule = module
+        }
     }
 
     // MARK: - Module List Sidebar
@@ -51,7 +60,7 @@ struct ModulesSettingsContent: View {
             // Module list
             ScrollView {
                 VStack(spacing: DesignTokens.Spacing.xxxs) {
-                    ForEach(WidgetType.allCases) { module in
+                    ForEach(WidgetType.parityCases) { module in
                         Button {
                             selectedModule = module
                         } label: {
@@ -152,6 +161,8 @@ struct ModuleSettingsDetailView: View {
     let module: WidgetType
     let config: WidgetConfiguration
     let preferences: WidgetPreferences
+    @State var widgetDataManager = WidgetDataManager.shared
+    @State var clockPreferences = ClockPreferences.shared
 
     var body: some View {
         ScrollView {
@@ -178,6 +189,9 @@ struct ModuleSettingsDetailView: View {
 
                     // Update interval section
                     updateIntervalSection
+
+                    // Stats Master settings.swift parity controls
+                    parityModuleSettingsSection
 
                     // Color section
                     colorSection
@@ -928,6 +942,405 @@ struct ModuleSettingsDetailView: View {
                 config.accentColor.colorValue(for: module),
                 lineWidth: 1.2
             )
+        }
+    }
+
+    // MARK: - Module Settings Section
+
+    @ViewBuilder
+    private var parityModuleSettingsSection: some View {
+        PreferenceSection(header: "Module Settings") {
+            VStack(spacing: 0) {
+                switch module {
+                case .cpu:
+                    cpuSettingsRows
+                case .memory:
+                    memorySettingsRows
+                case .disk:
+                    diskSettingsRows
+                case .network:
+                    networkSettingsRows
+                case .gpu:
+                    gpuSettingsRows
+                case .battery:
+                    batterySettingsRows
+                case .sensors:
+                    sensorsSettingsRows
+                case .bluetooth:
+                    bluetoothSettingsRows
+                case .clock:
+                    clockSettingsRows
+                case .weather:
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    // MARK: - CPU Settings
+
+    @ViewBuilder
+    private var cpuSettingsRows: some View {
+        moduleToggleRow(
+            title: "Show E/P Cores",
+            subtitle: "Display efficiency and performance cores separately",
+            icon: "cpu",
+            isOn: moduleBinding(\.cpu.showEPCores, set: { $0.cpu.showEPCores = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Frequency",
+            subtitle: "Display CPU frequency in MHz",
+            icon: "gauge",
+            isOn: moduleBinding(\.cpu.showFrequency, set: { $0.cpu.showFrequency = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Temperature",
+            subtitle: "Display CPU temperature in popover",
+            icon: "thermometer",
+            iconColor: DesignTokens.Colors.warning,
+            isOn: moduleBinding(\.cpu.showTemperature, set: { $0.cpu.showTemperature = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Load Average",
+            subtitle: "Display 1/5/15 minute load averages",
+            icon: "chart.line.uptrend.xyaxis",
+            isOn: moduleBinding(\.cpu.showLoadAverage, set: { $0.cpu.showLoadAverage = $1 })
+        )
+
+        moduleDivider
+
+        topProcessCountRow(
+            current: config.moduleSettings.cpu.topProcessCount,
+            set: { count in updateModuleSettings { $0.cpu.topProcessCount = count } }
+        )
+    }
+
+    // MARK: - Memory Settings
+
+    @ViewBuilder
+    private var memorySettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Swap",
+            subtitle: "Display swap memory usage",
+            icon: "arrow.triangle.swap",
+            isOn: moduleBinding(\.memory.showSwap, set: { $0.memory.showSwap = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Compressed",
+            subtitle: "Display compressed memory in breakdown",
+            icon: "arrow.down.right.and.arrow.up.left",
+            isOn: moduleBinding(\.memory.showCompressed, set: { $0.memory.showCompressed = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Pressure Gauge",
+            subtitle: "Show memory pressure gauge in popover",
+            icon: "gauge.with.needle",
+            isOn: moduleBinding(\.memory.pressureGauge, set: { $0.memory.pressureGauge = $1 })
+        )
+
+        moduleDivider
+
+        topProcessCountRow(
+            current: config.moduleSettings.memory.topProcessCount,
+            set: { count in updateModuleSettings { $0.memory.topProcessCount = count } }
+        )
+    }
+
+    // MARK: - Disk Settings
+
+    @ViewBuilder
+    private var diskSettingsRows: some View {
+        PreferenceRow(
+            title: "Volume",
+            subtitle: "Select which disk volume to monitor",
+            icon: "internaldrive",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Menu {
+                Button("Auto") {
+                    updateModuleSettings { $0.disk.selectedVolume = "Auto" }
+                }
+                Divider()
+                ForEach(widgetDataManager.diskVolumes, id: \.name) { volume in
+                    Button(action: {
+                        updateModuleSettings { $0.disk.selectedVolume = volume.name }
+                    }) {
+                        HStack {
+                            Text(volume.name)
+                            if config.moduleSettings.disk.selectedVolume == volume.name {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text(config.moduleSettings.disk.selectedVolume)
+                        .font(DesignTokens.Typography.subhead)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+            }
+            .menuStyle(.borderlessButton)
+        }
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show SMART Status",
+            subtitle: "Display SMART health information",
+            icon: "checkmark.seal",
+            iconColor: DesignTokens.Colors.success,
+            isOn: moduleBinding(\.disk.showSMART, set: { $0.disk.showSMART = $1 })
+        )
+    }
+
+    // MARK: - Network Settings
+
+    @ViewBuilder
+    private var networkSettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Public IP",
+            subtitle: "Display public IP address in popover",
+            icon: "globe",
+            isOn: moduleBinding(\.network.showPublicIP, set: { $0.network.showPublicIP = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show WiFi Details",
+            subtitle: "Display SSID, signal strength, and channel",
+            icon: "wifi",
+            isOn: moduleBinding(\.network.showWiFiDetails, set: { $0.network.showWiFiDetails = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show DNS",
+            subtitle: "Display DNS server information",
+            icon: "server.rack",
+            isOn: moduleBinding(\.network.showDNS, set: { $0.network.showDNS = $1 })
+        )
+    }
+
+    // MARK: - GPU Settings
+
+    @ViewBuilder
+    private var gpuSettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Render/Tiler",
+            subtitle: "Display render and tiler utilization",
+            icon: "square.stack.3d.up",
+            isOn: moduleBinding(\.gpu.showRenderTiler, set: { $0.gpu.showRenderTiler = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Memory",
+            subtitle: "Display GPU memory allocation",
+            icon: "memorychip",
+            isOn: moduleBinding(\.gpu.showMemory, set: { $0.gpu.showMemory = $1 })
+        )
+    }
+
+    // MARK: - Battery Settings
+
+    @ViewBuilder
+    private var batterySettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Adapter Details",
+            subtitle: "Display power adapter information",
+            icon: "powerplug",
+            isOn: moduleBinding(\.battery.showAdapterDetails, set: { $0.battery.showAdapterDetails = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Electrical Metrics",
+            subtitle: "Display amperage, voltage, and wattage",
+            icon: "bolt",
+            iconColor: DesignTokens.Colors.warning,
+            isOn: moduleBinding(\.battery.showElectricalMetrics, set: { $0.battery.showElectricalMetrics = $1 })
+        )
+    }
+
+    // MARK: - Sensors Settings
+
+    @ViewBuilder
+    private var sensorsSettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Fan Control",
+            subtitle: "Display fan speed controls in popover",
+            icon: "fan",
+            isOn: moduleBinding(\.sensors.showFanSpeeds, set: { $0.sensors.showFanSpeeds = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Voltages",
+            subtitle: "Display voltage sensor readings",
+            icon: "bolt.circle",
+            isOn: moduleBinding(\.sensors.showVoltages, set: { $0.sensors.showVoltages = $1 })
+        )
+
+        moduleDivider
+
+        moduleToggleRow(
+            title: "Show Power",
+            subtitle: "Display power consumption readings",
+            icon: "bolt.fill",
+            iconColor: DesignTokens.Colors.warning,
+            isOn: moduleBinding(\.sensors.showPower, set: { $0.sensors.showPower = $1 })
+        )
+    }
+
+    // MARK: - Bluetooth Settings
+
+    @ViewBuilder
+    private var bluetoothSettingsRows: some View {
+        moduleToggleRow(
+            title: "Show Signal Strength",
+            subtitle: "Display Bluetooth signal strength for devices",
+            icon: "antenna.radiowaves.left.and.right",
+            isOn: moduleBinding(\.bluetooth.showSignalStrength, set: { $0.bluetooth.showSignalStrength = $1 })
+        )
+    }
+
+    // MARK: - Clock Settings
+
+    @ViewBuilder
+    private var clockSettingsRows: some View {
+        PreferenceToggleRow(
+            title: "Show Seconds",
+            subtitle: "Display seconds in time",
+            icon: "clock.badge",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false,
+            isOn: Binding(
+                get: { clockPreferences.showSeconds },
+                set: { newValue in
+                    clockPreferences.showSeconds = newValue
+                    UserDefaults.standard.set(newValue, forKey: "tonic.clock.showSeconds")
+                }
+            )
+        )
+
+        moduleDivider
+
+        PreferenceToggleRow(
+            title: "Use 24-Hour Format",
+            subtitle: "Display time in 24-hour format",
+            icon: "clock",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false,
+            isOn: Binding(
+                get: { clockPreferences.use24Hour },
+                set: { newValue in
+                    clockPreferences.use24Hour = newValue
+                    UserDefaults.standard.set(newValue, forKey: "tonic.clock.use24Hour")
+                }
+            )
+        )
+    }
+
+    // MARK: - Module Settings Helpers
+
+    private var moduleDivider: some View {
+        Divider()
+            .padding(.leading, DesignTokens.Spacing.md)
+    }
+
+    private func moduleToggleRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        iconColor: Color = DesignTokens.Colors.accent,
+        isOn: Binding<Bool>
+    ) -> some View {
+        PreferenceRow(
+            title: title,
+            subtitle: subtitle,
+            icon: icon,
+            iconColor: iconColor,
+            showDivider: false
+        ) {
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+        }
+    }
+
+    private func moduleBinding(
+        _ keyPath: KeyPath<ModuleSettings, Bool>,
+        set: @escaping (inout ModuleSettings, Bool) -> Void
+    ) -> Binding<Bool> {
+        Binding(
+            get: { config.moduleSettings[keyPath: keyPath] },
+            set: { newValue in
+                updateModuleSettings { settings in
+                    set(&settings, newValue)
+                }
+            }
+        )
+    }
+
+    private func updateModuleSettings(_ update: (inout ModuleSettings) -> Void) {
+        var currentSettings = config.moduleSettings
+        update(&currentSettings)
+        preferences.setWidgetModuleSettings(type: module, settings: currentSettings)
+    }
+
+    private func topProcessCountRow(current: Int, set: @escaping (Int) -> Void) -> some View {
+        PreferenceRow(
+            title: "Top Processes",
+            subtitle: "Number of top processes to display",
+            icon: "list.number",
+            iconColor: DesignTokens.Colors.accent,
+            showDivider: false
+        ) {
+            Menu {
+                ForEach([5, 10, 15, 20], id: \.self) { count in
+                    Button(action: { set(count) }) {
+                        HStack {
+                            Text("\(count)")
+                            if current == count {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text("\(current)")
+                        .font(DesignTokens.Typography.subhead)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+            }
+            .menuStyle(.borderlessButton)
         }
     }
 

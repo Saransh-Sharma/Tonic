@@ -524,6 +524,7 @@ public struct BatteryData: Sendable {
     public let maxCapacity: UInt64?        // mAh (maximum capacity)
     public let chargingCurrent: Double?    // Adapter current in mA (estimated from wattage)
     public let chargingVoltage: Double?    // Adapter voltage in V (estimated from wattage)
+    public let lastChargeTimestamp: Date?  // Time when AC power was last connected
 
     public let timestamp: Date
 
@@ -535,7 +536,7 @@ public struct BatteryData: Sendable {
                 amperage: Double? = nil, voltage: Double? = nil, batteryPower: Double? = nil,
                 designedCapacity: UInt64? = nil, currentCapacity: UInt64? = nil,
                 maxCapacity: UInt64? = nil, chargingCurrent: Double? = nil,
-                chargingVoltage: Double? = nil,
+                chargingVoltage: Double? = nil, lastChargeTimestamp: Date? = nil,
                 timestamp: Date = Date()) {
         self.isPresent = isPresent
         self.isCharging = isCharging
@@ -555,6 +556,7 @@ public struct BatteryData: Sendable {
         self.maxCapacity = maxCapacity
         self.chargingCurrent = chargingCurrent
         self.chargingVoltage = chargingVoltage
+        self.lastChargeTimestamp = lastChargeTimestamp
         self.timestamp = timestamp
     }
 
@@ -582,6 +584,7 @@ public struct BatteryData: Sendable {
         self.maxCapacity = nil
         self.chargingCurrent = nil
         self.chargingVoltage = nil
+        self.lastChargeTimestamp = nil
         self.timestamp = timestamp
     }
 }
@@ -830,6 +833,8 @@ public final class WidgetDataManager {
     private var networkUploadCircularBuffer = CircularBuffer(capacity: 180)
     private var networkDownloadCircularBuffer = CircularBuffer(capacity: 180)
     private var gpuCircularBuffer = CircularBuffer(capacity: 180)
+    private var gpuRenderCircularBuffer = CircularBuffer(capacity: 180)
+    private var gpuTilerCircularBuffer = CircularBuffer(capacity: 180)
     private var gpuTemperatureCircularBuffer = CircularBuffer(capacity: 180)
     private var batteryCircularBuffer = CircularBuffer(capacity: 180)
     private var sensorsCircularBuffer = CircularBuffer(capacity: 180)
@@ -878,6 +883,8 @@ public final class WidgetDataManager {
 
     public private(set) var gpuData: GPUData = GPUData()
     public private(set) var gpuHistory: [Double] = []
+    public private(set) var gpuRenderHistory: [Double] = []
+    public private(set) var gpuTilerHistory: [Double] = []
     public private(set) var gpuTemperatureHistory: [Double] = []
 
     // MARK: - Battery Data
@@ -908,7 +915,17 @@ public final class WidgetDataManager {
     /// Background queue for heavy data fetching work to avoid blocking the main thread
     private let monitoringQueue = DispatchQueue(label: "com.tonic.widgetdata.monitoring", qos: .utility)
 
-    private var updateTimer: DispatchSourceTimer?
+    private struct MonitoringReader {
+        let id: String
+        let module: WidgetType
+        let intervalKey: String
+        let defaultInterval: TimeInterval
+        let popupOnly: Bool
+        let action: (WidgetDataManager) -> Void
+    }
+
+    private var readerTimers: [String: DispatchSourceTimer] = [:]
+    private var popupVisibleModules: Set<WidgetType> = []
     private var lastNetworkStats: (upload: UInt64, download: UInt64, timestamp: Date)?
     private var lastDiskReadBytes: UInt64 = 0
     private var lastDiskWriteBytes: UInt64 = 0
@@ -927,7 +944,6 @@ public final class WidgetDataManager {
     private var cachedTopProcesses: [AppResourceUsage]?
     private var lastProcessFetchDate: Date?
 
-    // Bluetooth reader (placeholder - BluetoothReader implementation needed)
     private var lastBluetoothUpdate: Date?
     private let bluetoothUpdateInterval: TimeInterval = 10.0  // Bluetooth updates less frequently
 
@@ -953,6 +969,10 @@ public final class WidgetDataManager {
     private var pathMonitor: NWPathMonitor?
     private let pathMonitorQueue = DispatchQueue(label: "com.tonic.network.pathmonitor", qos: .utility)
     private var networkReachable: Bool?
+
+    // Battery transition tracking for "Last charge" parity behavior.
+    private var batteryLastACPowerTimestamp: Date?
+    private var wasOnACPower: Bool = false
 
     // MARK: - Initialization
 
@@ -989,67 +1009,128 @@ public final class WidgetDataManager {
             return
         }
         isMonitoring = true
-        let interval = WidgetPreferences.shared.updateInterval.timeInterval
-        logger.info("🔵 Starting monitoring with interval: \(interval)s")
-        logToFile("🔵 STARTING MONITORING with interval: \(interval)s")
-
-        // Use background queue for data fetching to avoid blocking the main thread
-        // The timer fires immediately (.now()) so no need for a separate initial call
-        updateTimer = DispatchSource.makeTimerSource(queue: monitoringQueue)
-        updateTimer?.schedule(deadline: .now() + 0.1, repeating: .seconds(Int(interval)))
-        updateTimer?.setEventHandler { [weak self] in
-            self?.updateAllData()
-        }
-        updateTimer?.resume()
-
-        logger.info("🔵 Monitoring started, first update will occur in 0.1s on background queue")
-        logToFile("🔵 Monitoring started on background queue")
+        logger.info("🔵 Starting parity reader monitoring")
+        logToFile("🔵 STARTING PARITY READER MONITORING")
+        restartReaderTimers()
+        triggerImmediateReaderPass()
     }
 
     /// Stop monitoring system data
     public func stopMonitoring() {
         isMonitoring = false
-        updateTimer?.cancel()
-        updateTimer = nil
+        readerTimers.values.forEach { $0.cancel() }
+        readerTimers.removeAll()
+        popupVisibleModules.removeAll()
     }
 
     /// Update the monitoring interval based on preferences
     public func updateInterval() {
         if isMonitoring {
-            stopMonitoring()
-            startMonitoring()
+            restartReaderTimers()
         }
     }
 
-    // MARK: - Data Updates
+    public func setModuleUpdateInterval(for widgetType: WidgetType, interval: TimeInterval) {
+        guard interval >= 0.5 else { return }
+        UserDefaults.standard.set(interval, forKey: moduleIntervalKey(for: widgetType))
+        if isMonitoring {
+            restartReaderTimers()
+        }
+    }
 
-    private var updateCounter = 0
-
-    private func updateAllData() {
-        logger.debug("🔄 updateAllData called")
-        logToFile("🔄 updateAllData called")
-        updateCPUData()
-        updateMemoryData()
-        updateDiskData()
-        updateNetworkData()
-        updateGPUData()
-        updateBatteryData()
-        updateSensorsData()
-        updateBluetoothData()
-
-        // Update top apps less frequently (every 3rd update - effectively every 3s)
-        updateCounter += 1
-        if updateCounter >= 3 {
-            updateCounter = 0
-            // Run on background queue to avoid blocking main thread
-            Task.detached { [weak self] in
-                await self?.updateTopCPUApps()
-                await self?.updateTopMemoryApps()
-            }
+    public func setPopupVisible(for widgetType: WidgetType, isVisible: Bool) {
+        if isVisible {
+            popupVisibleModules.insert(widgetType)
+        } else {
+            popupVisibleModules.remove(widgetType)
         }
 
-        logger.info("✅ updateAllData complete - CPU: \(Int(self.cpuData.totalUsage))%, Memory: \(Int(self.memoryData.usagePercentage))%")
-        logToFile("✅ updateAllData complete - CPU: \(Int(self.cpuData.totalUsage))%, Memory: \(Int(self.memoryData.usagePercentage))%, Disk: \(self.diskVolumes.first?.usagePercentage ?? 0)%")
+        guard isVisible, isMonitoring else { return }
+        for reader in monitoringReaders where reader.popupOnly && reader.module == widgetType {
+            monitoringQueue.async { [weak self] in
+                guard let self = self else { return }
+                reader.action(self)
+            }
+        }
+    }
+
+    // MARK: - Reader Scheduling
+
+    private var monitoringReaders: [MonitoringReader] {
+        [
+            MonitoringReader(id: "CPU.load", module: .cpu, intervalKey: "CPU_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateCPUData() },
+            MonitoringReader(id: "CPU.processes", module: .cpu, intervalKey: "CPU_updateTopInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateTopCPUApps() },
+
+            MonitoringReader(id: "RAM.load", module: .memory, intervalKey: "RAM_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateMemoryData() },
+            MonitoringReader(id: "RAM.processes", module: .memory, intervalKey: "RAM_updateTopInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateTopMemoryApps() },
+
+            MonitoringReader(id: "Disk.load", module: .disk, intervalKey: "Disk_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateDiskData() },
+            MonitoringReader(id: "Net.load", module: .network, intervalKey: "Net_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateNetworkData() },
+            MonitoringReader(id: "GPU.load", module: .gpu, intervalKey: "GPU_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateGPUData() },
+            MonitoringReader(id: "Battery.load", module: .battery, intervalKey: "Battery_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateBatteryData() },
+            MonitoringReader(id: "Sensors.load", module: .sensors, intervalKey: "Sensors_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateSensorsData() },
+            MonitoringReader(id: "Bluetooth.load", module: .bluetooth, intervalKey: "Bluetooth_updateInterval", defaultInterval: bluetoothUpdateInterval, popupOnly: false) { $0.updateBluetoothData() }
+        ]
+    }
+
+    private func restartReaderTimers() {
+        readerTimers.values.forEach { $0.cancel() }
+        readerTimers.removeAll()
+
+        for reader in monitoringReaders {
+            let interval = moduleInterval(reader: reader)
+            let timer = DispatchSource.makeTimerSource(queue: monitoringQueue)
+            timer.schedule(
+                deadline: .now() + .milliseconds(100),
+                repeating: dispatchInterval(seconds: interval),
+                leeway: .milliseconds(100)
+            )
+            timer.setEventHandler { [weak self] in
+                guard let self = self else { return }
+                if reader.popupOnly && !self.popupVisibleModules.contains(reader.module) {
+                    return
+                }
+                reader.action(self)
+            }
+            timer.resume()
+            readerTimers[reader.id] = timer
+        }
+    }
+
+    private func triggerImmediateReaderPass() {
+        for reader in monitoringReaders where !reader.popupOnly {
+            monitoringQueue.async { [weak self] in
+                guard let self = self else { return }
+                reader.action(self)
+            }
+        }
+    }
+
+    private func moduleInterval(reader: MonitoringReader) -> TimeInterval {
+        let stored = UserDefaults.standard.double(forKey: reader.intervalKey)
+        if stored >= 0.5 {
+            return stored
+        }
+        return reader.defaultInterval
+    }
+
+    private func moduleIntervalKey(for widgetType: WidgetType) -> String {
+        switch widgetType {
+        case .cpu: return "CPU_updateInterval"
+        case .memory: return "RAM_updateInterval"
+        case .disk: return "Disk_updateInterval"
+        case .network: return "Net_updateInterval"
+        case .gpu: return "GPU_updateInterval"
+        case .battery: return "Battery_updateInterval"
+        case .sensors: return "Sensors_updateInterval"
+        case .bluetooth: return "Bluetooth_updateInterval"
+        case .clock: return "Clock_updateInterval"
+        case .weather: return "Weather_updateInterval"
+        }
+    }
+
+    private func dispatchInterval(seconds: TimeInterval) -> DispatchTimeInterval {
+        .milliseconds(max(250, Int(seconds * 1000)))
     }
 
     // MARK: - CPU Monitoring
@@ -1074,6 +1155,9 @@ public final class WidgetDataManager {
         // Get system uptime
         let uptime = getSystemUptime()
 
+        // Get CPU speed limits from pmset
+        let (schedulerLimit, speedLimit) = getCPUSpeedLimits()
+
         let newCPUData = CPUData(
             totalUsage: usage,
             perCoreUsage: perCore,
@@ -1088,7 +1172,9 @@ public final class WidgetDataManager {
             systemUsage: systemUsage,
             userUsage: userUsage,
             idleUsage: idleUsage,
-            uptime: uptime
+            uptime: uptime,
+            schedulerLimit: schedulerLimit,
+            speedLimit: speedLimit
         )
 
         // Dispatch property updates to main thread for @Observable
@@ -1314,6 +1400,16 @@ public final class WidgetDataManager {
 
     /// Get CPU temperature in Celsius
     private func getCPUTemperature() -> Double? {
+        // Try SMC temperature reading first (most accurate)
+        if SMCReader.shared.isAvailable {
+            if let smcTemp = SMCReader.shared.getValue("TC0P"), smcTemp > 0, smcTemp < 120 {
+                return smcTemp
+            }
+            if let smcTemp = SMCReader.shared.getValue("TC0D"), smcTemp > 0, smcTemp < 120 {
+                return smcTemp
+            }
+        }
+
         #if arch(arm64)
         // Apple Silicon temperature reading via IOKit
         var iterator: io_iterator_t = 0
@@ -1410,6 +1506,50 @@ public final class WidgetDataManager {
         }
 
         return false
+    }
+
+    /// Get CPU speed limits from pmset thermal data
+    /// Returns (schedulerLimit, speedLimit) as percentages (0-100)
+    private func getCPUSpeedLimits() -> (schedulerLimit: Double?, speedLimit: Double?) {
+        let task = Process()
+        task.launchPath = "/usr/bin/pmset"
+        task.arguments = ["-g", "therm"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else { return (nil, nil) }
+
+            var speedLimit: Double?
+            var schedulerLimit: Double?
+
+            let lines = output.split(separator: "\n")
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.contains("CPU_Speed_Limit") {
+                    // Parse "CPU_Speed_Limit = 100" format
+                    let parts = trimmed.components(separatedBy: "=")
+                    if parts.count == 2, let value = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                        speedLimit = Double(value)
+                    }
+                } else if trimmed.contains("CPU_Scheduler_Limit") {
+                    let parts = trimmed.components(separatedBy: "=")
+                    if parts.count == 2, let value = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                        schedulerLimit = Double(value)
+                    }
+                }
+            }
+
+            return (schedulerLimit, speedLimit)
+        } catch {
+            return (nil, nil)
+        }
     }
 
     /// Get average load (1, 5, 15 minute averages)
@@ -2487,7 +2627,7 @@ public final class WidgetDataManager {
 
             // Update connectivity history (for grid visualization)
             self.connectivityHistory.append(isConnected)
-            if self.connectivityHistory.count > 90 {
+            if self.connectivityHistory.count > 360 {
                 self.connectivityHistory.removeFirst()
             }
 
@@ -2861,7 +3001,7 @@ public final class WidgetDataManager {
         return cachedPublicIP
     }
 
-    /// Fetch public IP from external APIs with fallback
+    /// Fetch public IP from external APIs with fallback, then enrich with geolocation
     private func fetchPublicIPFromAPI() async -> PublicIPInfo? {
         // Try multiple APIs for reliability
         let apis: [String] = [
@@ -2872,12 +3012,42 @@ public final class WidgetDataManager {
 
         for api in apis {
             if let ip = await fetchIPFrom(url: api) {
-                // For simple IP APIs, we don't get geo info
-                return PublicIPInfo(ipAddress: ip.trimmingCharacters(in: .whitespacesAndNewlines))
+                let trimmedIP = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Try to enrich with geolocation data
+                if let geoInfo = await fetchGeoIPData(ip: trimmedIP) {
+                    return geoInfo
+                }
+                // Fall back to IP-only if geo lookup fails
+                return PublicIPInfo(ipAddress: trimmedIP)
             }
         }
 
         return nil
+    }
+
+    /// Fetch geolocation data for a given IP address
+    private func fetchGeoIPData(ip: String) async -> PublicIPInfo? {
+        guard let url = URL(string: "http://ip-api.com/json/\(ip)?fields=country,city,isp,query") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5.0
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+
+            let country = json["country"] as? String
+            let city = json["city"] as? String
+            let isp = json["isp"] as? String
+            let queryIP = json["query"] as? String ?? ip
+
+            return PublicIPInfo(ipAddress: queryIP, country: country, city: city, isp: isp)
+        } catch {
+            logger.warning("Failed to fetch GeoIP data for \(ip): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// Fetch IP from a specific URL
@@ -3212,71 +3382,49 @@ public final class WidgetDataManager {
 
     private func updateGPUData() {
         #if arch(arm64)
-        // Apple Silicon GPU monitoring
         var usage: Double? = nil
         var usedMemory: UInt64? = nil
         var totalMemory: UInt64? = nil
         var temperature: Double? = nil
+        var renderUtilization: Double? = nil
+        var tilerUtilization: Double? = nil
+        var coreClock: Double? = nil
+        var memoryClock: Double? = nil
+        var fanSpeed: Int? = nil
+        var vendor: String? = nil
+        var model: String? = nil
+        var isActive: Bool? = nil
 
         // Get total unified memory available to GPU
         if let physMemory = getPhysicalMemory() {
-            // On Apple Silicon, GPU can access all unified memory
-            // Reserve some for system (typically 2-3GB)
-            let gpuAccessibleMemory = physMemory - (2 * 1024 * 1024 * 1024) // Reserve 2GB
+            // Keep a system-reserved pool and treat the remainder as GPU-addressable.
+            let gpuAccessibleMemory = physMemory - (2 * 1024 * 1024 * 1024)
             totalMemory = gpuAccessibleMemory
         }
 
-        // Try to get GPU activity from IORegistry
-        // Apple AGX GPU registers under IOService:/AppleARMIODevice/AGX
-        let gpuService = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOGPU"))
-        if gpuService != 0 {
-            // Try to read GPU stats
-            if let properties = IORegistryEntryCreateCFProperty(gpuService, "PerformanceStatistics" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
-                // Parse GPU stats if available
-                if let activity = properties["ActivityLevel"] as? Double {
-                    usage = activity * 100
-                }
-            }
-            IOObjectRelease(gpuService)
+        if let snapshot = readIOAcceleratorSnapshot() {
+            usage = snapshot.utilization
+            renderUtilization = snapshot.renderUtilization
+            tilerUtilization = snapshot.tilerUtilization
+            temperature = snapshot.temperature
+            coreClock = snapshot.coreClock
+            memoryClock = snapshot.memoryClock
+            fanSpeed = snapshot.fanSpeed
+            vendor = snapshot.vendor
+            model = snapshot.model
+            isActive = snapshot.isActive
+            // Use actual GPU memory from IOAccelerator if available
+            usedMemory = snapshot.usedMemory
         }
 
-        // Alternative: Try IOAccelerator
-        if usage == nil {
-            var iterator: io_iterator_t = 0
-            if IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &iterator) == KERN_SUCCESS {
-                while true {
-                    let service = IOIteratorNext(iterator)
-                    guard service != 0 else { break }
-                    // Check if this is an Apple GPU
-                    if let name = IORegistryEntryCreateCFProperty(service, "IOName" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? String,
-                       name.contains("AGX") || name.contains("AppleGPU") {
-                        // Found Apple Silicon GPU
-                        // Try to get performance statistics
-                        if let stats = IORegistryEntryCreateCFProperty(service, "PerformanceStatistics" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] {
-                            if let activity = stats["DeviceUtilization"] as? Double {
-                                usage = activity * 100
-                            }
-                        }
-                    }
-                    IOObjectRelease(service)
-                }
-                IOObjectRelease(iterator)
-            }
-        }
-
-        // Try to get GPU temperature from IOPM (power management)
-        if let thermals = getThermalInfo() {
+        // Fallback temperature source when IOAccelerator does not expose one.
+        if temperature == nil, let thermals = getThermalInfo() {
             temperature = thermals.gpuTemperature
         }
 
-        // Estimate GPU memory usage from system memory pressure
-        // On unified memory, GPU + CPU share the same pool
-        // GPU typically uses 5-15% when idle, up to 50%+ under load
-        if let total = totalMemory {
-            let _ = memoryData.usagePercentage
-            // Estimate GPU memory based on activity and system memory pressure
-            // This is an approximation since Apple doesn't expose exact GPU memory allocation
-            let estimatedGPUMemoryPercent = usage ?? 10.0 // Default 10% idle
+        // Fall back to estimation only if actual memory not available
+        if usedMemory == nil, let total = totalMemory {
+            let estimatedGPUMemoryPercent = usage ?? 10.0
             usedMemory = UInt64(Double(total) * (estimatedGPUMemoryPercent / 100.0))
         }
 
@@ -3285,21 +3433,35 @@ public final class WidgetDataManager {
             usedMemory: usedMemory,
             totalMemory: totalMemory,
             temperature: temperature,
+            renderUtilization: renderUtilization,
+            tilerUtilization: tilerUtilization,
+            coreClock: coreClock,
+            memoryClock: memoryClock,
+            fanSpeed: fanSpeed,
+            vendor: vendor,
+            model: model,
+            cores: nil,
+            isActive: isActive,
             timestamp: Date()
         )
+
         // Dispatch property updates to main thread for @Observable
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.gpuData = newGPUData
 
-            // Track history for line charts
             if let gpuUsage = usage {
-                // Performance optimization: Use circular buffer for O(1) history add
                 self.gpuCircularBuffer.add(gpuUsage)
                 self.gpuHistory = self.gpuCircularBuffer.toArray()
-
-                // Check notification thresholds
                 NotificationManager.shared.checkThreshold(widgetType: .gpu, value: gpuUsage)
+            }
+            if let renderUtil = renderUtilization {
+                self.gpuRenderCircularBuffer.add(renderUtil)
+                self.gpuRenderHistory = self.gpuRenderCircularBuffer.toArray()
+            }
+            if let tilerUtil = tilerUtilization {
+                self.gpuTilerCircularBuffer.add(tilerUtil)
+                self.gpuTilerHistory = self.gpuTilerCircularBuffer.toArray()
             }
 
             if let temperature = temperature {
@@ -3312,9 +3474,159 @@ public final class WidgetDataManager {
         // Return empty GPU data to indicate no GPU available
         let emptyGPUData = GPUData(timestamp: Date())
         DispatchQueue.main.async { [weak self] in
-            self?.gpuData = emptyGPUData
+            guard let self = self else { return }
+            self.gpuData = emptyGPUData
+            self.gpuRenderHistory = []
+            self.gpuTilerHistory = []
         }
         #endif
+    }
+
+    private struct IOAcceleratorSnapshot {
+        let utilization: Double?
+        let renderUtilization: Double?
+        let tilerUtilization: Double?
+        let temperature: Double?
+        let fanSpeed: Int?
+        let coreClock: Double?
+        let memoryClock: Double?
+        let vendor: String?
+        let model: String?
+        let isActive: Bool?
+        let usedMemory: UInt64?
+    }
+
+    private func readIOAcceleratorSnapshot() -> IOAcceleratorSnapshot? {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOAccelerator"), &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+
+        var selected: IOAcceleratorSnapshot?
+
+        while true {
+            let service = IOIteratorNext(iterator)
+            guard service != 0 else { break }
+            defer { IOObjectRelease(service) }
+
+            guard let stats = IORegistryEntryCreateCFProperty(
+                service,
+                "PerformanceStatistics" as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue() as? [String: Any] else {
+                continue
+            }
+
+            let ioClass = (IORegistryEntryCreateCFProperty(
+                service,
+                "IOClass" as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue() as? String ?? "").lowercased()
+
+            let utilization = percentFromAny(stats["Device Utilization %"]) ?? percentFromAny(stats["GPU Activity(%)"])
+            let renderUtil = percentFromAny(stats["Renderer Utilization %"])
+            let tilerUtil = percentFromAny(stats["Tiler Utilization %"])
+            let temperature = doubleFromAny(stats["Temperature(C)"])
+            let fanSpeed = intFromAny(stats["Fan Speed(%)"])
+            let coreClock = doubleFromAny(stats["Core Clock(MHz)"])
+            let memoryClock = doubleFromAny(stats["Memory Clock(MHz)"])
+            let model = (stats["model"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Try to read actual GPU memory allocation from IOAccelerator stats
+            let usedMemory: UInt64? = {
+                // Try known keys for GPU memory allocation
+                for key in ["alloc_system_memory", "inUseSystemMemory", "vramUsedBytes"] {
+                    if let value = stats[key] {
+                        if let num = value as? UInt64, num > 0 { return num }
+                        if let num = value as? Int, num > 0 { return UInt64(num) }
+                        if let num = value as? NSNumber, num.uint64Value > 0 { return num.uint64Value }
+                    }
+                }
+                return nil
+            }()
+
+            let vendor: String?
+            if ioClass.contains("amd") {
+                vendor = "AMD"
+            } else if ioClass.contains("intel") {
+                vendor = "Intel"
+            } else if ioClass.contains("agx") || ioClass.contains("apple") {
+                vendor = "Apple"
+            } else {
+                vendor = nil
+            }
+
+            var isActive: Bool? = nil
+            if let agcInfo = IORegistryEntryCreateCFProperty(
+                service,
+                "AGCInfo" as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue() as? [String: Int],
+               let poweredOff = agcInfo["poweredOffByAGC"] {
+                isActive = poweredOff == 0
+            }
+
+            let candidate = IOAcceleratorSnapshot(
+                utilization: utilization,
+                renderUtilization: renderUtil,
+                tilerUtilization: tilerUtil,
+                temperature: temperature,
+                fanSpeed: fanSpeed,
+                coreClock: coreClock,
+                memoryClock: memoryClock,
+                vendor: vendor,
+                model: model,
+                isActive: isActive,
+                usedMemory: usedMemory
+            )
+
+            // Keep the most active entry if multiple accelerators are present.
+            if selected == nil || (candidate.utilization ?? 0) > (selected?.utilization ?? 0) {
+                selected = candidate
+            }
+        }
+
+        return selected
+    }
+
+    private func percentFromAny(_ raw: Any?) -> Double? {
+        guard let value = doubleFromAny(raw) else { return nil }
+        if value > 1 {
+            return max(0, min(100, value))
+        }
+        return max(0, min(100, value * 100))
+    }
+
+    private func doubleFromAny(_ raw: Any?) -> Double? {
+        switch raw {
+        case let number as NSNumber:
+            return number.doubleValue
+        case let value as Double:
+            return value
+        case let value as Int:
+            return Double(value)
+        case let value as Float:
+            return Double(value)
+        default:
+            return nil
+        }
+    }
+
+    private func intFromAny(_ raw: Any?) -> Int? {
+        switch raw {
+        case let number as NSNumber:
+            return number.intValue
+        case let value as Int:
+            return value
+        case let value as Double:
+            return Int(value)
+        default:
+            return nil
+        }
     }
 
     /// Get physical memory size
@@ -3380,6 +3692,8 @@ public final class WidgetDataManager {
         let noBatteryData = BatteryData(isPresent: false)
 
         guard let powerSources = sources else {
+            batteryLastACPowerTimestamp = nil
+            wasOnACPower = false
             DispatchQueue.main.async { [weak self] in
                 self?.batteryData = noBatteryData
             }
@@ -3396,6 +3710,8 @@ public final class WidgetDataManager {
 
             let isPresent = info[kIOPSIsPresentKey] as? Bool ?? true
             guard isPresent else {
+                batteryLastACPowerTimestamp = nil
+                wasOnACPower = false
                 DispatchQueue.main.async { [weak self] in
                     self?.batteryData = noBatteryData
                 }
@@ -3403,8 +3719,15 @@ public final class WidgetDataManager {
             }
 
             let currentState = info[kIOPSPowerSourceStateKey] as? String
-            let isCharging = currentState == kIOPSACPowerValue
+            let isOnACPower = currentState == kIOPSACPowerValue
+            let isCharging = isOnACPower
             let isCharged = info[kIOPSIsChargedKey] as? Bool ?? false
+
+            if isOnACPower {
+                if !wasOnACPower || batteryLastACPowerTimestamp == nil {
+                    batteryLastACPowerTimestamp = Date()
+                }
+            }
 
             // IOPS key meanings:
             // - kIOPSCurrentCapacityKey: current capacity in mAh
@@ -3488,7 +3811,8 @@ public final class WidgetDataManager {
                 currentCapacity: currentCapacity,
                 maxCapacity: maxCapacity,
                 chargingCurrent: chargingCurrent,
-                chargingVoltage: chargingVoltage
+                chargingVoltage: chargingVoltage,
+                lastChargeTimestamp: batteryLastACPowerTimestamp
             )
             // Dispatch property updates to main thread for @Observable
             DispatchQueue.main.async { [weak self] in
@@ -3504,9 +3828,12 @@ public final class WidgetDataManager {
                     NotificationManager.shared.checkThreshold(widgetType: .battery, value: Double(capacityPercent))
                 }
             }
+            wasOnACPower = isOnACPower
             return
         }
 
+        batteryLastACPowerTimestamp = nil
+        wasOnACPower = false
         DispatchQueue.main.async { [weak self] in
             self?.batteryData = noBatteryData
         }
@@ -3766,8 +4093,16 @@ public final class WidgetDataManager {
 
     // MARK: - Enhanced Sensors Readers
 
-    /// Get temperature sensors using IOKit
+    /// Get temperature sensors using SMCReader first, then IOKit fallback
     private func getSMCTemperatures() -> [SensorReading] {
+        // Try SMCReader first for accurate hardware readings
+        if SMCReader.shared.isAvailable {
+            let smcReadings = SMCReader.shared.readTemperatures()
+            if !smcReadings.isEmpty {
+                return smcReadings
+            }
+        }
+
         var readings: [SensorReading] = []
 
         #if arch(arm64)
@@ -3950,6 +4285,26 @@ public final class WidgetDataManager {
         }
         #endif
 
+        // SMC voltage fallback
+        let voltageKeys: [(key: String, name: String)] = [
+            ("VC0C", "CPU Core"),
+            ("VD0R", "DRAM"),
+            ("VP0R", "12V Rail"),
+            ("VN0C", "GPU"),
+        ]
+        for entry in voltageKeys {
+            if let voltage = SMCReader.shared.getValue(entry.key) {
+                readings.append(SensorReading(
+                    id: "voltage_\(entry.key)",
+                    name: "\(entry.name) Voltage",
+                    value: voltage,
+                    unit: "V",
+                    min: 0.0,
+                    max: 15.0
+                ))
+            }
+        }
+
         return readings
     }
 
@@ -3957,31 +4312,52 @@ public final class WidgetDataManager {
     private func getSMCPower() -> [SensorReading] {
         var readings: [SensorReading] = []
 
-        #if arch(arm64)
-        // Apple Silicon: Try IOReport for Energy Model
-        // Note: This requires privileged access on some systems
-        if let cpuPower = getCPUThermalPower() {
-            readings.append(SensorReading(
-                id: "cpu_power_estimated",
-                name: "CPU Power",
-                value: cpuPower,
-                unit: "W",
-                min: 0,
-                max: 30
-            ))
+        // Try SMC power keys first
+        let powerKeys: [(key: String, name: String)] = [
+            ("PSTR", "System Total"),
+            ("PC0C", "CPU Package"),
+            ("PCPG", "GPU"),
+            ("PDTR", "DRAM"),
+        ]
+        for entry in powerKeys {
+            if let power = SMCReader.shared.getValue(entry.key) {
+                readings.append(SensorReading(
+                    id: "power_\(entry.key)",
+                    name: "\(entry.name) Power",
+                    value: power,
+                    unit: "W",
+                    min: 0,
+                    max: 100
+                ))
+            }
         }
 
-        if let gpuPower = getGPUThermalPower() {
-            readings.append(SensorReading(
-                id: "gpu_power_estimated",
-                name: "GPU Power",
-                value: gpuPower,
-                unit: "W",
-                min: 0,
-                max: 30
-            ))
+        // Fall back to thermal estimates only if no SMC readings succeeded
+        if readings.isEmpty {
+            #if arch(arm64)
+            if let cpuPower = getCPUThermalPower() {
+                readings.append(SensorReading(
+                    id: "cpu_power_estimated",
+                    name: "CPU Power",
+                    value: cpuPower,
+                    unit: "W",
+                    min: 0,
+                    max: 30
+                ))
+            }
+
+            if let gpuPower = getGPUThermalPower() {
+                readings.append(SensorReading(
+                    id: "gpu_power_estimated",
+                    name: "GPU Power",
+                    value: gpuPower,
+                    unit: "W",
+                    min: 0,
+                    max: 30
+                ))
+            }
+            #endif
         }
-        #endif
 
         return readings
     }
@@ -4041,6 +4417,8 @@ public final class WidgetDataManager {
         networkUploadHistory = networkUploadCircularBuffer.toArray()
         networkDownloadHistory = networkDownloadCircularBuffer.toArray()
         gpuHistory = gpuCircularBuffer.toArray()
+        gpuRenderHistory = gpuRenderCircularBuffer.toArray()
+        gpuTilerHistory = gpuTilerCircularBuffer.toArray()
         batteryHistory = batteryCircularBuffer.toArray()
         sensorsHistory = sensorsCircularBuffer.toArray()
         bluetoothHistory = bluetoothCircularBuffer.toArray()
@@ -4200,41 +4578,36 @@ public final class WidgetDataManager {
             task.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let bluetoothDict = json["SPBluetoothDataType"] as? [String: Any] {
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
 
-                // Parse connected devices
-                if let controllerDict = bluetoothDict.first?.value as? [String: Any],
-                   let connectedDevices = controllerDict["device_connected"] as? [[String: Any]] {
-                    for deviceInfo in connectedDevices {
-                        if let name = deviceInfo["device_name"] as? String {
-                            let battery = deviceInfo["device_batteryLevel"] as? Int
-                            devices.append(BluetoothDevice(
-                                name: name,
-                                deviceType: .unknown,
-                                isConnected: true,
-                                isPaired: true,
-                                primaryBatteryLevel: battery
-                            ))
-                        }
-                    }
+                // Handle both array and dict formats (macOS 14+ returns array)
+                var controllerDicts: [[String: Any]] = []
+                if let array = json["SPBluetoothDataType"] as? [[String: Any]] {
+                    controllerDicts = array
+                } else if let dict = json["SPBluetoothDataType"] as? [String: Any] {
+                    controllerDicts = [dict]
                 }
 
-                // Also check for device_title for devices that are "connected" but might be in a different format
-                if let controllerDict = bluetoothDict.first?.value as? [String: Any],
-                   let allDevices = controllerDict["device_title"] as? [[String: Any]] {
-                    for deviceInfo in allDevices {
-                        if let name = deviceInfo["device_name"] as? String,
-                           let connectionStatus = deviceInfo["device_connectionStatus"] as? String,
-                           connectionStatus.contains("Connected") {
-                            let battery = deviceInfo["device_batteryLevel"] as? Int
-                            devices.append(BluetoothDevice(
-                                name: name,
-                                deviceType: .unknown,
-                                isConnected: true,
-                                isPaired: true,
-                                primaryBatteryLevel: battery
-                            ))
+                for controllerDict in controllerDicts {
+                    // Parse connected devices
+                    if let connectedDevices = controllerDict["device_connected"] as? [[String: Any]] {
+                        for deviceInfo in connectedDevices {
+                            if let name = deviceInfo["device_name"] as? String {
+                                let device = parseBluetoothDevice(name: name, info: deviceInfo, isConnected: true)
+                                devices.append(device)
+                            }
+                        }
+                    }
+
+                    // Also check for device_title for devices in a different format
+                    if let allDevices = controllerDict["device_title"] as? [[String: Any]] {
+                        for deviceInfo in allDevices {
+                            if let name = deviceInfo["device_name"] as? String,
+                               let connectionStatus = deviceInfo["device_connectionStatus"] as? String,
+                               connectionStatus.contains("Connected") {
+                                let device = parseBluetoothDevice(name: name, info: deviceInfo, isConnected: true)
+                                devices.append(device)
+                            }
                         }
                     }
                 }
@@ -4244,6 +4617,63 @@ public final class WidgetDataManager {
         }
 
         return devices
+    }
+
+    /// Parse a single Bluetooth device from system_profiler info dict
+    private func parseBluetoothDevice(name: String, info: [String: Any], isConnected: Bool) -> BluetoothDevice {
+        let primaryBattery = info["device_batteryLevel"] as? Int
+
+        // Multi-battery: AirPods case/left/right
+        var batteryLevels: [BluetoothDevice.DeviceBatteryLevel] = []
+        if let caseBattery = info["device_batteryLevelCase"] as? Int {
+            batteryLevels.append(BluetoothDevice.DeviceBatteryLevel(label: "Case", percentage: caseBattery, component: .caseBattery))
+        }
+        if let leftBattery = info["device_batteryLevelLeft"] as? Int {
+            batteryLevels.append(BluetoothDevice.DeviceBatteryLevel(label: "Left", percentage: leftBattery, component: .left))
+        }
+        if let rightBattery = info["device_batteryLevelRight"] as? Int {
+            batteryLevels.append(BluetoothDevice.DeviceBatteryLevel(label: "Right", percentage: rightBattery, component: .right))
+        }
+
+        // Device type from minorType string
+        let deviceType: BluetoothDeviceType
+        if let minorType = info["device_minorType"] as? String {
+            if minorType.contains("Headphones") || minorType.contains("Headset") {
+                deviceType = .headphones
+            } else if minorType.contains("Mouse") {
+                deviceType = .mouse
+            } else if minorType.contains("Keyboard") {
+                deviceType = .keyboard
+            } else if minorType.contains("Trackpad") {
+                deviceType = .trackpad
+            } else if minorType.contains("Speaker") {
+                deviceType = .speaker
+            } else if minorType.contains("Gamepad") || minorType.contains("Game Controller") {
+                deviceType = .gameController
+            } else {
+                deviceType = .unknown
+            }
+        } else {
+            deviceType = .unknown
+        }
+
+        // Signal strength from RSSI (-100 to -30 dBm mapped to 0-100)
+        var signalStrength: Int?
+        if let rssi = info["device_rssi"] as? Int {
+            signalStrength = max(0, min(100, Int((Double(rssi + 100) / 70.0) * 100)))
+        } else if let rssiStr = info["device_rssi"] as? String, let rssi = Int(rssiStr) {
+            signalStrength = max(0, min(100, Int((Double(rssi + 100) / 70.0) * 100)))
+        }
+
+        return BluetoothDevice(
+            name: name,
+            deviceType: deviceType,
+            isConnected: isConnected,
+            isPaired: true,
+            primaryBatteryLevel: primaryBattery,
+            signalStrength: signalStrength,
+            batteryLevels: batteryLevels
+        )
     }
 
     private func updateBluetoothData() {

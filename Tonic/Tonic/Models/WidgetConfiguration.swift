@@ -17,6 +17,48 @@ extension Notification.Name {
 
     /// Posted to reset total network usage statistics
     static let resetTotalNetworkUsage = Notification.Name("tonic.resetTotalNetworkUsage")
+
+    /// Posted to navigate Settings UI to a specific section.
+    /// UserInfo contains: "section" -> SettingsSection.rawValue
+    static let openSettingsSection = Notification.Name("tonic.openSettingsSection")
+
+    /// Posted to navigate Settings > Modules UI to a specific module.
+    /// UserInfo contains: "module" -> WidgetType.rawValue
+    static let openModuleSettings = Notification.Name("tonic.openModuleSettings")
+}
+
+enum SettingsDeepLinkUserInfoKey {
+    static let section = "section"
+    static let module = "module"
+}
+
+@MainActor
+enum SettingsDeepLinkNavigator {
+    static func openModuleSettings(_ module: WidgetType) {
+        // Close all popovers without animation BEFORE activating the settings
+        // window. Transient NSPopovers auto-dismiss when another window gains
+        // focus; if the close animation is still running when the popover window
+        // is deallocated, _NSWindowTransformAnimation accesses a freed object
+        // → EXC_BAD_ACCESS.
+        WidgetCoordinator.shared.closeAllPopovers()
+
+        PreferencesWindowController.shared.showWindow()
+
+        // Post on the next run loop so observers are attached when the settings
+        // window is created from scratch.
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .openSettingsSection,
+                object: nil,
+                userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.modules.rawValue]
+            )
+            NotificationCenter.default.post(
+                name: .openModuleSettings,
+                object: nil,
+                userInfo: [SettingsDeepLinkUserInfoKey.module: module.rawValue]
+            )
+        }
+    }
 }
 
 // MARK: - Widget Type
@@ -77,6 +119,13 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
         case .bluetooth: return true // Depends on Bluetooth availability
         default: return false
         }
+    }
+}
+
+extension WidgetType {
+    /// Shared module inventory used for stats-master parity mode.
+    public static var parityCases: [WidgetType] {
+        [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock]
     }
 }
 
@@ -426,6 +475,8 @@ public struct ModuleSettings: Codable, Sendable, Equatable {
     public var memory: MemoryModuleSettings
     public var sensors: SensorsModuleSettings
     public var battery: BatteryModuleSettings
+    public var gpu: GPUModuleSettings
+    public var bluetooth: BluetoothModuleSettings
 
     /// Default module settings
     public static let `default` = ModuleSettings()
@@ -436,7 +487,9 @@ public struct ModuleSettings: Codable, Sendable, Equatable {
         network: NetworkModuleSettings = NetworkModuleSettings(),
         memory: MemoryModuleSettings = MemoryModuleSettings(),
         sensors: SensorsModuleSettings = SensorsModuleSettings(),
-        battery: BatteryModuleSettings = BatteryModuleSettings()
+        battery: BatteryModuleSettings = BatteryModuleSettings(),
+        gpu: GPUModuleSettings = GPUModuleSettings(),
+        bluetooth: BluetoothModuleSettings = BluetoothModuleSettings()
     ) {
         self.cpu = cpu
         self.disk = disk
@@ -444,6 +497,8 @@ public struct ModuleSettings: Codable, Sendable, Equatable {
         self.memory = memory
         self.sensors = sensors
         self.battery = battery
+        self.gpu = gpu
+        self.bluetooth = bluetooth
     }
 
     /// Convenience initializer with default values
@@ -454,11 +509,30 @@ public struct ModuleSettings: Codable, Sendable, Equatable {
         self.memory = MemoryModuleSettings()
         self.sensors = SensorsModuleSettings()
         self.battery = BatteryModuleSettings()
+        self.gpu = GPUModuleSettings()
+        self.bluetooth = BluetoothModuleSettings()
     }
 
     /// Get all module settings as an array of ModuleSettingsConfig
     public var allModules: [any ModuleSettingsConfig] {
-        [cpu, disk, network, memory, sensors, battery]
+        [cpu, disk, network, memory, sensors, battery, gpu, bluetooth]
+    }
+
+    // Custom decoding to handle missing keys from older persisted data
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.cpu = try container.decodeIfPresent(CPUModuleSettings.self, forKey: .cpu) ?? CPUModuleSettings()
+        self.disk = try container.decodeIfPresent(DiskModuleSettings.self, forKey: .disk) ?? DiskModuleSettings()
+        self.network = try container.decodeIfPresent(NetworkModuleSettings.self, forKey: .network) ?? NetworkModuleSettings()
+        self.memory = try container.decodeIfPresent(MemoryModuleSettings.self, forKey: .memory) ?? MemoryModuleSettings()
+        self.sensors = try container.decodeIfPresent(SensorsModuleSettings.self, forKey: .sensors) ?? SensorsModuleSettings()
+        self.battery = try container.decodeIfPresent(BatteryModuleSettings.self, forKey: .battery) ?? BatteryModuleSettings()
+        self.gpu = try container.decodeIfPresent(GPUModuleSettings.self, forKey: .gpu) ?? GPUModuleSettings()
+        self.bluetooth = try container.decodeIfPresent(BluetoothModuleSettings.self, forKey: .bluetooth) ?? BluetoothModuleSettings()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case cpu, disk, network, memory, sensors, battery, gpu, bluetooth
     }
 }
 
@@ -528,6 +602,7 @@ public struct NetworkModuleSettings: Codable, Sendable, Equatable, ModuleSetting
     public var selectedInterface: String
     public var showPublicIP: Bool
     public var showWiFiDetails: Bool
+    public var showDNS: Bool
     public var topProcessCount: Int
     public var updateInterval: TimeInterval
 
@@ -535,14 +610,31 @@ public struct NetworkModuleSettings: Codable, Sendable, Equatable, ModuleSetting
         selectedInterface: String = "Auto",
         showPublicIP: Bool = false,
         showWiFiDetails: Bool = true,
+        showDNS: Bool = true,
         topProcessCount: Int = 8,
         updateInterval: TimeInterval = 1.0
     ) {
         self.selectedInterface = selectedInterface
         self.showPublicIP = showPublicIP
         self.showWiFiDetails = showWiFiDetails
+        self.showDNS = showDNS
         self.topProcessCount = max(3, min(20, topProcessCount))
         self.updateInterval = updateInterval
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.selectedInterface = try container.decodeIfPresent(String.self, forKey: .selectedInterface) ?? "Auto"
+        self.showPublicIP = try container.decodeIfPresent(Bool.self, forKey: .showPublicIP) ?? false
+        self.showWiFiDetails = try container.decodeIfPresent(Bool.self, forKey: .showWiFiDetails) ?? true
+        self.showDNS = try container.decodeIfPresent(Bool.self, forKey: .showDNS) ?? true
+        let count = try container.decodeIfPresent(Int.self, forKey: .topProcessCount) ?? 8
+        self.topProcessCount = max(3, min(20, count))
+        self.updateInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .updateInterval) ?? 1.0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case selectedInterface, showPublicIP, showWiFiDetails, showDNS, topProcessCount, updateInterval
     }
 
     // MARK: - ModuleSettingsConfig
@@ -557,19 +649,44 @@ public struct NetworkModuleSettings: Codable, Sendable, Equatable, ModuleSetting
 public struct MemoryModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showCache: Bool
     public var showWired: Bool
+    public var showSwap: Bool
+    public var showCompressed: Bool
+    public var pressureGauge: Bool
     public var updateInterval: TimeInterval
     public var topProcessCount: Int
 
     public init(
         showCache: Bool = true,
         showWired: Bool = true,
+        showSwap: Bool = true,
+        showCompressed: Bool = true,
+        pressureGauge: Bool = true,
         updateInterval: TimeInterval = 1.0,
         topProcessCount: Int = 8
     ) {
         self.showCache = showCache
         self.showWired = showWired
+        self.showSwap = showSwap
+        self.showCompressed = showCompressed
+        self.pressureGauge = pressureGauge
         self.updateInterval = updateInterval
         self.topProcessCount = max(3, min(20, topProcessCount))
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.showCache = try container.decodeIfPresent(Bool.self, forKey: .showCache) ?? true
+        self.showWired = try container.decodeIfPresent(Bool.self, forKey: .showWired) ?? true
+        self.showSwap = try container.decodeIfPresent(Bool.self, forKey: .showSwap) ?? true
+        self.showCompressed = try container.decodeIfPresent(Bool.self, forKey: .showCompressed) ?? true
+        self.pressureGauge = try container.decodeIfPresent(Bool.self, forKey: .pressureGauge) ?? true
+        self.updateInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .updateInterval) ?? 1.0
+        let count = try container.decodeIfPresent(Int.self, forKey: .topProcessCount) ?? 8
+        self.topProcessCount = max(3, min(20, count))
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case showCache, showWired, showSwap, showCompressed, pressureGauge, updateInterval, topProcessCount
     }
 
     // MARK: - ModuleSettingsConfig
@@ -583,6 +700,8 @@ public struct MemoryModuleSettings: Codable, Sendable, Equatable, ModuleSettings
 
 public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showFanSpeeds: Bool
+    public var showVoltages: Bool
+    public var showPower: Bool
     public var fanControlMode: FanControlMode
     public var saveFanSpeed: Bool
     public var syncFanControl: Bool
@@ -591,6 +710,8 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSetting
 
     public init(
         showFanSpeeds: Bool = true,
+        showVoltages: Bool = true,
+        showPower: Bool = true,
         fanControlMode: FanControlMode = .auto,
         saveFanSpeed: Bool = false,
         syncFanControl: Bool = true,
@@ -598,6 +719,8 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSetting
         updateInterval: TimeInterval = 1.0
     ) {
         self.showFanSpeeds = showFanSpeeds
+        self.showVoltages = showVoltages
+        self.showPower = showPower
         self.fanControlMode = fanControlMode
         self.saveFanSpeed = saveFanSpeed
         self.syncFanControl = syncFanControl
@@ -628,6 +751,23 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSetting
         }
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.showFanSpeeds = try container.decodeIfPresent(Bool.self, forKey: .showFanSpeeds) ?? true
+        self.showVoltages = try container.decodeIfPresent(Bool.self, forKey: .showVoltages) ?? true
+        self.showPower = try container.decodeIfPresent(Bool.self, forKey: .showPower) ?? true
+        self.fanControlMode = try container.decodeIfPresent(FanControlMode.self, forKey: .fanControlMode) ?? .auto
+        self.saveFanSpeed = try container.decodeIfPresent(Bool.self, forKey: .saveFanSpeed) ?? false
+        self.syncFanControl = try container.decodeIfPresent(Bool.self, forKey: .syncFanControl) ?? true
+        self.hasAcknowledgedFanWarning = try container.decodeIfPresent(Bool.self, forKey: .hasAcknowledgedFanWarning) ?? false
+        self.updateInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .updateInterval) ?? 1.0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case showFanSpeeds, showVoltages, showPower, fanControlMode, saveFanSpeed, syncFanControl
+        case hasAcknowledgedFanWarning, updateInterval
+    }
+
     // MARK: - ModuleSettingsConfig
 
     public var displayName: String { "Sensors" }
@@ -640,17 +780,23 @@ public struct SensorsModuleSettings: Codable, Sendable, Equatable, ModuleSetting
 public struct BatteryModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
     public var showOptimizedCharging: Bool
     public var showCycleCount: Bool
+    public var showAdapterDetails: Bool
+    public var showElectricalMetrics: Bool
     public var timeFormat: TimeFormat
     public var updateInterval: TimeInterval
 
     public init(
         showOptimizedCharging: Bool = true,
         showCycleCount: Bool = true,
+        showAdapterDetails: Bool = true,
+        showElectricalMetrics: Bool = true,
         timeFormat: TimeFormat = .short,
         updateInterval: TimeInterval = 5.0
     ) {
         self.showOptimizedCharging = showOptimizedCharging
         self.showCycleCount = showCycleCount
+        self.showAdapterDetails = showAdapterDetails
+        self.showElectricalMetrics = showElectricalMetrics
         self.timeFormat = timeFormat
         self.updateInterval = updateInterval
     }
@@ -668,11 +814,70 @@ public struct BatteryModuleSettings: Codable, Sendable, Equatable, ModuleSetting
         }
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.showOptimizedCharging = try container.decodeIfPresent(Bool.self, forKey: .showOptimizedCharging) ?? true
+        self.showCycleCount = try container.decodeIfPresent(Bool.self, forKey: .showCycleCount) ?? true
+        self.showAdapterDetails = try container.decodeIfPresent(Bool.self, forKey: .showAdapterDetails) ?? true
+        self.showElectricalMetrics = try container.decodeIfPresent(Bool.self, forKey: .showElectricalMetrics) ?? true
+        self.timeFormat = try container.decodeIfPresent(TimeFormat.self, forKey: .timeFormat) ?? .short
+        self.updateInterval = try container.decodeIfPresent(TimeInterval.self, forKey: .updateInterval) ?? 5.0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case showOptimizedCharging, showCycleCount, showAdapterDetails, showElectricalMetrics, timeFormat, updateInterval
+    }
+
     // MARK: - ModuleSettingsConfig
 
     public var displayName: String { "Battery" }
     public var icon: String { "battery.100" }
     public var widgetType: WidgetType { .battery }
+}
+
+// MARK: - GPU Module Settings
+
+public struct GPUModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
+    public var showRenderTiler: Bool
+    public var showMemory: Bool
+    public var updateInterval: TimeInterval
+
+    public init(
+        showRenderTiler: Bool = true,
+        showMemory: Bool = true,
+        updateInterval: TimeInterval = 1.0
+    ) {
+        self.showRenderTiler = showRenderTiler
+        self.showMemory = showMemory
+        self.updateInterval = updateInterval
+    }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "GPU" }
+    public var icon: String { "gpu" }
+    public var widgetType: WidgetType { .gpu }
+}
+
+// MARK: - Bluetooth Module Settings
+
+public struct BluetoothModuleSettings: Codable, Sendable, Equatable, ModuleSettingsConfig {
+    public var showSignalStrength: Bool
+    public var updateInterval: TimeInterval
+
+    public init(
+        showSignalStrength: Bool = true,
+        updateInterval: TimeInterval = 5.0
+    ) {
+        self.showSignalStrength = showSignalStrength
+        self.updateInterval = updateInterval
+    }
+
+    // MARK: - ModuleSettingsConfig
+
+    public var displayName: String { "Bluetooth" }
+    public var icon: String { "bluetooth" }
+    public var widgetType: WidgetType { .bluetooth }
 }
 
 // MARK: - Popup Settings
@@ -883,7 +1088,7 @@ public final class WidgetPreferences: Sendable {
     // MARK: - Migration Version
 
     /// Current migration version - increment when config structure changes
-    private static let currentMigrationVersion = 3
+    private static let currentMigrationVersion = 4
 
     // MARK: - Properties
 
@@ -927,7 +1132,12 @@ public final class WidgetPreferences: Sendable {
         Self.migrateIfNeeded()
 
         // Load configs (may have been updated by migration)
-        self.widgetConfigs = Self.loadConfigsFromUserDefaults() ?? Self.defaultConfigs()
+        let loadedConfigs = Self.loadConfigsFromUserDefaults() ?? Self.defaultConfigs()
+        let sanitizedConfigs = Self.sanitizeForParity(loadedConfigs)
+        self.widgetConfigs = sanitizedConfigs
+        if let encoded = try? JSONEncoder().encode(sanitizedConfigs) {
+            UserDefaults.standard.set(encoded, forKey: Keys.widgetConfigs)
+        }
 
         // Load other preferences
         loadFromUserDefaults()
@@ -938,12 +1148,50 @@ public final class WidgetPreferences: Sendable {
     /// Create default widget configurations
     private static func defaultConfigs() -> [WidgetConfiguration] {
         let allTypes: [WidgetType] = [
-            .cpu, .gpu, .memory, .disk, .network, .weather, .battery, .sensors, .bluetooth, .clock
+            .cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock
         ]
 
         return allTypes.enumerated().map { index, type in
             WidgetConfiguration.default(for: type, at: index)
         }
+    }
+
+    /// Enforce parity-compatible widget inventory and visualization assignments.
+    private static func sanitizeForParity(_ configs: [WidgetConfiguration]) -> [WidgetConfiguration] {
+        var seen: Set<WidgetType> = []
+        var sanitized: [WidgetConfiguration] = []
+
+        for config in configs {
+            // Strict parity trim: weather is excluded from parity widget runtime.
+            if config.type == .weather {
+                continue
+            }
+            if seen.contains(config.type) {
+                continue
+            }
+
+            var normalized = config
+            if !normalized.type.compatibleVisualizations.contains(normalized.visualizationType) {
+                normalized.visualizationType = normalized.type.defaultVisualization
+            }
+            seen.insert(normalized.type)
+            sanitized.append(normalized)
+        }
+
+        // Ensure all parity widget types exist.
+        let parityTypes: [WidgetType] = [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock]
+        let missing = parityTypes.filter { !seen.contains($0) }
+        let nextPosition = sanitized.count
+        sanitized.append(contentsOf: missing.enumerated().map { offset, type in
+            WidgetConfiguration.default(for: type, at: nextPosition + offset)
+        })
+
+        // Re-index positions to keep ordering stable.
+        for (index, _) in sanitized.enumerated() {
+            sanitized[index].position = index
+        }
+
+        return sanitized
     }
 
     // MARK: - Migration
@@ -1007,12 +1255,15 @@ public final class WidgetPreferences: Sendable {
         // Version 0 -> 1: Migrate from legacy format (iconOnly/iconWithValue/iconWithValueAndSparkline)
         // Version 1 -> 2: Add visualizationType field
         // Version 2 -> 3: Add moduleSettings field
+        // Version 3 -> 4: Enforce strict parity inventory
         if version == 0 {
             return try migrateFromLegacyFormat(data: data)
         } else if version == 1 {
             return try migrateToVersion2(data: data)
         } else if version == 2 {
             return try migrateToVersion3(data: data)
+        } else if version == 3 {
+            return try migrateToVersion4(data: data)
         }
 
         return nil
@@ -1136,6 +1387,12 @@ public final class WidgetPreferences: Sendable {
                 moduleSettings: ModuleSettings.default
             )
         }
+    }
+
+    /// Migrate from version 3 to version 4 (strict parity widget inventory/visualizations)
+    private static func migrateToVersion4(data: Data) throws -> [WidgetConfiguration] {
+        let v3Configs = try JSONDecoder().decode([WidgetConfiguration].self, from: data)
+        return sanitizeForParity(v3Configs)
     }
 
     /// Create backup of existing configs before migration
@@ -1471,31 +1728,33 @@ extension WidgetType {
     public var compatibleVisualizations: [VisualizationType] {
         switch self {
         case .cpu:
-            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer, .label]
         case .memory:
-            return [.mini, .lineChart, .barChart, .pieChart, .tachometer, .memory]
+            return [.mini, .lineChart, .barChart, .pieChart, .tachometer, .memory, .text, .label]
         case .disk:
-            return [.mini, .pieChart, .barChart]
+            return [.mini, .barChart, .pieChart, .memory, .speed, .networkChart, .text, .label]
         case .network:
-            return [.mini, .speed, .lineChart, .networkChart]
+            return [.speed, .networkChart, .state, .text, .label]
         case .gpu:
-            return [.mini, .lineChart, .barChart, .pieChart, .tachometer]
+            return [.mini, .lineChart, .barChart, .tachometer, .label]
         case .battery:
-            return [.mini, .pieChart, .batteryDetails, .battery]
+            return [.mini, .barChart, .battery, .batteryDetails, .label]
         case .sensors:
-            return [.stack, .tachometer, .text, .label]
+            return [.mini, .stack, .barChart, .label]
         case .weather:
-            return [.mini, .text, .label]
+            // Weather is intentionally outside strict parity and disabled by default.
+            return [.mini]
         case .bluetooth:
-            return [.stack, .mini, .state]
+            return [.stack, .label]
         case .clock:
-            return [.stack, .text, .label]
+            return [.stack, .label]
         }
     }
 
     /// Default visualization for this data source type
     public var defaultVisualization: VisualizationType {
         switch self {
+        case .network: return .speed
         case .sensors, .bluetooth, .clock: return .stack
         default: return .mini
         }

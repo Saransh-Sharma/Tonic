@@ -385,7 +385,6 @@ struct DashboardView: View {
     @ObservedObject var scanManager: SmartScanManager
     @State private var widgetDataManager = WidgetDataManager.shared
     @State private var showWidgetCustomization = false
-    @State private var showWidgetOnboarding = false
     @State private var showHealthScoreExplanation = false
     @State private var isActivityExpanded = false
     @State private var detailRecommendation: ScanRecommendation?
@@ -428,9 +427,6 @@ struct DashboardView: View {
         .background(DesignTokens.Colors.background)
         .sheet(isPresented: $showWidgetCustomization) {
             WidgetCustomizationView()
-        }
-        .sheet(isPresented: $showWidgetOnboarding) {
-            WidgetOnboardingView()
         }
         .sheet(isPresented: $showingRecommendationDetail, onDismiss: {
             detailRecommendation = nil

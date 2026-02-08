@@ -15,7 +15,7 @@ import os
 /// Base class for managing a single widget's NSStatusItem
 /// Each widget type creates its own instance to manage its menu bar presence
 @MainActor
-public class WidgetStatusItem: ObservableObject {
+public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
 
     private let logger = Logger(subsystem: "com.tonic.app", category: "WidgetStatusItem")
 
@@ -51,6 +51,7 @@ public class WidgetStatusItem: ObservableObject {
         self.configuration = configuration
 
         logger.info("🔵 Initializing widget: \(widgetType.rawValue), enabled: \(configuration.isEnabled)")
+        super.init()
         setupStatusItem()
         setupPopover()
         // Note: WidgetDataManager (@Observable) triggers SwiftUI view updates automatically
@@ -97,7 +98,12 @@ public class WidgetStatusItem: ObservableObject {
     private func setupPopover() {
         popover = NSPopover()
         popover?.behavior = .transient
-        popover?.animates = true
+        // Disable animation to prevent _NSWindowTransformAnimation crashes.
+        // Transient popovers auto-dismiss when another window gains focus;
+        // the close animation's dealloc can race with the popover window's
+        // deallocation, causing EXC_BAD_ACCESS in objc_release.
+        popover?.animates = false
+        popover?.delegate = self
 
         // Content will be set by subclasses
     }
@@ -248,11 +254,22 @@ public class WidgetStatusItem: ObservableObject {
             rootView: createDetailView()
         )
 
+        dataManager.setPopupVisible(for: widgetType, isVisible: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     private func hidePopover() {
+        dataManager.setPopupVisible(for: widgetType, isVisible: false)
         popover?.performClose(nil)
+    }
+
+    /// Explicitly close the popover and update data manager state.
+    /// Used before opening another window (e.g. Settings) to ensure the
+    /// popover is fully dismissed before focus changes.
+    public func closePopoverImmediately() {
+        guard let popover = popover, popover.isShown else { return }
+        dataManager.setPopupVisible(for: widgetType, isVisible: false)
+        popover.performClose(nil)
     }
 
     /// Create the detail view for this widget (to be overridden by subclasses)
@@ -295,6 +312,7 @@ public class WidgetStatusItem: ObservableObject {
     // MARK: - Lifecycle
 
     private func removeStatusItem() {
+        dataManager.setPopupVisible(for: widgetType, isVisible: false)
         if let statusItem = statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
             self.statusItem = nil
@@ -342,6 +360,10 @@ public class WidgetStatusItem: ObservableObject {
                 contentView.displayIfNeeded()
             }
         }
+    }
+
+    public func popoverDidClose(_ notification: Notification) {
+        dataManager.setPopupVisible(for: widgetType, isVisible: false)
     }
 }
 
@@ -508,7 +530,15 @@ struct WidgetCompactView: View {
             return "--"
             
         case .sensors:
-            // TODO: Add proper sensor value display
+            if let hottest = dataManager.sensorsData.temperatures.map(\.value).max() {
+                if usePercent {
+                    return "\(Int(min(100, hottest)))%"
+                }
+                return "\(Int(hottest))°"
+            }
+            if let fastestFan = dataManager.sensorsData.fans.map(\.rpm).max() {
+                return "\(fastestFan)RPM"
+            }
             return "--"
 
         case .bluetooth:
@@ -811,6 +841,16 @@ public final class WidgetCoordinator: ObservableObject {
         if let widget = activeWidgets[type] {
             widget.updateConfiguration(configuration)
         }
+    }
+
+    /// Close all open popovers immediately (no animation).
+    /// Call before activating another window to prevent the transient-popover
+    /// deallocation-during-animation crash.
+    public func closeAllPopovers() {
+        for widget in activeWidgets.values {
+            widget.closePopoverImmediately()
+        }
+        oneViewStatusItem?.closePopoverImmediately()
     }
 
     /// Get the status item for a specific widget type

@@ -124,6 +124,9 @@ public final class ClockPreferences: Sendable {
     /// Whether to show seconds in time display
     public var showSeconds: Bool
 
+    /// Whether to use 24-hour time format
+    public var use24Hour: Bool
+
     /// Maximum number of timezones to show in compact view
     public var maxCompactEntries: Int
 
@@ -131,12 +134,14 @@ public final class ClockPreferences: Sendable {
         static let entries = "tonic.clock.entries"
         static let timeFormat = "tonic.clock.timeFormat"
         static let showSeconds = "tonic.clock.showSeconds"
+        static let use24Hour = "tonic.clock.use24Hour"
         static let maxCompactEntries = "tonic.clock.maxCompactEntries"
     }
 
     private init() {
         self.timeFormat = .auto
         self.showSeconds = false
+        self.use24Hour = false
         self.maxCompactEntries = 3
 
         // Load saved entries or use defaults
@@ -160,6 +165,7 @@ public final class ClockPreferences: Sendable {
         }
 
         self.showSeconds = UserDefaults.standard.bool(forKey: Keys.showSeconds)
+        self.use24Hour = UserDefaults.standard.bool(forKey: Keys.use24Hour)
 
         if let maxVal = UserDefaults.standard.object(forKey: Keys.maxCompactEntries) as? Int {
             self.maxCompactEntries = max(1, min(4, maxVal))

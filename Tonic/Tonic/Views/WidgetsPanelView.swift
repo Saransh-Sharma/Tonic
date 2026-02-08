@@ -310,7 +310,7 @@ public struct WidgetsPanelView: View {
 
     private var filteredDataSources: [WidgetType] {
         guard let category = selectedCategory else {
-            return WidgetType.allCases
+            return WidgetType.parityCases
         }
         return category.widgetTypes
     }
@@ -344,7 +344,7 @@ struct AddWidgetSheet: View {
                 // Data Source Picker
                 Section("Data Source") {
                     Picker("Type", selection: $viewModel.selectedDataSource) {
-                        ForEach(WidgetType.allCases, id: \.self) { type in
+                        ForEach(WidgetType.parityCases, id: \.self) { type in
                             Label(type.displayName, systemImage: type.icon)
                                 .tag(type)
                         }

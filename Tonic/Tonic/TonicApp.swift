@@ -172,13 +172,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showPreferences() {
-        // Show preferences window
-        if let window = NSApp.windows.first {
-            window.makeKeyAndOrderFront(nil)
-
-            // Navigate to settings
-            // This would need to be implemented via navigation state
-        }
+        PreferencesWindowController.shared.showWindow()
     }
 
     func handleQuickScan() {

@@ -130,9 +130,10 @@ public final class NotificationManager: Sendable {
         }
     }
 
-    /// Open macOS notification settings for Tonic
+    /// Open macOS notification settings for Tonic (app-specific deep link, macOS 14+)
     public func openNotificationSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.tonic.Tonic"
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications?id=\(bundleId)") {
             NSWorkspace.shared.open(url)
         }
     }

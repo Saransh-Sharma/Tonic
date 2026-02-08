@@ -207,6 +207,7 @@ public final class AppResetService {
         let knownKeys = [
             "hasSeenOnboarding",
             "hasCompletedWidgetOnboarding",
+            "hasSeenFeatureTour",
             "tonic.widget.hasCompletedOnboarding",
             "tonic.widget.configs",
             "tonic.widget.updateInterval",
