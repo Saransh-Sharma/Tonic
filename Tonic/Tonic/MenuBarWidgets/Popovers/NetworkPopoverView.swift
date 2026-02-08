@@ -190,26 +190,26 @@ public struct NetworkPopoverView: View {
         .frame(height: 90)
     }
 
-    // MARK: - Connectivity Section (70pt = 22pt header + 48pt chart)
+    // MARK: - Connectivity Section (52pt = 22pt header + 30pt grid)
 
     private var connectivitySection: some View {
         VStack(spacing: 0) {
             // Header (22pt)
             sectionHeader("Connectivity history")
 
-            // Line chart (48pt)
+            // Grid (30pt for 6 rows showing 6 minutes history)
             ZStack {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(Color(nsColor: .lightGray).opacity(0.1))
 
-                ConnectivityLineChartView(
+                ConnectivityGridView(
                     isConnected: dataManager.networkData.isConnected,
                     history: dataManager.connectivityHistory
                 )
             }
-            .frame(height: 48)
+            .frame(height: 30)
         }
-        .frame(height: 70)
+        .frame(height: 52)
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -737,95 +737,16 @@ struct DualLineChartView: View {
     }
 }
 
-// MARK: - Connectivity Line Chart View
-
-struct ConnectivityLineChartView: View {
-    let isConnected: Bool
-    let history: [Bool]
-
-    private let maxHistoryPoints = 90
-
-    var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-
-            ZStack {
-                // Build connectivity data array
-                let displayData = buildConnectivityData()
-
-                if !displayData.isEmpty {
-                    // Create the line path
-                    connectivityPath(for: displayData, width: width, height: height)
-                        .stroke(style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .fill(
-                            LinearGradient(
-                                colors: [TonicColors.error, TonicColors.success],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                }
-            }
-        }
-        .frame(height: 50)
-    }
-
-    /// Build connectivity data array combining history and current state
-    private func buildConnectivityData() -> [Bool] {
-        var result: [Bool] = []
-
-        // Add history (oldest first)
-        result.append(contentsOf: history)
-
-        // Add current state
-        result.append(isConnected)
-
-        // Keep only the most recent N points
-        if result.count > maxHistoryPoints {
-            result = Array(result.suffix(maxHistoryPoints))
-        }
-
-        return result
-    }
-
-    /// Create path for connectivity line chart
-    private func connectivityPath(for data: [Bool], width: CGFloat, height: CGFloat) -> Path {
-        var path = Path()
-
-        guard !data.isEmpty else { return path }
-
-        let padding: CGFloat = 2
-        let stepX = width / max(1, CGFloat(data.count - 1))
-
-        // Connected = top (green), Disconnected = bottom (red)
-        let connectedY = padding
-        let disconnectedY = height - padding
-
-        for (index, isConnected) in data.enumerated() {
-            let x = CGFloat(index) * stepX
-            let y = isConnected ? connectedY : disconnectedY
-
-            if index == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                // Use straight lines for instant connectivity changes
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-
-        return path
-    }
-}
-
-// MARK: - Legacy Grid View (for reference)
+// MARK: - Connectivity Grid View
 
 struct ConnectivityGridView: View {
     let isConnected: Bool
     let history: [Bool]
 
-    private let columns = 30
-    private let rows = 3
+    // 6 rows × 60 columns = 360 seconds (6 minutes)
+    // Each cell represents 1 second
+    private let columns = 60
+    private let rows = 6
 
     var body: some View {
         GeometryReader { geometry in
