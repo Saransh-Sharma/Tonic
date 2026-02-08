@@ -113,7 +113,7 @@ public final class PermissionManager: @unchecked Sendable {
 
     public func requestFullDiskAccess() -> Bool {
         // Open System Settings to Privacy & Security > Full Disk Access (macOS 14+)
-        let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")!
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
 
         if NSWorkspace.shared.open(url) {
             return true
