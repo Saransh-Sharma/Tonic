@@ -39,6 +39,10 @@ public struct PopoverConstants {
         public static let header: CGFloat = 22       // Section header row height
         public static let detail: CGFloat = 16        // Detail row height
         public static let process: CGFloat = 22       // Process row height
+        public static let historyChart: CGFloat = 70  // History chart height
+        public static let gpuTitleBar: CGFloat = 24   // GPU container title bar
+        public static let gpuGaugesRow: CGFloat = 50  // GPU gauges row
+        public static let gpuChartsRow: CGFloat = 60  // GPU charts row
     }
 
     /// Spacing matching Stats Master layout
@@ -66,6 +70,12 @@ public struct PopoverConstants {
 
     /// Icon text gap in HStacks
     public static let iconTextGap: CGFloat = DesignTokens.Spacing.xxxs    // 4pt
+
+    /// Standard row spacing (6pt, for tight vertical lists)
+    public static let rowSpacing: CGFloat = 6
+
+    /// Gauge spacing within gauge rows
+    public static let gaugeSpacing: CGFloat = 10
 
     // MARK: - Corner Radius
 
@@ -107,6 +117,38 @@ public struct PopoverConstants {
     /// Large metric font (for dashboard numbers)
     public static let largeMetricFont: Font = .system(size: 32, weight: .bold, design: .rounded)
 
+    /// Tiny label font (8pt)
+    public static let tinyLabelFont: Font = .system(size: 8)
+
+    /// Tiny value font (8pt medium)
+    public static let tinyValueFont: Font = .system(size: 8, weight: .medium)
+
+    /// Micro font (7pt, for gauge labels)
+    public static let microFont: Font = .system(size: 7)
+
+    /// Sub-header font (11pt semibold)
+    public static let subHeaderFont: Font = .system(size: 11, weight: .semibold)
+
+    /// Process header font (9pt semibold)
+    public static let processHeaderFont: Font = .system(size: 9, weight: .semibold)
+
+    /// Process value font (9pt monospaced)
+    public static let processValueFont: Font = .system(size: 9, design: .monospaced)
+
+    // Module-specific display fonts
+
+    /// Clock time display font
+    public static let clockTimeFont: Font = .system(size: 36, weight: .light, design: .rounded)
+
+    /// Clock world time font
+    public static let clockWorldTimeFont: Font = .system(size: 16, weight: .light, design: .rounded)
+
+    /// Clock date font
+    public static let clockDateFont: Font = .system(size: 14, weight: .medium)
+
+    /// Network speed display font
+    public static let networkSpeedFont: Font = .system(size: 26, weight: .light)
+
     // MARK: - Component Sizes
 
     /// Circular gauge size
@@ -129,6 +171,21 @@ public struct PopoverConstants {
 
     /// Indicator dot size
     public static let indicatorDotSize: CGFloat = 8
+
+    /// Standard gauge size for GPU/Sensor gauges
+    public static let gaugeSize: CGSize = CGSize(width: 90, height: 55)
+
+    /// Process name column width
+    public static let processNameWidth: CGFloat = 90
+
+    /// Process value column width
+    public static let processValueWidth: CGFloat = 30
+
+    /// Sensor name column width
+    public static let sensorNameWidth: CGFloat = 80
+
+    /// Sensor value column width
+    public static let sensorValueWidth: CGFloat = 35
 
     // MARK: - Widget Icons
 
@@ -219,4 +276,38 @@ public struct PopoverConstants {
         default: return .green
         }
     }
+
+    /// Returns utilization color with GPU-specific thresholds (higher tolerance)
+    public static func utilizationColor(_ percentage: Double) -> Color {
+        switch percentage {
+        case 0..<60: return TonicColors.success
+        case 60..<85: return TonicColors.warning
+        default: return TonicColors.error
+        }
+    }
+
+    // MARK: - Data Colors
+
+    /// Download/read data color (blue)
+    public static let downloadColor = Color(nsColor: NSColor(red: 0.2, green: 0.5, blue: 1.0, alpha: 1.0))
+
+    /// Upload/write data color (red-orange)
+    public static let uploadColor = Color(nsColor: NSColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0))
+
+    /// Disk read color (blue, same as download)
+    public static let readColor = Color(nsColor: NSColor(red: 0.2, green: 0.5, blue: 1.0, alpha: 1.0))
+
+    /// Disk write color (red-orange, same as upload)
+    public static let writeColor = Color(nsColor: NSColor(red: 1.0, green: 0.3, blue: 0.2, alpha: 1.0))
+
+    /// Voltage icon color
+    public static let voltageIconColor: Color = .yellow
+
+    /// Power icon color
+    public static let powerIconColor: Color = .green
+
+    // MARK: - Divider
+
+    /// Standard divider opacity for soft dividers
+    public static let dividerOpacity: Double = 0.5
 }
