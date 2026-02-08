@@ -68,6 +68,13 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetCustomization"))) { _ in
                 // Open preferences to Widgets tab
                 selectedDestination = .settings
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .openSettingsSection,
+                        object: nil,
+                        userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.modules.rawValue]
+                    )
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
                 // App was reset — re-read onboarding flag and trigger onboarding

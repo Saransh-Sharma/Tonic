@@ -125,6 +125,21 @@ struct PreferencesView: View {
                 animateContent = true
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openSettingsSection)) { notification in
+            guard let rawSection = notification.userInfo?[SettingsDeepLinkUserInfoKey.section] as? String,
+                  let section = SettingsSection(rawValue: rawSection) else {
+                return
+            }
+
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                selectedSection = section
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openModuleSettings)) { _ in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                selectedSection = .modules
+            }
+        }
     }
 
     private var settingsSidebar: some View {
