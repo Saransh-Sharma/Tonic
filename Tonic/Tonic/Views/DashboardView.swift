@@ -143,6 +143,8 @@ class SmartScanManager: ObservableObject {
     @Published var healthScore: Int = 0
     @Published var hasScanResult: Bool = false
     @Published var recommendations: [Recommendation] = []
+    @Published var lastScanDate: Date?
+    @Published var lastReclaimableBytes: Int64?
 
     private let scanEngine = SmartScanEngine()
     private let activityLog = ActivityLogStore.shared
@@ -187,6 +189,8 @@ class SmartScanManager: ObservableObject {
         let result = await scanEngine.finalizeScan()
         healthScore = result.systemHealthScore
         hasScanResult = true
+        lastScanDate = Date()
+        lastReclaimableBytes = result.totalSpaceToReclaim
         updateRecommendations(from: result)
 
         let detail = "Found \(formatBytes(result.totalSpaceToReclaim)) reclaimable · Score +\(result.systemHealthScore) · Duration \(formatDuration(result.scanDuration))"
