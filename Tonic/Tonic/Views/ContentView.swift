@@ -158,7 +158,7 @@ struct DetailView: View {
             MaintenanceView(smartCareSession: smartCareSession)
         case .appManager:
             if permissionManager.hasFullDiskAccess {
-                AppInventoryView()
+                AppManagerView()
             } else {
                 PermissionRequiredView(
                     icon: "externaldrive.fill",
@@ -360,11 +360,7 @@ struct PermissionRequiredView: View {
 
 // MARK: - Views that use SystemCleanupView
 
-struct AppManagerView: View {
-    var body: some View {
-        AppInventoryView()
-    }
-}
+// AppManagerView is defined in Views/AppManager/AppManagerView.swift
 
 struct MonitoringView: View {
     var body: some View {

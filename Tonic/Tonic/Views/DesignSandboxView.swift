@@ -15,6 +15,7 @@ struct DesignSandboxView: View {
         case theme
         case smartScan
         case menuWidgets
+        case appManager
         case cards
         case metrics
         case preferences
@@ -27,6 +28,7 @@ struct DesignSandboxView: View {
             case .theme: return "paintpalette"
             case .smartScan: return "sparkles"
             case .menuWidgets: return "menubar.rectangle"
+            case .appManager: return "app.badge.fill"
             case .cards: return "square.grid.2x2"
             case .metrics: return "chart.line.uptrend.xyaxis"
             case .preferences: return "list.bullet"
@@ -41,6 +43,7 @@ struct DesignSandboxView: View {
             case .theme: return "Theme"
             case .smartScan: return "Smart Scan"
             case .menuWidgets: return "Menu Widgets"
+            case .appManager: return "App Manager"
             case .cards: return "Cards"
             case .metrics: return "Metrics"
             case .preferences: return "Preferences"
@@ -55,7 +58,7 @@ struct DesignSandboxView: View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: DesignTokens.Spacing.sm) {
-                ForEach([SandboxTab.theme, .smartScan, .menuWidgets, .cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
+                ForEach([SandboxTab.theme, .smartScan, .menuWidgets, .appManager, .cards, .metrics, .preferences, .buttons, .status, .misc], id: \.label) { tab in
                     VStack(spacing: DesignTokens.Spacing.xxxs) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 14, weight: .semibold))
@@ -90,6 +93,8 @@ struct DesignSandboxView: View {
                         SmartScanSandboxShowcase()
                     case .menuWidgets:
                         MenuWidgetsShowcase()
+                    case .appManager:
+                        AppManagerShowcase()
                     case .cards:
                         CardsShowcase()
                     case .metrics:
@@ -1491,6 +1496,371 @@ struct MenuWidgetsShowcase: View {
             refreshInterval: .balanced,
             accentColor: .system
         )
+    }
+}
+
+// MARK: - App Manager Showcase
+
+struct AppManagerShowcase: View {
+    @State private var selectedDemo: UUID?
+    @State private var showScanningHero = false
+    @State private var shimmerTrigger = false
+    @State private var counterValue = 0
+    @State private var floatDemo = true
+
+    private var demoApps: [AppMetadata] {
+        [
+            AppMetadata(
+                bundleIdentifier: "com.apple.Safari",
+                appName: "Safari",
+                path: URL(fileURLWithPath: "/Applications/Safari.app"),
+                version: "17.4",
+                totalSize: 142_000_000,
+                category: .productivity,
+                itemType: "app"
+            ),
+            AppMetadata(
+                bundleIdentifier: "com.apple.dt.Xcode",
+                appName: "Xcode",
+                path: URL(fileURLWithPath: "/Applications/Xcode.app"),
+                version: "16.2",
+                totalSize: 12_800_000_000,
+                category: .development,
+                itemType: "app"
+            ),
+            AppMetadata(
+                bundleIdentifier: "com.spotify.client",
+                appName: "Spotify",
+                path: URL(fileURLWithPath: "/Applications/Spotify.app"),
+                version: "1.2.31",
+                totalSize: 450_000_000,
+                category: .social,
+                itemType: "app"
+            ),
+        ]
+    }
+
+    private var demoLoginItems: [AppMetadata] {
+        [
+            AppMetadata(
+                bundleIdentifier: "com.example.agent",
+                appName: "Background Updater",
+                path: URL(fileURLWithPath: "/Library/LaunchAgents/com.example.agent.plist"),
+                itemType: "LaunchAgent"
+            ),
+            AppMetadata(
+                bundleIdentifier: "com.example.daemon",
+                appName: "System Helper",
+                path: URL(fileURLWithPath: "/Library/LaunchDaemons/com.example.daemon.plist"),
+                itemType: "LaunchDaemon"
+            ),
+            AppMetadata(
+                bundleIdentifier: "com.example.login",
+                appName: "Startup Manager",
+                path: URL(fileURLWithPath: "/Applications/StartupManager.app"),
+                itemType: "loginItem"
+            ),
+        ]
+    }
+
+    var body: some View {
+        TonicThemeProvider(world: .applicationsBlue) {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.four) {
+                headerSection
+                componentsSection
+                animationsSection
+            }
+            .padding(TonicSpaceToken.three)
+            .background(WorldCanvasBackground())
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("App Manager Components")
+                .font(DesignTokens.Typography.h2)
+
+            Text("App Manager-specific UI components and animations. Includes hero module, app item cards, command dock, login item rows, summary tiles, and interaction effects.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+        }
+    }
+
+    // MARK: - Components
+
+    private var componentsSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.four) {
+            heroModuleSection
+            appItemCardsSection
+            commandDockSection
+            loginItemRowsSection
+            summaryTilesSection
+        }
+    }
+
+    private var heroModuleSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("App Hero Module")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            HStack(spacing: TonicSpaceToken.three) {
+                // Idle state
+                AppHeroModule(
+                    state: .idle(appCount: 142, totalSize: 48_500_000_000, updatesAvailable: 3),
+                    topAppIcons: []
+                )
+
+                // Scanning state
+                AppHeroModule(
+                    state: .scanning(progress: showScanningHero ? 0.65 : 0.2),
+                    topAppIcons: []
+                )
+            }
+
+            Button("Toggle Scan Progress") {
+                withAnimation(TonicMotionToken.springTap) {
+                    showScanningHero.toggle()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    private var appItemCardsSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("App Item Card")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            ForEach(Array(demoApps.enumerated()), id: \.element.id) { index, app in
+                AppItemCard(
+                    app: app,
+                    isSelected: selectedDemo == app.id,
+                    hasUpdate: index == 0,
+                    isProtected: index == 0,
+                    formattedSize: ByteCountFormatter.string(fromByteCount: app.totalSize, countStyle: .file),
+                    onTap: {
+                        withAnimation(TonicMotionToken.springTap) {
+                            selectedDemo = selectedDemo == app.id ? nil : app.id
+                        }
+                    },
+                    onDetail: {},
+                    onReveal: {}
+                )
+            }
+        }
+    }
+
+    private var commandDockSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("App Command Dock")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            AppCommandDock(
+                selectedCount: 3,
+                selectedSize: "1.2 GB",
+                onUninstall: {},
+                onReveal: {}
+            )
+        }
+    }
+
+    private var loginItemRowsSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("Login Item Rows")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            ForEach(demoLoginItems) { item in
+                LoginItemRow(item: item, onTap: {})
+            }
+        }
+    }
+
+    private var summaryTilesSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("Summary Tiles")
+                .font(DesignTokens.Typography.subhead)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            HStack(spacing: TonicSpaceToken.two) {
+                SummaryTile(
+                    title: "In Current View",
+                    value: "142",
+                    icon: "square.grid.2x2",
+                    world: .applicationsBlue
+                )
+
+                SummaryTile(
+                    title: "Total Size",
+                    value: "48.5 GB",
+                    icon: "externaldrive",
+                    world: .cleanupGreen
+                )
+
+                SummaryTile(
+                    title: "Updates Available",
+                    value: "3",
+                    icon: "arrow.down.circle",
+                    world: .performanceOrange
+                )
+            }
+        }
+    }
+
+    // MARK: - Animations
+
+    private var animationsSection: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.four) {
+            Text("Animation Effects")
+                .font(DesignTokens.Typography.h3)
+
+            Text("Animations used in the App Manager screen")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+
+            // Breathing hero with bloom
+            animationDemoRow(
+                title: "Breathing Hero + Bloom",
+                description: "Continuous idle animation on hero icon"
+            ) {
+                Image(systemName: "app.badge.checkmark")
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                    .heroBloom()
+                    .breathingHero()
+            }
+
+            // Depth lift on hover
+            animationDemoRow(
+                title: "Depth Lift on Hover",
+                description: "Hover this card to see depth effect"
+            ) {
+                Text("Hover me")
+                    .font(TonicTypeToken.caption)
+                    .foregroundStyle(TonicTextToken.primary)
+                    .padding(TonicSpaceToken.two)
+                    .glassSurface(radius: TonicRadiusToken.l, variant: .base)
+                    .depthLift()
+            }
+
+            // Icon shimmer
+            animationDemoRow(
+                title: "Icon Shimmer",
+                description: "Metallic shimmer sweep on app icons"
+            ) {
+                Image(systemName: "app.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(TonicTextToken.primary)
+                    .iconShimmer()
+            }
+
+            // Update pulse badge
+            animationDemoRow(
+                title: "Update Pulse Badge",
+                description: "Continuous gentle pulse on update badges"
+            ) {
+                MetaBadge(style: .needsReview)
+                    .updatePulseBadge()
+            }
+
+            // Empty state float
+            animationDemoRow(
+                title: "Empty State Float",
+                description: "Gentle bobbing on empty state icons"
+            ) {
+                Image(systemName: "app.dashed")
+                    .font(.system(size: 28))
+                    .foregroundStyle(TonicTextToken.tertiary)
+                    .emptyStateFloat()
+            }
+
+            // Scanning dots
+            animationDemoRow(
+                title: "Scanning Dots",
+                description: "Sequential dot animation during scan"
+            ) {
+                ScanningDotsView()
+            }
+
+            // Staggered reveal
+            animationDemoRow(
+                title: "Staggered Reveal Cascade",
+                description: "Sections animate in with staggered delay"
+            ) {
+                HStack(spacing: TonicSpaceToken.two) {
+                    ForEach(0..<4) { index in
+                        RoundedRectangle(cornerRadius: TonicRadiusToken.s)
+                            .fill(TonicGlassToken.fill)
+                            .frame(width: 40, height: 40)
+                            .staggeredReveal(index: index)
+                    }
+                }
+            }
+
+            // Numeric text transition
+            animationDemoRow(
+                title: "Numeric Counter Roll",
+                description: "Tap to see numeric text transition"
+            ) {
+                HStack(spacing: TonicSpaceToken.two) {
+                    Text("\(counterValue) apps")
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(TonicTextToken.primary)
+                        .contentTransition(.numericText())
+
+                    Button("Count") {
+                        withAnimation(TonicMotionToken.springTap) {
+                            counterValue += Int.random(in: 5...20)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+
+            // Selection ripple + checkbox
+            animationDemoRow(
+                title: "Selection Checkbox Pop",
+                description: "Tap an app card above to see checkbox animation"
+            ) {
+                HStack(spacing: TonicSpaceToken.two) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+                    Text("Demonstrated in App Item Cards above")
+                        .font(TonicTypeToken.micro)
+                        .foregroundStyle(TonicTextToken.tertiary)
+                }
+            }
+        }
+    }
+
+    private func animationDemoRow<Content: View>(
+        title: String,
+        description: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TonicTypeToken.caption.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+
+                Text(description)
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+
+            content()
+        }
     }
 }
 
