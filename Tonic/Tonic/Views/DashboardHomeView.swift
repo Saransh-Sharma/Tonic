@@ -186,7 +186,7 @@ struct DashboardHomeView: View {
                         memoryPressure: widgetDataManager.memoryData.pressure,
                         diskFreeText: diskFreeText,
                         cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
-                        onOpen: { selectedDestination = .liveMonitoring }
+                        onOpen: isActivityNavigationEnabled ? { selectedDestination = .liveMonitoring } : nil
                     )
                 }
             }
@@ -237,7 +237,7 @@ struct DashboardHomeView: View {
                     memoryPressure: widgetDataManager.memoryData.pressure,
                     diskFreeText: diskFreeText,
                     cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
-                    onOpen: { selectedDestination = .liveMonitoring }
+                    onOpen: isActivityNavigationEnabled ? { selectedDestination = .liveMonitoring } : nil
                 )
             }
         }
@@ -342,7 +342,7 @@ struct DashboardHomeView: View {
 
                     Spacer()
 
-                    if !activityStore.entries.isEmpty {
+                    if !activityStore.entries.isEmpty && isActivityNavigationEnabled {
                         TertiaryGhostButton(title: "Show all") {
                             selectedDestination = .liveMonitoring
                         }
@@ -456,6 +456,10 @@ struct DashboardHomeView: View {
 
     private var hasFullDiskAccess: Bool {
         permissionManager.permissionStatuses[.fullDiskAccess] == .authorized
+    }
+
+    private var isActivityNavigationEnabled: Bool {
+        FeatureFlags.isEnabled(.activity)
     }
 
     private func destination(for recommendation: Recommendation) -> NavigationDestination {
@@ -1312,43 +1316,55 @@ private struct LiveStatsTile: View {
     let memoryPressure: MemoryPressure
     let diskFreeText: String
     let cpuHistory: [Double]
-    let onOpen: () -> Void
+    let onOpen: (() -> Void)?
 
     @Environment(\.tonicTheme) private var theme
 
     var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
-                HStack(spacing: TonicSpaceToken.two) {
-                    Image(systemName: "gauge")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(theme.accent)
+        Group {
+            if let onOpen {
+                Button(action: onOpen) {
+                    tileContent(showChevron: true)
+                }
+                .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.xl)))
+            } else {
+                tileContent(showChevron: false)
+            }
+        }
+        .accessibilityLabel("Live stats")
+        .accessibilityHint(onOpen == nil ? "Activity is currently hidden in navigation" : "Opens Activity")
+    }
 
-                    Text("Live Stats")
-                        .font(TonicTypeToken.caption.weight(.semibold))
-                        .foregroundStyle(TonicTextToken.primary)
+    private func tileContent(showChevron: Bool) -> some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(spacing: TonicSpaceToken.two) {
+                Image(systemName: "gauge")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.accent)
 
-                    Spacer()
+                Text("Live Stats")
+                    .font(TonicTypeToken.caption.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
 
+                Spacer()
+
+                if showChevron {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(TonicTextToken.tertiary)
                 }
-
-                VStack(spacing: TonicSpaceToken.two) {
-                    DashboardMiniMetricRow(label: "CPU", value: "\(cpuPercent)%")
-                    DashboardMiniMetricRow(label: "Memory", value: memoryPressure.rawValue)
-                    DashboardMiniMetricRow(label: "Disk", value: diskFreeText)
-                }
-
-                MiniSparkline(data: cpuHistory.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : cpuHistory, color: theme.worldToken.light)
-                    .frame(height: 32)
-                    .padding(.top, TonicSpaceToken.one)
             }
+
+            VStack(spacing: TonicSpaceToken.two) {
+                DashboardMiniMetricRow(label: "CPU", value: "\(cpuPercent)%")
+                DashboardMiniMetricRow(label: "Memory", value: memoryPressure.rawValue)
+                DashboardMiniMetricRow(label: "Disk", value: diskFreeText)
+            }
+
+            MiniSparkline(data: cpuHistory.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : cpuHistory, color: theme.worldToken.light)
+                .frame(height: 32)
+                .padding(.top, TonicSpaceToken.one)
         }
-        .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.xl)))
-        .accessibilityLabel("Live stats")
-        .accessibilityHint("Opens Activity")
     }
 }
 
