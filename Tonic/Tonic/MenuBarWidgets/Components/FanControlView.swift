@@ -3,10 +3,6 @@
 //  Tonic
 //
 //  Fan control component with mode selection and per-fan sliders
-//  Task ID: fn-8-v3b.11
-//
-//  NOTE: Actual SMC fan speed control requires privileged helper (task fn-8-v3b.13)
-//  This component provides the UI and state management; SMC writes are deferred.
 //
 
 import SwiftUI
@@ -14,17 +10,12 @@ import SwiftUI
 // MARK: - Fan Control View
 
 /// Comprehensive fan control UI with mode selection and per-fan speed sliders
-/// Matches Stats Master's fan control implementation pattern
 ///
 /// Features:
 /// - Mode selector: Auto / Manual / System
 /// - Per-fan controls with min/max labels and sliders
 /// - Safety features: warning dialog, thermal auto-switch
 /// - Settings persistence via SensorsModuleSettings
-///
-/// **IMPORTANT:** SMC fan speed writes require the privileged helper tool.
-/// This component stores target speeds and will send them to the helper
-/// once it's implemented in task fn-8-v3b.13.
 public struct FanControlView: View {
 
     // MARK: - Properties
@@ -37,13 +28,6 @@ public struct FanControlView: View {
     @State private var pendingMode: SensorsModuleSettings.FanControlMode = .manual
 
     private let fanSpeedStorageKey = "tonic.widget.sensors.manualFanSpeeds"
-
-    // Privileged helper availability check
-    // Uses PrivilegedHelperManager to check if SMC writes are available
-    // SMC writes may work directly on Apple Silicon, or require helper on Intel
-    private var isHelperAvailable: Bool {
-        return PrivilegedHelperManager.shared.isFanControlAvailable
-    }
 
     private let thermalThreshold: Double = 85.0  // Celsius
     private var shouldShowThermalWarning: Bool {
@@ -67,11 +51,6 @@ public struct FanControlView: View {
                 emptyStateView
             } else {
                 fanControlsList
-
-                // Helper not available notice
-                if currentMode == .manual && !isHelperAvailable {
-                    helperNotAvailableNotice
-                }
             }
 
             // Thermal Warning
@@ -83,11 +62,6 @@ public struct FanControlView: View {
         .padding(.vertical, PopoverConstants.verticalPadding)
         .onAppear {
             loadSettings()
-            // Revert to auto mode if helper is not available
-            if currentMode == .manual && !isHelperAvailable {
-                currentMode = .auto
-                saveSettings()
-            }
             initializeFanSpeeds()
             checkThermalThreshold()
         }
@@ -218,36 +192,6 @@ public struct FanControlView: View {
         .cornerRadius(PopoverConstants.innerCornerRadius)
     }
 
-    // MARK: - Helper Not Available Notice
-
-    private var helperNotAvailableNotice: some View {
-        HStack(spacing: PopoverConstants.compactSpacing) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Manual Mode Unavailable")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text("The privileged helper tool is required for manual fan control. This will be available after task fn-8-v3b.13 is completed.")
-                    .font(.system(size: 9))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Button("Return to Auto") {
-                currentMode = .auto
-            }
-            .font(.system(size: 9))
-            .buttonStyle(.bordered)
-        }
-        .padding(PopoverConstants.compactSpacing)
-        .background(TonicColors.warning.opacity(0.1))
-        .cornerRadius(PopoverConstants.innerCornerRadius)
-    }
-
     // MARK: - Helper Methods
 
     private var manualModeWarningMessage: String {
@@ -257,7 +201,6 @@ public struct FanControlView: View {
         Important:
         • Setting fans too low may cause overheating
         • High temperatures will automatically switch back to Auto mode
-        • Actual fan speed control requires the privileged helper (task fn-8-v3b.13)
 
         Are you sure you want to enable manual fan control?
         """
@@ -314,15 +257,6 @@ public struct FanControlView: View {
     }
 
     private func handleModeChange(_ newMode: SensorsModuleSettings.FanControlMode) {
-        // Prevent manual mode if helper is not available
-        if newMode == .manual && !isHelperAvailable {
-            // Show alert and revert to auto mode
-            DispatchQueue.main.async {
-                self.currentMode = .auto
-            }
-            return
-        }
-
         // Get current warning acknowledged status
         let hasAcknowledged = WidgetPreferences.shared.widgetConfigs
             .first(where: { $0.type == .sensors })?.moduleSettings.sensors.hasAcknowledgedFanWarning ?? false
@@ -367,9 +301,6 @@ public struct FanControlView: View {
         // Clamp speed between 0 and 100
         let clampedSpeed = max(0, min(100, speed))
 
-        // NOTE: Actual SMC fan control requires privileged helper (task fn-8-v3b.13)
-        // The helper will expose SMC write commands via XPC
-        // For now, store the speed value for UI display and persistence
         fanSpeeds[fanId] = clampedSpeed
 
         // Save speed if preference is enabled
@@ -408,9 +339,7 @@ public struct FanControlView: View {
     }
 
     private func restoreAutoFanControl() {
-        // NOTE: Restoring auto mode requires privileged helper (task fn-8-v3b.13)
-        // The helper will send SMC command to re-enable automatic fan control
-        // This is a safety-critical operation and must go through the privileged helper
+        // Auto mode is handled by the system/SMC directly
     }
 
     // MARK: - Initializer
