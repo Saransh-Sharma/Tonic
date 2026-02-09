@@ -34,7 +34,7 @@ struct ContentView: View {
                 SidebarView(selectedDestination: $selectedDestination)
             } detail: {
                 DetailView(
-                    item: selectedDestination,
+                    selectedDestination: $selectedDestination,
                     onPermissionNeeded: { feature in
                         missingPermissionFor = feature
                         showPermissionPrompt = true
@@ -124,7 +124,7 @@ struct ContentView: View {
 }
 
 struct DetailView: View {
-    let item: NavigationDestination
+    @Binding var selectedDestination: NavigationDestination
     let onPermissionNeeded: (PermissionManager.Feature) -> Void
     @ObservedObject var smartCareSession: SmartCareSessionStore
     @ObservedObject var dashboardScanSession: SmartScanManager
@@ -151,9 +151,9 @@ struct DetailView: View {
 
     @ViewBuilder
     private var contentForItem: some View {
-        switch item {
+        switch selectedDestination {
         case .dashboard:
-            DashboardView(scanManager: dashboardScanSession)
+            DashboardHomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
         case .systemCleanup:
             MaintenanceView(smartCareSession: smartCareSession)
         case .appManager:
