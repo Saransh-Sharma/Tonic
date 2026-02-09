@@ -145,6 +145,10 @@ public final class FileOperations: @unchecked Sendable {
         set { lock.locked { _operationHistory = newValue } }
     }
 
+    public var latestOperationRecordID: UUID? {
+        lock.locked { _operationHistory.last?.id }
+    }
+
     public var isProcessing: Bool {
         get { lock.locked { _isProcessing } }
         set { lock.locked { _isProcessing = newValue } }
@@ -219,8 +223,8 @@ public final class FileOperations: @unchecked Sendable {
             }
         }
 
-        // Record operation for undo
-        if !errors.isEmpty {
+        // Record operation for undo when at least one item moved to Trash.
+        if processedCount > 0 {
             let record = FileOperationRecord(
                 operationType: .trash,
                 originalPaths: paths,
