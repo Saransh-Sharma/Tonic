@@ -191,6 +191,7 @@ struct TonicLegacyGlassSurface: ViewModifier {
                 .clipShape(RoundedRectangle(cornerRadius: radius))
                 .allowsHitTesting(false)
             )
+            .compositingGroup()
             .shadow(color: style.shadow, radius: shadow.blur, x: 0, y: shadow.y)
     }
 }
@@ -211,6 +212,7 @@ struct TonicLiquidGlassSurface: ViewModifier {
             .glassEffect(.regular, in: shape)
             .overlay(shape.fill(style.fill).allowsHitTesting(false))
             .overlay(shape.stroke(style.stroke, lineWidth: 1).allowsHitTesting(false))
+            .mask { shape }
             .shadow(color: style.shadow, radius: shadow.blur, x: 0, y: shadow.y)
     }
 }

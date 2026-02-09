@@ -1977,12 +1977,13 @@ struct EmptyStatePanel: View {
     let icon: String
     let title: String
     let message: String
+    var compact: Bool = false
 
     var body: some View {
         GlassCard {
-            VStack(spacing: TonicSpaceToken.two) {
+            VStack(spacing: compact ? TonicSpaceToken.one : TonicSpaceToken.two) {
                 Image(systemName: icon)
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: compact ? 20 : 30, weight: .semibold))
                     .foregroundStyle(TonicTextToken.secondary)
                 Text(title)
                     .font(TonicTypeToken.caption.weight(.semibold))
@@ -1992,7 +1993,7 @@ struct EmptyStatePanel: View {
                     .foregroundStyle(TonicTextToken.tertiary)
             }
             .frame(maxWidth: .infinity)
-            .padding(TonicSpaceToken.four)
+            .padding(compact ? TonicSpaceToken.two : TonicSpaceToken.four)
         }
     }
 }
