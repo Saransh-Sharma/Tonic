@@ -185,11 +185,9 @@ public final class AppResetService {
             "tonic.widget.configs",
             "tonic.widget.updateInterval",
             "tonic.appearance.themeMode",
-            "tonic.appearance.accentColor",
             "tonic.appearance.iconStyle",
             "tonic.appearance.reduceTransparency",
             "tonic.appearance.reduceMotion",
-            "launchAtLogin",
             "automaticallyChecksForUpdates",
             "allowBetaUpdates",
             "firstLaunch",
@@ -211,7 +209,6 @@ public final class AppResetService {
     private func resetSingletonStates() {
         // Reset appearance to defaults
         AppearancePreferences.shared.setThemeMode(.system)
-        AppearancePreferences.shared.setAccentColor(.blue)
         AppearancePreferences.shared.setIconStyle(.filled)
         AppearancePreferences.shared.setReduceTransparency(false)
         AppearancePreferences.shared.setReduceMotion(false)
