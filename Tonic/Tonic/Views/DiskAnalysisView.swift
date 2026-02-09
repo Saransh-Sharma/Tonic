@@ -641,8 +641,23 @@ struct DiskAnalysisView: View {
                 scanProgress = progress
             }
             scanResult = result
+            let detail = "Scanned \(currentPath) · \(result.formattedFileCount) items · Total \(result.formattedTotalSize) · Duration \(formatDuration(result.scanDuration))"
+            let event = ActivityEvent(
+                category: .disk,
+                title: "Disk analysis completed",
+                detail: detail,
+                impact: .low
+            )
+            ActivityLogStore.shared.record(event)
         } catch {
             errorMessage = error.localizedDescription
+            let event = ActivityEvent(
+                category: .disk,
+                title: "Disk analysis failed",
+                detail: "Error: \(error.localizedDescription)",
+                impact: .medium
+            )
+            ActivityLogStore.shared.record(event)
         }
 
         isScanning = false
@@ -655,6 +670,10 @@ struct DiskAnalysisView: View {
         if hasFullDiskAccess {
             await scanCurrentPath()
         }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%.1fs", seconds)
     }
 }
 
