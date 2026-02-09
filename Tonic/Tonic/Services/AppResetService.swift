@@ -102,27 +102,22 @@ public final class AppResetService {
         completedSteps.insert(.stoppingWidgets)
 
         // Step 2: Clear cache
-        state = .inProgress(step: .clearingCache, progress: 0.17)
+        state = .inProgress(step: .clearingCache, progress: 0.20)
         await clearCacheFiles(warnings: &warnings)
         completedSteps.insert(.clearingCache)
 
         // Step 3: Remove app data
-        state = .inProgress(step: .removingAppData, progress: 0.33)
+        state = .inProgress(step: .removingAppData, progress: 0.40)
         await clearAppData(warnings: &warnings)
         completedSteps.insert(.removingAppData)
 
-        // Step 4: Uninstall helper
-        state = .inProgress(step: .uninstallingHelper, progress: 0.50)
-        await uninstallHelperGracefully(warnings: &warnings)
-        completedSteps.insert(.uninstallingHelper)
-
-        // Step 5: Reset preferences
-        state = .inProgress(step: .resettingPreferences, progress: 0.67)
+        // Step 4: Reset preferences
+        state = .inProgress(step: .resettingPreferences, progress: 0.60)
         resetAllUserDefaults()
         completedSteps.insert(.resettingPreferences)
 
-        // Step 6: Reset singletons and prepare onboarding
-        state = .inProgress(step: .preparingOnboarding, progress: 0.83)
+        // Step 5: Reset singletons and prepare onboarding
+        state = .inProgress(step: .preparingOnboarding, progress: 0.80)
         resetSingletonStates()
         completedSteps.insert(.preparingOnboarding)
 
@@ -170,20 +165,6 @@ public final class AppResetService {
             } catch {
                 warnings.append("Could not fully remove app data: \(error.localizedDescription)")
             }
-        }
-        try? await Task.sleep(nanoseconds: 150_000_000)
-    }
-
-    private func uninstallHelperGracefully(warnings: inout [String]) async {
-        guard PrivilegedHelperManager.shared.isHelperInstalled else {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            return
-        }
-
-        do {
-            try await PrivilegedHelperManager.shared.uninstallHelper()
-        } catch {
-            warnings.append("Helper tool could not be removed: \(error.localizedDescription)")
         }
         try? await Task.sleep(nanoseconds: 150_000_000)
     }
