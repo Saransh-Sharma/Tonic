@@ -22,6 +22,7 @@
 		0DEAC9D50DB93263C00187E5 /* ProtectedApps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAEE458280DBCEE1369F8A2 /* ProtectedApps.swift */; };
 		0FDDDE9BD304E1144B70B72E /* ProcessesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BD94336B71EC9D31A4CAB4 /* ProcessesView.swift */; };
 		100FE938975046776F7793A8 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 661FE3BAE847C1FD4A6025AF /* DashboardView.swift */; };
+		B1C2D3E4F5060708090A0B0C /* DashboardHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D9D3C7F1B24C6E9A1F0001 /* DashboardHomeView.swift */; };
 		11A3679F296B452FF8935754 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC502C13392AA4425D70CA7 /* NotificationManager.swift */; };
 		12AF0B479201C6A2D7EDA01B /* WidgetGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11AD4BB226CE29A4E16BE5D7 /* WidgetGalleryView.swift */; };
 		12DEB1190DD4C7467FC738F6 /* ClockPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6CFDAFF55B5E098F9F535E /* ClockPopoverView.swift */; };
@@ -323,6 +324,7 @@
 		61973F65CA75606E1B50BBAC /* ScanCategoryScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanCategoryScanner.swift; sourceTree = "<group>"; };
 		6418976A2B4B6781E55788BD /* ActionTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTable.swift; sourceTree = "<group>"; };
 		661FE3BAE847C1FD4A6025AF /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A0D9D3C7F1B24C6E9A1F0001 /* DashboardHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardHomeView.swift; sourceTree = "<group>"; };
 		66B3AE85A7E4A0D4B41D868F /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		66F12325BCF64531EF06A35B /* NetworkSectionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSectionCard.swift; sourceTree = "<group>"; };
 		6959B3085A8C85E79867968A /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
@@ -551,6 +553,7 @@
 				D7FF1775480BCD658C46C051 /* ContentView.swift */,
 				FA26FBEE89EB86978EDA8F16 /* DarkModeThemeView.swift */,
 				661FE3BAE847C1FD4A6025AF /* DashboardView.swift */,
+				A0D9D3C7F1B24C6E9A1F0001 /* DashboardHomeView.swift */,
 				9156C35EA0D5F08F4D362373 /* DesignSandboxView.swift */,
 				30B8E5D8772F748896B90BE6 /* DetailedStatsView.swift */,
 				8CA45EE000A111ACB0B4088C /* DiskAnalysisView.swift */,
@@ -1058,6 +1061,7 @@
 				4051C6B347739039333E9692 /* DNSService.swift in Sources */,
 				789FD1127E088C3625A9B84B /* DarkModeThemeView.swift in Sources */,
 				100FE938975046776F7793A8 /* DashboardView.swift in Sources */,
+				B1C2D3E4F5060708090A0B0C /* DashboardHomeView.swift in Sources */,
 				8929DF22E2F6D9DD74D1A463 /* DeepCleanEngine.swift in Sources */,
 				B8478881056DD9CD3CAA2A6B /* DesignAnimations.swift in Sources */,
 				369FD212BC2FEF7E7AB66D0B /* DesignComponents.swift in Sources */,
