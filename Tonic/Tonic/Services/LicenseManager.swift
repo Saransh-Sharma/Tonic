@@ -224,16 +224,6 @@ public final class LicenseManager: NSObject, @unchecked Sendable {
             }
             return .unlocked
 
-        case .systemOptimization:
-            if currentTier == .free {
-                return FeatureLock(
-                    isLocked: true,
-                    tierRequired: .pro,
-                    message: "System optimization requires Pro"
-                )
-            }
-            return .unlocked
-
         case .dockerCleanup:
             if currentTier == .free {
                 return FeatureLock(
@@ -331,7 +321,6 @@ public enum Feature {
     case unlimitedCleaning
     case smartScan
     case appUninstaller
-    case systemOptimization
     case dockerCleanup
     case prioritySupport
 }

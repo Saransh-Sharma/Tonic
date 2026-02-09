@@ -149,12 +149,6 @@ public final class PermissionManager: @unchecked Sendable {
         }
     }
 
-    // MARK: - Helper Status
-
-    public func checkHelperStatus() -> Bool {
-        return PrivilegedHelperManager.shared.checkInstallationStatus()
-    }
-
     // MARK: - Permission Summary
 
     public var allPermissionsGranted: Bool {
@@ -188,12 +182,6 @@ public final class PermissionManager: @unchecked Sendable {
             }
             return (true, nil)
 
-        case .systemOptimization:
-            if !checkHelperStatus() {
-                return (false, "Helper tool is required for system optimization")
-            }
-            return (true, nil)
-
         case .basicScan:
             return (true, nil)
         }
@@ -203,7 +191,6 @@ public final class PermissionManager: @unchecked Sendable {
         case diskScan
         case appManager
         case smartScan
-        case systemOptimization
         case basicScan
     }
 }
