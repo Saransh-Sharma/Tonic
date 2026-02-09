@@ -3,7 +3,7 @@
 //  Tonic
 //
 //  General preferences section - extracted from PreferencesView
-//  Handles launch at login, update checking, and startup options
+//  Handles update checking and startup options
 //
 
 import SwiftUI
@@ -11,11 +11,9 @@ import SwiftUI
 // MARK: - General Preferences Section
 
 struct GeneralPreferencesSection: View {
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("checkForUpdates") private var checkForUpdates = true
     @AppStorage("updateFrequency") private var updateFrequency: Int = 1  // Daily
     @State private var showRestartAlert = false
-    @State private var error: TonicError?
 
     // Temperature unit setting
     private var temperatureUnit: Binding<TemperatureUnit> {
@@ -27,15 +25,6 @@ struct GeneralPreferencesSection: View {
 
     var body: some View {
         Section("General") {
-            // Launch at Login Toggle
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .onChange(of: launchAtLogin) { oldValue, newValue in
-                    handleLaunchAtLoginChange(newValue)
-                }
-                .help("Start Tonic automatically when you log in")
-
-            Divider()
-
             // Update Checking
             Toggle("Check for Updates", isOn: $checkForUpdates)
                 .onChange(of: checkForUpdates) { _, newValue in
@@ -111,62 +100,14 @@ struct GeneralPreferencesSection: View {
         } message: {
             Text("Changes will take effect after restart.")
         }
-
-        // Error handling
-        if let error = error {
-            ErrorView(
-                error: error,
-                action: nil,
-                dismiss: { self.error = nil }
-            )
-        }
     }
 
     // MARK: - Actions
-
-    private func handleLaunchAtLoginChange(_ enabled: Bool) {
-        Task {
-            do {
-                try await updateLaunchAtLoginSetting(enabled)
-                await MainActor.run {
-                    let title = enabled ? "Launch at login enabled" : "Launch at login disabled"
-                    let event = ActivityEvent(
-                        category: .preference,
-                        title: title,
-                        detail: "Launch at login: \(enabled ? "On" : "Off")",
-                        impact: .none
-                    )
-                    ActivityLogStore.shared.record(event)
-                }
-            } catch let err as TonicError {
-                self.error = err
-                launchAtLogin = !enabled
-            } catch {
-                self.error = .generic(error)
-                launchAtLogin = !enabled
-            }
-        }
-    }
 
     private func checkForUpdatesNow() {
         // Trigger immediate update check
         Task {
             // await updateChecker.checkForUpdates()
-        }
-    }
-
-    private func updateLaunchAtLoginSetting(_ enabled: Bool) async throws {
-        let loginItemsManager = LoginItemsManager.shared
-        let bundleURL = Bundle.main.bundleURL
-
-        if enabled {
-            try await loginItemsManager.addLoginItem(at: bundleURL, hidden: false)
-        } else {
-            // Find and remove the login item
-            let items = loginItemsManager.loginItems
-            if let item = items.first(where: { $0.path == bundleURL }) {
-                try await loginItemsManager.removeLoginItem(item)
-            }
         }
     }
 
