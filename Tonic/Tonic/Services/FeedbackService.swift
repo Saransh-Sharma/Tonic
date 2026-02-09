@@ -42,8 +42,8 @@ struct FeedbackReport: Codable {
         self.title = title
         self.description = description
         self.systemInfo = SystemInfo()
-        self.appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        self.buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        self.appVersion = Bundle.main.appVersion
+        self.buildVersion = Bundle.main.buildNumber
         self.logs = logs
     }
 }

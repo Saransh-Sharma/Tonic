@@ -393,12 +393,19 @@ private struct CrashReportStorageManager {
 
 // MARK: - Bundle Extensions
 
-private extension Bundle {
+extension Bundle {
     var appVersion: String {
-        (infoDictionary?["CFBundleShortVersionString"] as? String) ?? "Unknown"
+        resolvedInfoValue(forKey: "CFBundleShortVersionString") ?? "0.1.0"
     }
 
     var buildNumber: String {
-        (infoDictionary?["CFBundleVersion"] as? String) ?? "Unknown"
+        resolvedInfoValue(forKey: "CFBundleVersion") ?? "1"
+    }
+
+    private func resolvedInfoValue(forKey key: String) -> String? {
+        guard let raw = object(forInfoDictionaryKey: key) as? String else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.hasPrefix("$(") else { return nil }
+        return trimmed
     }
 }
