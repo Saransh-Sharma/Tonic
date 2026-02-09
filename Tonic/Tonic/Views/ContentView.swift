@@ -253,8 +253,6 @@ struct PermissionPromptView: View {
             return "Tonic needs Full Disk Access to scan all files and applications on your Mac."
         case .smartScan:
             return "Smart Scan requires Full Disk Access to perform a comprehensive system scan."
-        case .systemOptimization:
-            return "System optimization requires the privileged helper tool to be installed."
         case .basicScan, nil:
             return "Tonic needs additional permissions to function properly."
         }

@@ -20,7 +20,6 @@ public final class AppResetService {
         case stoppingWidgets
         case clearingCache
         case removingAppData
-        case uninstallingHelper
         case resettingPreferences
         case preparingOnboarding
 
@@ -29,7 +28,6 @@ public final class AppResetService {
             case .stoppingWidgets: return "Stopping widgets"
             case .clearingCache: return "Clearing cache files"
             case .removingAppData: return "Removing app data"
-            case .uninstallingHelper: return "Uninstalling helper tool"
             case .resettingPreferences: return "Resetting preferences"
             case .preparingOnboarding: return "Preparing fresh start"
             }
@@ -40,7 +38,6 @@ public final class AppResetService {
             case .stoppingWidgets: return "square.grid.2x2"
             case .clearingCache: return "trash"
             case .removingAppData: return "folder"
-            case .uninstallingHelper: return "wrench.and.screwdriver"
             case .resettingPreferences: return "gearshape"
             case .preparingOnboarding: return "sparkles"
             }
@@ -90,11 +87,6 @@ public final class AppResetService {
         guard let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Tonic") else { return 0 }
         return directorySize(at: appSupportURL)
-    }
-
-    /// Whether the helper tool is currently installed
-    public var isHelperInstalled: Bool {
-        PrivilegedHelperManager.shared.isHelperInstalled
     }
 
     // MARK: - Reset Operations
