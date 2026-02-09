@@ -1,0 +1,1481 @@
+//
+//  DashboardHomeView.swift
+//  Tonic
+//
+//  Modern dashboard (home) — mixed-world bento hub + system snapshot.
+//
+
+import SwiftUI
+import AppKit
+import CoreGraphics
+import IOKit
+import Metal
+
+// MARK: - Dashboard Home
+
+struct DashboardHomeView: View {
+    @ObservedObject var scanManager: SmartScanManager
+    @Binding var selectedDestination: NavigationDestination
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var widgetDataManager = WidgetDataManager.shared
+    @State private var widgetPreferences = WidgetPreferences.shared
+    @State private var activityStore = ActivityLogStore.shared
+
+    @State private var systemSnapshot: SystemSnapshot?
+    @State private var snapshotLoadError: String?
+    @State private var snapshotIsLoading = false
+
+    @State private var specsExpanded = false
+    @State private var serialRevealed = false
+    @State private var didCopySpecs = false
+    @State private var showExportSheet = false
+    @State private var showHealthExplanation = false
+
+    var body: some View {
+        TonicThemeProvider(world: .smartScanPurple) {
+            ZStack {
+                WorldCanvasBackground(recipe: .default)
+
+                VStack(spacing: TonicSpaceToken.three) {
+                    PageHeader(
+                        title: "Dashboard",
+                        subtitle: headerSubtitle,
+                        trailing: AnyView(headerTrailingActions)
+                    )
+                    .staggeredReveal(index: 0)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: TonicSpaceToken.four) {
+                            overviewSection
+                                .staggeredReveal(index: 1)
+
+                            cardsSection
+                                .staggeredReveal(index: 2)
+
+                            utilitiesSection
+                                .staggeredReveal(index: 3)
+                        }
+                        .padding(.bottom, TonicSpaceToken.three)
+                    }
+                }
+                .padding(.horizontal, TonicSpaceToken.three)
+                .padding(.bottom, TonicSpaceToken.three)
+                .padding(.top, 4)
+            }
+        }
+        .sheet(isPresented: $showExportSheet) {
+            DashboardExportSheet(
+                title: "System Specs",
+                bodyText: exportText
+            )
+        }
+        .onAppear {
+            if !widgetDataManager.isMonitoring {
+                widgetDataManager.startMonitoring()
+            }
+            refreshSnapshot()
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerSubtitle: String {
+        if scanManager.isScanning {
+            return "Scanning • \(Int(scanManager.scanProgress * 100))% • \(scanManager.currentPhase.rawValue)"
+        }
+
+        guard scanManager.hasScanResult else {
+            return "Not scanned yet"
+        }
+
+        let recommendationCount = scanManager.recommendations.filter { !$0.isCompleted }.count
+        let scanDate = scanManager.lastScanDate ?? Date()
+        let relative = RelativeDateTimeFormatter().localizedString(for: scanDate, relativeTo: Date())
+        return "Last scan: \(relative) • \(recommendationCount) recommendation\(recommendationCount == 1 ? "" : "s")"
+    }
+
+    private var headerTrailingActions: some View {
+        HStack(spacing: TonicSpaceToken.one) {
+            IconOnlyButton(systemName: "arrow.clockwise") {
+                refreshSnapshot()
+                if !widgetDataManager.isMonitoring {
+                    widgetDataManager.startMonitoring()
+                }
+            }
+            .accessibilityLabel("Refresh dashboard")
+
+            IconOnlyButton(systemName: "questionmark.circle") {
+                showHealthExplanation = true
+            }
+            .accessibilityLabel("Learn about health score")
+            .accessibilityHint("Shows how the health score is calculated")
+            .popover(isPresented: $showHealthExplanation, arrowEdge: .top) {
+                DashboardHealthScoreExplanationPopover()
+                    .frame(width: 320)
+                    .padding(TonicSpaceToken.three)
+            }
+
+            IconOnlyButton(systemName: "square.and.arrow.up") {
+                showExportSheet = true
+            }
+            .accessibilityLabel("Export system report")
+        }
+    }
+
+    // MARK: - Sections
+
+    private var overviewSection: some View {
+        DashboardOverviewContainer {
+            ViewThatFits(in: .horizontal) {
+                overviewWide
+                    .frame(minWidth: 980)
+                overviewNarrow
+            }
+        }
+    }
+
+    private var overviewWide: some View {
+        HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
+            DashboardTileCard(world: .smartScanPurple, size: .large) {
+                DashboardScanSummaryTile(
+                    scanManager: scanManager,
+                    onPrimaryAction: { startOrStopScan() },
+                    onSecondaryAction: { selectedDestination = .systemCleanup }
+                )
+            }
+
+            VStack(spacing: TonicSpaceToken.gridGap) {
+                DashboardTileCard(
+                    world: .clutterTeal,
+                    size: .wide,
+                    forceHeight: specsExpanded ? 430 : 300
+                ) {
+                    SystemSnapshotTile(
+                        snapshot: systemSnapshot,
+                        isLoading: snapshotIsLoading,
+                        errorText: snapshotLoadError,
+                        isExpanded: $specsExpanded,
+                        serialRevealed: $serialRevealed,
+                        didCopy: $didCopySpecs,
+                        onCopy: copySpecs,
+                        onExport: { showExportSheet = true }
+                    )
+                }
+
+                HStack(spacing: TonicSpaceToken.gridGap) {
+                    DashboardTileCard(world: .performanceOrange, size: .small) {
+                        LiveStatsTile(
+                            cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                            memoryPressure: widgetDataManager.memoryData.pressure,
+                            diskFreeText: diskFreeText,
+                            cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                            onOpen: { selectedDestination = .liveMonitoring }
+                        )
+                    }
+
+                    DashboardTileCard(world: .protectionMagenta, size: .small) {
+                        WidgetsTile(
+                            enabledConfigs: widgetPreferences.enabledWidgets,
+                            dataManager: widgetDataManager,
+                            onCustomize: { selectedDestination = .menuBarWidgets }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private var overviewNarrow: some View {
+        VStack(spacing: TonicSpaceToken.gridGap) {
+            DashboardTileCard(world: .smartScanPurple, size: .large) {
+                DashboardScanSummaryTile(
+                    scanManager: scanManager,
+                    onPrimaryAction: { startOrStopScan() },
+                    onSecondaryAction: { selectedDestination = .systemCleanup }
+                )
+            }
+
+            DashboardTileCard(
+                world: .clutterTeal,
+                size: .wide,
+                forceHeight: specsExpanded ? 430 : 300
+            ) {
+                SystemSnapshotTile(
+                    snapshot: systemSnapshot,
+                    isLoading: snapshotIsLoading,
+                    errorText: snapshotLoadError,
+                    isExpanded: $specsExpanded,
+                    serialRevealed: $serialRevealed,
+                    didCopy: $didCopySpecs,
+                    onCopy: copySpecs,
+                    onExport: { showExportSheet = true }
+                )
+            }
+
+            HStack(spacing: TonicSpaceToken.gridGap) {
+                DashboardTileCard(world: .performanceOrange, size: .small) {
+                    LiveStatsTile(
+                        cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                        memoryPressure: widgetDataManager.memoryData.pressure,
+                        diskFreeText: diskFreeText,
+                        cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                        onOpen: { selectedDestination = .liveMonitoring }
+                    )
+                }
+
+                DashboardTileCard(world: .protectionMagenta, size: .small) {
+                    WidgetsTile(
+                        enabledConfigs: widgetPreferences.enabledWidgets,
+                        dataManager: widgetDataManager,
+                        onCustomize: { selectedDestination = .menuBarWidgets }
+                    )
+                }
+            }
+        }
+    }
+
+    private var cardsSection: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
+                recommendationsCard
+                activityCard
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            VStack(spacing: TonicSpaceToken.gridGap) {
+                recommendationsCard
+                activityCard
+            }
+        }
+    }
+
+    private var recommendationsCard: some View {
+        GlassCard(radius: TonicRadiusToken.xl, variant: colorScheme == .dark ? .sunken : .raised) {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                HStack {
+                    Text("Recommendations")
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+
+                    Spacer()
+
+                    if scanManager.hasScanResult {
+                        TertiaryGhostButton(title: "View all") {
+                            selectedDestination = .systemCleanup
+                        }
+                    }
+                }
+
+                let rows = Array(
+                    scanManager.recommendations
+                        .filter { !$0.isCompleted }
+                        .sorted { lhs, rhs in
+                            if lhs.priority.sortOrder != rhs.priority.sortOrder {
+                                return lhs.priority.sortOrder < rhs.priority.sortOrder
+                            }
+                            return lhs.scoreImpact > rhs.scoreImpact
+                        }
+                        .prefix(5)
+                )
+                if rows.isEmpty {
+                    EmptyStatePanel(
+                        icon: "sparkles",
+                        title: "All caught up",
+                        message: scanManager.hasScanResult ? "No recommendations right now." : "Run a Smart Scan to see recommendations."
+                    )
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(rows) { rec in
+                            DashboardRecommendationRowModern(
+                                recommendation: rec,
+                                onOpen: { selectedDestination = destination(for: rec) },
+                                onPrimaryAction: { Task { await quickAction(for: rec) } }
+                            )
+
+                            if rec.id != rows.last?.id {
+                                Divider().opacity(0.35)
+                            }
+                        }
+                    }
+                    .glassSurface(radius: TonicRadiusToken.l, variant: .base)
+                }
+            }
+        }
+    }
+
+    private var activityCard: some View {
+        GlassCard(radius: TonicRadiusToken.xl, variant: colorScheme == .dark ? .sunken : .raised) {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                HStack {
+                    Text("Recent Activity")
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+
+                    Spacer()
+
+                    if !activityStore.entries.isEmpty {
+                        TertiaryGhostButton(title: "Show all") {
+                            selectedDestination = .liveMonitoring
+                        }
+                    }
+                }
+
+                let rows = Array(activityStore.entries.prefix(5))
+                if rows.isEmpty {
+                    EmptyStatePanel(icon: "clock.arrow.circlepath", title: "No activity yet", message: "Run a Smart Scan to get started.")
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(rows) { event in
+                            DashboardActivityRowModern(event: event)
+                            if event.id != rows.last?.id {
+                                Divider().opacity(0.35)
+                            }
+                        }
+                    }
+                    .glassSurface(radius: TonicRadiusToken.l, variant: .base)
+                }
+            }
+        }
+    }
+
+    private var utilitiesSection: some View {
+        GlassCard(radius: TonicRadiusToken.container, variant: .sunken) {
+            HStack(spacing: TonicSpaceToken.two) {
+                SecondaryPillButton(title: "Copy System Specs") {
+                    copySpecs()
+                }
+
+                SecondaryPillButton(title: "Export Support Report") {
+                    showExportSheet = true
+                }
+
+                Spacer()
+
+                SecondaryPillButton(title: "Open Settings") {
+                    selectedDestination = .settings
+                }
+            }
+        }
+    }
+
+    // MARK: - Snapshot
+
+    private func refreshSnapshot() {
+        snapshotLoadError = nil
+        snapshotIsLoading = true
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                let snapshot = try SystemSnapshotProvider.fetch()
+                await MainActor.run {
+                    self.systemSnapshot = snapshot
+                    self.snapshotIsLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.snapshotLoadError = "Unable to load system specs"
+                    self.snapshotIsLoading = false
+                }
+            }
+        }
+    }
+
+    private var exportText: String {
+        guard let systemSnapshot else {
+            return "System specs are unavailable."
+        }
+        return systemSnapshot.exportText(serialRevealed: serialRevealed)
+    }
+
+    private func copySpecs() {
+        let text = exportText
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        if reduceMotion {
+            didCopySpecs = true
+        } else {
+            withAnimation(TonicMotionToken.springTap) {
+                didCopySpecs = true
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if reduceMotion {
+                didCopySpecs = false
+            } else {
+                withAnimation(.easeInOut(duration: TonicMotionToken.med)) {
+                    didCopySpecs = false
+                }
+            }
+        }
+    }
+
+    private var diskFreeText: String {
+        guard let boot = widgetDataManager.diskVolumes.first(where: { $0.isBootVolume }) ?? widgetDataManager.diskVolumes.first else {
+            return "—"
+        }
+        let freeGB = Double(boot.freeBytes) / (1024 * 1024 * 1024)
+        return String(format: "%.0f GB free", freeGB)
+    }
+
+    // MARK: - Smart Scan Actions
+
+    private func startOrStopScan() {
+        if scanManager.isScanning {
+            return
+        }
+
+        Task {
+            await scanManager.startSmartScan()
+        }
+    }
+
+    private func destination(for recommendation: Recommendation) -> NavigationDestination {
+        switch recommendation.category {
+        case .apps:
+            return .appManager
+        case .system:
+            return .systemCleanup
+        case .cache, .logs, .other:
+            return .systemCleanup
+        }
+    }
+
+    private func quickAction(for recommendation: Recommendation) async {
+        switch destination(for: recommendation) {
+        case .appManager:
+            selectedDestination = .appManager
+        default:
+            await scanManager.quickClean()
+        }
+    }
+}
+
+// MARK: - Overview Container
+
+private struct DashboardOverviewContainer<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .padding(TonicSpaceToken.three)
+        .glassSurface(radius: TonicRadiusToken.container, variant: colorScheme == .dark ? .sunken : .raised)
+    }
+}
+
+private enum DashboardTileSize {
+    case large
+    case wide
+    case small
+
+    var height: CGFloat {
+        switch self {
+        case .large: return 368
+        case .wide: return 178
+        case .small: return 178
+        }
+    }
+}
+
+private struct DashboardTileCard<Content: View>: View {
+    let world: TonicWorld
+    let size: DashboardTileSize
+    var forceHeight: CGFloat? = nil
+    @ViewBuilder let content: () -> Content
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack {
+            content()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: forceHeight ?? size.height)
+        .padding(TonicSpaceToken.three)
+        .glassSurface(radius: TonicRadiusToken.xl, variant: colorScheme == .dark ? .base : .raised)
+        .tonicTheme(world)
+        .depthLift()
+        .accessibilityElement(children: .contain)
+    }
+}
+
+// MARK: - Scan Summary Tile
+
+private struct DashboardScanSummaryTile: View {
+    @ObservedObject var scanManager: SmartScanManager
+    let onPrimaryAction: () -> Void
+    let onSecondaryAction: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tonicTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(spacing: TonicSpaceToken.two) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+
+                Text("Smart Scan")
+                    .font(TonicTypeToken.caption.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+
+                Spacer()
+
+                if scanManager.isScanning {
+                    Text("\(Int(scanManager.scanProgress * 100))%")
+                        .font(TonicTypeToken.micro.monospacedDigit())
+                        .foregroundStyle(TonicTextToken.secondary)
+                        .contentTransition(.numericText())
+                }
+            }
+
+            if scanManager.isScanning {
+                scanningBody
+            } else if scanManager.hasScanResult {
+                resultBody
+            } else {
+                readyBody
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: TonicSpaceToken.two) {
+                PrimaryActionButton(
+                    title: scanManager.isScanning ? "Scanning…" : (scanManager.hasScanResult ? "Run Again" : "Run Smart Scan"),
+                    icon: scanManager.isScanning ? "hourglass" : "play.fill",
+                    action: onPrimaryAction,
+                    isEnabled: !scanManager.isScanning
+                )
+
+                TertiaryGhostButton(title: "Open Smart Scan", action: onSecondaryAction)
+            }
+        }
+        .heroSweep(active: scanManager.isScanning, radius: TonicRadiusToken.xl)
+        .pulseGlow(active: scanManager.isScanning, progress: scanManager.scanProgress)
+        .breathingHero()
+        .accessibilityLabel(scanAccessibilityLabel)
+    }
+
+    private var scanAccessibilityLabel: String {
+        if scanManager.isScanning {
+            return "Smart Scan. Scanning \(Int(scanManager.scanProgress * 100)) percent. \(scanManager.currentPhase.rawValue)."
+        }
+        if scanManager.hasScanResult {
+            return "Smart Scan. Last health score \(scanManager.healthScore) out of 100."
+        }
+        return "Smart Scan. Not scanned yet."
+    }
+
+    private var readyBody: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+            Text("A quick health check across Space, Performance, and Apps.")
+                .font(TonicTypeToken.body)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            Text("Run it any time for tailored recommendations.")
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.tertiary)
+        }
+    }
+
+    private var scanningBody: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+            Text(scanManager.currentPhase.rawValue)
+                .font(TonicTypeToken.body.weight(.medium))
+                .foregroundStyle(TonicTextToken.primary)
+
+            ProgressView(value: scanManager.scanProgress)
+                .progressViewStyle(.linear)
+                .tint(theme.accent)
+                .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.med), value: scanManager.scanProgress)
+        }
+    }
+
+    private var resultBody: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .firstTextBaseline, spacing: TonicSpaceToken.one) {
+                Text("\(scanManager.healthScore)")
+                    .font(TonicTypeToken.hero)
+                    .foregroundStyle(TonicTextToken.primary)
+                    .contentTransition(.numericText())
+
+                Text("/100")
+                    .font(TonicTypeToken.caption)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+
+            HStack(spacing: TonicSpaceToken.one) {
+                CounterChip(title: "Space", value: spaceMetric, world: .cleanupGreen, isActive: false, isComplete: true)
+                CounterChip(title: "Performance", value: performanceMetric, world: .performanceOrange, isActive: false, isComplete: true)
+                CounterChip(title: "Apps", value: appsMetric, world: .applicationsBlue, isActive: false, isComplete: true)
+            }
+        }
+    }
+
+    private var spaceMetric: String {
+        let bytes = scanManager.lastReclaimableBytes ?? Int64(scanManager.recommendations.reduce(0) { $0 + $1.scanRecommendation.spaceToReclaim })
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private var performanceMetric: String {
+        let count = scanManager.recommendations.filter { $0.type == .optimize }.count
+        return "\(count) item\(count == 1 ? "" : "s")"
+    }
+
+    private var appsMetric: String {
+        let count = scanManager.recommendations.filter { $0.category == .apps }.count
+        return "\(count) app\(count == 1 ? "" : "s")"
+    }
+}
+
+// MARK: - System Snapshot Tile
+
+private struct SystemSnapshotTile: View {
+    let snapshot: SystemSnapshot?
+    let isLoading: Bool
+    let errorText: String?
+    @Binding var isExpanded: Bool
+    @Binding var serialRevealed: Bool
+    @Binding var didCopy: Bool
+    let onCopy: () -> Void
+    let onExport: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tonicTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            header
+
+            if isLoading {
+                ScanLoadingState(message: "Loading system specs…")
+            } else if let errorText {
+                ErrorStatePanel(message: errorText)
+            } else if let snapshot {
+                rows(for: snapshot)
+            } else {
+                PlaceholderStatePanel(title: "System Specs", message: "Unavailable.")
+            }
+        }
+        .accessibilityLabel("System specs")
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(theme.glowSoft)
+                    .frame(width: 34, height: 34)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                    )
+
+                Image(systemName: "laptopcomputer")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(snapshot?.deviceDisplayName ?? "System Specs")
+                    .font(TonicTypeToken.caption.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+
+                Text(snapshot?.osString ?? "")
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            HStack(spacing: TonicSpaceToken.one) {
+                Button(action: onCopy) {
+                    Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.secondary)
+                        .contentTransition(.opacity)
+                        .accessibilityLabel(didCopy ? "Copied" : "Copy specs")
+                }
+                .buttonStyle(PressEffect(focusShape: .rounded(10)))
+
+                Button(action: onExport) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.secondary)
+                        .accessibilityLabel("Export specs")
+                }
+                .buttonStyle(PressEffect(focusShape: .rounded(10)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rows(for snapshot: SystemSnapshot) -> some View {
+        VStack(spacing: 0) {
+            DashboardKeyValueRow(label: "Processor", value: snapshot.processorSummary)
+            rowDivider
+            DashboardKeyValueRow(label: "Memory", value: snapshot.memorySummary)
+            rowDivider
+            DashboardKeyValueRow(label: "Graphics", value: snapshot.graphicsSummary)
+            rowDivider
+            DashboardKeyValueRow(label: "Disks", value: snapshot.diskSummary)
+            rowDivider
+            DashboardKeyValueRow(label: "Display", value: snapshot.displaySummary)
+
+            Button {
+                if reduceMotion {
+                    isExpanded.toggle()
+                } else {
+                    withAnimation(TonicMotionToken.stageEnterSpring) {
+                        isExpanded.toggle()
+                    }
+                }
+            } label: {
+                HStack {
+                    Text(isExpanded ? "Show less" : "Show more")
+                        .font(TonicTypeToken.micro.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.secondary)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.med), value: isExpanded)
+                }
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+
+            if isExpanded {
+                VStack(spacing: 0) {
+                    rowDivider
+                    DashboardKeyValueRow(label: "Model identifier", value: snapshot.modelIdentifier)
+                    rowDivider
+                    DashboardKeyValueRow(label: "Model year", value: snapshot.modelYear ?? "—")
+                    rowDivider
+                    serialRow(snapshot: snapshot)
+                    rowDivider
+                    DashboardKeyValueRow(label: "Uptime", value: snapshot.uptimeSummary)
+                }
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .glassSurface(radius: TonicRadiusToken.l, variant: .sunken)
+        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
+    }
+
+    private var rowDivider: some View {
+        Divider().opacity(0.35)
+    }
+
+    private func serialRow(snapshot: SystemSnapshot) -> some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Text("Serial number")
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            Spacer()
+
+            Text(snapshot.serialDisplay(revealed: serialRevealed))
+                .font(TonicTypeToken.micro.monospacedDigit())
+                .foregroundStyle(TonicTextToken.primary)
+
+            Button(serialRevealed ? "Hide" : "Reveal") {
+                if reduceMotion {
+                    serialRevealed.toggle()
+                } else {
+                    withAnimation(TonicMotionToken.springTap) {
+                        serialRevealed.toggle()
+                    }
+                }
+            }
+            .font(TonicTypeToken.micro.weight(.semibold))
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.accent)
+            .accessibilityLabel(serialRevealed ? "Hide serial number" : "Reveal serial number")
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+    }
+}
+
+private struct DashboardKeyValueRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TonicSpaceToken.two) {
+            Text(label)
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(TonicTypeToken.micro.weight(.medium))
+                .foregroundStyle(TonicTextToken.primary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+    }
+}
+
+// MARK: - Live Stats Tile
+
+private struct LiveStatsTile: View {
+    let cpuPercent: Int
+    let memoryPressure: MemoryPressure
+    let diskFreeText: String
+    let cpuHistory: [Double]
+    let onOpen: () -> Void
+
+    @Environment(\.tonicTheme) private var theme
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                HStack(spacing: TonicSpaceToken.two) {
+                    Image(systemName: "gauge")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(theme.accent)
+
+                    Text("Live Stats")
+                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .foregroundStyle(TonicTextToken.primary)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(TonicTextToken.tertiary)
+                }
+
+                VStack(spacing: 10) {
+                    DashboardMiniMetricRow(label: "CPU", value: "\(cpuPercent)%")
+                    DashboardMiniMetricRow(label: "Memory", value: memoryPressure.rawValue)
+                    DashboardMiniMetricRow(label: "Disk", value: diskFreeText)
+                }
+
+                MiniSparkline(data: cpuHistory.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : cpuHistory, color: theme.worldToken.light)
+                    .frame(height: 18)
+                    .padding(.top, 4)
+            }
+        }
+        .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.xl)))
+        .accessibilityLabel("Live stats")
+        .accessibilityHint("Opens Activity")
+    }
+}
+
+private struct DashboardMiniMetricRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            Spacer()
+
+            Text(value)
+                .font(TonicTypeToken.micro.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+                .contentTransition(.numericText())
+        }
+    }
+}
+
+// MARK: - Health Score Popover
+
+private struct DashboardHealthScoreExplanationPopover: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("Health Score")
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            Text("A quick snapshot of your Mac’s overall health, based on storage, memory pressure, and flagged recommendations.")
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+                factorRow(icon: "internaldrive", title: "Disk space", detail: "Low free space reduces your score.")
+                factorRow(icon: "memorychip", title: "Memory pressure", detail: "Sustained pressure indicates slowdowns.")
+                factorRow(icon: "trash", title: "Junk files", detail: "Cache/logs/temp files you can safely remove.")
+                factorRow(icon: "app.badge", title: "Apps & startup", detail: "Apps and agents that impact performance.")
+            }
+
+            Text("Tip: Run Smart Scan to see what’s impacting your score.")
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.tertiary)
+        }
+        .glassSurface(radius: TonicRadiusToken.l, variant: .sunken)
+    }
+
+    private func factorRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TonicTextToken.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                Text(detail)
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+        }
+    }
+}
+
+// MARK: - Widgets Tile
+
+private struct WidgetsTile: View {
+    let enabledConfigs: [WidgetConfiguration]
+    let dataManager: WidgetDataManager
+    let onCustomize: () -> Void
+
+    @Environment(\.tonicTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(spacing: TonicSpaceToken.two) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+
+                Text("Widgets")
+                    .font(TonicTypeToken.caption.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+
+                Spacer()
+
+                CounterChip(title: "", value: "\(enabledConfigs.count)", world: .protectionMagenta, isActive: enabledConfigs.count > 0, isComplete: enabledConfigs.count > 0)
+                    .accessibilityLabel("\(enabledConfigs.count) active widgets")
+            }
+
+            if enabledConfigs.isEmpty {
+                BodyText("Add widgets to your menu bar for quick monitoring.")
+                    .foregroundStyle(TonicTextToken.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: TonicSpaceToken.two) {
+                        ForEach(Array(enabledConfigs.prefix(5).enumerated()), id: \.element.id) { _, config in
+                            WidgetMiniPreview(
+                                config: config,
+                                value: widgetPreviewValue(config),
+                                sparklineData: sparklineData(for: config.type)
+                            )
+                            .frame(width: 120)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .mask(
+                    LinearGradient(
+                        colors: [.clear, .black, .black, .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+            }
+
+            Spacer(minLength: 0)
+
+            PrimaryActionButton(title: "Customize", icon: "slider.horizontal.3", action: onCustomize, isEnabled: true)
+        }
+        .accessibilityLabel("Widgets")
+        .accessibilityHint("Customize menu bar widgets")
+    }
+
+    private func sparklineData(for type: WidgetType) -> [Double] {
+        switch type {
+        case .cpu:
+            let history = dataManager.cpuHistory.suffix(10)
+            return history.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : Array(history)
+        case .memory:
+            let history = dataManager.memoryHistory.suffix(10)
+            return history.isEmpty ? [60, 62, 58, 65, 63, 67, 64, 68, 66, 65] : Array(history)
+        default:
+            return [30, 35, 32, 38, 36, 34, 37, 35, 33, 36]
+        }
+    }
+
+    private func widgetPreviewValue(_ config: WidgetConfiguration) -> String {
+        let usePercent = config.valueFormat == .percentage
+        switch config.type {
+        case .cpu:
+            return "\(Int(dataManager.cpuData.totalUsage))%"
+        case .memory:
+            if usePercent {
+                return "\(Int(dataManager.memoryData.usagePercentage))%"
+            } else {
+                let usedGB = Double(dataManager.memoryData.usedBytes) / (1024 * 1024 * 1024)
+                return String(format: "%.1f GB", usedGB)
+            }
+        case .disk:
+            if let primary = dataManager.diskVolumes.first {
+                if usePercent {
+                    return "\(Int(primary.usagePercentage))%"
+                } else {
+                    let freeGB = primary.freeBytes / (1024 * 1024 * 1024)
+                    return "\(freeGB)GB"
+                }
+            }
+            return "—"
+        case .network:
+            return dataManager.networkData.downloadString
+        case .gpu:
+            if let usage = dataManager.gpuData.usagePercentage {
+                return "\(Int(usage))%"
+            }
+            return "—"
+        case .battery:
+            return "\(Int(dataManager.batteryData.chargePercentage))%"
+        case .weather:
+            return "—"
+        case .sensors:
+            return "—"
+        case .bluetooth:
+            if let device = dataManager.bluetoothData.devicesWithBattery.first,
+               let battery = device.primaryBatteryLevel {
+                return "\(battery)%"
+            }
+            return "\(dataManager.bluetoothData.connectedDevices.count)"
+        case .clock:
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return formatter.string(from: Date())
+        }
+    }
+}
+
+// MARK: - Recommendation Row (Modern)
+
+private struct DashboardRecommendationRowModern: View {
+    let recommendation: Recommendation
+    let onOpen: () -> Void
+    let onPrimaryAction: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Button(action: onOpen) {
+                HStack(spacing: TonicSpaceToken.two) {
+                    semanticBadge
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recommendation.title)
+                            .font(TonicTypeToken.micro.weight(.semibold))
+                            .foregroundStyle(TonicTextToken.primary)
+                            .lineLimit(1)
+
+                        Text(recommendation.description)
+                            .font(TonicTypeToken.micro)
+                            .foregroundStyle(TonicTextToken.tertiary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    scoreChip
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            SecondaryPillButton(title: recommendation.actionText) {
+                if reduceMotion {
+                    onPrimaryAction()
+                } else {
+                    withAnimation(TonicMotionToken.springTap) {
+                        onPrimaryAction()
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(hovering ? TonicGlassToken.fill.opacity(0.35) : .clear)
+        .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.fast), value: hovering)
+        .onHover { hovering = $0 }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(recommendation.title), \(recommendation.priority.label) priority")
+    }
+
+    private var semanticBadge: some View {
+        let kind: TonicSemanticKind = switch recommendation.priority {
+        case .critical, .high: .danger
+        case .medium: .warning
+        case .low: .info
+        }
+
+        return GlassChip(
+            title: recommendation.priority.label,
+            icon: recommendation.priority.icon,
+            role: .semantic(kind),
+            strength: .subtle
+        )
+        .font(TonicTypeToken.micro.weight(.semibold))
+    }
+
+    private var scoreChip: some View {
+        GlassChip(
+            title: "+\(recommendation.scoreImpact) score",
+            icon: "sparkles",
+            role: .world(.smartScanPurple),
+            strength: .subtle
+        )
+        .font(TonicTypeToken.micro.weight(.semibold))
+    }
+}
+
+// MARK: - Activity Row (Modern)
+
+private struct DashboardActivityRowModern: View {
+    let event: ActivityEvent
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Image(systemName: event.category.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TonicTextToken.secondary)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                    .lineLimit(1)
+
+                Text(event.detail)
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(event.timestamp, style: .relative)
+                .font(TonicTypeToken.micro.monospacedDigit())
+                .foregroundStyle(TonicTextToken.tertiary)
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Export Sheet
+
+private struct DashboardExportSheet: View {
+    let title: String
+    let bodyText: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var didCopy = false
+
+    var body: some View {
+        TonicThemeProvider(world: .smartScanPurple) {
+            ZStack {
+                WorldCanvasBackground()
+                VStack(spacing: TonicSpaceToken.three) {
+                    PageHeader(
+                        title: title,
+                        subtitle: "Copy or share this report",
+                        trailing: AnyView(
+                            HStack(spacing: TonicSpaceToken.one) {
+                                IconOnlyButton(systemName: "xmark") { dismiss() }
+                            }
+                        )
+                    )
+
+                    GlassPanel(radius: TonicRadiusToken.container, variant: .sunken) {
+                        ScrollView {
+                            Text(bodyText)
+                                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                .foregroundStyle(TonicTextToken.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+
+                    HStack(spacing: TonicSpaceToken.two) {
+                        SecondaryPillButton(title: didCopy ? "Copied" : "Copy") {
+                            copyToPasteboard()
+                        }
+
+                        ShareLink(item: bodyText) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(PressEffect(focusShape: .capsule))
+
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, TonicSpaceToken.three)
+                .padding(.bottom, TonicSpaceToken.three)
+            }
+        }
+        .frame(minWidth: 720, minHeight: 520)
+    }
+
+    private func copyToPasteboard() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(bodyText, forType: .string)
+        if reduceMotion {
+            didCopy = true
+        } else {
+            withAnimation(TonicMotionToken.springTap) { didCopy = true }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if reduceMotion {
+                didCopy = false
+            } else {
+                withAnimation(.easeInOut(duration: TonicMotionToken.med)) { didCopy = false }
+            }
+        }
+    }
+}
+
+// MARK: - System Snapshot (Model + Provider)
+
+private struct SystemSnapshot: Sendable, Equatable {
+    let deviceDisplayName: String
+    let osString: String
+    let processorSummary: String
+    let memorySummary: String
+    let graphicsSummary: String
+    let diskSummary: String
+    let displaySummary: String
+    let modelIdentifier: String
+    let modelYear: String?
+    let serialNumber: String?
+    let uptimeSummary: String
+
+    func serialDisplay(revealed: Bool) -> String {
+        guard let serialNumber, !serialNumber.isEmpty else { return "—" }
+        guard !revealed else { return serialNumber }
+        let suffix = String(serialNumber.suffix(4))
+        return "••••••••\(suffix)"
+    }
+
+    func exportText(serialRevealed: Bool) -> String {
+        var lines: [String] = []
+        lines.append(deviceDisplayName)
+        lines.append(osString)
+        lines.append("")
+        lines.append("Processor: \(processorSummary)")
+        lines.append("Memory: \(memorySummary)")
+        lines.append("Graphics: \(graphicsSummary)")
+        lines.append("Disks: \(diskSummary)")
+        lines.append("Display: \(displaySummary)")
+        lines.append("")
+        lines.append("Model identifier: \(modelIdentifier)")
+        lines.append("Model year: \(modelYear ?? "—")")
+        lines.append("Serial number: \(serialDisplay(revealed: serialRevealed))")
+        lines.append("Uptime: \(uptimeSummary)")
+        return lines.joined(separator: "\n")
+    }
+}
+
+private enum SystemSnapshotProvider {
+    static func fetch() throws -> SystemSnapshot {
+        let modelIdentifier = Sysctl.string("hw.model") ?? "—"
+        let deviceName = SystemSnapshotProvider.deviceDisplayName(modelIdentifier: modelIdentifier)
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let osString = "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+
+        let processorName = Sysctl.string("machdep.cpu.brand_string")
+            ?? Sysctl.string("hw.model") // fallback
+            ?? "Apple Silicon"
+        let coreSummary = coreCountsSummary()
+        let processorSummary = [processorName, coreSummary].filter { !$0.isEmpty }.joined(separator: " • ")
+
+        let memBytes = Sysctl.uint64("hw.memsize") ?? 0
+        let memorySummary = memBytes > 0 ? ByteCountFormatter.string(fromByteCount: Int64(memBytes), countStyle: .memory) : "—"
+
+        let graphicsSummary = graphicsDeviceSummary()
+        let diskSummary = bootDiskSummary()
+        let displaySummary = primaryDisplaySummary()
+        let serialNumber = platformSerialNumber()
+        let uptimeSummary = uptimeString()
+
+        return SystemSnapshot(
+            deviceDisplayName: deviceName,
+            osString: osString,
+            processorSummary: processorSummary.isEmpty ? "—" : processorSummary,
+            memorySummary: memorySummary,
+            graphicsSummary: graphicsSummary,
+            diskSummary: diskSummary,
+            displaySummary: displaySummary,
+            modelIdentifier: modelIdentifier,
+            modelYear: nil,
+            serialNumber: serialNumber,
+            uptimeSummary: uptimeSummary
+        )
+    }
+
+    private static func deviceDisplayName(modelIdentifier: String) -> String {
+        // Best-effort; avoids brittle identifier-to-marketing-name mappings.
+        return "Mac (\(modelIdentifier))"
+    }
+
+    private static func coreCountsSummary() -> String {
+        let perf = Sysctl.int("hw.perflevel0.physicalcpu") ?? Sysctl.int("hw.perflevel0.logicalcpu")
+        let eff = Sysctl.int("hw.perflevel1.physicalcpu") ?? Sysctl.int("hw.perflevel1.logicalcpu")
+        let total = Sysctl.int("hw.ncpu") ?? Sysctl.int("hw.logicalcpu")
+
+        var parts: [String] = []
+        if let total, total > 0 {
+            parts.append("\(total) cores")
+        }
+        if let eff, eff > 0 {
+            parts.append("\(eff) efficiency")
+        }
+        if let perf, perf > 0 {
+            parts.append("\(perf) performance")
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    private static func graphicsDeviceSummary() -> String {
+        if let device = MTLCreateSystemDefaultDevice() {
+            return device.name
+        }
+        return "—"
+    }
+
+    private static func bootDiskSummary() -> String {
+        let url = URL(fileURLWithPath: "/")
+        do {
+            let values = try url.resourceValues(forKeys: [.volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey])
+            let name = values.volumeName ?? "Macintosh HD"
+            let total = values.volumeTotalCapacity ?? 0
+            let available = values.volumeAvailableCapacity ?? 0
+            let totalText = total > 0 ? ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file) : "—"
+            let availText = available > 0 ? ByteCountFormatter.string(fromByteCount: Int64(available), countStyle: .file) : "—"
+            return "\(name) (\(totalText) • \(availText) free)"
+        } catch {
+            return "—"
+        }
+    }
+
+    private static func primaryDisplaySummary() -> String {
+        guard let screen = NSScreen.main else { return "—" }
+        guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else {
+            return "—"
+        }
+
+        let mode = CGDisplayCopyDisplayMode(id)
+        let width = mode?.pixelWidth ?? Int(screen.frame.width * screen.backingScaleFactor)
+        let height = mode?.pixelHeight ?? Int(screen.frame.height * screen.backingScaleFactor)
+        let refresh = mode?.refreshRate ?? 0
+
+        let sizeMM = CGDisplayScreenSize(id)
+        let diagonalInches = sqrt(sizeMM.width * sizeMM.width + sizeMM.height * sizeMM.height) / 25.4
+        let sizeText = diagonalInches.isFinite && diagonalInches > 1 ? String(format: "%.0f″", diagonalInches) : nil
+
+        let isBuiltin = CGDisplayIsBuiltin(id) != 0
+        let name = isBuiltin ? "Built‑in Display" : "Display"
+
+        var parts: [String] = [name]
+        if let sizeText { parts.append(sizeText) }
+        parts.append("\(width)x\(height)")
+        if refresh > 1 {
+            parts.append("\(Int(refresh.rounded()))Hz")
+        }
+        return parts.joined(separator: " • ")
+    }
+
+    private static func uptimeString() -> String {
+        var bootTime = timeval()
+        var size = MemoryLayout<timeval>.size
+        sysctlbyname("kern.boottime", &bootTime, &size, nil, 0)
+
+        let bootTimestamp = Double(bootTime.tv_sec) + Double(bootTime.tv_usec) / 1_000_000.0
+        let now = Date().timeIntervalSince1970
+        let uptimeSeconds = max(0, now - bootTimestamp)
+
+        let days = Int(uptimeSeconds) / (24 * 3600)
+        let hours = (Int(uptimeSeconds) % (24 * 3600)) / 3600
+        let minutes = (Int(uptimeSeconds) % 3600) / 60
+
+        if days > 0 {
+            return "\(days) day\(days == 1 ? "" : "s"), \(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        if hours > 0 {
+            return "\(hours) hour\(hours == 1 ? "" : "s"), \(minutes) min"
+        }
+        return "\(minutes) min"
+    }
+
+    private static func platformSerialNumber() -> String? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        if let serial = IORegistryEntryCreateCFProperty(
+            service,
+            "IOPlatformSerialNumber" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() as? String {
+            return serial
+        }
+
+        return nil
+    }
+}
+
+private enum Sysctl {
+    static func string(_ name: String) -> String? {
+        var size: size_t = 0
+        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var data = [CChar](repeating: 0, count: Int(size))
+        guard sysctlbyname(name, &data, &size, nil, 0) == 0 else { return nil }
+        return String(cString: data)
+    }
+
+    static func int(_ name: String) -> Int? {
+        var value: Int = 0
+        var size = MemoryLayout<Int>.size
+        guard sysctlbyname(name, &value, &size, nil, 0) == 0 else { return nil }
+        return value
+    }
+
+    static func uint64(_ name: String) -> UInt64? {
+        var value: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        guard sysctlbyname(name, &value, &size, nil, 0) == 0 else { return nil }
+        return value
+    }
+}
+
+#Preview {
+    DashboardHomeView(
+        scanManager: SmartScanManager(),
+        selectedDestination: .constant(.dashboard)
+    )
+    .frame(width: 1100, height: 800)
+}
