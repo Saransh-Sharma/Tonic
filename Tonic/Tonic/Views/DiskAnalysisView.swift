@@ -2,615 +2,1849 @@
 //  DiskAnalysisView.swift
 //  Tonic
 //
-//  Disk analysis view with segmented control for List/Treemap/Hybrid views
-//  Redesigned to use native components and bar chart visualizations
+//  Storage Intelligence Hub 2.0
 //
 
 import SwiftUI
+import AppKit
 
-// MARK: - View Mode
-
-/// Available view modes for disk analysis
-enum DiskViewMode: String, CaseIterable, Identifiable {
-    case list = "List"
-    case treemap = "Treemap"
-    case hybrid = "Hybrid"
+enum StorageHubTab: String, CaseIterable, Identifiable {
+    case home = "Hub Home"
+    case explore = "Explore"
+    case act = "Act"
+    case insights = "Insights"
+    case history = "History"
 
     var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .list: return "list.bullet"
-        case .treemap: return "square.grid.2x2"
-        case .hybrid: return "square.split.1x2"
-        }
-    }
 }
 
-// MARK: - DiskAnalysisView
+enum CleanupWorkflowMode: String, CaseIterable, Identifiable {
+    case guided = "Guided Assistant"
+    case cart = "Cart + Review"
+
+    var id: String { rawValue }
+}
 
 struct DiskAnalysisView: View {
-    @State private var scanner = DiskScanner()
-    @State private var currentPath: String = FileManager.default.homeDirectoryForCurrentUser.path
-    @State private var scanResult: DiskScanResult?
-    @State private var overviewEntries: [DirectoryOverviewEntry] = []
-    @State private var isScanning = false
-    @State private var errorMessage: String?
-    @State private var viewMode: DiskViewMode = .list
-    @State private var selectedPath: String?
-    @State private var selectedPaths: Set<String> = []
-    @State private var scanProgress: DiskScanProgress?
-    @State private var navigationPath: [String] = []
-    @State private var permissionManager = PermissionManager.shared
-    @State private var hasFullDiskAccess: Bool = false
-    @State private var isCheckingPermissions: Bool = false
+    private enum FocusField: Hashable {
+        case rootPath
+        case search
+        case pathJump
+    }
 
-    private let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+    @State private var engine = StorageIntelligenceEngine()
+    @State private var selectedTab: StorageHubTab = .home
+    @State private var workflowMode: CleanupWorkflowMode = .guided
+    @State private var scanMode: StorageScanMode = .quick
+    @State private var rootPath: String = FileManager.default.homeDirectoryForCurrentUser.path
+    @State private var pathJumpText: String = FileManager.default.homeDirectoryForCurrentUser.path
+    @State private var backStack: [String] = []
+    @State private var forwardStack: [String] = []
+    @State private var isScanning = false
+    @State private var isCheckingPermissions = false
+    @State private var hasFullDiskAccess = false
+    @State private var permissionManager = PermissionManager.shared
+    @State private var latestProgressPath: String = ""
+    @State private var latestProgressBytes: Int64 = 0
+    @State private var latestProgressFiles: Int64 = 0
+    @State private var scanPhase: String = "Idle"
+    @State private var recentScannedPaths: [String] = []
+    @State private var scanWarning: String?
+    @State private var cleanupResult: CleanupExecutionResult?
+    @State private var showingPreview = false
+    @State private var keyMonitor: Any?
+    @FocusState private var focusedField: FocusField?
+
+    private var selectedNode: StorageNode? {
+        engine.selectedNode
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with path and controls
-            header
+            headerBar
 
             Divider()
 
-            // Content area
             if isCheckingPermissions {
-                permissionCheckView
+                ProgressView("Checking permissions…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if !hasFullDiskAccess {
                 permissionRequiredView
-            } else if isScanning {
-                progressView
-            } else if let error = errorMessage {
-                errorView(error)
-            } else if scanResult != nil {
-                resultsView
             } else {
-                initialView
+                tabBar
+
+                Divider()
+
+                VStack(spacing: 0) {
+                    if isScanning {
+                        scanProgressPanel
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                        Divider()
+                    }
+
+                    contentView
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignTokens.Colors.background)
+        .sheet(isPresented: $showingPreview) {
+            previewSheet
+        }
         .task {
             await checkPermissions()
+            pathJumpText = engine.currentPath
+            installKeyMonitorIfNeeded()
+        }
+        .onChange(of: engine.currentPath) { _, newValue in
+            pathJumpText = newValue
+        }
+        .onDisappear {
+            engine.setLiveMonitoring(enabled: false)
+            removeKeyMonitor()
         }
     }
 
-    // MARK: - Permission Check View
-
-    private var permissionCheckView: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            ProgressView()
-                .scaleEffect(1.2)
-
-            Text("Checking permissions...")
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Permission Required View
-
-    private var permissionRequiredView: some View {
-        ScrollView {
-            VStack(spacing: DesignTokens.Spacing.md) {
-                Spacer()
-                    .frame(height: DesignTokens.Spacing.xl)
-
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 56))
-                    .foregroundColor(DesignTokens.Colors.warning)
-
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    Text("Full Disk Access Required")
-                        .font(DesignTokens.Typography.h3)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                    Text("Disk Analysis needs Full Disk Access to scan all folders and files on your Mac")
-                        .font(DesignTokens.Typography.subhead)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, DesignTokens.Spacing.xl)
-
-                // Benefits section
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                    permissionBenefit(icon: "checkmark.circle.fill", text: "Scan your entire home directory")
-                    permissionBenefit(icon: "checkmark.circle.fill", text: "Access system folders and applications")
-                    permissionBenefit(icon: "checkmark.circle.fill", text: "Find large files anywhere on your disk")
-                    permissionBenefit(icon: "checkmark.circle.fill", text: "No annoying permission pop-ups during scan")
-                }
-                .padding(DesignTokens.Spacing.sm)
-                .background(DesignTokens.Colors.backgroundSecondary)
-                .cornerRadius(DesignTokens.CornerRadius.large)
-
-                // Step-by-step instructions
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    Text("How to grant Full Disk Access:")
-                        .font(DesignTokens.Typography.subheadEmphasized)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                    permissionStep(number: 1, text: "Click the button below to open System Settings")
-                    permissionStep(number: 2, text: "Click the lock icon and enter your Mac password")
-                    permissionStep(number: 3, text: "Find \"Tonic\" in the applications list")
-                    permissionStep(number: 4, text: "Toggle the switch next to Tonic to enable it")
-                    permissionStep(number: 5, text: "Quit System Settings and click \"I've Granted Access\" below")
-                }
-                .padding(DesignTokens.Spacing.sm)
-                .background(DesignTokens.Colors.warning.opacity(0.1))
-                .cornerRadius(DesignTokens.CornerRadius.large)
-
-                // Action buttons
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    Button {
-                        grantFullDiskAccess()
-                    } label: {
-                        HStack(spacing: DesignTokens.Spacing.xxs) {
-                            Image(systemName: "gear")
-                            Text("Open System Settings")
-                        }
-                        .font(DesignTokens.Typography.bodyEmphasized)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DesignTokens.Spacing.xs)
-                        .background(DesignTokens.Colors.accent)
-                        .cornerRadius(DesignTokens.CornerRadius.medium)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        Task {
-                            await checkPermissions()
-                        }
-                    } label: {
-                        HStack(spacing: DesignTokens.Spacing.xxxs) {
-                            Image(systemName: "checkmark.circle")
-                            Text("I've Granted Access")
-                                .fontWeight(.medium)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DesignTokens.Spacing.xs)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button {
-                        Task {
-                            await checkPermissions()
-                        }
-                    } label: {
-                        Text("Re-check Permissions")
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-                            .underline()
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, DesignTokens.Spacing.md)
+    private var headerBar: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Label("Storage Intelligence Hub", systemImage: "internaldrive.fill")
+                    .font(.system(size: 20, weight: .semibold))
 
                 Spacer()
-                    .frame(height: DesignTokens.Spacing.md)
+
+                Picker("Scan Mode", selection: $scanMode) {
+                    ForEach(StorageScanMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 270)
+
+                Button {
+                    if isScanning {
+                        stopScan()
+                    } else {
+                        startScan()
+                    }
+                } label: {
+                    Label(isScanning ? "Stop" : "Scan", systemImage: isScanning ? "stop.circle.fill" : "play.circle.fill")
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .padding()
-        }
-    }
 
-    private func permissionBenefit(icon: String, text: String) -> some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: icon)
-                .foregroundColor(DesignTokens.Colors.success)
-            Text(text)
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-        }
-    }
+            HStack(spacing: 8) {
+                TextField("Root path", text: $rootPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.caption, design: .monospaced))
+                    .focused($focusedField, equals: .rootPath)
 
-    private func permissionStep(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
-            Text("\(number)")
-                .font(DesignTokens.Typography.caption)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(width: 24, height: 24)
-                .background(Circle().fill(DesignTokens.Colors.warning))
-
-            Text(text)
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-
-            Spacer()
-        }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            // Navigation buttons
-            HStack(spacing: DesignTokens.Spacing.xxxs) {
-                Button {
-                    navigateBack()
-                } label: {
-                    Image(systemName: "chevron.left")
+                Button("Use Home") {
+                    rootPath = FileManager.default.homeDirectoryForCurrentUser.path
                 }
-                .disabled(navigationPath.isEmpty)
+                .buttonStyle(.bordered)
 
-                Button {
-                    navigateUp()
-                } label: {
-                    Image(systemName: "chevron.up")
+                Button("Use Current") {
+                    rootPath = engine.currentPath
                 }
-                .disabled(currentPath == homePath)
+                .buttonStyle(.bordered)
 
-                Button {
-                    Task { await refreshScan() }
-                } label: {
-                    Image(systemName: isScanning ? "stop.circle.fill" : "arrow.clockwise")
+                Spacer()
+
+                if let session = engine.session {
+                    Label("Confidence \(Int(session.confidence * 100))%", systemImage: "shield.checkered")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(isScanning || !hasFullDiskAccess)
             }
-            .buttonStyle(.borderless)
 
-            // Current path
-            Text(displayPath)
-                .font(DesignTokens.Typography.monoSubhead)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-                .lineLimit(1)
+            HStack(spacing: 14) {
+                Label(scanPhaseStatusText, systemImage: "gauge.with.dots.needle.bottom.50percent")
+                    .foregroundStyle(isScanning ? .blue : .secondary)
+                Label("\(ByteCountFormatter.string(fromByteCount: latestProgressBytes, countStyle: .file)) scanned", systemImage: "externaldrive")
+                Label("\(NumberFormatter.localizedString(from: NSNumber(value: latestProgressFiles), number: .decimal)) items", systemImage: "doc")
 
-            Spacer()
+                if !latestProgressPath.isEmpty {
+                    Text(latestProgressPath)
+                        .font(.system(.caption2, design: .monospaced))
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
 
-            // View mode segmented control
-            Picker("View Mode", selection: $viewMode) {
-                ForEach(DiskViewMode.allCases) { mode in
-                    Label(mode.rawValue, systemImage: mode.icon)
-                        .tag(mode)
+                Spacer()
+
+                if let warning = scanWarning ?? engine.lastWarning {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var scanProgressPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.regular)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Scanning your storage")
+                        .font(.headline)
+                    Text("Step \(scanPhaseStep) of 3 • \(scanPhaseStatusText)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+
+            ProgressView(value: scanStageProgress)
+                .progressViewStyle(.linear)
+
+            HStack(spacing: 14) {
+                Label("\(ByteCountFormatter.string(fromByteCount: latestProgressBytes, countStyle: .file)) scanned", systemImage: "externaldrive.fill")
+                Label("\(NumberFormatter.localizedString(from: NSNumber(value: latestProgressFiles), number: .decimal)) items", systemImage: "doc.badge.gearshape")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if let session = engine.session, isScanning {
+                let elapsed = Date().timeIntervalSince(session.startAt)
+                Text("Throughput \(formattedRate(session.filesPerSecond))/s • Dirs \(formattedRate(session.directoriesPerSecond))/s • Elapsed \(formattedDuration(elapsed)) • Energy \(session.energyMode.capitalized)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if scanPhaseStatusText.lowercased().contains("index") {
+                Text("Building tree map from scanned directories • \(formattedCount(engine.session?.indexedDirectories ?? 0)) directories • \(formattedCount(engine.session?.indexedNodes ?? 0)) items indexed")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !latestProgressPath.isEmpty {
+                Text("Now scanning: \(abbreviatedPath(latestProgressPath))")
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+            }
+
+            if hasEstimatedNodeSizes {
+                Label("Some deep sizes are estimated; open a folder to resolve exact values.", systemImage: "info.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let longScanWarning {
+                Label(longScanWarning, systemImage: "bolt.horizontal.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
+            if !recentScannedPaths.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(recentScannedPaths.suffix(4).reversed()), id: \.self) { path in
+                            Text(abbreviatedPath(path))
+                                .font(.system(.caption2, design: .monospaced))
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(nsColor: .controlBackgroundColor))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    private var tabBar: some View {
+        HStack {
+            Picker("Tab", selection: $selectedTab) {
+                ForEach(StorageHubTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
-            .disabled(isScanning || scanResult == nil)
-            .frame(width: 220)
+            .frame(width: 520)
+
+            Spacer()
+
+            if selectedTab == .explore {
+                Button("Focus", action: focusOnSelection)
+                    .keyboardShortcut("f", modifiers: [.command])
+                Button("Toggle Cart", action: toggleSelectionInCart)
+                    .keyboardShortcut("a", modifiers: [.command])
+                Button("Guided", action: sendSelectionToGuided)
+                    .keyboardShortcut("g", modifiers: [.command])
+                Button("Preview", action: openPreview)
+                    .keyboardShortcut(.space, modifiers: [])
+            }
         }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .padding(.vertical, DesignTokens.Spacing.xs)
-        .background(DesignTokens.Colors.backgroundSecondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
-    // MARK: - Progress View
-
-    private var progressView: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            Spacer()
-
-            ProgressView()
-                .scaleEffect(1.5)
-
-            if let progress = scanProgress {
-                VStack(spacing: DesignTokens.Spacing.xxs) {
-                    Text("Scanning...")
-                        .font(DesignTokens.Typography.bodyEmphasized)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                    Text(progress.currentPath)
-                        .font(DesignTokens.Typography.monoCaption)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: 500)
-
-                    HStack(spacing: DesignTokens.Spacing.md) {
-                        Label("\(progress.formattedFilesScanned) items", systemImage: "doc")
-                        Label("\(progress.formattedBytesScanned)", systemImage: "externaldrive")
-                    }
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(DesignTokens.Colors.textTertiary)
-                }
-            }
-
-            // Cancel button
-            Button("Cancel Scan") {
-                scanner.cancelScan()
-                isScanning = false
-            }
-            .buttonStyle(.bordered)
-            .accessibilityLabel("Cancel scan")
-            .accessibilityHint("Stops the disk analysis scan")
-
-            Spacer()
+    @ViewBuilder
+    private var contentView: some View {
+        switch selectedTab {
+        case .home:
+            hubHomeView
+        case .explore:
+            exploreView
+        case .act:
+            actView
+        case .insights:
+            insightsView
+        case .history:
+            historyView
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Error View
-
-    private func errorView(_ error: String) -> some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            Spacer()
-
-            Image(systemName: "exclamationmark.triangle")
+    private var permissionRequiredView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "lock.shield.fill")
                 .font(.system(size: 48))
-                .foregroundColor(DesignTokens.Colors.warning)
+                .foregroundStyle(.orange)
 
-            Text("Scan Error")
-                .font(DesignTokens.Typography.bodyEmphasized)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
+            Text("Full Disk Access Required")
+                .font(.title3.weight(.semibold))
 
-            Text(error)
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+            Text("Storage Intelligence Hub needs Full Disk Access to provide accurate hidden-space analysis and safe cleanup recommendations.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
 
-            // Check if it's a permission error
-            if error.contains("Full Disk Access") || error.contains("permission") || error.contains("Access denied") {
-                Button("Grant Permissions") {
-                    grantFullDiskAccess()
+            HStack {
+                Button("Open System Settings") {
+                    _ = permissionManager.requestFullDiskAccess()
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Grant full disk access")
-                .accessibilityHint("Opens System Settings to enable full disk access")
-            }
 
-            Button("Try Again") {
-                Task { await refreshScan() }
+                Button("Re-check") {
+                    Task { await checkPermissions() }
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
-            .accessibilityLabel("Try again")
-            .accessibilityHint("Retries the disk analysis scan")
-
-            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(20)
     }
 
-    // MARK: - Results View
-
-    private var resultsView: some View {
-        VStack(spacing: 0) {
-            // Summary bar
-            if let result = scanResult {
-                summaryBar(result)
-            }
-
-            Divider()
-
-            // Content based on view mode
-            switch viewMode {
-            case .list:
-                listView
-            case .treemap:
-                treemapView
-            case .hybrid:
-                hybridView
-            }
-        }
-    }
-
-    private func summaryBar(_ result: DiskScanResult) -> some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Label(result.formattedTotalSize, systemImage: "externaldrive.fill")
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
-
-            Label("\(result.formattedFileCount) items", systemImage: "doc.fill")
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
-
-            Spacer()
-
-            Text(String(format: "%.1fs", result.scanDuration))
-                .font(DesignTokens.Typography.caption)
-                .foregroundColor(DesignTokens.Colors.textTertiary)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .padding(.vertical, DesignTokens.Spacing.xxs)
-        .background(DesignTokens.Colors.backgroundSecondary)
-    }
-
-    // MARK: - List View (Bar Chart Rows)
-
-    private var listView: some View {
+    private var hubHomeView: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                if let result = scanResult {
-                    ForEach(result.entries) { entry in
-                        BarChartRow(
-                            entry: entry,
-                            maxSize: result.entries.first?.size ?? entry.size,
-                            totalSize: result.totalSize,
-                            isSelected: selectedPath == entry.path,
-                            onTap: {
-                                selectedPath = entry.path
-                                if entry.isDir {
-                                    navigateTo(entry.path)
-                                }
-                            },
-                            onReveal: {
-                                revealInFinder(entry.path)
-                            }
-                        )
-                    }
-
-                    // Large files section
-                    if !result.largeFiles.isEmpty {
-                        Section {
-                            ForEach(result.largeFiles) { file in
-                                LargeFileBarRow(
-                                    file: file,
-                                    maxSize: result.largeFiles.first?.size ?? file.size,
-                                    isSelected: selectedPath == file.path,
-                                    onTap: {
-                                        selectedPath = file.path
-                                    },
-                                    onReveal: {
-                                        revealInFinder(file.path)
-                                    }
-                                )
-                            }
-                        } header: {
-                            HStack {
-                                Text("Large Files")
-                                    .font(DesignTokens.Typography.captionEmphasized)
-                                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, DesignTokens.Spacing.sm)
-                            .padding(.vertical, DesignTokens.Spacing.xxs)
-                            .background(DesignTokens.Colors.backgroundSecondary)
+            VStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Storage Storyboard")
+                        .font(.headline)
+                    Text(engine.storyboardHeadline)
+                        .font(.title3.weight(.semibold))
+                    if let forecast = engine.forecast {
+                        HStack(spacing: 8) {
+                            Label(forecastNarrative(forecast), systemImage: "chart.line.uptrend.xyaxis")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\(Int(forecast.confidence * 100))% confidence")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-            }
-        }
-    }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
-    // MARK: - Treemap View
+                HStack(spacing: 12) {
+                    summaryCard(
+                        title: "Reclaimable",
+                        value: ByteCountFormatter.string(fromByteCount: engine.totalReclaimableBytes, countStyle: .file),
+                        subtitle: "Safe opportunities from packs",
+                        tint: .green
+                    )
 
-    private var treemapView: some View {
-        GeometryReader { geometry in
-            if let result = scanResult {
-                TreemapView(
-                    entries: result.entries,
-                    size: geometry.size,
-                    selectedPath: $selectedPath,
-                    onNavigate: { path in
-                        navigateTo(path)
-                    },
-                    onReveal: { path in
-                        revealInFinder(path)
-                    }
-                )
-            }
-        }
-        .padding(DesignTokens.Spacing.sm)
-    }
+                    summaryCard(
+                        title: "Current Scope",
+                        value: abbreviatedPath(engine.currentPath),
+                        subtitle: "Actively explored path",
+                        tint: .blue
+                    )
 
-    // MARK: - Hybrid View (Bar + Treemap)
-
-    private var hybridView: some View {
-        HSplitView {
-            // Left: Bar chart list
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if let result = scanResult {
-                        ForEach(result.entries.prefix(20)) { entry in
-                            BarChartRow(
-                                entry: entry,
-                                maxSize: result.entries.first?.size ?? entry.size,
-                                totalSize: result.totalSize,
-                                isSelected: selectedPath == entry.path,
-                                onTap: {
-                                    selectedPath = entry.path
-                                    if entry.isDir {
-                                        navigateTo(entry.path)
-                                    }
-                                },
-                                onReveal: {
-                                    revealInFinder(entry.path)
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            .frame(minWidth: 300)
-
-            // Right: Treemap
-            GeometryReader { geometry in
-                if let result = scanResult {
-                    TreemapView(
-                        entries: result.entries,
-                        size: geometry.size,
-                        selectedPath: $selectedPath,
-                        onNavigate: { path in
-                            navigateTo(path)
-                        },
-                        onReveal: { path in
-                            revealInFinder(path)
-                        }
+                    summaryCard(
+                        title: "Cart",
+                        value: "\(engine.cartCandidates.count) items",
+                        subtitle: "Selected for cleanup",
+                        tint: .orange
                     )
                 }
-            }
-            .frame(minWidth: 300)
-        }
-    }
 
-    // MARK: - Initial View
+                HStack(spacing: 12) {
+                    summaryCard(
+                        title: "Top Domain",
+                        value: dominantDomainLabel,
+                        subtitle: "Largest storage concentration",
+                        tint: .purple
+                    )
 
-    private var initialView: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            Spacer()
+                    summaryCard(
+                        title: "Scan Status",
+                        value: engine.session?.status.rawValue.capitalized ?? "Idle",
+                        subtitle: engine.session?.mode.rawValue ?? "Quick",
+                        tint: .teal
+                    )
 
-            Image(systemName: "externaldrive.fill")
-                .font(.system(size: 48))
-                .foregroundColor(DesignTokens.Colors.accent)
+                    summaryCard(
+                        title: "Last Run",
+                        value: historyHeadline,
+                        subtitle: "Most recent scan completion",
+                        tint: .pink
+                    )
+                }
 
-            Text("Disk Analysis")
-                .font(DesignTokens.Typography.h3)
-                .foregroundColor(DesignTokens.Colors.textPrimary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Top Reclaim Packs")
+                        .font(.headline)
 
-            Text("Analyze disk usage and find large files")
-                .font(DesignTokens.Typography.subhead)
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+                    if engine.reclaimPacks.isEmpty {
+                        PlaceholderStatePanel(title: "No packs yet", message: "Run a scan to generate reclaim packs like Downloads old files, Browser caches, and Xcode artifacts.")
+                    } else {
+                        ForEach(engine.reclaimPacks.prefix(6)) { pack in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pack.title)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(pack.rationale)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
 
-            if !overviewEntries.isEmpty {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                    Text("Quick Scan")
-                        .font(DesignTokens.Typography.subheadEmphasized)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
-                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                                Spacer()
 
-                    ForEach(overviewEntries) { entry in
-                        OverviewEntryRow(entry: entry) {
-                            navigateTo(entry.path)
+                                Text(ByteCountFormatter.string(fromByteCount: pack.reclaimableBytes, countStyle: .file))
+                                    .font(.system(.caption, design: .monospaced))
+
+                                Button("Add") {
+                                    engine.addPackToCart(pack)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                            .padding(8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }
                 }
-                .padding(DesignTokens.Spacing.sm)
-                .background(DesignTokens.Colors.backgroundSecondary)
-                .cornerRadius(DesignTokens.CornerRadius.large)
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button("Scan Current Folder") {
-                Task { await scanCurrentPath() }
+                HStack(alignment: .top, spacing: 12) {
+                    forecastCard
+                    anomalyCard
+                }
             }
-            .buttonStyle(.borderedProminent)
+            .padding(12)
+        }
+    }
 
-            Spacer()
+    private var exploreView: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button(action: navigateBack) {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+                .disabled(backStack.isEmpty)
+
+                Button(action: navigateForward) {
+                    Label("Forward", systemImage: "chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .disabled(forwardStack.isEmpty)
+
+                Button(action: navigateUp) {
+                    Label("Up", systemImage: "chevron.up")
+                }
+                .buttonStyle(.bordered)
+
+                breadcrumbBar
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                TextField("Jump to path", text: $pathJumpText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(width: 260)
+                    .focused($focusedField, equals: .pathJump)
+                    .onSubmit { jumpToPath() }
+
+                Button("Go", action: jumpToPath)
+                    .buttonStyle(.bordered)
+            }
+            .padding(.horizontal, 12)
+
+            HStack(spacing: 8) {
+                TextField("Filter path or name", text: Binding(
+                    get: { engine.filters.searchText },
+                    set: { value in engine.setFilter { $0.searchText = value } }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .focused($focusedField, equals: .search)
+                .frame(width: 240)
+
+                Menu {
+                    Button("Show all sizes") { engine.setFilter { $0.minBytes = 0 } }
+                    Button("> 50 MB") { engine.setFilter { $0.minBytes = 50 * 1024 * 1024 } }
+                    Button("> 500 MB") { engine.setFilter { $0.minBytes = 500 * 1024 * 1024 } }
+                    Button("> 2 GB") { engine.setFilter { $0.minBytes = 2 * 1024 * 1024 * 1024 } }
+                } label: {
+                    Label("Size", systemImage: "line.3.horizontal.decrease")
+                }
+                .menuStyle(.button)
+
+                Menu {
+                    Button("Any age") { engine.setFilter { $0.minAgeDays = nil } }
+                    Button("Older than 7 days") { engine.setFilter { $0.minAgeDays = 7 } }
+                    Button("Older than 30 days") { engine.setFilter { $0.minAgeDays = 30 } }
+                    Button("Older than 90 days") { engine.setFilter { $0.minAgeDays = 90 } }
+                } label: {
+                    Label("Age", systemImage: "clock.arrow.circlepath")
+                }
+                .menuStyle(.button)
+
+                Menu {
+                    Button("Any last-opened") { engine.setFilter { $0.lastOpenedWindow = .any } }
+                    Button("Opened in last 7 days") { engine.setFilter { $0.lastOpenedWindow = .last7Days } }
+                    Button("Opened in last 30 days") { engine.setFilter { $0.lastOpenedWindow = .last30Days } }
+                    Button("Opened in last 90 days") { engine.setFilter { $0.lastOpenedWindow = .last90Days } }
+                    Button("Older than 90 days") { engine.setFilter { $0.lastOpenedWindow = .olderThan90Days } }
+                    Divider()
+                    Toggle("Strict access-date only", isOn: Binding(
+                        get: { engine.filters.lastOpenedIsStrict },
+                        set: { value in engine.setFilter { $0.lastOpenedIsStrict = value } }
+                    ))
+                } label: {
+                    Label("Last Opened", systemImage: "clock")
+                }
+                .menuStyle(.button)
+
+                Menu {
+                    Button("All types") { engine.setFilter { $0.fileTypes = Set(StorageFileType.allCases) } }
+                    Divider()
+                    ForEach(StorageFileType.allCases) { fileType in
+                        Toggle(fileType.rawValue, isOn: Binding(
+                            get: { engine.filters.fileTypes.contains(fileType) },
+                            set: { isOn in
+                                engine.setFilter { state in
+                                    if isOn {
+                                        state.fileTypes.insert(fileType)
+                                    } else {
+                                        state.fileTypes.remove(fileType)
+                                    }
+                                    if state.fileTypes.isEmpty {
+                                        state.fileTypes = Set(StorageFileType.allCases)
+                                    }
+                                }
+                            }
+                        ))
+                    }
+                } label: {
+                    Label("File Type", systemImage: "doc.text")
+                }
+                .menuStyle(.button)
+
+                Menu {
+                    Button("All volumes") { engine.setFilter { $0.volumes = [] } }
+                    Divider()
+                    ForEach(engine.availableVolumes, id: \.self) { volume in
+                        Toggle(volume, isOn: Binding(
+                            get: { engine.filters.volumes.contains(volume) },
+                            set: { isOn in
+                                engine.setFilter { state in
+                                    if isOn {
+                                        state.volumes.insert(volume)
+                                    } else {
+                                        state.volumes.remove(volume)
+                                    }
+                                }
+                            }
+                        ))
+                    }
+                } label: {
+                    Label("Volume", systemImage: "externaldrive")
+                }
+                .menuStyle(.button)
+
+                Menu {
+                    Button("All owners") { engine.setFilter { $0.ownerApps = [] } }
+                    ForEach(engine.ownerApps, id: \.self) { owner in
+                        Button(owner) { engine.setFilter { $0.ownerApps = Set([owner]) } }
+                    }
+                } label: {
+                    Label("Owner", systemImage: "person.crop.circle")
+                }
+                .menuStyle(.button)
+
+                Toggle("Hidden", isOn: Binding(
+                    get: { engine.filters.includeHidden },
+                    set: { value in engine.setFilter { $0.includeHidden = value } }
+                ))
+                .toggleStyle(.switch)
+                .frame(width: 90)
+
+                Toggle("System", isOn: Binding(
+                    get: { engine.filters.includeSystem },
+                    set: { value in engine.setFilter { $0.includeSystem = value } }
+                ))
+                .toggleStyle(.switch)
+                .frame(width: 90)
+
+                Toggle("Reclaimable", isOn: Binding(
+                    get: { engine.filters.onlyReclaimable },
+                    set: { value in engine.setFilter { $0.onlyReclaimable = value } }
+                ))
+                .toggleStyle(.switch)
+                .frame(width: 120)
+
+                Toggle("Live", isOn: Binding(
+                    get: { engine.liveMonitoringEnabled },
+                    set: { value in engine.setLiveMonitoring(enabled: value) }
+                ))
+                .toggleStyle(.switch)
+                .frame(width: 80)
+            }
+            .padding(.horizontal, 12)
+
+            if engine.visibleNodes.isEmpty {
+                PlaceholderStatePanel(
+                    title: isScanning ? "Scanning storage…" : "No indexed nodes",
+                    message: isScanning ? "Scan is running. Visual explorer will appear as soon as indexing completes." : "Run a scan to explore storage terrain with orbit, treemap, and ranked list."
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
+            } else {
+                let visualNodes = Array(engine.visibleNodes.prefix(400))
+                HSplitView {
+                    StorageOrbitMapView(
+                        nodes: visualNodes,
+                        selectedNodeID: engine.selectedNodeID,
+                        growthByDomain: growthByDomain,
+                        onSelect: { node in
+                            engine.selectNode(node)
+                        },
+                        onDrill: { node in
+                            Task {
+                                await drillInto(node)
+                            }
+                        },
+                        onPreview: { node in
+                            engine.selectNode(node)
+                            showingPreview = true
+                        },
+                        onToggleCart: { node in
+                            engine.toggleCart(node)
+                        },
+                        onGuided: { node in
+                            engine.addToCart(node)
+                            selectedTab = .act
+                            workflowMode = .guided
+                        }
+                    )
+                    .frame(minWidth: 300)
+
+                    StorageTreemapView(
+                        nodes: visualNodes,
+                        selectedNodeID: engine.selectedNodeID,
+                        onSelect: { node in
+                            engine.selectNode(node)
+                        },
+                        onDrill: { node in
+                            Task {
+                                await drillInto(node)
+                            }
+                        }
+                    )
+                    .frame(minWidth: 360)
+
+                    rankedListPanel
+                        .frame(minWidth: 360)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+
+                if engine.liveMonitoringEnabled {
+                    liveMonitoringPanel
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 10)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 
-    // MARK: - Navigation
+    private var rankedListPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Ranked List")
+                    .font(.headline)
 
-    private var displayPath: String {
-        if currentPath == homePath {
-            return "~"
+                Spacer()
+
+                Text("\(engine.visibleNodes.count) items")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+
+            List(engine.visibleNodes, id: \.id) { node in
+                StorageNodeRow(
+                    node: node,
+                    isSelected: node.id == engine.selectedNodeID,
+                    inCart: engine.cartNodeIDs.contains(node.id),
+                    onSelect: { engine.selectNode(node) },
+                    onDrill: {
+                        Task {
+                            await drillInto(node)
+                        }
+                    },
+                    onToggleCart: { engine.toggleCart(node) },
+                    onReveal: { revealInFinder(node.path) }
+                )
+                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                .listRowSeparator(.hidden)
+            }
+            .listStyle(.plain)
         }
-        return currentPath.replacingOccurrences(of: homePath, with: "~")
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private func navigateBack() {
-        guard !navigationPath.isEmpty else { return }
-        currentPath = navigationPath.removeLast()
-        Task { await scanCurrentPath() }
+    private var actView: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                HStack {
+                    Picker("Workflow", selection: $workflowMode) {
+                        ForEach(CleanupWorkflowMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 360)
+
+                    Spacer()
+
+                    Text("Default action: Move to Trash")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if workflowMode == .guided {
+                    guidedAssistantPanel
+                } else {
+                    cartPanel
+                }
+
+                safetyCenterPanel
+            }
+            .padding(12)
+        }
+    }
+
+    private var guidedAssistantPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Guided Cleanup")
+                .font(.headline)
+
+            if engine.guidedSteps.isEmpty {
+                PlaceholderStatePanel(title: "No guided steps", message: "Run a scan to generate guided bundles and cleanup steps.")
+            } else {
+                let steps = engine.guidedSteps
+                let stepIndex = min(engine.activeGuidedStep, max(steps.count - 1, 0))
+                let step = steps[stepIndex]
+                let reviewPlan = engine.prepareCleanupPlan(mode: .moveToTrash)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(step.title)
+                            .font(.title3.weight(.semibold))
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: step.totalBytes, countStyle: .file))
+                            .font(.system(.caption, design: .monospaced))
+                    }
+
+                    Text(step.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if stepIndex < steps.count - 1 {
+                        ForEach(step.packs) { pack in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pack.title)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(pack.rationale)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Text(ByteCountFormatter.string(fromByteCount: pack.reclaimableBytes, countStyle: .file))
+                                    .font(.system(.caption, design: .monospaced))
+
+                                Button("Accept") {
+                                    engine.addPackToCart(pack)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .padding(8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    } else {
+                        finalReviewPanel(for: reviewPlan)
+                    }
+
+                    HStack {
+                        Button("Previous") { engine.previousGuidedStep() }
+                            .disabled(stepIndex == 0)
+                        Button("Next") { engine.nextGuidedStep() }
+                            .disabled(stepIndex >= steps.count - 1)
+
+                        Spacer()
+
+                        Button("Move selected to Trash") {
+                            Task {
+                                cleanupResult = await engine.executeCleanup(plan: reviewPlan)
+                                await refreshAfterCleanup()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(engine.cartCandidates.isEmpty)
+                    }
+                }
+                .padding(10)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+
+            cleanupResultPanel
+        }
+    }
+
+    private var cartPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Cart + Review")
+                    .font(.headline)
+                Spacer()
+                Text("\(engine.cartCandidates.count) items")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if engine.cartCandidates.isEmpty {
+                PlaceholderStatePanel(title: "Cart is empty", message: "Add nodes from Explore using the cart button, A shortcut, or guided pack actions.")
+            } else {
+                ForEach(engine.groupedCartCandidates) { group in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("\(group.domain.rawValue) • \(group.actionType == .moveToTrash ? "Move to Trash" : group.actionType.rawValue)")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Text(ByteCountFormatter.string(fromByteCount: group.reclaimableBytes, countStyle: .file))
+                                .font(.system(.caption2, design: .monospaced))
+                        }
+
+                        ForEach(group.items, id: \.id) { candidate in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(candidate.path)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .lineLimit(1)
+
+                                    Text(candidate.safeReason)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+
+                                    if let blocked = candidate.blockedReason {
+                                        Text(blocked)
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+
+                                Spacer()
+
+                                Text(ByteCountFormatter.string(fromByteCount: candidate.estimatedReclaimBytes, countStyle: .file))
+                                    .font(.system(.caption, design: .monospaced))
+                            }
+                            .padding(8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
+                HStack {
+                    Button("Exclude Selected Paths") {
+                        Task {
+                            let plan = engine.prepareCleanupPlan(mode: .excludeForever)
+                            cleanupResult = await engine.executeCleanup(plan: plan)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Move to Trash") {
+                        Task {
+                            let plan = engine.prepareCleanupPlan(mode: .moveToTrash)
+                            cleanupResult = await engine.executeCleanup(plan: plan)
+                            await refreshAfterCleanup()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Spacer()
+                }
+            }
+
+            cleanupResultPanel
+        }
+    }
+
+    private var safetyCenterPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Safety Center")
+                .font(.headline)
+
+            HStack(spacing: 10) {
+                safetyBadge(title: "Low", count: riskCount(.low), color: .green)
+                safetyBadge(title: "Medium", count: riskCount(.medium), color: .orange)
+                safetyBadge(title: "High", count: riskCount(.high), color: .red)
+                safetyBadge(title: "Protected", count: riskCount(.protected), color: .gray)
+            }
+
+            Text("Protected paths policy: /System, /usr, /bin, /sbin, /private, /Library, and app bundles in /Applications cannot be cleaned through one-click actions.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var insightsView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Storage Insights")
+                    .font(.headline)
+
+                if engine.insights.isEmpty {
+                    PlaceholderStatePanel(title: "No insights yet", message: "Run a scan to generate hidden, purgeable, and domain-level storage insights.")
+                } else {
+                    ForEach(engine.insights) { insight in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(insight.category.rawValue)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(ByteCountFormatter.string(fromByteCount: insight.bytes, countStyle: .file))
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("\(Int(insight.confidence * 100))%")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(insight.explanation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if !insight.recommendedActions.isEmpty {
+                                Text(insight.recommendedActions.joined(separator: " • "))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                if insight.recommendedActions.contains("Open in App Manager"), let selectedNode {
+                                    Button("Open in App Manager") {
+                                        engine.openInAppManager(for: selectedNode)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+
+                timeShiftPanel
+                forecastPanel
+                anomalyPanel
+                personaBundlesPanel
+                hygieneRoutinesPanel
+            }
+            .padding(12)
+        }
+    }
+
+    private var historyView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Scan History")
+                    .font(.headline)
+
+                if engine.history.isEmpty {
+                    PlaceholderStatePanel(title: "No history yet", message: "Completed scans will appear here with confidence and reclaimed space trends.")
+                } else {
+                    ForEach(engine.history) { entry in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(abbreviatedPath(entry.rootPath))
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("\(entry.mode.rawValue) • confidence \(Int(entry.confidence * 100))%")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(ByteCountFormatter.string(fromByteCount: entry.reclaimedBytes, countStyle: .file))
+                                    .font(.system(.caption, design: .monospaced))
+                                Text(RelativeDateTimeFormatter().localizedString(for: entry.finishedAt, relativeTo: Date()))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    historyTrendPanel
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private var cleanupResultPanel: some View {
+        Group {
+            if let result = cleanupResult {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("Cleanup complete", systemImage: "sparkles")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: result.cleanedBytes, countStyle: .file))
+                            .font(.system(.caption, design: .monospaced))
+                    }
+
+                    Text("Reclaimed \(ByteCountFormatter.string(fromByteCount: result.cleanedBytes, countStyle: .file)) • \(result.cleanedItems) cleaned • \(result.excludedItems) excluded")
+                        .font(.caption)
+
+                    if let before = result.beforeUsedBytes, let after = result.afterUsedBytes {
+                        let delta = max(before - after, 0)
+                        Text("Before: \(ByteCountFormatter.string(fromByteCount: before, countStyle: .file)) used • After: \(ByteCountFormatter.string(fromByteCount: after, countStyle: .file)) used • Delta: \(ByteCountFormatter.string(fromByteCount: delta, countStyle: .file))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if result.failedItems > 0 {
+                        Text("\(result.failedItems) items could not be completed. Review failures before retry.")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+
+                    if engine.lastCleanupPlan?.undoToken != nil {
+                        Button("Undo Last Cleanup") {
+                            Task {
+                                let undone = await engine.undoLastCleanupPlan()
+                                if undone {
+                                    cleanupResult = nil
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(10)
+                .background(Color.green.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    private var previewSheet: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let node = selectedNode {
+                Text("Quick Preview")
+                    .font(.headline)
+
+                Text(node.name)
+                    .font(.title3.weight(.semibold))
+
+                Text(node.path)
+                    .font(.system(.caption, design: .monospaced))
+
+                Divider()
+
+                Text("Size: \(node.displayBytes)")
+                Text("Reclaimable: \(node.displayReclaimableBytes)")
+                Text("Risk: \(node.riskLevel.rawValue.capitalized)")
+                Text("Domain: \(node.domain.rawValue)")
+
+                HStack {
+                    Button("Reveal in Finder") { revealInFinder(node.path) }
+                    if node.ownerApp != nil || node.domain == .applications {
+                        Button("Open in App Manager") {
+                            engine.openInAppManager(for: node)
+                        }
+                    }
+                    Button("Add to Cart") { engine.addToCart(node) }
+                        .buttonStyle(.borderedProminent)
+                }
+
+                Spacer()
+            } else {
+                PlaceholderStatePanel(title: "No selection", message: "Select a storage node in Explore to preview details.")
+            }
+        }
+        .padding(14)
+        .frame(width: 420, height: 320)
+    }
+
+    private var dominantDomainLabel: String {
+        let grouped = Dictionary(grouping: engine.visibleNodes, by: { $0.domain })
+            .mapValues { $0.reduce(0) { $0 + $1.logicalBytes } }
+        return grouped.max(by: { $0.value < $1.value })?.key.rawValue ?? "—"
+    }
+
+    private var growthByDomain: [StorageDomain: Int64] {
+        guard let shift = engine.timeShiftSummary else { return [:] }
+        return shift.domainDeltas.reduce(into: [StorageDomain: Int64]()) { partialResult, delta in
+            partialResult[delta.domain] = delta.bytesDelta
+        }
+    }
+
+    private var breadcrumbSegments: [(title: String, path: String)] {
+        let currentURL = URL(fileURLWithPath: engine.currentPath)
+        let components = currentURL.standardized.pathComponents
+        guard !components.isEmpty else { return [] }
+
+        var segments: [(String, String)] = []
+        var runningPath = ""
+        for component in components {
+            if component == "/" {
+                runningPath = "/"
+                segments.append(("Root", runningPath))
+                continue
+            }
+            if runningPath == "/" {
+                runningPath += component
+            } else {
+                runningPath += "/\(component)"
+            }
+            segments.append((component, runningPath))
+        }
+        return segments
+    }
+
+    private var breadcrumbBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(Array(breadcrumbSegments.enumerated()), id: \.offset) { index, segment in
+                    Button(segment.title) {
+                        Task {
+                            await navigate(to: segment.path)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .foregroundStyle(index == breadcrumbSegments.count - 1 ? .primary : .secondary)
+
+                    if index < breadcrumbSegments.count - 1 {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var historyHeadline: String {
+        guard let latest = engine.history.first else { return "Never" }
+        return RelativeDateTimeFormatter().localizedString(for: latest.finishedAt, relativeTo: Date())
+    }
+
+    private var forecastCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Space Forecast")
+                .font(.headline)
+            if let forecast = engine.forecast {
+                Text(forecast.estimatedDaysToFull.map { "Disk full in ~\($0) days" } ?? "No saturation projected")
+                    .font(.subheadline.weight(.semibold))
+                Text(forecast.narrative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Growth: \(ByteCountFormatter.string(fromByteCount: forecast.avgDailyGrowthBytes, countStyle: .file))/day")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Run multiple scans to unlock trend-based forecasting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var anomalyCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Anomalies")
+                .font(.headline)
+            if engine.anomalies.isEmpty {
+                Text("No major spikes detected in the latest scan.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(engine.anomalies.prefix(2)) { anomaly in
+                    HStack {
+                        Circle()
+                            .fill(severityColor(anomaly.severity))
+                            .frame(width: 8, height: 8)
+                        Text(anomaly.likelyCause)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(signedBytes(anomaly.bytesDelta))
+                            .font(.system(.caption2, design: .monospaced))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var liveMonitoringPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Live Monitoring Overlay")
+                    .font(.headline)
+                Spacer()
+                if let latest = engine.ioVolumeHistory.last {
+                    Text("R \(String(format: "%.1f", latest.readMBps)) MB/s • W \(String(format: "%.1f", latest.writeMBps)) MB/s")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if engine.liveHotspots.isEmpty {
+                Text("Sampling active paths. Hotspots appear as disk footprint changes are detected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(engine.liveHotspots.prefix(4)) { hotspot in
+                    HStack {
+                        Text(abbreviatedPath(hotspot.path))
+                            .font(.system(.caption2, design: .monospaced))
+                            .lineLimit(1)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Text(hotspot.sourceConfidence.rawValue.capitalized)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(hotspot.bytesPerSecond >= 0 ? "+\(ByteCountFormatter.string(fromByteCount: hotspot.bytesPerSecond, countStyle: .file))/s" : "-\(ByteCountFormatter.string(fromByteCount: abs(hotspot.bytesPerSecond), countStyle: .file))/s")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(hotspot.bytesPerSecond >= 0 ? .orange : .blue)
+                        }
+                    }
+                }
+            }
+
+            if !engine.processDeltas.isEmpty {
+                Divider()
+                Text("Process Sources")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(Array(engine.processDeltas.prefix(3))) { delta in
+                    HStack {
+                        Text(delta.processName)
+                            .font(.caption2)
+                        Text(delta.sourceConfidence.rawValue.capitalized)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: delta.bytesPerSecond, countStyle: .file) + "/s")
+                            .font(.system(.caption2, design: .monospaced))
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var timeShiftPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Time-Shift View")
+                .font(.headline)
+            if let shift = engine.timeShiftSummary {
+                Text(shift.narrative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Net change: \(signedBytes(shift.totalBytesDelta)) • Reclaimable: \(signedBytes(shift.reclaimableBytesDelta))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                ForEach(shift.domainDeltas.prefix(5)) { delta in
+                    HStack {
+                        Text(delta.domain.rawValue)
+                            .font(.caption)
+                        Spacer()
+                        Text(signedBytes(delta.bytesDelta))
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(delta.bytesDelta >= 0 ? .orange : .green)
+                    }
+                }
+            } else {
+                Text("Run another scan on the same scope to compare growth and shrink trends.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var forecastPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Forecasting")
+                .font(.headline)
+            if let forecast = engine.forecast {
+                Text(forecast.narrative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let projectedDate = forecast.projectedFullDate {
+                    Text("Projected full date: \(projectedDate.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Text("Confidence: \(Int(forecast.confidence * 100))%")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No forecast available yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var anomalyPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Anomaly Detection")
+                .font(.headline)
+            if engine.anomalies.isEmpty {
+                Text("No anomaly spikes detected from current and historical scans.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(engine.anomalies) { anomaly in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Circle()
+                                .fill(severityColor(anomaly.severity))
+                                .frame(width: 8, height: 8)
+                            Text(anomaly.likelyCause)
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Text(signedBytes(anomaly.bytesDelta))
+                                .font(.system(.caption2, design: .monospaced))
+                        }
+                        Text(anomaly.recommendation)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var personaBundlesPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Smart Bundles by Persona")
+                .font(.headline)
+            if engine.personaBundles.isEmpty {
+                Text("No persona bundles yet for this scope.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(engine.personaBundles) { bundle in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(bundle.persona.rawValue): \(bundle.title)")
+                                .font(.caption.weight(.semibold))
+                            Text(bundle.rationale)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(ByteCountFormatter.string(fromByteCount: bundle.reclaimableBytes, countStyle: .file))
+                            .font(.system(.caption2, design: .monospaced))
+                        Button("Add") {
+                            engine.addPersonaBundleToCart(bundle)
+                            selectedTab = .act
+                            workflowMode = .cart
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var hygieneRoutinesPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Automated Hygiene Routines")
+                .font(.headline)
+            ForEach(engine.hygieneRoutines) { routine in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(routine.title)
+                                .font(.caption.weight(.semibold))
+                            Text(routine.description)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { routine.isEnabled },
+                            set: { _ in engine.toggleHygieneRoutine(routine.id) }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                    }
+
+                    HStack {
+                        Text("Frequency: \(routine.frequency.rawValue)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if let nextRun = routine.nextRunAt {
+                            Text("Next: \(nextRun.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("Run now") {
+                            Task {
+                                cleanupResult = await engine.runHygieneRoutineNow(routine.id)
+                                await refreshAfterCleanup()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                .padding(8)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var historyTrendPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Reclaim Trend")
+                .font(.headline)
+            let trend = Array(engine.trendHistory.suffix(8))
+            if trend.isEmpty {
+                Text("Need additional scans to build trend history.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                let peak = max(trend.map(\.reclaimedBytes).max() ?? 1, 1)
+                ForEach(trend) { entry in
+                    HStack {
+                        Text(entry.finishedAt.formatted(date: .abbreviated, time: .omitted))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 90, alignment: .leading)
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.blue.opacity(0.65))
+                                .frame(width: max(8, geo.size.width * CGFloat(Double(entry.reclaimedBytes) / Double(peak))), height: 8)
+                        }
+                        .frame(height: 8)
+                        Text(ByteCountFormatter.string(fromByteCount: entry.reclaimedBytes, countStyle: .file))
+                            .font(.system(.caption2, design: .monospaced))
+                            .frame(width: 90, alignment: .trailing)
+                    }
+                    .frame(height: 12)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func finalReviewPanel(for plan: CleanupPlan) -> some View {
+        let dryRun = plan.dryRunResult
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Final Review")
+                .font(.subheadline.weight(.semibold))
+            Text("Dry run estimates reclaim and flags blocked paths before execution.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let dryRun {
+                Text("Estimated reclaim: \(ByteCountFormatter.string(fromByteCount: dryRun.cleanedBytes, countStyle: .file))")
+                    .font(.caption2)
+                Text("Estimated cleaned: \(dryRun.cleanedItems) • blocked: \(dryRun.failedItems)")
+                    .font(.caption2)
+            }
+
+            Text("Undo is available for trash-based operations. Secure delete cannot be rolled back.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func forecastNarrative(_ forecast: StorageForecast) -> String {
+        if let days = forecast.estimatedDaysToFull {
+            return "Disk full in about \(days) days at current growth."
+        }
+        return "No saturation date projected from current trend."
+    }
+
+    private func signedBytes(_ value: Int64) -> String {
+        let magnitude = ByteCountFormatter.string(fromByteCount: abs(value), countStyle: .file)
+        return value >= 0 ? "+\(magnitude)" : "-\(magnitude)"
+    }
+
+    private var hasEstimatedNodeSizes: Bool {
+        engine.nodesByPath.values.contains { nodes in
+            nodes.contains(where: \.sizeIsEstimated)
+        }
+    }
+
+    private func formattedCount(_ value: Int64) -> String {
+        NumberFormatter.localizedString(from: NSNumber(value: value), number: .decimal)
+    }
+
+    private func formattedRate(_ value: Double) -> String {
+        String(format: "%.1f", value)
+    }
+
+    private func formattedDuration(_ seconds: TimeInterval) -> String {
+        let total = max(Int(seconds.rounded()), 0)
+        let minutes = total / 60
+        let remaining = total % 60
+        return "\(minutes)m \(remaining)s"
+    }
+
+    private var longScanWarning: String? {
+        guard isScanning, let startAt = engine.session?.startAt else { return nil }
+        let elapsed = Date().timeIntervalSince(startAt)
+        guard elapsed >= 300 else { return nil }
+        return "This scan is taking longer than expected. Try targeted scope, exclude cloud/dev paths, or re-run with Full Disk Access."
+    }
+
+    private func severityColor(_ severity: StorageAnomalySeverity) -> Color {
+        switch severity {
+        case .info: return .blue
+        case .warning: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private func summaryCard(title: String, value: String, subtitle: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 18, weight: .semibold))
+                .lineLimit(1)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(tint.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func safetyBadge(title: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(.caption)
+            Text("\(count)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(Capsule())
+    }
+
+    private func abbreviatedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.replacingOccurrences(of: home, with: "~")
+    }
+
+    private func riskCount(_ level: StorageRiskLevel) -> Int {
+        engine.visibleNodes.filter { $0.riskLevel == level }.count
+    }
+
+    private func startScan() {
+        scanWarning = nil
+        cleanupResult = nil
+        isScanning = true
+        scanPhase = "Preparing"
+        backStack.removeAll()
+        forwardStack.removeAll()
+        latestProgressPath = ""
+        latestProgressBytes = 0
+        latestProgressFiles = 0
+        recentScannedPaths.removeAll()
+
+        let normalizedRoot: String
+        var targetedPaths: [String] = []
+        if scanMode == .targeted, let selectedNode {
+            normalizedRoot = selectedNode.path
+            targetedPaths = [selectedNode.path]
+        } else {
+            normalizedRoot = rootPath
+            if scanMode == .targeted {
+                targetedPaths = [rootPath]
+            }
+        }
+
+        Task {
+            for await event in engine.startScan(mode: scanMode, rootPath: normalizedRoot, targetedPaths: targetedPaths) {
+                switch event {
+                case .phaseStarted(let phase):
+                    scanPhase = phase
+                case .progress(let filesScanned, let bytesScanned, let currentPath):
+                    latestProgressFiles = filesScanned
+                    latestProgressBytes = bytesScanned
+                    latestProgressPath = currentPath
+                    updateRecentScannedPaths(with: currentPath)
+                case .nodeIndexed:
+                    continue
+                case .nodeIndexedBatch:
+                    continue
+                case .insightReady:
+                    continue
+                case .warning(let warning):
+                    scanWarning = warning
+                case .completed:
+                    isScanning = false
+                    scanPhase = "Completed"
+                    pathJumpText = engine.currentPath
+                    selectedTab = .explore
+                case .cancelled:
+                    isScanning = false
+                    scanPhase = "Cancelled"
+                }
+            }
+            isScanning = false
+        }
+    }
+
+    private func stopScan() {
+        scanPhase = "Cancelling"
+        engine.cancelActiveScan()
+        isScanning = false
+    }
+
+    private var scanPhaseStatusText: String {
+        let phase = scanPhase.trimmingCharacters(in: .whitespacesAndNewlines)
+        if phase.isEmpty || phase == "Idle" {
+            return isScanning ? "Scanning" : "Idle"
+        }
+        return phase
+    }
+
+    private var scanPhaseStep: Int {
+        let lowered = scanPhaseStatusText.lowercased()
+        if lowered.contains("prepar") { return 1 }
+        if lowered.contains("scan") { return 2 }
+        if lowered.contains("index") { return 3 }
+        if lowered.contains("complet") { return 3 }
+        if lowered.contains("cancel") { return 2 }
+        return isScanning ? 2 : 1
+    }
+
+    private var scanStageProgress: Double {
+        let filesMomentum = min(Double(max(latestProgressFiles, 0)) / 25_000.0, 1.0)
+        switch scanPhaseStep {
+        case 1:
+            return 0.18
+        case 2:
+            return min(0.35 + filesMomentum * 0.45, 0.8)
+        case 3:
+            if scanPhaseStatusText.lowercased().contains("complet") {
+                return 1.0
+            }
+            return min(0.82 + filesMomentum * 0.16, 0.98)
+        default:
+            return isScanning ? 0.4 : 0
+        }
+    }
+
+    private func updateRecentScannedPaths(with path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if recentScannedPaths.last == trimmed { return }
+        recentScannedPaths.append(trimmed)
+        if recentScannedPaths.count > 20 {
+            recentScannedPaths.removeFirst(recentScannedPaths.count - 20)
+        }
+    }
+
+    private func focusOnSelection() {
+        guard let selectedNode else { return }
+        Task {
+            await navigate(to: selectedNode.path)
+            _ = await engine.loadChildrenIfNeeded(for: selectedNode, forceRefresh: true)
+        }
+    }
+
+    private func toggleSelectionInCart() {
+        guard let selectedNode else { return }
+        engine.toggleCart(selectedNode)
+    }
+
+    private func sendSelectionToGuided() {
+        guard let selectedNode else { return }
+        engine.addToCart(selectedNode)
+        selectedTab = .act
+        workflowMode = .guided
+    }
+
+    private func openPreview() {
+        guard selectedNode != nil else { return }
+        showingPreview = true
+    }
+
+    private func drillInto(_ node: StorageNode) async {
+        engine.selectNode(node)
+        guard node.isDirectory else { return }
+        if node.path != engine.currentPath {
+            backStack.append(engine.currentPath)
+            forwardStack.removeAll()
+        }
+        engine.setCurrentPath(node.path)
+        _ = await engine.loadChildrenIfNeeded(for: node)
     }
 
     private func navigateUp() {
-        let parent = (currentPath as NSString).deletingLastPathComponent
-        guard !parent.isEmpty, parent != currentPath else { return }
-        navigateTo(parent)
+        let parent = (engine.currentPath as NSString).deletingLastPathComponent
+        guard !parent.isEmpty, parent != engine.currentPath else { return }
+        Task { await navigate(to: parent) }
     }
 
-    private func navigateTo(_ path: String) {
-        navigationPath.append(currentPath)
-        currentPath = path
-        Task { await scanCurrentPath() }
+    private func navigateBack() {
+        guard let previous = backStack.popLast() else { return }
+        forwardStack.append(engine.currentPath)
+        Task {
+            await navigate(to: previous, trackHistory: false)
+        }
+    }
+
+    private func navigateForward() {
+        guard let next = forwardStack.popLast() else { return }
+        backStack.append(engine.currentPath)
+        Task {
+            await navigate(to: next, trackHistory: false)
+        }
+    }
+
+    private func jumpToPath() {
+        Task { await navigate(to: pathJumpText) }
+    }
+
+    private func navigate(to path: String, trackHistory: Bool = true) async {
+        let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        guard !normalizedPath.isEmpty else { return }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: normalizedPath, isDirectory: &isDirectory), isDirectory.boolValue else {
+            scanWarning = "Path not found or not a directory: \(normalizedPath)"
+            return
+        }
+
+        if trackHistory, normalizedPath != engine.currentPath {
+            backStack.append(engine.currentPath)
+            forwardStack.removeAll()
+        }
+
+        engine.setCurrentPath(normalizedPath)
+        pathJumpText = normalizedPath
+        _ = await engine.loadPathIfNeeded(normalizedPath)
     }
 
     private func revealInFinder(_ path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
-
-    // MARK: - Permissions
 
     private func checkPermissions() async {
         isCheckingPermissions = true
@@ -619,575 +1853,536 @@ struct DiskAnalysisView: View {
         isCheckingPermissions = false
     }
 
-    private func grantFullDiskAccess() {
-        _ = permissionManager.requestFullDiskAccess()
+    private func refreshAfterCleanup() async {
+        if let node = selectedNode {
+            _ = await engine.loadChildrenIfNeeded(for: node, forceRefresh: true)
+        }
+        _ = await engine.loadPathIfNeeded(engine.currentPath, forceRefresh: true)
     }
 
-    // MARK: - Scanning
+    private func installKeyMonitorIfNeeded() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard selectedTab == .explore, focusedField == nil else { return event }
 
-    private func scanCurrentPath() async {
-        guard hasFullDiskAccess else {
-            errorMessage = "Full Disk Access is required for disk scanning"
-            return
-        }
+            let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            let hasCommand = event.modifierFlags.contains(.command)
 
-        isScanning = true
-        errorMessage = nil
-        scanResult = nil
-        selectedPath = nil
+            if !hasCommand {
+                switch chars {
+                case "f":
+                    focusOnSelection()
+                    return nil
+                case "a":
+                    toggleSelectionInCart()
+                    return nil
+                case "g":
+                    sendSelectionToGuided()
+                    return nil
+                default:
+                    break
+                }
 
-        do {
-            let result = try await scanner.scanPath(currentPath) { progress in
-                scanProgress = progress
+                if event.keyCode == 49 {
+                    openPreview()
+                    return nil
+                }
             }
-            scanResult = result
-            let detail = "Scanned \(currentPath) · \(result.formattedFileCount) items · Total \(result.formattedTotalSize) · Duration \(formatDuration(result.scanDuration))"
-            let event = ActivityEvent(
-                category: .disk,
-                title: "Disk analysis completed",
-                detail: detail,
-                impact: .low
-            )
-            ActivityLogStore.shared.record(event)
-        } catch {
-            errorMessage = error.localizedDescription
-            let event = ActivityEvent(
-                category: .disk,
-                title: "Disk analysis failed",
-                detail: "Error: \(error.localizedDescription)",
-                impact: .medium
-            )
-            ActivityLogStore.shared.record(event)
-        }
-
-        isScanning = false
-    }
-
-    private func refreshScan() async {
-        // Re-check permissions before scanning
-        await checkPermissions()
-
-        if hasFullDiskAccess {
-            await scanCurrentPath()
+            return event
         }
     }
 
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        String(format: "%.1fs", seconds)
+    private func removeKeyMonitor() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        keyMonitor = nil
     }
 }
 
-// MARK: - Bar Chart Row
-
-struct BarChartRow: View {
-    let entry: DirEntry
-    let maxSize: Int64
-    let totalSize: Int64
+private struct StorageNodeRow: View {
+    let node: StorageNode
     let isSelected: Bool
-    let onTap: () -> Void
+    let inCart: Bool
+    let onSelect: () -> Void
+    let onDrill: () -> Void
+    let onToggleCart: () -> Void
     let onReveal: () -> Void
 
-    @State private var isHovered = false
-
-    private var percentage: Double {
-        guard totalSize > 0 else { return 0 }
-        return Double(entry.size) / Double(totalSize) * 100
-    }
-
-    private var barWidth: CGFloat {
-        guard maxSize > 0 else { return 0 }
-        return CGFloat(entry.size) / CGFloat(maxSize)
-    }
-
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                // Icon
-                Image(systemName: entry.isDir ? "folder.fill" : "doc.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(entry.isDir ? .blue : DesignTokens.Colors.textTertiary)
-                    .frame(width: 20)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
+                    .foregroundStyle(node.isDirectory ? Color.blue : Color.secondary)
+                    .frame(width: 18)
 
-                // Name
-                Text(entry.name)
-                    .font(DesignTokens.Typography.subhead)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-                    .lineLimit(1)
-                    .frame(minWidth: 150, alignment: .leading)
-
-                // Bar chart
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background
-                        Rectangle()
-                            .fill(DesignTokens.Colors.separator.opacity(0.2))
-                            .frame(height: 8)
-                            .cornerRadius(4)
-
-                        // Fill
-                        Rectangle()
-                            .fill(barColor)
-                            .frame(width: geometry.size.width * barWidth, height: 8)
-                            .cornerRadius(4)
-                            .animation(DesignTokens.Animation.fast, value: barWidth)
-                    }
-                    .frame(height: 8)
-                    .frame(maxWidth: .infinity)
-                }
-                .frame(height: 8)
-
-                // Size
-                Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
-                    .font(DesignTokens.Typography.monoCaption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 70, alignment: .trailing)
-
-                // Percentage
-                Text(String(format: "%.1f%%", percentage))
-                    .font(DesignTokens.Typography.monoCaption)
-                    .foregroundColor(DesignTokens.Colors.textTertiary)
-                    .frame(width: 50, alignment: .trailing)
-
-                // Reveal button
-                Button {
-                    onReveal()
-                } label: {
-                    Image(systemName: "arrow.right.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
-                }
-                .buttonStyle(.plain)
-                .opacity(isHovered ? 1 : 0)
-            }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .padding(.vertical, DesignTokens.Spacing.xxs)
-            .background(rowBackground)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(DesignTokens.Animation.fast) {
-                isHovered = hovering
-            }
-        }
-        .contextMenu {
-            Button("Reveal in Finder") {
-                onReveal()
-            }
-            if entry.isDir {
-                Button("Open Folder") {
-                    onTap()
-                }
-            }
-        }
-    }
-
-    private var rowBackground: some View {
-        Group {
-            if isSelected {
-                DesignTokens.Colors.selectedContentBackground
-            } else if isHovered {
-                DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5)
-            } else {
-                Color.clear
-            }
-        }
-    }
-
-    private var barColor: Color {
-        if percentage >= 50 {
-            return DesignTokens.Colors.warning
-        } else if percentage >= 25 {
-            return DesignTokens.Colors.info
-        } else {
-            return DesignTokens.Colors.accent
-        }
-    }
-}
-
-// MARK: - Large File Bar Row
-
-struct LargeFileBarRow: View {
-    let file: LargeFile
-    let maxSize: Int64
-    let isSelected: Bool
-    let onTap: () -> Void
-    let onReveal: () -> Void
-
-    @State private var isHovered = false
-
-    private var barWidth: CGFloat {
-        guard maxSize > 0 else { return 0 }
-        return CGFloat(file.size) / CGFloat(maxSize)
-    }
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                // Icon
-                Image(systemName: "doc.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(DesignTokens.Colors.warning)
-                    .frame(width: 20)
-
-                // Name and path
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(file.name)
-                        .font(DesignTokens.Typography.subhead)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
+                    Text(node.name)
+                        .font(.subheadline)
                         .lineLimit(1)
 
-                    Text((file.path as NSString).deletingLastPathComponent)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                    Text(node.path)
+                        .font(.system(.caption2, design: .monospaced))
                         .lineLimit(1)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(minWidth: 150, alignment: .leading)
 
                 Spacer()
 
-                // Bar chart
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(DesignTokens.Colors.separator.opacity(0.2))
-                            .frame(height: 8)
-                            .cornerRadius(4)
+                RiskPill(level: node.riskLevel)
 
-                        Rectangle()
-                            .fill(DesignTokens.Colors.warning)
-                            .frame(width: geometry.size.width * barWidth, height: 8)
-                            .cornerRadius(4)
-                    }
-                    .frame(height: 8)
+                Text(node.displayBytes)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(width: 92, alignment: .trailing)
+
+                Button {
+                    onToggleCart()
+                } label: {
+                    Image(systemName: inCart ? "cart.fill.badge.minus" : "cart.badge.plus")
                 }
-                .frame(width: 100, height: 8)
+                .buttonStyle(.plain)
 
-                // Size
-                Text(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
-                    .font(DesignTokens.Typography.monoCaption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .frame(width: 70, alignment: .trailing)
-
-                // Reveal button
                 Button {
                     onReveal()
                 } label: {
                     Image(systemName: "arrow.right.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(DesignTokens.Colors.textTertiary)
                 }
                 .buttonStyle(.plain)
-                .opacity(isHovered ? 1 : 0)
             }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .padding(.vertical, DesignTokens.Spacing.xxs)
-            .background(rowBackground)
+            .padding(6)
+            .background(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(DesignTokens.Animation.fast) {
-                isHovered = hovering
-            }
-        }
-        .contextMenu {
-            Button("Reveal in Finder") {
-                onReveal()
-            }
-        }
-    }
-
-    private var rowBackground: some View {
-        Group {
-            if isSelected {
-                DesignTokens.Colors.selectedContentBackground
-            } else if isHovered {
-                DesignTokens.Colors.unemphasizedSelectedContentBackground.opacity(0.5)
-            } else {
-                Color.clear
+            .onTapGesture(perform: onSelect)
+            .onTapGesture(count: 2, perform: onDrill)
+            .contextMenu {
+                Button("Select", action: onSelect)
+                if node.isDirectory {
+                    Button("Open Folder", action: onDrill)
+                }
+                Button(inCart ? "Remove from Cart" : "Add to Cart", action: onToggleCart)
+                Button("Reveal in Finder", action: onReveal)
             }
         }
     }
 }
 
-// MARK: - Treemap View
+private struct RiskPill: View {
+    let level: StorageRiskLevel
 
-struct TreemapView: View {
-    let entries: [DirEntry]
-    let size: CGSize
-    @Binding var selectedPath: String?
-    let onNavigate: (String) -> Void
-    let onReveal: (String) -> Void
+    private var color: Color {
+        switch level {
+        case .low: return .green
+        case .medium: return .orange
+        case .high: return .red
+        case .protected: return .gray
+        }
+    }
 
     var body: some View {
-        let rects = calculateTreemap(entries: entries, rect: CGRect(origin: .zero, size: size))
+        Text(level.rawValue.capitalized)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.18))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
+    }
+}
 
-        ZStack {
-            ForEach(Array(zip(entries.indices, rects)), id: \.0) { index, rect in
-                let entry = entries[index]
-                TreemapCell(
-                    entry: entry,
-                    rect: rect,
-                    isSelected: selectedPath == entry.path,
-                    onTap: {
-                        selectedPath = entry.path
-                        if entry.isDir {
-                            onNavigate(entry.path)
+private struct StorageOrbitMapView: View {
+    let nodes: [StorageNode]
+    let selectedNodeID: String?
+    let growthByDomain: [StorageDomain: Int64]
+    let onSelect: (StorageNode) -> Void
+    let onDrill: (StorageNode) -> Void
+    let onPreview: (StorageNode) -> Void
+    let onToggleCart: (StorageNode) -> Void
+    let onGuided: (StorageNode) -> Void
+
+    @State private var hoveredNode: StorageNode?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Orbit Map")
+                .font(.headline)
+                .padding(.horizontal, 8)
+
+            GeometryReader { geometry in
+                let domainSegments = makeDomainSegments(nodes: nodes)
+                let nodeSegments = makeNodeSegments(nodes: nodes)
+
+                ZStack {
+                    ForEach(domainSegments) { segment in
+                        OrbitSlice(
+                            startAngle: .degrees(segment.startAngle),
+                            endAngle: .degrees(segment.endAngle),
+                            innerRatio: 0.14,
+                            outerRatio: 0.42
+                        )
+                        .fill(segment.color.opacity(selectedNodeID == segment.node.id ? 0.95 : 0.65))
+                        .overlay(
+                            OrbitSlice(
+                                startAngle: .degrees(segment.startAngle),
+                                endAngle: .degrees(segment.endAngle),
+                                innerRatio: 0.14,
+                                outerRatio: 0.42
+                            )
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .onTapGesture { onSelect(segment.node) }
+                        .onTapGesture(count: 2) { onDrill(segment.node) }
+                        .onHover { isHovering in
+                            hoveredNode = isHovering ? segment.node : nil
                         }
-                    },
-                    onReveal: {
-                        onReveal(entry.path)
                     }
+
+                    ForEach(nodeSegments) { segment in
+                        OrbitSlice(
+                            startAngle: .degrees(segment.startAngle),
+                            endAngle: .degrees(segment.endAngle),
+                            innerRatio: 0.48,
+                            outerRatio: 0.92
+                        )
+                        .fill(segment.color.opacity(selectedNodeID == segment.node.id ? 0.95 : 0.62))
+                        .overlay(
+                            OrbitSlice(
+                                startAngle: .degrees(segment.startAngle),
+                                endAngle: .degrees(segment.endAngle),
+                                innerRatio: 0.48,
+                                outerRatio: 0.92
+                            )
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.7)
+                        )
+                        .onTapGesture { onSelect(segment.node) }
+                        .onTapGesture(count: 2) { onDrill(segment.node) }
+                        .onHover { isHovering in
+                            hoveredNode = isHovering ? segment.node : nil
+                        }
+                    }
+
+                    Circle()
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .frame(width: min(geometry.size.width, geometry.size.height) * 0.22)
+
+                    Text("Storage\nTerrain")
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+
+                    if let hoveredNode {
+                        orbitHoverCard(for: hoveredNode)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 10)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .padding(8)
+    }
+
+    private func makeDomainSegments(nodes: [StorageNode]) -> [OrbitSegment] {
+        let grouped = Dictionary(grouping: nodes, by: { $0.domain })
+        var totals: [(domain: StorageDomain, bytes: Int64, representative: StorageNode?)] = []
+        totals.reserveCapacity(grouped.count)
+
+        for (domain, values) in grouped {
+            let bytes = values.reduce(0) { partialResult, value in
+                partialResult + value.logicalBytes
+            }
+            let representative = values.max { lhs, rhs in
+                lhs.logicalBytes < rhs.logicalBytes
+            }
+            totals.append((domain: domain, bytes: bytes, representative: representative))
+        }
+
+        totals = totals.filter { entry in
+            entry.bytes > 0 && entry.representative != nil
+        }
+        .sorted { lhs, rhs in
+            lhs.bytes > rhs.bytes
+        }
+
+        let totalBytes = totals.reduce(0) { $0 + $1.bytes }
+        guard totalBytes > 0 else { return [] }
+
+        var cursor: Double = -90
+        return totals.compactMap { item in
+            guard let node = item.representative else { return nil }
+            let span = Double(item.bytes) / Double(totalBytes) * 360
+            defer { cursor += span }
+            return OrbitSegment(
+                id: "domain-\(item.domain.rawValue)",
+                node: node,
+                startAngle: cursor,
+                endAngle: cursor + span,
+                color: colorForDomain(item.domain)
+            )
+        }
+    }
+
+    private func makeNodeSegments(nodes: [StorageNode]) -> [OrbitSegment] {
+        let topNodes = nodes.sorted { $0.logicalBytes > $1.logicalBytes }.prefix(16)
+        let totalBytes = topNodes.reduce(0) { $0 + $1.logicalBytes }
+        guard totalBytes > 0 else { return [] }
+
+        var cursor: Double = -90
+        return topNodes.map { node in
+            let span = Double(node.logicalBytes) / Double(totalBytes) * 360
+            defer { cursor += span }
+            return OrbitSegment(
+                id: node.id,
+                node: node,
+                startAngle: cursor,
+                endAngle: cursor + span,
+                color: colorForRisk(node.riskLevel)
+            )
+        }
+    }
+
+    private func colorForRisk(_ risk: StorageRiskLevel) -> Color {
+        switch risk {
+        case .low: return .green
+        case .medium: return .orange
+        case .high: return .red
+        case .protected: return .gray
+        }
+    }
+
+    private func colorForDomain(_ domain: StorageDomain) -> Color {
+        switch domain {
+        case .system: return .blue
+        case .applications: return .indigo
+        case .userFiles: return .mint
+        case .developer: return .purple
+        case .cloud: return .cyan
+        case .other: return .gray
+        }
+    }
+
+    private func orbitHoverCard(for node: StorageNode) -> some View {
+        let growth = growthByDomain[node.domain] ?? 0
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(node.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Text(node.displayBytes)
+                .font(.system(.caption2, design: .monospaced))
+            Text("Growth: \(signedBytes(growth))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text("Risk: \(node.riskLevel.rawValue.capitalized) • Owner: \(node.ownerApp ?? "Unknown")")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            HStack(spacing: 6) {
+                Button("Preview") { onPreview(node) }
+                    .buttonStyle(.bordered)
+                Button("Cart") { onToggleCart(node) }
+                    .buttonStyle(.bordered)
+                Button("Guided") { onGuided(node) }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(8)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func signedBytes(_ value: Int64) -> String {
+        let magnitude = ByteCountFormatter.string(fromByteCount: abs(value), countStyle: .file)
+        return value >= 0 ? "+\(magnitude)" : "-\(magnitude)"
+    }
+}
+
+private struct OrbitSegment: Identifiable {
+    let id: String
+    let node: StorageNode
+    let startAngle: Double
+    let endAngle: Double
+    let color: Color
+}
+
+private struct OrbitSlice: Shape {
+    let startAngle: Angle
+    let endAngle: Angle
+    let innerRatio: CGFloat
+    let outerRatio: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let maxRadius = min(rect.width, rect.height) * 0.5
+        let inner = maxRadius * innerRatio
+        let outer = maxRadius * outerRatio
+
+        var path = Path()
+        path.addArc(center: center, radius: outer, startAngle: startAngle, endAngle: endAngle, clockwise: false)
+        path.addArc(center: center, radius: inner, startAngle: endAngle, endAngle: startAngle, clockwise: true)
+        path.closeSubpath()
+        return path
+    }
+}
+
+struct TreemapLayoutEngine {
+    static func sliceAndDice(weights: [Int64], in rect: CGRect) -> [CGRect] {
+        guard !weights.isEmpty, rect.isFiniteRect, rect.width > 0, rect.height > 0 else { return [] }
+        let sanitized = weights.map { max($0, 0) }
+        let total = max(sanitized.reduce(0, +), 1)
+
+        var output: [CGRect] = []
+        var remainingRect = rect
+        var remainingTotal = CGFloat(total)
+
+        for weight in sanitized where remainingTotal > 0 {
+            let fraction = max(0, min(CGFloat(weight) / remainingTotal, 1))
+            let sliceRect: CGRect
+
+            if remainingRect.width > remainingRect.height {
+                let width = remainingRect.width * fraction
+                sliceRect = CGRect(x: remainingRect.minX, y: remainingRect.minY, width: width, height: remainingRect.height)
+                remainingRect = CGRect(
+                    x: remainingRect.minX + width,
+                    y: remainingRect.minY,
+                    width: max(0, remainingRect.width - width),
+                    height: remainingRect.height
+                )
+            } else {
+                let height = remainingRect.height * fraction
+                sliceRect = CGRect(x: remainingRect.minX, y: remainingRect.minY, width: remainingRect.width, height: height)
+                remainingRect = CGRect(
+                    x: remainingRect.minX,
+                    y: remainingRect.minY + height,
+                    width: remainingRect.width,
+                    height: max(0, remainingRect.height - height)
                 )
             }
-        }
-        .frame(width: size.width, height: size.height)
-    }
 
-    /// Calculate treemap rectangles using squarified algorithm
-    private func calculateTreemap(entries: [DirEntry], rect: CGRect) -> [CGRect] {
-        guard !entries.isEmpty else { return [] }
-
-        let totalSize = entries.reduce(0) { $0 + $1.size }
-        guard totalSize > 0 else { return entries.map { _ in CGRect.zero } }
-
-        var rects: [CGRect] = []
-        var remainingEntries = entries.sorted { $0.size > $1.size }
-        var remainingRect = rect
-
-        while !remainingEntries.isEmpty {
-            let (row, rest, rowRect, newRemainingRect) = squarify(
-                entries: remainingEntries,
-                rect: remainingRect,
-                totalSize: totalSize
-            )
-
-            // Layout row
-            let rowRects = layoutRow(entries: row, rect: rowRect, totalSize: totalSize)
-            rects.append(contentsOf: rowRects)
-
-            remainingEntries = rest
-            remainingRect = newRemainingRect
-        }
-
-        return rects
-    }
-
-    /// Squarify algorithm step
-    private func squarify(
-        entries: [DirEntry],
-        rect: CGRect,
-        totalSize: Int64
-    ) -> (row: [DirEntry], rest: [DirEntry], rowRect: CGRect, remainingRect: CGRect) {
-        guard !entries.isEmpty else {
-            return ([], [], .zero, rect)
-        }
-
-        var row: [DirEntry] = []
-        var rest = entries
-        var bestAspectRatio: CGFloat = .infinity
-
-        let isHorizontal = rect.width > rect.height
-
-        while !rest.isEmpty {
-            let candidate = rest[0]
-            let testRow = row + [candidate]
-
-            let rowSize = testRow.reduce(0) { $0 + $1.size }
-            let rowFraction = CGFloat(rowSize) / CGFloat(totalSize)
-
-            let rowDimension: CGFloat
-            let crossDimension: CGFloat
-
-            if isHorizontal {
-                rowDimension = rect.width * rowFraction
-                crossDimension = rect.height
-            } else {
-                rowDimension = rect.height * rowFraction
-                crossDimension = rect.width
+            if sliceRect.isFiniteRect, sliceRect.width > 0, sliceRect.height > 0 {
+                output.append(sliceRect)
             }
-
-            // Calculate worst aspect ratio in row
-            var worstRatio: CGFloat = 0
-            for entry in testRow {
-                let entryFraction = CGFloat(entry.size) / CGFloat(rowSize)
-                let entryDimension = crossDimension * entryFraction
-                let ratio = max(rowDimension / entryDimension, entryDimension / rowDimension)
-                worstRatio = max(worstRatio, ratio)
-            }
-
-            if worstRatio <= bestAspectRatio || row.isEmpty {
-                row = testRow
-                rest.removeFirst()
-                bestAspectRatio = worstRatio
-            } else {
-                break
-            }
+            remainingTotal -= CGFloat(weight)
         }
 
-        // Calculate row rect and remaining rect
-        let rowSize = row.reduce(0) { $0 + $1.size }
-        let rowFraction = CGFloat(rowSize) / CGFloat(totalSize)
-
-        let rowRect: CGRect
-        let remainingRect: CGRect
-
-        if isHorizontal {
-            let rowWidth = rect.width * rowFraction
-            rowRect = CGRect(x: rect.minX, y: rect.minY, width: rowWidth, height: rect.height)
-            remainingRect = CGRect(x: rect.minX + rowWidth, y: rect.minY, width: rect.width - rowWidth, height: rect.height)
-        } else {
-            let rowHeight = rect.height * rowFraction
-            rowRect = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rowHeight)
-            remainingRect = CGRect(x: rect.minX, y: rect.minY + rowHeight, width: rect.width, height: rect.height - rowHeight)
-        }
-
-        return (row, rest, rowRect, remainingRect)
-    }
-
-    /// Layout entries in a row
-    private func layoutRow(entries: [DirEntry], rect: CGRect, totalSize: Int64) -> [CGRect] {
-        guard !entries.isEmpty else { return [] }
-
-        let rowSize = entries.reduce(0) { $0 + $1.size }
-        guard rowSize > 0 else { return entries.map { _ in CGRect.zero } }
-
-        var rects: [CGRect] = []
-        var offset: CGFloat = 0
-
-        let isHorizontal = rect.width <= rect.height
-
-        for entry in entries {
-            let entryFraction = CGFloat(entry.size) / CGFloat(rowSize)
-
-            let entryRect: CGRect
-            if isHorizontal {
-                let width = rect.width * entryFraction
-                entryRect = CGRect(x: rect.minX + offset, y: rect.minY, width: width, height: rect.height)
-                offset += width
-            } else {
-                let height = rect.height * entryFraction
-                entryRect = CGRect(x: rect.minX, y: rect.minY + offset, width: rect.width, height: height)
-                offset += height
-            }
-
-            rects.append(entryRect)
-        }
-
-        return rects
+        return output
     }
 }
 
-// MARK: - Treemap Cell
-
-struct TreemapCell: View {
-    let entry: DirEntry
-    let rect: CGRect
-    let isSelected: Bool
-    let onTap: () -> Void
-    let onReveal: () -> Void
-
-    @State private var isHovered = false
-
-    private var cellColor: Color {
-        if entry.isDir {
-            return Color.blue.opacity(0.6)
-        } else {
-            return DesignTokens.Colors.warning.opacity(0.6)
-        }
-    }
+private struct StorageTreemapView: View {
+    let nodes: [StorageNode]
+    let selectedNodeID: String?
+    let onSelect: (StorageNode) -> Void
+    let onDrill: (StorageNode) -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                // Background
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
-                    .fill(cellColor)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Treemap Grid")
+                .font(.headline)
+                .padding(.horizontal, 8)
 
-                // Border
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small)
-                    .stroke(
-                        isSelected ? DesignTokens.Colors.accent : Color.white.opacity(0.3),
-                        lineWidth: isSelected ? 2 : 1
-                    )
+            GeometryReader { geometry in
+                let rects = calculateTreemap(nodes: nodes, rect: CGRect(origin: .zero, size: geometry.size))
 
-                // Label (only if cell is large enough)
-                if rect.width > 60 && rect.height > 40 {
-                    VStack(spacing: 2) {
-                        Image(systemName: entry.isDir ? "folder.fill" : "doc.fill")
-                            .font(.system(size: min(16, rect.height * 0.3)))
-                            .foregroundColor(.white)
-
-                        Text(entry.name)
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .padding(.horizontal, 4)
-
-                        if rect.height > 60 {
-                            Text(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))
-                                .font(DesignTokens.Typography.monoCaption)
-                                .foregroundColor(.white.opacity(0.8))
-                        }
+                ZStack(alignment: .topLeading) {
+                    ForEach(rects) { item in
+                        TreemapCell(
+                            node: item.node,
+                            rect: item.rect,
+                            isSelected: selectedNodeID == item.node.id,
+                            onSelect: { onSelect(item.node) },
+                            onDrill: { onDrill(item.node) }
+                        )
                     }
                 }
             }
-            .frame(width: max(0, rect.width - 2), height: max(0, rect.height - 2))
-            .position(x: rect.midX, y: rect.midY)
-            .scaleEffect(isHovered ? 1.02 : 1.0)
-            .animation(DesignTokens.Animation.fast, value: isHovered)
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
+        .padding(8)
+    }
+
+    private func calculateTreemap(nodes: [StorageNode], rect: CGRect) -> [TreemapRectNode] {
+        guard !nodes.isEmpty, rect.isFiniteRect, rect.width > 0, rect.height > 0 else { return [] }
+        let sortedNodes = nodes.sorted { $0.logicalBytes > $1.logicalBytes }
+        let layoutRects = TreemapLayoutEngine.sliceAndDice(
+            weights: sortedNodes.map(\.logicalBytes),
+            in: rect
+        )
+        return zip(sortedNodes, layoutRects).compactMap { node, nodeRect in
+            guard nodeRect.isFiniteRect, nodeRect.width > 0, nodeRect.height > 0 else { return nil }
+            return TreemapRectNode(node: node, rect: nodeRect)
         }
-        .contextMenu {
-            Button("Reveal in Finder") {
-                onReveal()
-            }
-            if entry.isDir {
-                Button("Open Folder") {
-                    onTap()
-                }
-            }
-        }
-        .help("\(entry.name)\n\(ByteCountFormatter.string(fromByteCount: entry.size, countStyle: .file))")
     }
 }
 
-// MARK: - Overview Entry Row
+private extension CGRect {
+    var isFiniteRect: Bool {
+        origin.x.isFinite && origin.y.isFinite && width.isFinite && height.isFinite
+    }
+}
 
-struct OverviewEntryRow: View {
-    let entry: DirectoryOverviewEntry
-    let action: () -> Void
+private struct TreemapRectNode: Identifiable {
+    let id = UUID()
+    let node: StorageNode
+    let rect: CGRect
+}
+
+private struct TreemapCell: View {
+    let node: StorageNode
+    let rect: CGRect
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDrill: () -> Void
+
+    private var fillColor: Color {
+        switch node.riskLevel {
+        case .low: return Color.green.opacity(0.7)
+        case .medium: return Color.orange.opacity(0.7)
+        case .high: return Color.red.opacity(0.7)
+        case .protected: return Color.gray.opacity(0.7)
+        }
+    }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.blue)
-                    .frame(width: 20)
+        let safeWidth = rect.width.isFinite ? max(0, rect.width - 2) : 0
+        let safeHeight = rect.height.isFinite ? max(0, rect.height - 2) : 0
+        let safeMidX = rect.midX.isFinite ? rect.midX : 0
+        let safeMidY = rect.midY.isFinite ? rect.midY : 0
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(fillColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(isSelected ? Color.white : Color.white.opacity(0.2), lineWidth: isSelected ? 2 : 0.8)
+                )
 
-                Text(entry.name)
-                    .font(DesignTokens.Typography.subhead)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Spacer()
-
-                Text(entry.displaySize)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(entry.isScanned ? DesignTokens.Colors.textSecondary : DesignTokens.Colors.warning)
+            if rect.width > 70 && rect.height > 40 {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(node.name)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Text(node.displayBytes)
+                        .font(.caption2)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.white)
+                .padding(6)
             }
-            .padding(.horizontal, DesignTokens.Spacing.xs)
-            .padding(.vertical, DesignTokens.Spacing.xxxs)
         }
-        .buttonStyle(.plain)
+        .frame(width: safeWidth, height: safeHeight)
+        .position(x: safeMidX, y: safeMidY)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
+        .onTapGesture(count: 2, perform: onDrill)
     }
 }
 
 #Preview {
     DiskAnalysisView()
-        .frame(width: 900, height: 600)
+        .frame(width: 1180, height: 760)
 }
