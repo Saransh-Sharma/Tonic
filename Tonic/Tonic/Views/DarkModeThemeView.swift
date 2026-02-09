@@ -63,26 +63,73 @@ public final class AppearancePreferences: @unchecked Sendable {
     public func setThemeMode(_ mode: ThemeMode) {
         themeMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Keys.themeMode)
+        Task { @MainActor in
+            let event = ActivityEvent(
+                category: .preference,
+                title: "Theme updated",
+                detail: "Theme: \(mode.rawValue)",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setAccentColor(_ color: AccentColor) {
         accentColor = color
         UserDefaults.standard.set(color.rawValue, forKey: Keys.accentColor)
+        Task { @MainActor in
+            let event = ActivityEvent(
+                category: .preference,
+                title: "Accent color updated",
+                detail: "Accent: \(color.rawValue)",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setIconStyle(_ style: IconStyle) {
         iconStyle = style
         UserDefaults.standard.set(style.rawValue, forKey: Keys.iconStyle)
+        Task { @MainActor in
+            let event = ActivityEvent(
+                category: .preference,
+                title: "Icon style updated",
+                detail: "Style: \(style.rawValue)",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setReduceTransparency(_ reduce: Bool) {
         reduceTransparency = reduce
         UserDefaults.standard.set(reduce, forKey: Keys.reduceTransparency)
+        Task { @MainActor in
+            let title = reduce ? "Reduce transparency enabled" : "Reduce transparency disabled"
+            let event = ActivityEvent(
+                category: .preference,
+                title: title,
+                detail: "Reduce transparency: \(reduce ? "On" : "Off")",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setReduceMotion(_ reduce: Bool) {
         reduceMotion = reduce
         UserDefaults.standard.set(reduce, forKey: Keys.reduceMotion)
+        Task { @MainActor in
+            let title = reduce ? "Reduce motion enabled" : "Reduce motion disabled"
+            let event = ActivityEvent(
+                category: .preference,
+                title: title,
+                detail: "Reduce motion: \(reduce ? "On" : "Off")",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setUseHighContrast(_ use: Bool) {
