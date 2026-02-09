@@ -128,6 +128,16 @@ struct GeneralPreferencesSection: View {
         Task {
             do {
                 try await updateLaunchAtLoginSetting(enabled)
+                await MainActor.run {
+                    let title = enabled ? "Launch at login enabled" : "Launch at login disabled"
+                    let event = ActivityEvent(
+                        category: .preference,
+                        title: title,
+                        detail: "Launch at login: \(enabled ? "On" : "Off")",
+                        impact: .none
+                    )
+                    ActivityLogStore.shared.record(event)
+                }
             } catch let err as TonicError {
                 self.error = err
                 launchAtLogin = !enabled
