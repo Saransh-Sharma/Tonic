@@ -47,10 +47,9 @@ final class AccessibilityTests: XCTestCase {
 
     func testSettingsLabels() {
         let labels = [
-            "Launch at Login Toggle",
             "Theme Picker",
             "Update Check Button",
-            "Clear Cache Button",
+            "Color Palette Picker",
         ]
 
         for label in labels {

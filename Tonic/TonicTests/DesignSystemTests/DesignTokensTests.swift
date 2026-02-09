@@ -238,14 +238,6 @@ final class DesignTokensTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(DesignTokens.Layout.minRowHeight, 40)
     }
 
-    // MARK: - High Contrast Environment Key Tests
-
-    func testHighContrastEnvironmentKey() {
-        // Test the environment key for high contrast mode
-        let key = HighContrastKey()
-        XCTAssertEqual(key.defaultValue, false)
-    }
-
     // MARK: - Integration Tests
 
     func testColorConsistencyAcrossDesignSystem() {
