@@ -145,9 +145,14 @@ class SmartScanManager: ObservableObject {
     @Published var recommendations: [Recommendation] = []
     @Published var lastScanDate: Date?
     @Published var lastReclaimableBytes: Int64?
+    @Published var scanStartDate: Date?
+    @Published var spaceFoundBytes: Int64?
+    @Published var appsScannedCount: Int?
+    @Published var flaggedCount: Int?
 
     private let scanEngine = SmartScanEngine()
     private let activityLog = ActivityLogStore.shared
+    private var scanTask: Task<Void, Never>?
 
     enum ScanPhase: String, CaseIterable {
         case idle = "Ready"
@@ -174,16 +179,56 @@ class SmartScanManager: ObservableObject {
 
     // MARK: - Smart Scan
 
-    func startSmartScan() async {
-        guard !isScanning else { return }
+    func startSmartScan() {
+        guard scanTask == nil else { return }
+
+        scanTask = Task {
+            await runSmartScan()
+        }
+    }
+
+    func stopSmartScan() {
+        scanTask?.cancel()
+        isScanning = false
+        scanProgress = 0.0
+        currentPhase = .idle
+        scanStartDate = nil
+    }
+
+    private func runSmartScan() async {
+        guard !isScanning else {
+            scanTask = nil
+            return
+        }
+
         isScanning = true
+        scanStartDate = Date()
         scanProgress = 0.0
         currentPhase = .preparing
 
-        let stages: [ScanStage] = [.preparing, .scanningDisk, .checkingApps, .analyzingSystem]
+        spaceFoundBytes = nil
+        appsScannedCount = nil
+        flaggedCount = nil
+
+        defer {
+            scanTask = nil
+        }
+
+        let stages: [ScanStage] = [.preparing, .scanningDisk, .analyzingSystem, .checkingApps]
         for stage in stages {
+            if Task.isCancelled { break }
             currentPhase = mapPhase(from: stage)
             scanProgress = await scanEngine.runStage(stage)
+            if Task.isCancelled { break }
+            refreshLiveCounters()
+        }
+
+        if Task.isCancelled {
+            isScanning = false
+            scanProgress = 0.0
+            currentPhase = .idle
+            scanStartDate = nil
+            return
         }
 
         let result = await scanEngine.finalizeScan()
@@ -192,6 +237,9 @@ class SmartScanManager: ObservableObject {
         lastScanDate = Date()
         lastReclaimableBytes = result.totalSpaceToReclaim
         updateRecommendations(from: result)
+
+        spaceFoundBytes = result.totalSpaceToReclaim
+        flaggedCount = recommendations.filter { !$0.isCompleted }.count
 
         let detail = "Found \(formatBytes(result.totalSpaceToReclaim)) reclaimable · Score +\(result.systemHealthScore) · Duration \(formatDuration(result.scanDuration))"
         let event = ActivityEvent(
@@ -205,12 +253,20 @@ class SmartScanManager: ObservableObject {
         scanProgress = 1.0
         currentPhase = .complete
         isScanning = false
+        scanStartDate = nil
+    }
+
+    private func refreshLiveCounters() {
+        if let bytes = scanEngine.partialSpaceFoundBytes {
+            spaceFoundBytes = bytes
+        }
+        flaggedCount = scanEngine.partialFlaggedCount
     }
 
     // MARK: - Quick Actions
 
     func quickScan() async {
-        await startSmartScan()
+        startSmartScan()
     }
 
     func quickClean() async {
@@ -531,9 +587,7 @@ struct DashboardView: View {
     private var smartScanButton: some View {
         Button {
             if !scanManager.isScanning {
-                Task {
-                    await scanManager.startSmartScan()
-                }
+                scanManager.startSmartScan()
             }
         } label: {
             HStack(spacing: DesignTokens.Spacing.sm) {
