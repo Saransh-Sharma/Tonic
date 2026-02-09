@@ -11,7 +11,7 @@ enum NavigationDestination: String, CaseIterable {
     case dashboard = "Dashboard"
     case systemCleanup = "System Cleanup"
     case appManager = "App Manager"
-    case diskAnalysis = "Disk Analysis"
+    case diskAnalysis = "Storage Hub"
     case liveMonitoring = "Live Monitoring"
     case menuBarWidgets = "Menu Bar Widgets"
     case developerTools = "Developer Tools"

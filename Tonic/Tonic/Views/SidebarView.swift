@@ -114,7 +114,7 @@ extension NavigationDestination {
         case .dashboard: return "Dashboard"
         case .systemCleanup: return "Smart Scan"
         case .appManager: return "Apps"
-        case .diskAnalysis: return "Disk"
+        case .diskAnalysis: return "Storage Hub"
         case .liveMonitoring: return "Activity"
         case .menuBarWidgets: return "Widgets"
         case .developerTools: return "Developer Tools"
