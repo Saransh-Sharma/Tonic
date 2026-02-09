@@ -65,6 +65,9 @@ struct ContentView: View {
                     )
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openAppManagerFromStorageHub)) { _ in
+                selectedDestination = .appManager
+            }
             .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
                 guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
                       let _ = WidgetType(rawValue: rawModule) else {
@@ -176,7 +179,7 @@ struct DetailView: View {
                 PermissionRequiredView(
                     icon: "externaldrive.fill",
                     title: "Full Disk Access Required",
-                    description: "Disk Analysis needs Full Disk Access to scan all directories on your Mac.",
+                    description: "Storage Intelligence Hub needs Full Disk Access to scan all directories on your Mac.",
                     onGrantPermission: {
                         onPermissionNeeded(.diskScan)
                     }
