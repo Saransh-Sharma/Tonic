@@ -6,6 +6,73 @@
 //
 
 import SwiftUI
+import Foundation
+
+enum WIPFeature: String, CaseIterable {
+    case activity
+    case storageHub
+    case developerTools
+    case designSandbox
+
+    var displayName: String {
+        switch self {
+        case .activity: return "Activity"
+        case .storageHub: return "Storage Hub"
+        case .developerTools: return "Developer Tools"
+        case .designSandbox: return "Design Sandbox"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .activity: return "gauge"
+        case .storageHub: return "externaldrive.fill"
+        case .developerTools: return "hammer.fill"
+        case .designSandbox: return "paintbrush.fill"
+        }
+    }
+}
+
+enum FeatureFlags {
+    private static let defaults = UserDefaults.standard
+
+    static func isEnabled(_ feature: WIPFeature) -> Bool {
+        #if DEBUG
+        let key = key(for: feature)
+        if defaults.object(forKey: key) != nil {
+            return defaults.bool(forKey: key)
+        }
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    static func isEnabled(_ destination: NavigationDestination) -> Bool {
+        guard let wipFeature = destination.wipFeature else {
+            return true
+        }
+        return isEnabled(wipFeature)
+    }
+
+    #if DEBUG
+    static func set(_ feature: WIPFeature, enabled: Bool) {
+        defaults.set(enabled, forKey: key(for: feature))
+    }
+
+    static func clearOverride(_ feature: WIPFeature) {
+        defaults.removeObject(forKey: key(for: feature))
+    }
+
+    static func clearAllOverrides() {
+        WIPFeature.allCases.forEach(clearOverride)
+    }
+    #endif
+
+    private static func key(for feature: WIPFeature) -> String {
+        "tonic.ff.\(feature.rawValue)"
+    }
+}
 
 enum NavigationDestination: String, CaseIterable {
     case dashboard = "Dashboard"
@@ -35,4 +102,33 @@ enum NavigationDestination: String, CaseIterable {
     var displayName: String {
         self.rawValue
     }
+
+    var wipFeature: WIPFeature? {
+        switch self {
+        case .diskAnalysis: return .storageHub
+        case .liveMonitoring: return .activity
+        case .developerTools: return .developerTools
+        case .designSandbox: return .designSandbox
+        default: return nil
+        }
+    }
+
+    static func sanitize(_ destination: NavigationDestination) -> NavigationDestination {
+        guard !FeatureFlags.isEnabled(destination) else {
+            return destination
+        }
+
+        switch destination {
+        case .diskAnalysis, .liveMonitoring:
+            return .dashboard
+        case .developerTools, .designSandbox:
+            return .settings
+        default:
+            return .dashboard
+        }
+    }
+}
+
+extension Notification.Name {
+    static let featureFlagsDidChange = Notification.Name("tonic.featureFlagsDidChange")
 }
