@@ -260,7 +260,6 @@ struct MetricsShowcase: View {
 // MARK: - Preference List Showcase
 
 struct PreferencesShowcase: View {
-    @State private var launchAtLogin = true
     @State private var automaticUpdates = false
     @State private var selectedTheme = "System"
 
@@ -275,12 +274,6 @@ struct PreferencesShowcase: View {
 
             PreferenceList {
                 PreferenceSection(header: "General", footer: "These settings control app behavior.") {
-                    PreferenceToggleRow(
-                        title: "Launch at Login",
-                        subtitle: "Start Tonic when you log in",
-                        icon: "power",
-                        isOn: $launchAtLogin
-                    )
                     PreferenceToggleRow(
                         title: "Automatic Updates",
                         subtitle: "Check for updates automatically",
@@ -312,28 +305,16 @@ struct PreferencesShowcase: View {
                     )
                 }
 
-                PreferenceSection(header: "Data") {
-                    PreferenceButtonRow(
-                        title: "Clear Cache",
-                        subtitle: "Remove temporary files",
-                        icon: "trash",
-                        iconColor: DesignTokens.Colors.warning,
-                        buttonTitle: "Clear",
-                        buttonStyle: .secondary
-                    ) {
-                        // Action
-                    }
-                    PreferenceButtonRow(
-                        title: "Reset All Settings",
-                        subtitle: "Restore default configuration",
-                        icon: "arrow.counterclockwise",
-                        iconColor: DesignTokens.Colors.destructive,
+                PreferenceSection(header: "Data", footer: "Use the danger zone in Settings for destructive actions.") {
+                    PreferenceStatusRow(
+                        title: "App Data",
+                        subtitle: "Managed by Tonic automatically",
+                        icon: "internaldrive",
+                        iconColor: DesignTokens.Colors.info,
                         showDivider: false,
-                        buttonTitle: "Reset",
-                        buttonStyle: .destructive
-                    ) {
-                        // Action
-                    }
+                        status: .healthy,
+                        statusText: "Healthy"
+                    )
                 }
             }
         }

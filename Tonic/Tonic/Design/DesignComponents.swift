@@ -852,16 +852,16 @@ struct MetricRow_Previews: PreviewProvider {
 /// ```swift
 /// PreferenceList {
 ///     PreferenceSection(header: "General") {
-///         PreferenceRow(title: "Launch at Login") {
-///             Toggle("", isOn: $launchAtLogin)
+///         PreferenceRow(title: "Automatic Updates") {
+///             Toggle("", isOn: $automaticUpdates)
 ///         }
 ///         PreferenceRow(title: "Theme", subtitle: "Choose appearance") {
 ///             Picker("", selection: $theme) { ... }
 ///         }
 ///     }
 ///     PreferenceSection(header: "Advanced") {
-///         PreferenceRow(title: "Clear Cache") {
-///             Button("Clear") { ... }
+///         PreferenceRow(title: "App Data") {
+///             Text("Managed")
 ///         }
 ///     }
 /// }
@@ -1410,19 +1410,12 @@ struct PreferenceList_Previews: PreviewProvider {
 }
 
 private struct PreferenceListPreviewWrapper: View {
-    @State private var launchAtLogin = true
     @State private var automaticUpdates = false
     @State private var selectedTheme = "System"
 
     var body: some View {
         PreferenceList {
             PreferenceSection(header: "General", footer: "These settings control app behavior at startup.") {
-                PreferenceToggleRow(
-                    title: "Launch at Login",
-                    subtitle: "Start Tonic when you log in",
-                    icon: "power",
-                    isOn: $launchAtLogin
-                )
                 PreferenceToggleRow(
                     title: "Automatic Updates",
                     subtitle: "Check for updates automatically",
@@ -1454,28 +1447,16 @@ private struct PreferenceListPreviewWrapper: View {
                 )
             }
 
-            PreferenceSection(header: "Data") {
-                PreferenceButtonRow(
-                    title: "Clear Cache",
-                    subtitle: "Remove temporary files",
-                    icon: "trash",
-                    iconColor: DesignTokens.Colors.warning,
-                    buttonTitle: "Clear",
-                    buttonStyle: .secondary
-                ) {
-                    print("Clear cache tapped")
-                }
-                PreferenceButtonRow(
-                    title: "Reset All Settings",
-                    subtitle: "Restore default configuration",
-                    icon: "arrow.counterclockwise",
-                    iconColor: DesignTokens.Colors.destructive,
+            PreferenceSection(header: "Data", footer: "Use the danger zone in Settings for destructive actions.") {
+                PreferenceStatusRow(
+                    title: "App Data",
+                    subtitle: "Managed by Tonic automatically",
+                    icon: "internaldrive",
+                    iconColor: DesignTokens.Colors.info,
                     showDivider: false,
-                    buttonTitle: "Reset",
-                    buttonStyle: .destructive
-                ) {
-                    print("Reset tapped")
-                }
+                    status: .healthy,
+                    statusText: "Healthy"
+                )
             }
         }
         .frame(width: 400)
