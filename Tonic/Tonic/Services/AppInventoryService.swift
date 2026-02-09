@@ -52,6 +52,7 @@ class AppInventoryService: ObservableObject {
     let cache = AppCache.shared
     private let scanner = BackgroundAppScanner()
     let fileOps = FileOperations.shared
+    private let activityLog = ActivityLogStore.shared
     private let loginItemsManager = LoginItemsManager.shared
     private let backgroundActivityManager = BackgroundActivityManager.shared
 
@@ -176,6 +177,7 @@ class AppInventoryService: ObservableObject {
     }
 
     private func performFastScan() async {
+        let scanStart = Date()
         isLoading = true
         errorMessage = nil
         progress = 0
@@ -238,6 +240,16 @@ class AppInventoryService: ObservableObject {
         cache.saveApps(apps)
         await fetchLoginItemsAndBackgroundActivities()
         await checkForUpdates()
+
+        let duration = Date().timeIntervalSince(scanStart)
+        let detail = "Found \(apps.count) apps · Updates \(availableUpdates) · Duration \(formatDuration(duration))"
+        let event = ActivityEvent(
+            category: .app,
+            title: "App scan completed",
+            detail: detail,
+            impact: .low
+        )
+        activityLog.record(event)
     }
 
     private func fetchLoginItemsAndBackgroundActivities() async {
@@ -449,6 +461,9 @@ class AppInventoryService: ObservableObject {
         defer { isUninstalling = false }
 
         let appsToDelete = selectedApps
+        if appsToDelete.isEmpty {
+            return UninstallResult(success: false, appsUninstalled: 0, bytesFreed: 0, errors: [])
+        }
         var successCount = 0
         var bytesFreed: Int64 = 0
         var errors: [UninstallError] = []
@@ -481,12 +496,25 @@ class AppInventoryService: ObservableObject {
         recomputeFilteredApps()
         cache.saveApps(apps)
 
+        let detail = "Removed \(successCount) apps · Freed \(ByteCountFormatter.string(fromByteCount: bytesFreed, countStyle: .file)) · Errors \(errors.count)"
+        let event = ActivityEvent(
+            category: .app,
+            title: "Apps uninstalled",
+            detail: detail,
+            impact: errors.isEmpty ? .low : .medium
+        )
+        activityLog.record(event)
+
         return UninstallResult(
             success: successCount > 0,
             appsUninstalled: successCount,
             bytesFreed: bytesFreed,
             errors: errors
         )
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%.1fs", seconds)
     }
 }
 
