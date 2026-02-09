@@ -16,7 +16,7 @@ struct SidebarSection: Identifiable {
     let items: [NavigationDestination]
 
     init(_ title: String?, items: [NavigationDestination]) {
-        self.id = title ?? UUID().uuidString
+        self.id = title ?? items.map(\.rawValue).joined(separator: ".")
         self.title = title
         self.items = items
     }
@@ -27,8 +27,8 @@ struct SidebarSection: Identifiable {
 struct SidebarView: View {
     @Binding var selectedDestination: NavigationDestination
 
-    /// Grouped navigation sections following the new IA
-    private let sections: [SidebarSection] = [
+    /// Base grouped navigation sections following the new IA
+    private let baseSections: [SidebarSection] = [
         SidebarSection(nil, items: [.dashboard]),
         SidebarSection("Maintenance", items: [.systemCleanup, .diskAnalysis, .appManager]),
         SidebarSection("Explore", items: [.liveMonitoring]),
@@ -36,6 +36,16 @@ struct SidebarView: View {
         SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
         SidebarSection(nil, items: [.settings])
     ]
+
+    private var sections: [SidebarSection] {
+        baseSections.compactMap { section in
+            let enabledItems = section.items.filter(FeatureFlags.isEnabled)
+            guard !enabledItems.isEmpty else {
+                return nil
+            }
+            return SidebarSection(section.title, items: enabledItems)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -100,7 +110,20 @@ struct SidebarView: View {
     // MARK: - Navigation Row
 
     private func navigationRow(_ destination: NavigationDestination) -> some View {
-        Label(destination.sidebarDisplayName, systemImage: destination.systemImage)
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: destination.systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .frame(width: 18)
+
+            Text(destination.sidebarDisplayName)
+
+            #if DEBUG
+            if destination.wipFeature != nil {
+                Badge(text: "WIP", color: DesignTokens.Colors.warning, size: .small)
+            }
+            #endif
+        }
             .tag(destination)
     }
 }

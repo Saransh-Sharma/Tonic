@@ -15,8 +15,8 @@ struct ContentView: View {
     @State private var showOnboarding = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
+    @State private var featureFlagsRefreshID = UUID()
     @Binding var showCommandPalette: Bool
-    @Environment(\.isHighContrast) private var isHighContrast
 
     @State private var permissionManager = PermissionManager.shared
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
@@ -32,6 +32,7 @@ struct ContentView: View {
         ZStack {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selectedDestination: $selectedDestination)
+                    .id(featureFlagsRefreshID)
             } detail: {
                 DetailView(
                     selectedDestination: $selectedDestination,
@@ -100,7 +101,18 @@ struct ContentView: View {
                 hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
                 showOnboarding = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .featureFlagsDidChange)) { _ in
+                featureFlagsRefreshID = UUID()
+                selectedDestination = NavigationDestination.sanitize(selectedDestination)
+            }
+            .onChange(of: selectedDestination) { _, newValue in
+                let sanitized = NavigationDestination.sanitize(newValue)
+                if sanitized != newValue {
+                    selectedDestination = sanitized
+                }
+            }
             .onAppear {
+                selectedDestination = NavigationDestination.sanitize(selectedDestination)
                 checkFirstLaunch()
             }
 
@@ -428,7 +440,9 @@ struct CommandPaletteView: View {
     @State private var selectedIndex: Int = 0
     @FocusState private var isSearchFocused: Bool
 
-    private let allDestinations = NavigationDestination.allCases
+    private var allDestinations: [NavigationDestination] {
+        NavigationDestination.allCases.filter(FeatureFlags.isEnabled)
+    }
 
     /// Filter destinations based on fuzzy search
     private var filteredDestinations: [NavigationDestination] {
@@ -543,6 +557,12 @@ struct CommandPaletteView: View {
                                         .foregroundColor(DesignTokens.Colors.textTertiary)
                                 }
 
+                                #if DEBUG
+                                if destination.wipFeature != nil {
+                                    Badge(text: "WIP", color: DesignTokens.Colors.warning, size: .small)
+                                }
+                                #endif
+
                                 Spacer()
 
                                 if index == selectedIndex {
@@ -563,6 +583,9 @@ struct CommandPaletteView: View {
                     }
                     .listStyle(.plain)
                     .onChange(of: selectedIndex) { oldValue, newValue in
+                        guard filteredDestinations.indices.contains(newValue) else {
+                            return
+                        }
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
@@ -574,6 +597,13 @@ struct CommandPaletteView: View {
             .onAppear {
                 isSearchFocused = true
                 selectedIndex = 0
+            }
+            .onChange(of: filteredDestinations.count) { _, newCount in
+                if newCount == 0 {
+                    selectedIndex = 0
+                } else if selectedIndex >= newCount {
+                    selectedIndex = newCount - 1
+                }
             }
         }
     }
