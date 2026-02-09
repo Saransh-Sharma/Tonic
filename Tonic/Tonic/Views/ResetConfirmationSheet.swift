@@ -115,14 +115,6 @@ struct ResetConfirmationSheet: View {
                         delay: 0.17
                     )
 
-                    if resetService.isHelperInstalled {
-                        ResetInfoRow(
-                            icon: "wrench.and.screwdriver.fill",
-                            text: "Privileged helper tool",
-                            color: TonicColors.warning,
-                            delay: 0.20
-                        )
-                    }
                 }
                 .padding(DesignTokens.Spacing.sm)
                 .background(DesignTokens.Colors.backgroundSecondary)
