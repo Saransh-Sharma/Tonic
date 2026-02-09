@@ -418,7 +418,7 @@ public final class CollectorBin: @unchecked Sendable {
             let (safePaths, protectedPaths) = fileOps.validatePathsForDeletion(paths)
 
             // Delete safe paths
-            let safeResult = await fileOps.deleteFiles(atPaths: safePaths, usePrivileged: true)
+            let safeResult = await fileOps.deleteFiles(atPaths: safePaths)
             deletedCount += safeResult.filesProcessed
             freedSpace += safeResult.bytesFreed
 
