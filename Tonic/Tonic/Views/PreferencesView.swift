@@ -67,7 +67,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case modules = "Modules"
     case permissions = "Permissions"
-    case helper = "Helper"
     case updates = "Updates"
     case help = "Help"
     case about = "About"
@@ -79,7 +78,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "gearshape.fill"
         case .modules: return "square.grid.2x2.fill"
         case .permissions: return "hand.raised.fill"
-        case .helper: return "wrench.and.screwdriver.fill"
         case .updates: return "arrow.down.circle.fill"
         case .help: return "bubble.right.fill"
         case .about: return "info.circle.fill"
@@ -91,7 +89,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "Appearance and startup"
         case .modules: return "Widget configuration"
         case .permissions: return "System access"
-        case .helper: return "Advanced features"
         case .updates: return "Software updates"
         case .help: return "Feedback and support"
         case .about: return "App information"
@@ -208,8 +205,6 @@ struct PreferencesView: View {
                         ModulesSettingsContent()
                     case .permissions:
                         PermissionsSettingsContent()
-                    case .helper:
-                        HelperSettingsContent()
                     case .updates:
                         UpdatesSettingsContent()
                     case .help:
@@ -318,7 +313,6 @@ struct SettingsSectionHeader: View {
         case .general: return "Customize how Tonic looks and behaves"
         case .modules: return "Configure menu bar widgets"
         case .permissions: return "Manage system permissions for full functionality"
-        case .helper: return "Enable advanced system operations"
         case .updates: return "Keep Tonic up to date"
         case .help: return "Get help and send us feedback"
         case .about: return "Learn more about Tonic"
