@@ -129,7 +129,6 @@ public final class FileOperations: @unchecked Sendable {
     // MARK: - Properties
 
     private let fileManager = FileManager.default
-    private let helperManager = PrivilegedHelperManager.shared
 
     private let lock = NSLock()
     private var _currentProgress: FileOperationProgress?
@@ -175,8 +174,6 @@ public final class FileOperations: @unchecked Sendable {
         var errors: [FileOperationError] = []
         var processedCount = 0
         var bytesFreed: Int64 = 0
-        var filesRequiringPrivileged: [String] = []
-
         isProcessing = true
 
         for (index, path) in paths.enumerated() {
@@ -205,39 +202,20 @@ public final class FileOperations: @unchecked Sendable {
                     processedCount += 1
                     bytesFreed += fileSize
                 } else {
-                    // May require privileged access
-                    filesRequiringPrivileged.append(path)
-                }
-
-            } catch let error as NSError {
-                if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
-                    // Permission denied - try with privileged helper
-                    filesRequiringPrivileged.append(path)
-                } else {
-                    errors.append(FileOperationError(
-                        path: path,
-                        errorType: error.code == NSFileNoSuchFileError ? .notFound : .unknown,
-                        underlyingError: error.localizedDescription
-                    ))
-                }
-            }
-        }
-
-        // Handle files requiring privileged access
-        if !filesRequiringPrivileged.isEmpty && helperManager.isInstalled {
-            for path in filesRequiringPrivileged {
-                do {
-                    let success = try await helperManager.moveFileToTrash(atPath: path)
-                    if success {
-                        processedCount += 1
-                    }
-                } catch {
                     errors.append(FileOperationError(
                         path: path,
                         errorType: .accessDenied,
-                        underlyingError: error.localizedDescription
+                        underlyingError: "Trash operation returned no result URL"
                     ))
                 }
+
+            } catch let error as NSError {
+                errors.append(FileOperationError(
+                    path: path,
+                    errorType: error.code == NSFileNoSuchFileError ? .notFound :
+                              (error.code == NSFileReadNoPermissionError ? .accessDenied : .unknown),
+                    underlyingError: error.localizedDescription
+                ))
             }
         }
 
@@ -342,12 +320,10 @@ public final class FileOperations: @unchecked Sendable {
 
     /// Delete files directly without moving to trash
     /// - Parameter paths: Array of file paths to delete
-    /// - Parameter usePrivileged: Whether to use privileged helper for protected files
     /// - Returns: Result of the operation
     @discardableResult
     public func deleteFiles(
-        atPaths paths: [String],
-        usePrivileged: Bool = true
+        atPaths paths: [String]
     ) async -> FileOperationResult {
         let startTime = Date()
         var errors: [FileOperationError] = []
@@ -375,34 +351,11 @@ public final class FileOperations: @unchecked Sendable {
                 processedCount += 1
                 bytesFreed += fileSize
             } catch {
-                // Check if protected and helper is available
-                if usePrivileged && helperManager.isInstalled {
-                    do {
-                        let success = try await helperManager.deleteFile(atPath: path)
-                        if success {
-                            processedCount += 1
-                            bytesFreed += fileSize
-                        } else {
-                            errors.append(FileOperationError(
-                                path: path,
-                                errorType: .accessDenied,
-                                underlyingError: "Helper deletion failed"
-                            ))
-                        }
-                    } catch {
-                        errors.append(FileOperationError(
-                            path: path,
-                            errorType: .accessDenied,
-                            underlyingError: error.localizedDescription
-                        ))
-                    }
-                } else {
-                    errors.append(FileOperationError(
-                        path: path,
-                        errorType: .accessDenied,
-                        underlyingError: error.localizedDescription
-                    ))
-                }
+                errors.append(FileOperationError(
+                    path: path,
+                    errorType: .accessDenied,
+                    underlyingError: error.localizedDescription
+                ))
             }
         }
 
@@ -429,12 +382,6 @@ public final class FileOperations: @unchecked Sendable {
             throw FileOperationError(path: path, errorType: .notFound, underlyingError: nil)
         }
 
-        // Try with helper first if available
-        if helperManager.isInstalled {
-            return try await helperManager.secureDeleteFile(atPath: path, passes: passes)
-        }
-
-        // Fallback: manual secure deletion
         try await manualSecureDelete(atPath: path, passes: passes)
         return true
     }
