@@ -196,7 +196,10 @@ public final class AppResetService {
             "scanEnabled",
             "notificationsEnabled",
             "autoCleanEnabled",
-            "themePreference"
+            "themePreference",
+            "tonic.activity.log",
+            "tonic.activity.hasLoggedInstall",
+            "tonic.activity.lastLoggedVersion"
         ]
 
         for key in knownKeys {
