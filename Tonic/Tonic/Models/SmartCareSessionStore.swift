@@ -32,6 +32,7 @@ final class SmartCareSessionStore: ObservableObject {
     @Published var currentScanItem: String?
 
     private let engine = SmartCareEngine()
+    private let activityLog = ActivityLogStore.shared
     private var scanTask: Task<Void, Never>?
     private var runTask: Task<Void, Never>?
     private var quickActionTask: Task<Void, Never>?
@@ -136,6 +137,7 @@ final class SmartCareSessionStore: ObservableObject {
                     performanceFlaggedCount: result.domainResults[.performance]?.totalUnitCount ?? 0,
                     appsScannedCount: result.domainResults[.applications]?.totalUnitCount ?? 0
                 )
+                self.logSmartScanCompleted(result)
             }
         }
     }
@@ -148,6 +150,7 @@ final class SmartCareSessionStore: ObservableObject {
 
         switch hubMode {
         case .scanning:
+            logSmartScanCancelled(stage: currentStage)
             scanTask?.cancel()
             hubMode = .ready
             scanProgress = 0
@@ -216,6 +219,7 @@ final class SmartCareSessionStore: ObservableObject {
                 scoreImprovement: 0,
                 message: "No runnable items available for this action."
             )
+            logQuickActionCompleted(sheet: quickActionSheet, summary: quickActionSummary)
             return
         }
 
@@ -234,6 +238,7 @@ final class SmartCareSessionStore: ObservableObject {
                 self.quickActionIsRunning = false
                 self.quickActionProgress = 1
                 self.quickActionSummary = summary
+                self.logQuickActionCompleted(sheet: quickActionSheet, summary: summary)
             }
         }
     }
@@ -268,6 +273,7 @@ final class SmartCareSessionStore: ObservableObject {
             )
             hubMode = .results
             runProgress = 0
+            logSmartCleanCompleted(summary: runSummary)
             return
         }
 
@@ -287,6 +293,7 @@ final class SmartCareSessionStore: ObservableObject {
                 self.runSummary = summary
                 self.runProgress = 1
                 self.hubMode = .results
+                self.logSmartCleanCompleted(summary: summary)
             }
         }
     }
@@ -422,6 +429,66 @@ final class SmartCareSessionStore: ObservableObject {
             errors: errors,
             scoreImprovement: scoreGain
         )
+    }
+
+    // MARK: - Activity Logging
+
+    private func logSmartScanCompleted(_ result: SmartCareResult) {
+        let detail = "Found \(formatBytes(result.totalReclaimableSize)) reclaimable · Score +\(result.totalScoreImpact) · Duration \(formatDuration(result.duration))"
+        let event = ActivityEvent(
+            category: .scan,
+            title: "Smart Scan completed",
+            detail: detail,
+            impact: impact(for: result.totalReclaimableSize)
+        )
+        activityLog.record(event)
+    }
+
+    private func logSmartScanCancelled(stage: SmartScanStage) {
+        let event = ActivityEvent(
+            category: .scan,
+            title: "Smart Scan cancelled",
+            detail: "Cancelled during \(stage.rawValue)",
+            impact: .none
+        )
+        activityLog.record(event)
+    }
+
+    private func logSmartCleanCompleted(summary: SmartScanRunSummary?) {
+        guard let summary else { return }
+        let event = ActivityEvent(
+            category: .clean,
+            title: "Smart Clean completed",
+            detail: summary.formattedSummary,
+            impact: summary.errors > 0 ? .medium : .low
+        )
+        activityLog.record(event)
+    }
+
+    private func logQuickActionCompleted(sheet: SmartScanQuickActionSheetState, summary: SmartScanRunSummary?) {
+        guard let summary else { return }
+        let title = "\(quickActionTitle(for: sheet.tileID, action: sheet.action)) completed"
+        let event = ActivityEvent(
+            category: .clean,
+            title: title,
+            detail: summary.formattedSummary,
+            impact: summary.errors > 0 ? .medium : .low
+        )
+        activityLog.record(event)
+    }
+
+    private func impact(for reclaimableBytes: Int64) -> ActivityImpact {
+        if reclaimableBytes >= 1_000_000_000 { return .high }
+        if reclaimableBytes >= 250_000_000 { return .medium }
+        return .low
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%.1fs", seconds)
     }
 }
 
