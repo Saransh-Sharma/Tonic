@@ -85,34 +85,58 @@ public final class SystemOptimization: @unchecked Sendable {
 
         currentAction = action.rawValue
         progress = 0
+        do {
+            let result: OptimizationResult
+            switch action {
+            case .flushDNS:
+                result = try await flushDNS()
+            case .freePurgeableSpace:
+                result = try await freePurgeableSpace()
+            case .reindexSpotlight:
+                result = try await reindexSpotlight()
+            case .repairDiskPermissions:
+                result = try await repairDiskPermissions()
+            case .speedUpMail:
+                result = try await speedUpMail()
+            case .clearRAM:
+                result = try await clearRAM()
+            case .rebuildLaunchServices:
+                result = try await rebuildLaunchServices()
+            case .cleanQuickLook:
+                result = try await cleanQuickLook()
+            case .cleanFonts:
+                result = try await cleanFonts()
+            }
 
-        let result: OptimizationResult
+            progress = 1.0
+            currentAction = nil
+            await logOptimizationEvent(action: action, bytesFreed: result.bytesFreed, success: true, error: nil)
+            return result
+        } catch {
+            progress = 1.0
+            currentAction = nil
+            await logOptimizationEvent(action: action, bytesFreed: 0, success: false, error: error.localizedDescription)
+            throw error
+        }
+    }
 
-        switch action {
-        case .flushDNS:
-            result = try await flushDNS()
-        case .freePurgeableSpace:
-            result = try await freePurgeableSpace()
-        case .reindexSpotlight:
-            result = try await reindexSpotlight()
-        case .repairDiskPermissions:
-            result = try await repairDiskPermissions()
-        case .speedUpMail:
-            result = try await speedUpMail()
-        case .clearRAM:
-            result = try await clearRAM()
-        case .rebuildLaunchServices:
-            result = try await rebuildLaunchServices()
-        case .cleanQuickLook:
-            result = try await cleanQuickLook()
-        case .cleanFonts:
-            result = try await cleanFonts()
+    private func logOptimizationEvent(action: OptimizationAction, bytesFreed: Int64, success: Bool, error: String?) async {
+        let freed = ByteCountFormatter.string(fromByteCount: bytesFreed, countStyle: .file)
+        var detail = "\(action.rawValue) · Freed \(freed) · \(success ? "Success" : "Failed")"
+        if let error, !success {
+            detail += " · \(error)"
         }
 
-        progress = 1.0
-        currentAction = nil
+        let event = ActivityEvent(
+            category: .optimize,
+            title: "Optimization completed",
+            detail: detail,
+            impact: success ? .low : .medium
+        )
 
-        return result
+        await MainActor.run {
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     // MARK: - Individual Actions
