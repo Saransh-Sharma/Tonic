@@ -23,6 +23,7 @@ struct DashboardHomeView: View {
     @State private var widgetDataManager = WidgetDataManager.shared
     @State private var widgetPreferences = WidgetPreferences.shared
     @State private var activityStore = ActivityLogStore.shared
+    @State private var permissionManager = PermissionManager.shared
 
     @State private var systemSnapshot: SystemSnapshot?
     @State private var snapshotLoadError: String?
@@ -48,7 +49,7 @@ struct DashboardHomeView: View {
                     .staggeredReveal(index: 0)
 
                     ScrollView(showsIndicators: false) {
-                        VStack(spacing: TonicSpaceToken.four) {
+                        VStack(spacing: TonicSpaceToken.two) {
                             overviewSection
                                 .staggeredReveal(index: 1)
 
@@ -75,6 +76,9 @@ struct DashboardHomeView: View {
         .onAppear {
             if !widgetDataManager.isMonitoring {
                 widgetDataManager.startMonitoring()
+            }
+            Task {
+                await permissionManager.checkAllPermissions()
             }
             refreshSnapshot()
         }
@@ -138,16 +142,27 @@ struct DashboardHomeView: View {
     }
 
     private var overviewWide: some View {
-        HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
+        HStack(alignment: .top, spacing: TonicSpaceToken.two) {
             DashboardTileCard(world: .smartScanPurple, size: .large) {
                 DashboardScanSummaryTile(
                     scanManager: scanManager,
-                    onPrimaryAction: { startOrStopScan() },
-                    onSecondaryAction: { selectedDestination = .systemCleanup }
+                    cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                    cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                    memoryHistory: Array(widgetDataManager.memoryHistory.suffix(10)),
+                    memoryPressure: widgetDataManager.memoryData.pressure,
+                    diskFreeText: diskFreeText,
+                    isDiskLow: isDiskLow,
+                    hasFullDiskAccess: hasFullDiskAccess,
+                    onRequestFullDiskAccess: { _ = permissionManager.requestFullDiskAccess() },
+                    onRunScan: { scanManager.startSmartScan() },
+                    onStopScan: { scanManager.stopSmartScan() },
+                    onRunSmartClean: { Task { await scanManager.quickClean() } },
+                    onOpenSmartScan: { selectedDestination = .systemCleanup },
+                    onExportReport: { showExportSheet = true }
                 )
             }
 
-            VStack(spacing: TonicSpaceToken.gridGap) {
+            VStack(spacing: TonicSpaceToken.two) {
                 DashboardTileCard(
                     world: .clutterTeal,
                     size: .wide,
@@ -165,36 +180,37 @@ struct DashboardHomeView: View {
                     )
                 }
 
-                HStack(spacing: TonicSpaceToken.gridGap) {
-                    DashboardTileCard(world: .performanceOrange, size: .small) {
-                        LiveStatsTile(
-                            cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
-                            memoryPressure: widgetDataManager.memoryData.pressure,
-                            diskFreeText: diskFreeText,
-                            cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
-                            onOpen: { selectedDestination = .liveMonitoring }
-                        )
-                    }
-
-                    DashboardTileCard(world: .protectionMagenta, size: .small) {
-                        WidgetsTile(
-                            enabledConfigs: widgetPreferences.enabledWidgets,
-                            dataManager: widgetDataManager,
-                            onCustomize: { selectedDestination = .menuBarWidgets }
-                        )
-                    }
+                DashboardTileCard(world: .performanceOrange, size: .wide) {
+                    LiveStatsTile(
+                        cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                        memoryPressure: widgetDataManager.memoryData.pressure,
+                        diskFreeText: diskFreeText,
+                        cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                        onOpen: { selectedDestination = .liveMonitoring }
+                    )
                 }
             }
         }
     }
 
     private var overviewNarrow: some View {
-        VStack(spacing: TonicSpaceToken.gridGap) {
+        VStack(spacing: TonicSpaceToken.two) {
             DashboardTileCard(world: .smartScanPurple, size: .large) {
                 DashboardScanSummaryTile(
                     scanManager: scanManager,
-                    onPrimaryAction: { startOrStopScan() },
-                    onSecondaryAction: { selectedDestination = .systemCleanup }
+                    cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                    cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                    memoryHistory: Array(widgetDataManager.memoryHistory.suffix(10)),
+                    memoryPressure: widgetDataManager.memoryData.pressure,
+                    diskFreeText: diskFreeText,
+                    isDiskLow: isDiskLow,
+                    hasFullDiskAccess: hasFullDiskAccess,
+                    onRequestFullDiskAccess: { _ = permissionManager.requestFullDiskAccess() },
+                    onRunScan: { scanManager.startSmartScan() },
+                    onStopScan: { scanManager.stopSmartScan() },
+                    onRunSmartClean: { Task { await scanManager.quickClean() } },
+                    onOpenSmartScan: { selectedDestination = .systemCleanup },
+                    onExportReport: { showExportSheet = true }
                 )
             }
 
@@ -215,37 +231,45 @@ struct DashboardHomeView: View {
                 )
             }
 
-            HStack(spacing: TonicSpaceToken.gridGap) {
-                DashboardTileCard(world: .performanceOrange, size: .small) {
-                    LiveStatsTile(
-                        cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
-                        memoryPressure: widgetDataManager.memoryData.pressure,
-                        diskFreeText: diskFreeText,
-                        cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
-                        onOpen: { selectedDestination = .liveMonitoring }
-                    )
-                }
-
-                DashboardTileCard(world: .protectionMagenta, size: .small) {
-                    WidgetsTile(
-                        enabledConfigs: widgetPreferences.enabledWidgets,
-                        dataManager: widgetDataManager,
-                        onCustomize: { selectedDestination = .menuBarWidgets }
-                    )
-                }
+            DashboardTileCard(world: .performanceOrange, size: .wide) {
+                LiveStatsTile(
+                    cpuPercent: Int(widgetDataManager.cpuData.totalUsage),
+                    memoryPressure: widgetDataManager.memoryData.pressure,
+                    diskFreeText: diskFreeText,
+                    cpuHistory: Array(widgetDataManager.cpuHistory.suffix(10)),
+                    onOpen: { selectedDestination = .liveMonitoring }
+                )
             }
+        }
+    }
+
+    private var widgetsPreviewCard: some View {
+        DashboardTileCard(
+            world: .protectionMagenta,
+            size: .wide,
+            forceHeight: 0
+        ) {
+            WidgetsTile(
+                enabledConfigs: widgetPreferences.enabledWidgets,
+                dataManager: widgetDataManager,
+                onCustomize: { selectedDestination = .menuBarWidgets }
+            )
         }
     }
 
     private var cardsSection: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: TonicSpaceToken.gridGap) {
-                recommendationsCard
+            HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+                VStack(spacing: TonicSpaceToken.two) {
+                    widgetsPreviewCard
+                    recommendationsCard
+                }
                 activityCard
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
 
-            VStack(spacing: TonicSpaceToken.gridGap) {
+            VStack(spacing: TonicSpaceToken.two) {
+                widgetsPreviewCard
                 recommendationsCard
                 activityCard
             }
@@ -257,7 +281,7 @@ struct DashboardHomeView: View {
             VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
                 HStack {
                     Text("Recommendations")
-                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .font(TonicTypeToken.body.weight(.semibold))
                         .foregroundStyle(TonicTextToken.primary)
 
                     Spacer()
@@ -284,7 +308,8 @@ struct DashboardHomeView: View {
                     EmptyStatePanel(
                         icon: "sparkles",
                         title: "All caught up",
-                        message: scanManager.hasScanResult ? "No recommendations right now." : "Run a Smart Scan to see recommendations."
+                        message: scanManager.hasScanResult ? "No recommendations right now." : "Run a Smart Scan to see recommendations.",
+                        compact: true
                     )
                 } else {
                     VStack(spacing: 0) {
@@ -300,7 +325,8 @@ struct DashboardHomeView: View {
                             }
                         }
                     }
-                    .glassSurface(radius: TonicRadiusToken.l, variant: .base)
+                    .background(TonicGlassToken.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
                 }
             }
         }
@@ -311,7 +337,7 @@ struct DashboardHomeView: View {
             VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
                 HStack {
                     Text("Recent Activity")
-                        .font(TonicTypeToken.caption.weight(.semibold))
+                        .font(TonicTypeToken.body.weight(.semibold))
                         .foregroundStyle(TonicTextToken.primary)
 
                     Spacer()
@@ -325,7 +351,7 @@ struct DashboardHomeView: View {
 
                 let rows = Array(activityStore.entries.prefix(5))
                 if rows.isEmpty {
-                    EmptyStatePanel(icon: "clock.arrow.circlepath", title: "No activity yet", message: "Run a Smart Scan to get started.")
+                    EmptyStatePanel(icon: "clock.arrow.circlepath", title: "No activity yet", message: "Run a Smart Scan to get started.", compact: true)
                 } else {
                     VStack(spacing: 0) {
                         ForEach(rows) { event in
@@ -335,30 +361,30 @@ struct DashboardHomeView: View {
                             }
                         }
                     }
-                    .glassSurface(radius: TonicRadiusToken.l, variant: .base)
+                    .background(TonicGlassToken.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
                 }
             }
         }
     }
 
     private var utilitiesSection: some View {
-        GlassCard(radius: TonicRadiusToken.container, variant: .sunken) {
-            HStack(spacing: TonicSpaceToken.two) {
-                SecondaryPillButton(title: "Copy System Specs") {
-                    copySpecs()
-                }
+        HStack(spacing: TonicSpaceToken.two) {
+            SecondaryPillButton(title: "Copy System Specs") {
+                copySpecs()
+            }
 
-                SecondaryPillButton(title: "Export Support Report") {
-                    showExportSheet = true
-                }
+            SecondaryPillButton(title: "Export Support Report") {
+                showExportSheet = true
+            }
 
-                Spacer()
+            Spacer()
 
-                SecondaryPillButton(title: "Open Settings") {
-                    selectedDestination = .settings
-                }
+            SecondaryPillButton(title: "Open Settings") {
+                selectedDestination = .settings
             }
         }
+        .padding(.horizontal, TonicSpaceToken.two)
     }
 
     // MARK: - Snapshot
@@ -420,16 +446,16 @@ struct DashboardHomeView: View {
         return String(format: "%.0f GB free", freeGB)
     }
 
-    // MARK: - Smart Scan Actions
-
-    private func startOrStopScan() {
-        if scanManager.isScanning {
-            return
+    private var isDiskLow: Bool {
+        guard let boot = widgetDataManager.diskVolumes.first(where: { $0.isBootVolume }) ?? widgetDataManager.diskVolumes.first else {
+            return false
         }
+        let freeGB = Double(boot.freeBytes) / (1024 * 1024 * 1024)
+        return freeGB < 20
+    }
 
-        Task {
-            await scanManager.startSmartScan()
-        }
+    private var hasFullDiskAccess: Bool {
+        permissionManager.permissionStatuses[.fullDiskAccess] == .authorized
     }
 
     private func destination(for recommendation: Recommendation) -> NavigationDestination {
@@ -456,15 +482,12 @@ struct DashboardHomeView: View {
 // MARK: - Overview Container
 
 private struct DashboardOverviewContainer<Content: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(spacing: 0) {
             content()
         }
-        .padding(TonicSpaceToken.three)
-        .glassSurface(radius: TonicRadiusToken.container, variant: colorScheme == .dark ? .sunken : .raised)
     }
 }
 
@@ -475,7 +498,7 @@ private enum DashboardTileSize {
 
     var height: CGFloat {
         switch self {
-        case .large: return 368
+        case .large: return 400
         case .wide: return 178
         case .small: return 178
         }
@@ -494,12 +517,11 @@ private struct DashboardTileCard<Content: View>: View {
         VStack {
             content()
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: forceHeight ?? size.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: forceHeight ?? size.height)
         .padding(TonicSpaceToken.three)
         .glassSurface(radius: TonicRadiusToken.xl, variant: colorScheme == .dark ? .base : .raised)
         .tonicTheme(world)
-        .depthLift()
         .accessibilityElement(children: .contain)
     }
 }
@@ -508,58 +530,60 @@ private struct DashboardTileCard<Content: View>: View {
 
 private struct DashboardScanSummaryTile: View {
     @ObservedObject var scanManager: SmartScanManager
-    let onPrimaryAction: () -> Void
-    let onSecondaryAction: () -> Void
+    let cpuPercent: Int
+    let cpuHistory: [Double]
+    let memoryHistory: [Double]
+    let memoryPressure: MemoryPressure
+    let diskFreeText: String
+    let isDiskLow: Bool
+    let hasFullDiskAccess: Bool
+    let onRequestFullDiskAccess: () -> Void
+    let onRunScan: () -> Void
+    let onStopScan: () -> Void
+    let onRunSmartClean: () -> Void
+    let onOpenSmartScan: () -> Void
+    let onExportReport: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tonicTheme) private var theme
+    @State private var showScopePopover = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
-            HStack(spacing: TonicSpaceToken.two) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(theme.accent)
+        ZStack(alignment: .topLeading) {
+            if isReadyZeroState {
+                RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                    .fill(theme.glowSoft.opacity(0.22))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TonicRadiusToken.xl)
+                            .stroke(TonicStrokeToken.subtle, lineWidth: 1)
+                    )
+                    .allowsHitTesting(false)
+                    .breathingHero()
+            }
 
-                Text("Smart Scan")
-                    .font(TonicTypeToken.caption.weight(.semibold))
-                    .foregroundStyle(TonicTextToken.primary)
-
-                Spacer()
+            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                headerRow
 
                 if scanManager.isScanning {
-                    Text("\(Int(scanManager.scanProgress * 100))%")
-                        .font(TonicTypeToken.micro.monospacedDigit())
-                        .foregroundStyle(TonicTextToken.secondary)
-                        .contentTransition(.numericText())
+                    scanningBody
+                } else if scanManager.hasScanResult {
+                    resultBody
+                } else {
+                    zeroStateBody
                 }
-            }
 
-            if scanManager.isScanning {
-                scanningBody
-            } else if scanManager.hasScanResult {
-                resultBody
-            } else {
-                readyBody
-            }
+                actionsRow
 
-            Spacer(minLength: 0)
-
-            HStack(spacing: TonicSpaceToken.two) {
-                PrimaryActionButton(
-                    title: scanManager.isScanning ? "Scanning…" : (scanManager.hasScanResult ? "Run Again" : "Run Smart Scan"),
-                    icon: scanManager.isScanning ? "hourglass" : "play.fill",
-                    action: onPrimaryAction,
-                    isEnabled: !scanManager.isScanning
-                )
-
-                TertiaryGhostButton(title: "Open Smart Scan", action: onSecondaryAction)
+                Spacer(minLength: 0)
             }
         }
         .heroSweep(active: scanManager.isScanning, radius: TonicRadiusToken.xl)
         .pulseGlow(active: scanManager.isScanning, progress: scanManager.scanProgress)
-        .breathingHero()
         .accessibilityLabel(scanAccessibilityLabel)
+    }
+
+    private var isReadyZeroState: Bool {
+        !scanManager.isScanning && !scanManager.hasScanResult
     }
 
     private var scanAccessibilityLabel: String {
@@ -572,28 +596,104 @@ private struct DashboardScanSummaryTile: View {
         return "Smart Scan. Not scanned yet."
     }
 
-    private var readyBody: some View {
-        VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
-            Text("A quick health check across Space, Performance, and Apps.")
-                .font(TonicTypeToken.body)
-                .foregroundStyle(TonicTextToken.secondary)
+    private var headerRow: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.accent)
 
-            Text("Run it any time for tailored recommendations.")
-                .font(TonicTypeToken.micro)
-                .foregroundStyle(TonicTextToken.tertiary)
+            Text("Smart Scan")
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            Spacer()
+
+            if scanManager.isScanning {
+                statusChip("Scanning", role: .world(.smartScanPurple))
+                Text(elapsedText)
+                    .font(TonicTypeToken.micro.monospacedDigit())
+                    .foregroundStyle(TonicTextToken.tertiary)
+            } else if scanManager.hasScanResult {
+                statusChip("Scan complete", role: .semantic(.success))
+                Text(lastScanRelativeText)
+                    .font(TonicTypeToken.micro.monospacedDigit())
+                    .foregroundStyle(TonicTextToken.tertiary)
+            } else {
+                statusChip("Not scanned yet", role: .semantic(.neutral))
+            }
         }
     }
 
     private var scanningBody: some View {
-        VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
-            Text(scanManager.currentPhase.rawValue)
-                .font(TonicTypeToken.body.weight(.medium))
-                .foregroundStyle(TonicTextToken.primary)
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            HStack(alignment: .firstTextBaseline, spacing: TonicSpaceToken.two) {
+                Text("\(Int(scanManager.scanProgress * 100))%")
+                    .font(TonicTypeToken.tileMetric)
+                    .foregroundStyle(TonicTextToken.primary)
+                    .contentTransition(.numericText())
+
+                Text(scanManager.currentPhase.rawValue)
+                    .font(TonicTypeToken.body.weight(.medium))
+                    .foregroundStyle(TonicTextToken.secondary)
+            }
 
             ProgressView(value: scanManager.scanProgress)
                 .progressViewStyle(.linear)
                 .tint(theme.accent)
                 .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.med), value: scanManager.scanProgress)
+
+            DashboardScanStageStepper(phase: scanManager.currentPhase)
+
+            HStack(spacing: TonicSpaceToken.two) {
+                DashboardScanLiveCounter(label: "Space found", value: spaceFoundText)
+                DashboardScanLiveCounter(label: "Apps checked", value: appsCheckedText)
+                DashboardScanLiveCounter(label: "Items flagged", value: flaggedText)
+            }
+
+            MicroText("You can keep using your Mac while we scan.")
+        }
+    }
+
+    private var zeroStateBody: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            quickSnapshot
+
+            BodyText(insightText)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            whatItChecks
+
+            MicroText("Runs locally • No deletions without approval • ~45 seconds")
+        }
+    }
+
+    private var quickSnapshot: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+            Text("Quick Snapshot")
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            VStack(spacing: TonicSpaceToken.two) {
+                DashboardQuickSnapshotRow(label: "CPU", value: "\(cpuPercent)%", sparkline: cpuHistory, sparklineColor: theme.worldToken.light)
+                DashboardQuickSnapshotRow(label: "Memory", value: memoryPressure.rawValue, sparkline: memoryHistory, sparklineColor: theme.worldToken.light)
+                DashboardQuickSnapshotRow(label: "Disk", value: diskFreeText, sparkline: nil, sparklineColor: nil, trailingTag: isDiskLow ? "Low" : nil)
+            }
+            .padding(.horizontal, TonicSpaceToken.two)
+            .padding(.vertical, TonicSpaceToken.two)
+            .background(TonicGlassToken.fill)
+            .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
+        }
+    }
+
+    private var whatItChecks: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("What Smart Scan checks")
+                .font(TonicTypeToken.micro.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            DashboardScopeRow(icon: "externaldrive.fill", title: "Space", detail: "Cache, logs, large files, hidden space")
+            DashboardScopeRow(icon: "gauge", title: "Performance", detail: "Startup agents, background load")
+            DashboardScopeRow(icon: "app.badge", title: "Apps", detail: "Large/old apps and leftovers")
         }
     }
 
@@ -608,14 +708,196 @@ private struct DashboardScanSummaryTile: View {
                 Text("/100")
                     .font(TonicTypeToken.caption)
                     .foregroundStyle(TonicTextToken.tertiary)
+
+                Text(healthLabel)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.secondary)
             }
 
             HStack(spacing: TonicSpaceToken.one) {
-                CounterChip(title: "Space", value: spaceMetric, world: .cleanupGreen, isActive: false, isComplete: true)
-                CounterChip(title: "Performance", value: performanceMetric, world: .performanceOrange, isActive: false, isComplete: true)
-                CounterChip(title: "Apps", value: appsMetric, world: .applicationsBlue, isActive: false, isComplete: true)
+                Button(action: onOpenSmartScan) {
+                    CounterChip(title: "Space", value: spaceMetric, world: .cleanupGreen, isActive: false, isComplete: true)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onOpenSmartScan) {
+                    CounterChip(title: "Performance", value: performanceMetric, world: .performanceOrange, isActive: false, isComplete: true)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onOpenSmartScan) {
+                    CounterChip(title: "Apps", value: appsMetric, world: .applicationsBlue, isActive: false, isComplete: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            topWins
+        }
+    }
+
+    private var topWins: some View {
+        let rows = Array(
+            scanManager.recommendations
+                .filter { !$0.isCompleted }
+                .sorted { lhs, rhs in
+                    if lhs.priority.sortOrder != rhs.priority.sortOrder {
+                        return lhs.priority.sortOrder < rhs.priority.sortOrder
+                    }
+                    if lhs.scoreImpact != rhs.scoreImpact {
+                        return lhs.scoreImpact > rhs.scoreImpact
+                    }
+                    return lhs.scanRecommendation.spaceToReclaim > rhs.scanRecommendation.spaceToReclaim
+                }
+                .prefix(3)
+        )
+
+        return Group {
+            if rows.isEmpty {
+                EmptyView()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(rows) { rec in
+                        Button(action: onOpenSmartScan) {
+                            DashboardTopWinRow(recommendation: rec)
+                        }
+                        .buttonStyle(.plain)
+                        if rec.id != rows.last?.id {
+                            Divider().opacity(0.35)
+                        }
+                    }
+                }
+                .background(TonicGlassToken.fill)
+                .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
             }
         }
+    }
+
+    private var actionsRow: some View {
+        Group {
+            if scanManager.isScanning {
+                HStack(spacing: TonicSpaceToken.two) {
+                    PrimaryActionButton(
+                        title: "Stop scan",
+                        icon: "stop.fill",
+                        action: onStopScan,
+                        isEnabled: true
+                    )
+                }
+            } else if scanManager.hasScanResult {
+                HStack(spacing: TonicSpaceToken.two) {
+                    PrimaryActionButton(
+                        title: hasRunnableWork ? "Run Smart Clean" : "Run Again",
+                        icon: hasRunnableWork ? "sparkles" : "play.fill",
+                        action: hasRunnableWork ? onRunSmartClean : onRunScan,
+                        isEnabled: true
+                    )
+
+                    SecondaryPillButton(title: "Review", action: onOpenSmartScan)
+                    TertiaryGhostButton(title: "Export report", action: onExportReport)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+                    if !hasFullDiskAccess {
+                        Button(action: onRequestFullDiskAccess) {
+                            GlassChip(
+                                title: "Limited scan—Grant Full Disk Access",
+                                icon: "lock.shield",
+                                role: .semantic(.warning),
+                                strength: .subtle
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    HStack(spacing: TonicSpaceToken.two) {
+                        PrimaryActionButton(
+                            title: "Run Smart Scan",
+                            icon: "play.fill",
+                            action: onRunScan,
+                            isEnabled: true
+                        )
+
+                        Button {
+                            showScopePopover.toggle()
+                        } label: {
+                            Text("What gets scanned?")
+                                .font(TonicTypeToken.caption.weight(.semibold))
+                                .foregroundStyle(TonicTextToken.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showScopePopover, arrowEdge: .bottom) {
+                            DashboardWhatGetsScannedPopover()
+                                .frame(width: 320)
+                                .padding(TonicSpaceToken.three)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+    }
+
+    private func statusChip(_ title: String, role: TonicChipRole) -> some View {
+        GlassChip(title: title, role: role, strength: .subtle)
+            .font(TonicTypeToken.micro.weight(.semibold))
+    }
+
+    private var insightText: String {
+        if isDiskLow {
+            return "Storage is running low—Smart Scan can reclaim space safely."
+        }
+        if memoryPressure != .normal {
+            return "Memory pressure is elevated—Smart Scan can flag heavy startup agents."
+        }
+        return "Everything looks stable—Smart Scan finds optional optimizations."
+    }
+
+    private var elapsedText: String {
+        guard let start = scanManager.scanStartDate else { return "—" }
+        let seconds = Int(Date().timeIntervalSince(start))
+        let minutes = seconds / 60
+        let remaining = seconds % 60
+        if minutes > 0 {
+            return "\(minutes)m \(remaining)s"
+        }
+        return "\(remaining)s"
+    }
+
+    private var lastScanRelativeText: String {
+        guard let date = scanManager.lastScanDate else { return "" }
+        return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+    }
+
+    private var spaceFoundText: String {
+        guard let bytes = scanManager.spaceFoundBytes else { return "—" }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private var appsCheckedText: String {
+        guard let count = scanManager.appsScannedCount else { return "—" }
+        return "\(count)"
+    }
+
+    private var flaggedText: String {
+        guard let count = scanManager.flaggedCount else { return "—" }
+        return "\(count)"
+    }
+
+    private var healthLabel: String {
+        switch scanManager.healthScore {
+        case 90...100: return "Excellent"
+        case 75..<90: return "Good"
+        case 50..<75: return "Fair"
+        case 25..<50: return "Poor"
+        default: return "Critical"
+        }
+    }
+
+    private var hasRunnableWork: Bool {
+        !scanManager.recommendations.filter {
+            !$0.isCompleted && $0.scanRecommendation.actionable && $0.scanRecommendation.safeToFix
+        }.isEmpty
     }
 
     private var spaceMetric: String {
@@ -631,6 +913,197 @@ private struct DashboardScanSummaryTile: View {
     private var appsMetric: String {
         let count = scanManager.recommendations.filter { $0.category == .apps }.count
         return "\(count) app\(count == 1 ? "" : "s")"
+    }
+}
+
+private struct DashboardQuickSnapshotRow: View {
+    let label: String
+    let value: String
+    let sparkline: [Double]?
+    let sparklineColor: Color?
+    var trailingTag: String? = nil
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Text(label)
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+                .frame(width: 54, alignment: .leading)
+
+            Spacer()
+
+            if let trailingTag {
+                GlassChip(title: trailingTag, role: .semantic(.warning), strength: .subtle)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+            }
+
+            Text(value)
+                .font(TonicTypeToken.micro.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+                .contentTransition(.numericText())
+
+            if let sparkline, let sparklineColor {
+                MiniSparkline(data: sparkline, color: sparklineColor)
+                    .frame(width: 64, height: 16)
+            }
+        }
+    }
+}
+
+private struct DashboardScopeRow: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: TonicSpaceToken.two) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TonicTextToken.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                Text(detail)
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+        }
+    }
+}
+
+private struct DashboardWhatGetsScannedPopover: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+            Text("What gets scanned")
+                .font(TonicTypeToken.caption.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+
+            Text("Smart Scan checks Space, Performance, and Apps to generate safe recommendations.")
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.secondary)
+
+            VStack(alignment: .leading, spacing: TonicSpaceToken.two) {
+                DashboardScopeRow(icon: "externaldrive.fill", title: "Space", detail: "Cache, logs, temp files, large files")
+                DashboardScopeRow(icon: "gauge", title: "Performance", detail: "Launch agents, login items, browser caches")
+                DashboardScopeRow(icon: "app.badge", title: "Apps", detail: "Large apps, duplicates, leftovers")
+            }
+        }
+        .glassSurface(radius: TonicRadiusToken.l, variant: .sunken)
+    }
+}
+
+private struct DashboardScanLiveCounter: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(TonicTypeToken.micro)
+                .foregroundStyle(TonicTextToken.tertiary)
+            Text(value)
+                .font(TonicTypeToken.micro.weight(.semibold).monospacedDigit())
+                .foregroundStyle(TonicTextToken.primary)
+                .contentTransition(.numericText())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct DashboardScanStageStepper: View {
+    let phase: SmartScanManager.ScanPhase
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.one) {
+            stageChip(title: "Space", icon: "externaldrive.fill", state: state(for: .scanningDisk))
+            stageChip(title: "Performance", icon: "gauge", state: state(for: .analyzingSystem))
+            stageChip(title: "Apps", icon: "app.badge", state: state(for: .checkingApps))
+        }
+    }
+
+    private enum StageKey {
+        case scanningDisk
+        case analyzingSystem
+        case checkingApps
+    }
+
+    private enum StageState {
+        case pending
+        case active
+        case complete
+    }
+
+    private func state(for key: StageKey) -> StageState {
+        switch phase {
+        case .idle, .preparing:
+            return .pending
+        case .scanningDisk:
+            return key == .scanningDisk ? .active : .pending
+        case .analyzingSystem:
+            if key == .scanningDisk { return .complete }
+            return key == .analyzingSystem ? .active : .pending
+        case .checkingApps:
+            if key == .checkingApps { return .active }
+            return .complete
+        case .complete:
+            return .complete
+        }
+    }
+
+    private func stageChip(title: String, icon: String, state: StageState) -> some View {
+        let role: TonicChipRole = switch state {
+        case .pending:
+            .semantic(.neutral)
+        case .active:
+            .world(.smartScanPurple)
+        case .complete:
+            .semantic(.success)
+        }
+
+        let glyph = state == .complete ? "checkmark" : icon
+
+        return GlassChip(title: title, icon: glyph, role: role, strength: .subtle)
+            .font(TonicTypeToken.micro.weight(.semibold))
+            .frame(maxWidth: .infinity)
+    }
+}
+
+private struct DashboardTopWinRow: View {
+    let recommendation: Recommendation
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            priorityBadge
+            Text(recommendation.title)
+                .font(TonicTypeToken.micro.weight(.semibold))
+                .foregroundStyle(TonicTextToken.primary)
+                .lineLimit(1)
+            Spacer()
+            TrailingMetric(value: "+\(recommendation.scoreImpact)")
+                .font(TonicTypeToken.micro.weight(.semibold))
+        }
+        .padding(.vertical, TonicSpaceToken.two)
+        .padding(.horizontal, TonicSpaceToken.two)
+        .contentShape(Rectangle())
+    }
+
+    private var priorityBadge: some View {
+        let kind: TonicSemanticKind = switch recommendation.priority {
+        case .critical, .high: .danger
+        case .medium: .warning
+        case .low: .info
+        }
+
+        return GlassChip(
+            title: recommendation.priority.label,
+            icon: recommendation.priority.icon,
+            role: .semantic(kind),
+            strength: .subtle
+        )
+        .font(TonicTypeToken.micro.weight(.semibold))
     }
 }
 
@@ -741,19 +1214,19 @@ private struct SystemSnapshotTile: View {
                 HStack {
                     Text(isExpanded ? "Show less" : "Show more")
                         .font(TonicTypeToken.micro.weight(.semibold))
-                        .foregroundStyle(TonicTextToken.secondary)
+                        .foregroundStyle(theme.worldToken.light)
 
                     Spacer()
 
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(TonicTextToken.tertiary)
+                        .foregroundStyle(theme.worldToken.light)
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.med), value: isExpanded)
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, TonicSpaceToken.two)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.l)))
             .contentShape(Rectangle())
 
             if isExpanded {
@@ -770,7 +1243,7 @@ private struct SystemSnapshotTile: View {
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
         }
-        .glassSurface(radius: TonicRadiusToken.l, variant: .sunken)
+        .background(TonicGlassToken.fill)
         .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.l))
     }
 
@@ -804,8 +1277,8 @@ private struct SystemSnapshotTile: View {
             .foregroundStyle(theme.accent)
             .accessibilityLabel(serialRevealed ? "Hide serial number" : "Reveal serial number")
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
+        .padding(.vertical, TonicSpaceToken.two)
+        .padding(.horizontal, TonicSpaceToken.two)
     }
 }
 
@@ -827,8 +1300,8 @@ private struct DashboardKeyValueRow: View {
                 .multilineTextAlignment(.trailing)
                 .lineLimit(2)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
+        .padding(.vertical, TonicSpaceToken.two)
+        .padding(.horizontal, TonicSpaceToken.two)
     }
 }
 
@@ -862,15 +1335,15 @@ private struct LiveStatsTile: View {
                         .foregroundStyle(TonicTextToken.tertiary)
                 }
 
-                VStack(spacing: 10) {
+                VStack(spacing: TonicSpaceToken.two) {
                     DashboardMiniMetricRow(label: "CPU", value: "\(cpuPercent)%")
                     DashboardMiniMetricRow(label: "Memory", value: memoryPressure.rawValue)
                     DashboardMiniMetricRow(label: "Disk", value: diskFreeText)
                 }
 
                 MiniSparkline(data: cpuHistory.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : cpuHistory, color: theme.worldToken.light)
-                    .frame(height: 18)
-                    .padding(.top, 4)
+                    .frame(height: 32)
+                    .padding(.top, TonicSpaceToken.one)
             }
         }
         .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.xl)))
@@ -975,31 +1448,19 @@ private struct WidgetsTile: View {
                 BodyText("Add widgets to your menu bar for quick monitoring.")
                     .foregroundStyle(TonicTextToken.secondary)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TonicSpaceToken.two) {
-                        ForEach(Array(enabledConfigs.prefix(5).enumerated()), id: \.element.id) { _, config in
-                            WidgetMiniPreview(
-                                config: config,
-                                value: widgetPreviewValue(config),
-                                sparklineData: sparklineData(for: config.type)
-                            )
-                            .frame(width: 120)
-                        }
+                HStack(spacing: TonicSpaceToken.two) {
+                    ForEach(Array(enabledConfigs.prefix(4).enumerated()), id: \.element.id) { _, config in
+                        WidgetMiniPreview(
+                            config: config,
+                            value: widgetPreviewValue(config),
+                            sparklineData: sparklineData(for: config.type)
+                        )
                     }
-                    .padding(.vertical, 2)
                 }
-                .mask(
-                    LinearGradient(
-                        colors: [.clear, .black, .black, .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .padding(.vertical, 2)
             }
 
-            Spacer(minLength: 0)
-
-            PrimaryActionButton(title: "Customize", icon: "slider.horizontal.3", action: onCustomize, isEnabled: true)
+            SecondaryPillButton(title: "Customize", action: onCustomize)
         }
         .accessibilityLabel("Widgets")
         .accessibilityHint("Customize menu bar widgets")
@@ -1113,8 +1574,8 @@ private struct DashboardRecommendationRowModern: View {
                 }
             }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, TonicSpaceToken.two)
+        .padding(.horizontal, TonicSpaceToken.two)
         .background(hovering ? TonicGlassToken.fill.opacity(0.35) : .clear)
         .animation(reduceMotion ? .none : .easeInOut(duration: TonicMotionToken.fast), value: hovering)
         .onHover { hovering = $0 }
@@ -1149,6 +1610,14 @@ private struct DashboardRecommendationRowModern: View {
     }
 }
 
+// MARK: - Helpers
+
+private func abbreviatedRelativeTime(_ date: Date) -> String {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .abbreviated
+    return formatter.localizedString(for: date, relativeTo: Date())
+}
+
 // MARK: - Activity Row (Modern)
 
 private struct DashboardActivityRowModern: View {
@@ -1175,12 +1644,12 @@ private struct DashboardActivityRowModern: View {
 
             Spacer()
 
-            Text(event.timestamp, style: .relative)
+            Text(abbreviatedRelativeTime(event.timestamp))
                 .font(TonicTypeToken.micro.monospacedDigit())
                 .foregroundStyle(TonicTextToken.tertiary)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, TonicSpaceToken.two)
+        .padding(.horizontal, TonicSpaceToken.two)
         .accessibilityElement(children: .combine)
     }
 }
