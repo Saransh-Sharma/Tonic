@@ -7,7 +7,19 @@
 </div>
 
 <p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/2c288d48-308c-407b-96a1-751ec2eddc29/Screenshot%202026-01-28%20at%204.02.01%20PM.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1769598162&Signature=0xb9W3p5QHjVKJ17emyzuE+rAPY=" alt="Tonic App Manager - Login Items" width="1000" />
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/9ad81c0a680f6b7be68e06b390f1c402.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=vsKKvEtnfk9FziBC4X4detGn9Kg=" alt="Tonic Dashboard" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0fcb7dfe9b60ca6c920c38aad4629308.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=GmfHjvDiWMDcTeXGfHOvldhKkTw=" alt="Tonic Smart Scan" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/8b79fc419921bc5ff36a83021afefd8c.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=FiGXyP1PpnqcSIsXNMLIs+Gs7RE=" alt="Tonic Storage Intelligence Hub" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0b69437bf39ca44b8c8364d6219cb823.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=4KEK9D/Zz8Kt/THoQSndGDb5nQY=" alt="Tonic App Manager" width="1000" />
 </p>
 
 ## Overview
