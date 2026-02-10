@@ -20,11 +20,21 @@ class AppInventoryService: ObservableObject {
     @Published var isLoading = false
     @Published var isRefreshing = false
     @Published var progress: Double = 0
-    @Published var searchText = ""
-    @Published var sortOption: SortOption = .sizeDescending
-    @Published var selectedTab: ItemType = .apps
-    @Published var quickFilterCategory: QuickFilterCategory = .all
-    @Published var loginItemFilter: LoginItemFilter = .all
+    @Published var searchText = "" {
+        didSet { recomputeFilteredApps() }
+    }
+    @Published var sortOption: SortOption = .sizeDescending {
+        didSet { recomputeFilteredApps() }
+    }
+    @Published var selectedTab: ItemType = .apps {
+        didSet { recomputeFilteredApps() }
+    }
+    @Published var quickFilterCategory: QuickFilterCategory = .all {
+        didSet { recomputeFilteredApps() }
+    }
+    @Published var loginItemFilter: LoginItemFilter = .all {
+        didSet { recomputeFilteredApps() }
+    }
     @Published var selectedAppIDs: Set<UUID> = []
     @Published var isSelecting = false
     @Published var isUninstalling = false
@@ -334,52 +344,86 @@ class AppInventoryService: ObservableObject {
         totalAppsSize = apps.reduce(0) { $0 + $1.totalSize }
     }
 
-    private func computeFilteredApps() -> [AppMetadata] {
-        var result = apps
-
-        // Tab filter
-        result = result.filter { app in
-            switch selectedTab {
-            case .apps:
-                let isApp = app.itemType == "app" || app.itemType.isEmpty
-                let isLargeEnough = app.totalSize >= 100 * 1024
-                return isApp && isLargeEnough
-            case .appExtensions:
-                return app.itemType == "extension" || app.itemType.contains("extension")
-            case .preferencePanes:
-                return app.itemType == "prefPane" || app.itemType.contains("pref")
-            case .quickLookPlugins:
-                return app.itemType == "quicklook" || app.itemType.contains("quick")
-            case .spotlightImporters:
-                return app.itemType == "spotlight" || app.itemType.contains("spot")
-            case .frameworks:
-                return app.itemType == "framework" || app.itemType.contains("runtime")
-            case .systemUtilities:
-                return app.itemType == "system" || app.itemType.contains("utility")
-            case .loginItems:
-                return app.itemType == "login" || app.itemType.contains("login")
-            }
+    private func matches(selectedTab: ItemType, for app: AppMetadata) -> Bool {
+        switch selectedTab {
+        case .apps:
+            let isApp = app.itemType == "app" || app.itemType.isEmpty
+            let isLargeEnough = app.totalSize >= 100 * 1024
+            return isApp && isLargeEnough
+        case .appExtensions:
+            return app.itemType == "extension" || app.itemType.contains("extension")
+        case .preferencePanes:
+            return app.itemType == "prefPane" || app.itemType.contains("pref")
+        case .quickLookPlugins:
+            return app.itemType == "quicklook" || app.itemType.contains("quick")
+        case .spotlightImporters:
+            return app.itemType == "spotlight" || app.itemType.contains("spot")
+        case .frameworks:
+            return app.itemType == "framework" || app.itemType.contains("runtime")
+        case .systemUtilities:
+            return app.itemType == "system" || app.itemType.contains("utility")
+        case .loginItems:
+            return app.itemType == "login" || app.itemType.contains("login")
         }
+    }
+
+    private func matches(quickFilter: QuickFilterCategory, for app: AppMetadata) -> Bool {
+        switch quickFilter {
+        case .all:
+            return true
+        case .leastUsed:
+            let ninetyDaysAgo = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? Date()
+            let lastUsed = app.lastUsed ?? .distantPast
+            return lastUsed < ninetyDaysAgo
+        case .development:
+            return app.category == .development
+        case .games:
+            return app.category == .games
+        case .productivity:
+            return app.category == .productivity
+        case .utilities:
+            return app.category == .utilities
+        case .social:
+            return app.category == .social
+        case .creative:
+            return app.category == .creativity
+        case .other:
+            return ![.development, .games, .productivity, .utilities, .social, .creativity].contains(app.category)
+        }
+    }
+
+    private func sortApps(_ apps: inout [AppMetadata], by option: SortOption, quickFilter: QuickFilterCategory) {
+        if quickFilter == .leastUsed {
+            apps.sort { ($0.lastUsed ?? .distantPast) < ($1.lastUsed ?? .distantPast) }
+            return
+        }
+
+        switch option {
+        case .nameAscending:
+            apps.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
+        case .nameDescending:
+            apps.sort { $0.name.localizedCompare($1.name) == .orderedDescending }
+        case .sizeDescending:
+            apps.sort { $0.totalSize > $1.totalSize }
+        case .sizeAscending:
+            apps.sort { $0.totalSize < $1.totalSize }
+        case .category:
+            apps.sort { $0.category.rawValue < $1.category.rawValue }
+        case .dateInstalled:
+            apps.sort { ($0.installDate ?? .distantPast) > ($1.installDate ?? .distantPast) }
+        case .lastUsed:
+            apps.sort { ($0.lastUsed ?? .distantPast) > ($1.lastUsed ?? .distantPast) }
+        case .updateStatus:
+            apps.sort { $0.hasUpdate && !$1.hasUpdate }
+        }
+    }
+
+    private func computeFilteredApps() -> [AppMetadata] {
+        var result = apps.filter { matches(selectedTab: selectedTab, for: $0) }
 
         // Quick filter category
         if quickFilterCategory != .all {
-            result = result.filter { app in
-                switch quickFilterCategory {
-                case .all: return true
-                case .leastUsed:
-                    let ninetyDaysAgo = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? Date()
-                    let lastUsed = app.lastUsed ?? .distantPast
-                    return lastUsed < ninetyDaysAgo
-                case .development: return app.category == .development
-                case .games: return app.category == .games
-                case .productivity: return app.category == .productivity
-                case .utilities: return app.category == .utilities
-                case .social: return app.category == .social
-                case .creative: return app.category == .creativity
-                case .other:
-                    return ![.development, .games, .productivity, .utilities, .social, .creativity].contains(app.category)
-                }
-            }
+            result = result.filter { matches(quickFilter: quickFilterCategory, for: $0) }
         }
 
         // Search filter
@@ -390,41 +434,13 @@ class AppInventoryService: ObservableObject {
             }
         }
 
-        // Sort
-        if quickFilterCategory == .leastUsed {
-            result.sort { ($0.lastUsed ?? .distantPast) < ($1.lastUsed ?? .distantPast) }
-        } else {
-            switch sortOption {
-            case .nameAscending: result.sort { $0.name.localizedCompare($1.name) == .orderedAscending }
-            case .nameDescending: result.sort { $0.name.localizedCompare($1.name) == .orderedDescending }
-            case .sizeDescending: result.sort { $0.totalSize > $1.totalSize }
-            case .sizeAscending: result.sort { $0.totalSize < $1.totalSize }
-            case .category: result.sort { $0.category.rawValue < $1.category.rawValue }
-            case .dateInstalled: result.sort { ($0.installDate ?? .distantPast) > ($1.installDate ?? .distantPast) }
-            case .lastUsed: result.sort { ($0.lastUsed ?? .distantPast) > ($1.lastUsed ?? .distantPast) }
-            case .updateStatus: result.sort { $0.hasUpdate && !$1.hasUpdate }
-            }
-        }
+        sortApps(&result, by: sortOption, quickFilter: quickFilterCategory)
 
         return result
     }
 
     private func computeAppsInCurrentTab() -> [AppMetadata] {
-        apps.filter { app in
-            switch selectedTab {
-            case .apps:
-                let isApp = app.itemType == "app" || app.itemType.isEmpty
-                let isLargeEnough = app.totalSize >= 100 * 1024
-                return isApp && isLargeEnough
-            case .appExtensions: return app.itemType == "extension" || app.itemType.contains("extension")
-            case .preferencePanes: return app.itemType == "prefPane" || app.itemType.contains("pref")
-            case .quickLookPlugins: return app.itemType == "quicklook" || app.itemType.contains("quick")
-            case .spotlightImporters: return app.itemType == "spotlight" || app.itemType.contains("spot")
-            case .frameworks: return app.itemType == "framework" || app.itemType.contains("runtime")
-            case .systemUtilities: return app.itemType == "system" || app.itemType.contains("utility")
-            case .loginItems: return app.itemType == "login" || app.itemType.contains("login")
-            }
-        }
+        apps.filter { matches(selectedTab: selectedTab, for: $0) }
     }
 
     var availableQuickFilters: [QuickFilterCategory] {
