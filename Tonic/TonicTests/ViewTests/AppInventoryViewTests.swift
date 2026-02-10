@@ -364,7 +364,7 @@ final class AppInventoryViewTests: XCTestCase {
         let newRefreshTime = Date().addingTimeInterval(60)
 
         lastRefreshTime = newRefreshTime
-        XCTAssertGreater(lastRefreshTime, Date().addingTimeInterval(-100))
+        XCTAssertGreaterThan(lastRefreshTime, Date().addingTimeInterval(-100))
     }
 
     // MARK: - Performance Tests

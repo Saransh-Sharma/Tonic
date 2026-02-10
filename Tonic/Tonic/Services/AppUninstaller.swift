@@ -27,6 +27,7 @@ public final class AppUninstaller: @unchecked Sendable {
     public static let shared = AppUninstaller()
 
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
 
     public var isUninstalling = false
     public private(set) var progress: UninstallProgress?
@@ -38,13 +39,14 @@ public final class AppUninstaller: @unchecked Sendable {
         var locations: [AppFileLocation] = []
 
         let appName = URL(fileURLWithPath: appPath).deletingPathExtension().lastPathComponent
+        let home = fileManager.homeDirectoryForCurrentUser.path
 
         // App bundle
         locations.append(contentsOf: await scanAppBundle(appPath))
 
         // Application Support
-        let appSupportPath = fileManager.homeDirectoryForCurrentUser.path + "/Library/Application Support/" + appName
-        if fileManager.fileExists(atPath: appSupportPath) {
+        let appSupportPath = home + "/Library/Application Support/" + appName
+        if scopedFS.fileExists(atPath: appSupportPath) {
             locations.append(AppFileLocation(
                 path: appSupportPath,
                 type: .appSupport,
@@ -54,8 +56,8 @@ public final class AppUninstaller: @unchecked Sendable {
         }
 
         // Caches
-        let cachesPath = fileManager.homeDirectoryForCurrentUser.path + "/Library/Caches/" + appName
-        if fileManager.fileExists(atPath: cachesPath) {
+        let cachesPath = home + "/Library/Caches/" + appName
+        if scopedFS.fileExists(atPath: cachesPath) {
             locations.append(AppFileLocation(
                 path: cachesPath,
                 type: .caches,
@@ -65,8 +67,8 @@ public final class AppUninstaller: @unchecked Sendable {
         }
 
         // Preferences
-        let prefsPath = fileManager.homeDirectoryForCurrentUser.path + "/Library/Preferences/" + appName + ".plist"
-        if fileManager.fileExists(atPath: prefsPath) {
+        let prefsPath = home + "/Library/Preferences/" + appName + ".plist"
+        if scopedFS.fileExists(atPath: prefsPath) {
             locations.append(AppFileLocation(
                 path: prefsPath,
                 type: .preferences,
@@ -97,7 +99,7 @@ public final class AppUninstaller: @unchecked Sendable {
                 bytesFreed: bytesFreed
             )
 
-            try fileManager.removeItem(atPath: location.path)
+            try scopedFS.removeItem(atPath: location.path)
             bytesFreed += location.size
             filesRemoved += 1
         }
@@ -110,7 +112,7 @@ public final class AppUninstaller: @unchecked Sendable {
                 bytesFreed: bytesFreed
             )
 
-            try fileManager.removeItem(atPath: appBundle.path)
+            try scopedFS.removeItem(atPath: appBundle.path)
             bytesFreed += appBundle.size
             filesRemoved += 1
         }
@@ -128,28 +130,32 @@ public final class AppUninstaller: @unchecked Sendable {
 
     /// Get app icon for display
     public func getAppIcon(for path: String) -> NSImage? {
-        guard fileManager.fileExists(atPath: path) else { return nil }
-        let appURL = URL(fileURLWithPath: path)
+        guard scopedFS.fileExists(atPath: path) else { return nil }
+        do {
+            return try scopedFS.withReadAccess(path: path) {
+                let appURL = URL(fileURLWithPath: path)
+                guard let bundle = Bundle(url: appURL) else { return nil }
 
-        guard let bundle = Bundle(url: appURL) else { return nil }
+                // Try to get the icon file from bundle resources first.
+                if let iconFile = bundle.object(forInfoDictionaryKey: "CFBundleIconFile") as? String,
+                   let resourceName = iconFile.split(separator: ".").first,
+                   let iconPath = bundle.path(forResource: String(resourceName), ofType: "icns"),
+                   let icon = NSImage(contentsOfFile: iconPath) {
+                    return icon
+                }
 
-        // Try to get the icon file
-        if let iconFile = bundle.object(forInfoDictionaryKey: "CFBundleIconFile") as? String,
-           let resourceName = iconFile.split(separator: ".").first,
-           let iconPath = bundle.path(forResource: String(resourceName), ofType: "icns") {
-            if let icon = NSImage(contentsOfFile: iconPath) {
-                return icon
+                // Fallback to app icon.
+                return NSImage(contentsOfFile: path)
             }
+        } catch {
+            return nil
         }
-
-        // Fallback to app icon
-        return NSImage(contentsOfFile: path)
     }
 
     // MARK: - Private Helpers
 
     private func scanAppBundle(_ appPath: String) async -> [AppFileLocation] {
-        guard fileManager.fileExists(atPath: appPath) else { return [] }
+        guard scopedFS.fileExists(atPath: appPath) else { return [] }
 
         let size = await getDirectorySize(appPath)
         let modDate = await getModificationDate(appPath)
@@ -175,22 +181,22 @@ public final class AppUninstaller: @unchecked Sendable {
     private func getDirectorySize(_ path: String) async -> Int64 {
         var totalSize: Int64 = 0
 
-        guard let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) else {
-            return 0
-        }
-
-        while let current = enumerator.nextObject() as? URL {
-            if let resourceValues = try? current.resourceValues(forKeys: [.fileSizeKey]),
-               let size = resourceValues.fileSize {
-                totalSize += Int64(size)
+        do {
+            try scopedFS.enumerateDirectory(atPath: path, includingPropertiesForKeys: [.fileSizeKey]) { current in
+                if let resourceValues = try? scopedFS.resourceValues(for: current, keys: [.fileSizeKey]),
+                   let size = resourceValues.fileSize {
+                    totalSize += Int64(size)
+                }
             }
+        } catch {
+            return 0
         }
 
         return totalSize
     }
 
     private func getFileSize(_ path: String) async -> Int64 {
-        guard let attrs = try? fileManager.attributesOfItem(atPath: path),
+        guard let attrs = try? scopedFS.attributesOfItem(atPath: path),
               let fileSize = attrs[.size] as? Int64 else {
             return 0
         }
@@ -198,7 +204,7 @@ public final class AppUninstaller: @unchecked Sendable {
     }
 
     private func getModificationDate(_ path: String) async -> Date {
-        guard let attrs = try? fileManager.attributesOfItem(atPath: path),
+        guard let attrs = try? scopedFS.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else {
             return Date()
         }

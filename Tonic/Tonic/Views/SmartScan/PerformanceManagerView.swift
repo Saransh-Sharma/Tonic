@@ -10,6 +10,7 @@ struct PerformanceManagerView: View {
     @State private var selectedNav: PerformanceNav
     @State private var expandedItemIDs: Set<UUID> = []
     @State private var childSelectionByParent: [UUID: Set<String>] = [:]
+    private let accessBroker = AccessBroker.shared
 
     init(
         domainResult: SmartCareDomainResult?,
@@ -115,6 +116,25 @@ struct PerformanceManagerView: View {
                 RightItemsPane {
                     ManagerSummaryStrip(text: summaryText)
 
+                    if blockedItemsCount > 0 {
+                        HStack(spacing: TonicSpaceToken.two) {
+                            Text("\(blockedItemsCount) item\(blockedItemsCount == 1 ? "" : "s") need additional access.")
+                                .font(TonicTypeToken.micro)
+                                .foregroundStyle(TonicTextToken.secondary)
+                            Spacer()
+                            Button("Grant Access") {
+                                _ = accessBroker.addScopeUsingOpenPanel()
+                                accessBroker.refreshStatuses()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                        .padding(.horizontal, TonicSpaceToken.two)
+                        .padding(.vertical, TonicSpaceToken.one)
+                        .background(TonicGlassToken.fill)
+                        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+                    }
+
                     if currentItems.isEmpty {
                         PlaceholderStatePanel(
                             title: "Nothing to review",
@@ -127,12 +147,12 @@ struct PerformanceManagerView: View {
                                     ExpandableSelectionRow(
                                         icon: selectedNav == .maintenanceTasks ? "bolt.circle" : "power",
                                         title: item.title,
-                                        subtitle: item.subtitle,
+                                        subtitle: itemSubtitle(for: item),
                                         metric: selectedNav == .maintenanceTasks ? "Task" : item.formattedSize,
                                         selectionState: selectionState(for: item),
                                         isExpandable: isExpandable(item),
                                         isExpanded: expandedItemIDs.contains(item.id),
-                                        badges: selectedNav == .maintenanceTasks ? [] : (item.safeToRun ? [.recommended] : [.needsReview]),
+                                        badges: badges(for: item),
                                         children: childRows(for: item),
                                         onToggleParent: {
                                             toggleParentSelection(for: item)
@@ -200,6 +220,10 @@ struct PerformanceManagerView: View {
         selectedInCurrent.filter { $0.safeToRun && $0.action.isRunnable }
     }
 
+    private var blockedItemsCount: Int {
+        currentItems.filter { $0.accessState != .ready }.count
+    }
+
     private var summaryText: String {
         switch selectedNav {
         case .maintenanceTasks:
@@ -223,6 +247,37 @@ struct PerformanceManagerView: View {
             return !selectedRunnableItems.isEmpty
         }
         return !selectedInCurrent.isEmpty
+    }
+
+    private func badges(for item: SmartCareItem) -> [MetaBadgeStyle] {
+        var results: [MetaBadgeStyle] = []
+        switch item.accessState {
+        case .ready:
+            if item.safeToRun {
+                results.append(.recommended)
+            } else {
+                results.append(.needsReview)
+            }
+        case .needsAccess:
+            results.append(.needsAccess)
+        case .limited:
+            results.append(item.blockedReason == .macOSProtected ? .limitedByMacOS : .needsAccess)
+        }
+        return results
+    }
+
+    private func itemSubtitle(for item: SmartCareItem) -> String {
+        if let blocked = item.blockedReason {
+            return "\(item.subtitle) • \(blocked.userMessage)"
+        }
+        switch item.accessState {
+        case .ready:
+            return item.subtitle
+        case .needsAccess:
+            return "\(item.subtitle) • Needs access"
+        case .limited:
+            return "\(item.subtitle) • Limited by macOS"
+        }
     }
 
     private func items(for nav: PerformanceNav) -> [SmartCareItem] {
@@ -358,7 +413,9 @@ struct PerformanceManagerView: View {
                 isSmartSelected: item.isSmartSelected,
                 action: .delete(paths: paths),
                 paths: paths,
-                scoreImpact: item.scoreImpact
+                scoreImpact: item.scoreImpact,
+                accessState: item.accessState,
+                blockedReason: item.blockedReason
             )
         case .runOptimization:
             return item

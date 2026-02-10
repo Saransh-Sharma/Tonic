@@ -51,6 +51,7 @@ struct SpaceManagerView: View {
     @State private var selectedCategoryID: String?
     @State private var expandedItemIDs: Set<UUID> = []
     @State private var childSelectionByParent: [UUID: Set<String>] = [:]
+    private let accessBroker = AccessBroker.shared
 
     init(
         domainResult: SmartCareDomainResult?,
@@ -154,6 +155,25 @@ struct SpaceManagerView: View {
                 RightItemsPane {
                     ManagerSummaryStrip(text: summaryText)
 
+                    if blockedItemsCount > 0 {
+                        HStack(spacing: TonicSpaceToken.two) {
+                            Text("\(blockedItemsCount) item\(blockedItemsCount == 1 ? "" : "s") need additional access.")
+                                .font(TonicTypeToken.micro)
+                                .foregroundStyle(TonicTextToken.secondary)
+                            Spacer()
+                            Button("Grant Access") {
+                                _ = accessBroker.addScopeUsingOpenPanel()
+                                accessBroker.refreshStatuses()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                        .padding(.horizontal, TonicSpaceToken.two)
+                        .padding(.vertical, TonicSpaceToken.one)
+                        .background(TonicGlassToken.fill)
+                        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+                    }
+
                     if let activeCategory {
                         if activeCategory.items.isEmpty {
                             PlaceholderStatePanel(
@@ -248,6 +268,13 @@ struct SpaceManagerView: View {
             .filter { $0.safeToRun && $0.action.isRunnable }
     }
 
+    private var blockedItemsCount: Int {
+        categories
+            .flatMap(\.items)
+            .filter { $0.accessState != .ready }
+            .count
+    }
+
     private var summaryText: String {
         guard let activeCategory else {
             return "No category selected"
@@ -256,8 +283,9 @@ struct SpaceManagerView: View {
         let total = activeCategory.items.count
         let safe = activeCategory.items.filter { $0.safeToRun }.count
         let needsReview = max(0, total - safe)
+        let needsAccess = activeCategory.items.filter { $0.accessState != .ready }.count
         let size = activeCategory.items.reduce(0) { $0 + $1.size }
-        return "\(activeCategory.title) · \(formatBytes(size)) · Safe items: \(safe) · Needs review: \(needsReview)"
+        return "\(activeCategory.title) · \(formatBytes(size)) · Safe items: \(safe) · Needs review: \(needsReview) · Needs access: \(needsAccess)"
     }
 
     @ViewBuilder
@@ -265,11 +293,12 @@ struct SpaceManagerView: View {
         ExpandableSelectionRow(
             icon: iconName(for: item),
             title: item.title,
-            subtitle: item.subtitle,
+            subtitle: itemSubtitle(for: item),
             metric: item.formattedSize,
             selectionState: selectionState(for: item),
             isExpandable: isExpandable(item),
             isExpanded: expandedItemIDs.contains(item.id),
+            badges: badges(for: item),
             children: childRows(for: item),
             onToggleParent: {
                 toggleParentSelection(for: item)
@@ -465,7 +494,9 @@ struct SpaceManagerView: View {
                 isSmartSelected: item.isSmartSelected,
                 action: .delete(paths: paths),
                 paths: paths,
-                scoreImpact: item.scoreImpact
+                scoreImpact: item.scoreImpact,
+                accessState: item.accessState,
+                blockedReason: item.blockedReason
             )
         case .runOptimization:
             return item
@@ -486,5 +517,30 @@ struct SpaceManagerView: View {
 
     private func formatBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    private func badges(for item: SmartCareItem) -> [MetaBadgeStyle] {
+        switch item.accessState {
+        case .ready:
+            return item.safeToRun ? [.recommended] : [.needsReview]
+        case .needsAccess:
+            return [.needsAccess]
+        case .limited:
+            return [item.blockedReason == .macOSProtected ? .limitedByMacOS : .needsAccess]
+        }
+    }
+
+    private func itemSubtitle(for item: SmartCareItem) -> String {
+        if let blocked = item.blockedReason {
+            return "\(item.subtitle) • \(blocked.userMessage)"
+        }
+        switch item.accessState {
+        case .ready:
+            return item.subtitle
+        case .needsAccess:
+            return "\(item.subtitle) • Needs access"
+        case .limited:
+            return "\(item.subtitle) • Limited by macOS"
+        }
     }
 }

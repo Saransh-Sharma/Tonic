@@ -172,7 +172,7 @@ struct DetailView: View {
         case .systemCleanup:
             MaintenanceView(smartCareSession: smartCareSession)
         case .appManager:
-            if permissionManager.hasFullDiskAccess {
+            if BuildCapabilities.current.requiresScopeAccess || permissionManager.hasFullDiskAccess {
                 AppManagerView()
             } else {
                 PermissionRequiredView(
@@ -185,7 +185,7 @@ struct DetailView: View {
                 )
             }
         case .diskAnalysis:
-            if permissionManager.hasFullDiskAccess {
+            if BuildCapabilities.current.requiresScopeAccess || permissionManager.hasFullDiskAccess {
                 DiskAnalysisView()
             } else {
                 PermissionRequiredView(
@@ -250,7 +250,7 @@ struct PermissionPromptView: View {
                 }
                 .buttonStyle(.bordered)
 
-                Button("Open System Settings") {
+                Button(BuildCapabilities.current.requiresScopeAccess ? "Add Scope" : "Open System Settings") {
                     grantPermission()
                 }
                 .buttonStyle(.borderedProminent)
@@ -263,11 +263,12 @@ struct PermissionPromptView: View {
     }
 
     private var messageText: String {
+        let accessTerm = BuildCapabilities.current.requiresScopeAccess ? "authorized locations" : "Full Disk Access"
         switch feature {
         case .diskScan, .appManager:
-            return "Tonic needs Full Disk Access to scan all files and applications on your Mac."
+            return "Tonic needs \(accessTerm) to scan files and applications on your Mac."
         case .smartScan:
-            return "Smart Scan requires Full Disk Access to perform a comprehensive system scan."
+            return "Smart Scan requires \(accessTerm) to perform a comprehensive system scan."
         case .basicScan, nil:
             return "Tonic needs additional permissions to function properly."
         }
@@ -310,6 +311,20 @@ struct PermissionPromptView: View {
     }
 
     private func grantPermission() {
+        if BuildCapabilities.current.requiresScopeAccess {
+            _ = AccessBroker.shared.addScopeUsingOpenPanel(
+                title: "Grant Access Scope",
+                message: "Choose a location for Tonic to analyze."
+            )
+            Task {
+                await permissionManager.checkAllPermissions()
+                if permissionManager.hasFullDiskAccess {
+                    isPresented = false
+                }
+            }
+            return
+        }
+
         // Open Full Disk Access in System Settings (macOS 14+)
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
         NSWorkspace.shared.open(url)
@@ -358,7 +373,11 @@ struct PermissionRequiredView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
 
-            Text("You can also grant this permission later in System Settings > Privacy & Security > Full Disk Access")
+            Text(
+                BuildCapabilities.current.requiresScopeAccess
+                ? "You can also manage authorized locations later in Settings > Permissions."
+                : "You can also grant this permission later in System Settings > Privacy & Security > Full Disk Access."
+            )
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

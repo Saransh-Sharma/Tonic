@@ -20,6 +20,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
     private let fileManager = FileManager.default
     private let sizeCache = DirectorySizeCache.shared
     private let lock = NSLock()
+    private let scopedFS = ScopedFileSystem.shared
 
     // MARK: - Junk Files Scanning
 
@@ -127,7 +128,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let trashPath = home + "/.Trash"
 
-        if fileManager.fileExists(atPath: trashPath) {
+        if scopedFS.fileExists(atPath: trashPath) {
             let (size, count) = await measureFilesInPath(trashPath)
             if size > 0 {
                 paths.append(trashPath)
@@ -153,8 +154,9 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let libraryPath = home + "/Library"
 
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: libraryPath),
+        guard scopedFS.canRead(path: libraryPath),
+              let contents = try? scopedFS.contentsOfDirectory(
+            atPath: libraryPath,
             includingPropertiesForKeys: [.isDirectoryKey]
         ) else {
             return FileGroup(name: "Language Files", description: "Unused language files", paths: [], size: 0, count: 0)
@@ -195,8 +197,9 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         let thresholdDate = Date().addingTimeInterval(-TimeInterval(thresholdDays * 24 * 3600))
 
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: downloadsPath),
+        guard scopedFS.canRead(path: downloadsPath),
+              let contents = try? scopedFS.contentsOfDirectory(
+            atPath: downloadsPath,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
@@ -205,7 +208,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         for url in contents {
             if Task.isCancelled { break }
-            guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+            guard let resourceValues = try? scopedFS.resourceValues(
+                for: url,
+                keys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+            ) else {
                 continue
             }
             guard let modDate = resourceValues.contentModificationDate, modDate < thresholdDate else { continue }
@@ -262,10 +268,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
             "/Library/LaunchDaemons"
         ]
 
-        for path in launchAgentPaths where fileManager.fileExists(atPath: path) {
+        for path in launchAgentPaths where scopedFS.fileExists(atPath: path) {
             if Task.isCancelled { break }
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: path),
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: path,
                 includingPropertiesForKeys: [.fileSizeKey]
             ) else { continue }
 
@@ -297,7 +303,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let loginItemsPath = home + "/Library/Preferences/loginwindow.plist"
 
-        if fileManager.fileExists(atPath: loginItemsPath) {
+        if scopedFS.fileExists(atPath: loginItemsPath) {
             let (size, _) = await measureFilesInPath(loginItemsPath)
             if size > 0 {
                 paths.append(loginItemsPath)
@@ -328,7 +334,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
             home + "/Library/Caches/Mozilla/Firefox"
         ]
 
-        for path in browserCachePaths where fileManager.fileExists(atPath: path) {
+        for path in browserCachePaths where scopedFS.fileExists(atPath: path) {
             if Task.isCancelled { break }
             let (size, count) = await measureFilesInPath(path)
             if size > 0 {
@@ -373,10 +379,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
         var largeApps: [AppMetadata] = []
         let appPaths = ["/Applications", fileManager.homeDirectoryForCurrentUser.path + "/Applications"]
 
-        for appPath in appPaths where fileManager.fileExists(atPath: appPath) {
+        for appPath in appPaths where scopedFS.fileExists(atPath: appPath) {
             if Task.isCancelled { break }
-            guard let apps = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: appPath),
+            guard let apps = try? scopedFS.contentsOfDirectory(
+                atPath: appPath,
                 includingPropertiesForKeys: [.isApplicationKey]
             ) else { continue }
 
@@ -409,10 +415,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         let appPaths = ["/Applications", fileManager.homeDirectoryForCurrentUser.path + "/Applications"]
 
-        for appPath in appPaths where fileManager.fileExists(atPath: appPath) {
+        for appPath in appPaths where scopedFS.fileExists(atPath: appPath) {
             if Task.isCancelled { break }
-            guard let apps = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: appPath),
+            guard let apps = try? scopedFS.contentsOfDirectory(
+                atPath: appPath,
                 includingPropertiesForKeys: nil
             ) else { continue }
 
@@ -459,8 +465,9 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let home = fileManager.homeDirectoryForCurrentUser.path
         let appSupportPath = home + "/Library/Application Support"
 
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: appSupportPath),
+        guard scopedFS.canRead(path: appSupportPath),
+              let contents = try? scopedFS.contentsOfDirectory(
+            atPath: appSupportPath,
             includingPropertiesForKeys: [.isDirectoryKey]
         ) else {
             return []
@@ -493,10 +500,9 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
     private func measureFilesInPath(_ path: String, minAgeHours: Int = 0) async -> (size: Int64, count: Int) {
         let minAgeDate = minAgeHours > 0 ? Date().addingTimeInterval(-TimeInterval(minAgeHours * 3600)) : nil
-        let baseURL = URL(fileURLWithPath: path)
-
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: baseURL,
+        guard scopedFS.canRead(path: path),
+              let contents = try? scopedFS.contentsOfDirectory(
+            atPath: path,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
@@ -508,7 +514,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
         for url in contents {
             if Task.isCancelled { return (totalSize, fileCount) }
-            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+            guard let values = try? scopedFS.resourceValues(
+                for: url,
+                keys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+            ) else {
                 continue
             }
 
@@ -541,7 +550,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         paths.append("/var/tmp")
         paths.append("/tmp")
 
-        return paths.filter { fileManager.fileExists(atPath: $0) }
+        return paths.filter { scopedFS.fileExists(atPath: $0) }
     }
 
     private func getCacheDirectories() -> [String] {
@@ -556,7 +565,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         paths.append(home + "/Library/Developer/Xcode/DerivedData")
         paths.append(home + "/Library/Caches/CocoaPods")
 
-        return paths.filter { fileManager.fileExists(atPath: $0) }
+        return paths.filter { scopedFS.fileExists(atPath: $0) }
     }
 
     private func getLogDirectories() -> [String] {
@@ -568,7 +577,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         paths.append(home + "/Library/Logs/DiagnosticReports")
         paths.append("/Library/Logs")
 
-        return paths.filter { fileManager.fileExists(atPath: $0) }
+        return paths.filter { scopedFS.fileExists(atPath: $0) }
     }
 
     private func isAppInstalled(_ appName: String) -> Bool {
@@ -576,12 +585,15 @@ final class ScanCategoryScanner: @unchecked Sendable {
             "/Applications/\(appName).app",
             fileManager.homeDirectoryForCurrentUser.path + "/Applications/\(appName).app"
         ]
-        return appPaths.contains { fileManager.fileExists(atPath: $0) }
+        return appPaths.contains { scopedFS.fileExists(atPath: $0) }
     }
 
     private func extractBundleID(from appPath: String) -> String? {
         let infoPlistPath = appPath + "/Contents/Info.plist"
-        guard let plist = NSDictionary(contentsOfFile: infoPlistPath) else {
+        guard scopedFS.canRead(path: infoPlistPath),
+              let plist = try? scopedFS.withReadAccess(path: infoPlistPath, operation: {
+            NSDictionary(contentsOfFile: infoPlistPath)
+        }) else {
             return nil
         }
         return plist["CFBundleIdentifier"] as? String
@@ -589,7 +601,10 @@ final class ScanCategoryScanner: @unchecked Sendable {
 
     private func extractVersion(from appPath: String) -> String? {
         let infoPlistPath = appPath + "/Contents/Info.plist"
-        guard let plist = NSDictionary(contentsOfFile: infoPlistPath) else {
+        guard scopedFS.canRead(path: infoPlistPath),
+              let plist = try? scopedFS.withReadAccess(path: infoPlistPath, operation: {
+            NSDictionary(contentsOfFile: infoPlistPath)
+        }) else {
             return nil
         }
         return plist["CFBundleShortVersionString"] as? String ?? plist["CFBundleVersion"] as? String

@@ -16,7 +16,7 @@ final class DirectorySizeCache: @unchecked Sendable {
         let timestamp: Date
     }
 
-    private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
     private let lock = NSLock()
     private var cache: [String: CacheEntry] = [:]
     private let maxAge: TimeInterval = 60 * 10 // 10 minutes
@@ -24,9 +24,9 @@ final class DirectorySizeCache: @unchecked Sendable {
     private init() {}
 
     func size(for path: String, includeHidden: Bool = true) -> Int64? {
-        guard fileManager.fileExists(atPath: path) else { return nil }
+        guard scopedFS.fileExists(atPath: path) else { return nil }
 
-        let modDate = (try? fileManager.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? nil
+        let modDate = (try? scopedFS.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? nil
         let now = Date()
 
         if let entry = cachedEntry(for: path), entry.modDate == modDate, now.timeIntervalSince(entry.timestamp) < maxAge {
@@ -54,7 +54,10 @@ final class DirectorySizeCache: @unchecked Sendable {
 
     private func computeSize(path: String, includeHidden: Bool) -> Int64? {
         let url = URL(fileURLWithPath: path)
-        if let values = try? url.resourceValues(forKeys: [.totalFileSizeKey, .totalFileAllocatedSizeKey]) {
+        if let values = try? scopedFS.resourceValues(
+            for: url,
+            keys: [.totalFileSizeKey, .totalFileAllocatedSizeKey]
+        ) {
             if let size = values.totalFileSize ?? values.totalFileAllocatedSize {
                 return Int64(size)
             }
@@ -66,14 +69,18 @@ final class DirectorySizeCache: @unchecked Sendable {
             options.insert(.skipsHiddenFiles)
         }
 
-        guard let enumerator = fileManager.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: options) else {
-            return nil
-        }
-
-        while let itemURL = enumerator.nextObject() as? URL {
-            if let values = try? itemURL.resourceValues(forKeys: [.fileSizeKey]) {
-                totalSize += Int64(values.fileSize ?? 0)
+        do {
+            try scopedFS.enumerateDirectory(
+                atPath: path,
+                includingPropertiesForKeys: [.fileSizeKey],
+                options: options
+            ) { itemURL in
+                if let values = try? scopedFS.resourceValues(for: itemURL, keys: [.fileSizeKey]) {
+                    totalSize += Int64(values.fileSize ?? 0)
+                }
             }
+        } catch {
+            return nil
         }
 
         return totalSize

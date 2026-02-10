@@ -73,6 +73,7 @@ public struct FileOperationError: Sendable, Error, LocalizedError {
     public let path: String
     public let errorType: ErrorType
     public let underlyingError: String?
+    public let blockedReason: ScopeBlockedReason?
 
     public enum ErrorType: String, Sendable {
         case accessDenied = "Access Denied"
@@ -82,8 +83,23 @@ public struct FileOperationError: Sendable, Error, LocalizedError {
         case unknown = "Unknown Error"
     }
 
+    public init(
+        path: String,
+        errorType: ErrorType,
+        underlyingError: String?,
+        blockedReason: ScopeBlockedReason? = nil
+    ) {
+        self.path = path
+        self.errorType = errorType
+        self.underlyingError = underlyingError
+        self.blockedReason = blockedReason
+    }
+
     public var errorDescription: String? {
         var description = "\(errorType.rawValue): \(path)"
+        if let blockedReason {
+            description += " - \(blockedReason.userMessage)"
+        }
         if let underlying = underlyingError {
             description += " - \(underlying)"
         }
@@ -129,6 +145,7 @@ public final class FileOperations: @unchecked Sendable {
     // MARK: - Properties
 
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
 
     private let lock = NSLock()
     private var _currentProgress: FileOperationProgress?
@@ -163,6 +180,32 @@ public final class FileOperations: @unchecked Sendable {
 
     private init() {}
 
+    private func mapOperationError(path: String, error: Error, requiresWrite: Bool) -> FileOperationError {
+        if let fileError = error as? FileOperationError {
+            return fileError
+        }
+
+        let blockedReason = scopedFS.blockedReason(for: error, path: path, requiresWrite: requiresWrite)
+        let errorType: FileOperationError.ErrorType
+
+        if blockedReason != nil {
+            errorType = .accessDenied
+        } else if let nsError = error as NSError?, nsError.code == NSFileNoSuchFileError {
+            errorType = .notFound
+        } else if ProtectedApps.isPathProtected(path) {
+            errorType = .protected
+        } else {
+            errorType = .unknown
+        }
+
+        return FileOperationError(
+            path: path,
+            errorType: errorType,
+            underlyingError: error.localizedDescription,
+            blockedReason: blockedReason
+        )
+    }
+
     // MARK: - Trash Operations
 
     /// Move files to trash using NSFileManager
@@ -195,12 +238,12 @@ public final class FileOperations: @unchecked Sendable {
 
             do {
                 // Try to get file size before moving
-                let attributes = try fileManager.attributesOfItem(atPath: path)
+                let attributes = try scopedFS.attributesOfItem(atPath: path)
                 let fileSize = attributes[.size] as? Int64 ?? 0
 
                 // Attempt regular trash operation
                 var resultingURL: NSURL?
-                try fileManager.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: &resultingURL)
+                try scopedFS.trashItem(at: path, resultingItemURL: &resultingURL)
 
                 if resultingURL != nil {
                     processedCount += 1
@@ -209,17 +252,13 @@ public final class FileOperations: @unchecked Sendable {
                     errors.append(FileOperationError(
                         path: path,
                         errorType: .accessDenied,
-                        underlyingError: "Trash operation returned no result URL"
+                        underlyingError: "Trash operation returned no result URL",
+                        blockedReason: scopedFS.blockedReason(forPath: path, requiresWrite: true)
                     ))
                 }
 
-            } catch let error as NSError {
-                errors.append(FileOperationError(
-                    path: path,
-                    errorType: error.code == NSFileNoSuchFileError ? .notFound :
-                              (error.code == NSFileReadNoPermissionError ? .accessDenied : .unknown),
-                    underlyingError: error.localizedDescription
-                ))
+            } catch {
+                errors.append(mapOperationError(path: path, error: error, requiresWrite: true))
             }
         }
 
@@ -262,27 +301,35 @@ public final class FileOperations: @unchecked Sendable {
         let trashPaths = getAllTrashPaths()
 
         for trashPath in trashPaths {
-            if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: trashPath), includingPropertiesForKeys: [.fileSizeKey]) {
-                while let url = enumerator.nextObject() as? URL {
-                    do {
-                        let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
-                        let fileSize = Int64(resourceValues.fileSize ?? 0)
+            var entries: [URL] = []
+            do {
+                try scopedFS.enumerateDirectory(
+                    atPath: trashPath,
+                    includingPropertiesForKeys: [.fileSizeKey],
+                    options: []
+                ) { url in
+                    entries.append(url)
+                }
+            } catch {
+                errors.append(mapOperationError(path: trashPath, error: error, requiresWrite: true))
+                continue
+            }
 
-                        if secure {
-                            let _ = try await secureDeleteFile(atPath: url.path, passes: 3)
-                        } else {
-                            try fileManager.removeItem(at: url)
-                        }
+            for url in entries {
+                do {
+                    let fileSize: Int64 = (try? scopedFS.resourceValues(for: url, keys: [.fileSizeKey]))
+                        .map { Int64($0.fileSize ?? 0) } ?? 0
 
-                        filesProcessed += 1
-                        bytesFreed += fileSize
-                    } catch {
-                        errors.append(FileOperationError(
-                            path: url.path,
-                            errorType: .accessDenied,
-                            underlyingError: error.localizedDescription
-                        ))
+                    if secure {
+                        let _ = try await secureDeleteFile(atPath: url.path, passes: 3)
+                    } else {
+                        try scopedFS.removeItem(atPath: url.path)
                     }
+
+                    filesProcessed += 1
+                    bytesFreed += fileSize
+                } catch {
+                    errors.append(mapOperationError(path: url.path, error: error, requiresWrite: true))
                 }
             }
         }
@@ -305,15 +352,18 @@ public final class FileOperations: @unchecked Sendable {
         let trashPaths = getAllTrashPaths()
 
         for trashPath in trashPaths {
-            if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: trashPath), includingPropertiesForKeys: [.fileSizeKey]) {
-                while let url = enumerator.nextObject() as? URL {
-                    do {
-                        let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
-                        totalSize += Int64(resourceValues.fileSize ?? 0)
-                    } catch {
-                        continue
-                    }
+            do {
+                try scopedFS.enumerateDirectory(
+                    atPath: trashPath,
+                    includingPropertiesForKeys: [.fileSizeKey],
+                    options: []
+                ) { url in
+                    let size: Int64 = (try? scopedFS.resourceValues(for: url, keys: [.fileSizeKey]))
+                        .map { Int64($0.fileSize ?? 0) } ?? 0
+                    totalSize += size
                 }
+            } catch {
+                continue
             }
         }
 
@@ -348,18 +398,14 @@ public final class FileOperations: @unchecked Sendable {
             )
 
             // Get file size before deletion
-            let fileSize = (try? fileManager.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            let fileSize = (try? scopedFS.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
 
             do {
-                try fileManager.removeItem(atPath: path)
+                try scopedFS.removeItem(atPath: path)
                 processedCount += 1
                 bytesFreed += fileSize
             } catch {
-                errors.append(FileOperationError(
-                    path: path,
-                    errorType: .accessDenied,
-                    underlyingError: error.localizedDescription
-                ))
+                errors.append(mapOperationError(path: path, error: error, requiresWrite: true))
             }
         }
 
@@ -382,7 +428,7 @@ public final class FileOperations: @unchecked Sendable {
     /// - Returns: True if successful
     public func secureDeleteFile(atPath path: String, passes: Int = 3) async throws -> Bool {
         // Check if file exists
-        guard fileManager.fileExists(atPath: path) else {
+        guard scopedFS.fileExists(atPath: path) else {
             throw FileOperationError(path: path, errorType: .notFound, underlyingError: nil)
         }
 
@@ -413,7 +459,11 @@ public final class FileOperations: @unchecked Sendable {
                 for (index, destPath) in destinations.enumerated() {
                     if index < lastOperation.originalPaths.count {
                         let originalPath = lastOperation.originalPaths[index]
-                        try? fileManager.moveItem(atPath: destPath, toPath: originalPath)
+                        try? scopedFS.withWriteAccess(path: destPath) {
+                            try scopedFS.withWriteAccess(path: originalPath) {
+                                try fileManager.moveItem(atPath: destPath, toPath: originalPath)
+                            }
+                        }
                     }
                 }
                 operationHistory.removeLast()
@@ -446,7 +496,7 @@ public final class FileOperations: @unchecked Sendable {
         // Check for external volumes with .Trashes
         if let volumesRoot = try? fileManager.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: URL(fileURLWithPath: "/"), create: false) {
             let trashPath = volumesRoot.appendingPathComponent(".Trashes")
-            if fileManager.fileExists(atPath: trashPath.path) {
+            if scopedFS.fileExists(atPath: trashPath.path) {
                 paths.append(trashPath.path)
             }
         }
@@ -457,69 +507,85 @@ public final class FileOperations: @unchecked Sendable {
     /// Restore a file from trash to its original location
     private func restoreFromTrash(originalPath: String) async -> Bool {
         let fileName = (originalPath as NSString).lastPathComponent
-        let fileManager = FileManager.default
 
         // Find the file in trash
         guard let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first else {
             return false
         }
 
-        // Search in trash
-        if let enumerator = fileManager.enumerator(at: trashURL, includingPropertiesForKeys: [.nameKey]) {
-            while let url = enumerator.nextObject() as? URL {
-                if url.lastPathComponent == fileName {
-                    do {
-                        try fileManager.moveItem(at: url, to: URL(fileURLWithPath: originalPath))
-                        return true
-                    } catch {
-                        return false
-                    }
+        var matchURL: URL?
+        do {
+            try scopedFS.enumerateDirectory(
+                atPath: trashURL.path,
+                includingPropertiesForKeys: [.nameKey]
+            ) { url in
+                if matchURL == nil && url.lastPathComponent == fileName {
+                    matchURL = url
                 }
             }
+        } catch {
+            return false
         }
 
-        return false
+        guard let sourceURL = matchURL else {
+            return false
+        }
+
+        do {
+            try scopedFS.withWriteAccess(path: sourceURL.path) {
+                try scopedFS.withWriteAccess(path: originalPath) {
+                    try fileManager.moveItem(at: sourceURL, to: URL(fileURLWithPath: originalPath))
+                }
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// Manual secure deletion implementation
     private func manualSecureDelete(atPath path: String, passes: Int) async throws {
-        guard let handle = FileHandle(forWritingAtPath: path) else {
-            throw FileOperationError(path: path, errorType: .accessDenied, underlyingError: "Cannot open file for writing")
-        }
-
-        let fileAttributes = try fileManager.attributesOfItem(atPath: path)
-        let fileSize = fileAttributes[.size] as? Int64 ?? 0
-
-        // Overwrite patterns for secure deletion
-        let patterns: [UInt8] = [0x00, 0xFF, 0x55, 0xAA, 0x00, 0xFF]
-
-        for pass in 0..<passes {
-            handle.seek(toFileOffset: 0)
-            let pattern = patterns[pass % patterns.count]
-
-            // Create buffer of 64KB chunks
-            let chunkSize = 64 * 1024
-            var buffer = Data(repeating: pattern, count: chunkSize)
-
-            var remaining = fileSize
-            while remaining > 0 {
-                let writeSize = min(Int64(chunkSize), remaining)
-                if writeSize < chunkSize {
-                    buffer = Data(repeating: pattern, count: Int(writeSize))
+        do {
+            try scopedFS.withWriteAccess(path: path) {
+                guard let handle = FileHandle(forWritingAtPath: path) else {
+                    throw FileOperationError(path: path, errorType: .accessDenied, underlyingError: "Cannot open file for writing")
                 }
-                handle.write(buffer)
-                remaining -= writeSize
+
+                let fileAttributes = try scopedFS.attributesOfItem(atPath: path)
+                let fileSize = fileAttributes[.size] as? Int64 ?? 0
+
+                // Overwrite patterns for secure deletion
+                let patterns: [UInt8] = [0x00, 0xFF, 0x55, 0xAA, 0x00, 0xFF]
+
+                for pass in 0..<passes {
+                    handle.seek(toFileOffset: 0)
+                    let pattern = patterns[pass % patterns.count]
+
+                    // Create buffer of 64KB chunks
+                    let chunkSize = 64 * 1024
+                    var buffer = Data(repeating: pattern, count: chunkSize)
+
+                    var remaining = fileSize
+                    while remaining > 0 {
+                        let writeSize = min(Int64(chunkSize), remaining)
+                        if writeSize < chunkSize {
+                            buffer = Data(repeating: pattern, count: Int(writeSize))
+                        }
+                        handle.write(buffer)
+                        remaining -= writeSize
+                    }
+
+                    // synchronizeFile() is non-throwing on macOS 14+
+                    // Ensures data is written to disk before proceeding
+                    handle.synchronizeFile()
+                }
+
+                handle.closeFile()
+                try fileManager.removeItem(atPath: path)
             }
-
-            // synchronizeFile() is non-throwing on macOS 14+
-            // Ensures data is written to disk before proceeding
-            handle.synchronizeFile()
+        } catch {
+            throw mapOperationError(path: path, error: error, requiresWrite: true)
         }
-
-        handle.closeFile()
-
-        // Finally remove the file
-        try fileManager.removeItem(atPath: path)
     }
 
     /// Add operation to history
@@ -540,7 +606,7 @@ public final class FileOperations: @unchecked Sendable {
     ) async -> FileOperationResult {
         var filesToDelete: [String] = []
 
-        guard fileManager.fileExists(atPath: directoryPath) else {
+        guard scopedFS.fileExists(atPath: directoryPath) else {
             return FileOperationResult(
                 success: false,
                 operationType: .delete,
@@ -553,20 +619,31 @@ public final class FileOperations: @unchecked Sendable {
 
         let options: FileManager.DirectoryEnumerationOptions = recursive ? [] : [.skipsSubdirectoryDescendants]
 
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: directoryPath), includingPropertiesForKeys: nil, options: options) {
-            while let url = enumerator.nextObject() as? URL {
-                let path = url.path
-
-                if let pattern = pattern {
-                    // Apply pattern matching
-                    let fileName = (path as NSString).lastPathComponent
+        do {
+            try scopedFS.enumerateDirectory(
+                atPath: directoryPath,
+                includingPropertiesForKeys: nil,
+                options: options
+            ) { url in
+                let filePath = url.path
+                if let pattern {
+                    let fileName = (filePath as NSString).lastPathComponent
                     if fileName.range(of: pattern, options: .regularExpression) != nil {
-                        filesToDelete.append(path)
+                        filesToDelete.append(filePath)
                     }
                 } else {
-                    filesToDelete.append(path)
+                    filesToDelete.append(filePath)
                 }
             }
+        } catch {
+            return FileOperationResult(
+                success: false,
+                operationType: .delete,
+                filesProcessed: 0,
+                bytesFreed: 0,
+                errors: [mapOperationError(path: directoryPath, error: error, requiresWrite: true)],
+                duration: 0
+            )
         }
 
         return await deleteFiles(atPaths: filesToDelete)
@@ -577,18 +654,13 @@ public final class FileOperations: @unchecked Sendable {
         var totalSize: Int64 = 0
 
         for path in paths {
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
-                continue
-            }
+            let attrs = try? scopedFS.attributesOfItem(atPath: path)
+            let isDirectory = (attrs?[.type] as? FileAttributeType) == .typeDirectory
 
-            if isDirectory.boolValue {
+            if isDirectory {
                 totalSize += directorySize(atPath: path)
-            } else {
-                if let attributes = try? fileManager.attributesOfItem(atPath: path),
-                   let fileSize = attributes[.size] as? Int64 {
-                    totalSize += fileSize
-                }
+            } else if let fileSize = attrs?[.size] as? Int64 {
+                totalSize += fileSize
             }
         }
 
@@ -599,14 +671,15 @@ public final class FileOperations: @unchecked Sendable {
     private func directorySize(atPath path: String) -> Int64 {
         var totalSize: Int64 = 0
 
-        if let enumerator = fileManager.enumerator(at: URL(fileURLWithPath: path), includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let url as URL in enumerator {
-                if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]),
-                   let isDirectory = resourceValues.isDirectory,
-                   !isDirectory {
-                    totalSize += Int64(resourceValues.fileSize ?? 0)
+        do {
+            try scopedFS.enumerateDirectory(atPath: path, includingPropertiesForKeys: [.fileSizeKey]) { url in
+                let values = try? scopedFS.resourceValues(for: url, keys: [.fileSizeKey, .isDirectoryKey])
+                if values?.isDirectory == false {
+                    totalSize += Int64(values?.fileSize ?? 0)
                 }
             }
+        } catch {
+            return totalSize
         }
 
         return totalSize
@@ -633,7 +706,7 @@ public final class FileOperations: @unchecked Sendable {
     /// Check if a path requires elevated permissions
     public func requiresElevatedPermissions(_ path: String) -> Bool {
         // Try to read file attributes
-        if let attributes = try? fileManager.attributesOfItem(atPath: path),
+        if let attributes = try? scopedFS.attributesOfItem(atPath: path),
            let permissions = attributes[.posixPermissions] as? UInt16 {
             // Check if we have write permission
             let ownerOnly = (permissions & 0o200) != 0

@@ -40,12 +40,12 @@ final class DesignTokensTests: XCTestCase {
     func testHighContrastColorAccessibility() {
         // Test that high contrast colors meet WCAG AAA standards (7:1)
         let testCases: [(foreground: NSColor, background: NSColor, name: String)] = [
-            (NSColor(red: 0.0, green: 0.0, blue: 0.0), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Black on White"),
-            (NSColor(red: 0.2, green: 0.2, blue: 0.2), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Dark Gray on White"),
-            (NSColor(red: 0.0, green: 0.4, blue: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Blue on White"),
-            (NSColor(red: 0.0, green: 0.6, blue: 0.0), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Green on White"),
-            (NSColor(red: 1.0, green: 0.5, blue: 0.0), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Orange on White"),
-            (NSColor(red: 1.0, green: 0.0, blue: 0.0), NSColor(red: 1.0, green: 1.0, blue: 1.0), "Red on White"),
+            (NSColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Black on White"),
+            (NSColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Dark Gray on White"),
+            (NSColor(red: 0.0, green: 0.4, blue: 1.0, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Blue on White"),
+            (NSColor(red: 0.0, green: 0.6, blue: 0.0, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Green on White"),
+            (NSColor(red: 1.0, green: 0.5, blue: 0.0, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Orange on White"),
+            (NSColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0), NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), "Red on White"),
         ]
 
         for testCase in testCases {

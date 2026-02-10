@@ -476,50 +476,16 @@ struct UninstallFlowSheet: View {
 
         Task {
             let totalApps = appsToDelete.count
-            var bytesFreed: Int64 = 0
-            var completed = 0
-            var errors: [UninstallError] = []
-            var successfullyRemovedIDs: Set<UUID> = []
-
-            for (index, app) in appsToDelete.enumerated() {
-                await MainActor.run {
+            let finalResult = await inventory.uninstallApps(appsToDelete) { completed, _, app, bytesFreed in
+                Task { @MainActor in
                     progressState = ProgressData(
                         total: totalApps,
-                        completed: index,
+                        completed: min(completed, totalApps),
                         currentAppName: app.name,
                         bytesFreed: bytesFreed
                     )
                 }
-
-                if ProtectedApps.isProtectedFromUninstall(app.bundleIdentifier) {
-                    errors.append(UninstallError(path: app.path.path, message: "Protected app"))
-                    continue
-                }
-
-                let result = await inventory.fileOps.moveFilesToTrash(atPaths: [app.path.path])
-                if result.success && result.filesProcessed > 0 {
-                    successfullyRemovedIDs.insert(app.id)
-                    bytesFreed += app.totalSize
-                } else if let error = result.errors.first {
-                    errors.append(UninstallError(path: app.path.path, message: error.errorDescription ?? "Unknown error"))
-                }
-
-                completed += 1
             }
-
-            await MainActor.run {
-                inventory.apps = inventory.apps.filter { !successfullyRemovedIDs.contains($0.id) }
-                inventory.selectedAppIDs.removeAll()
-            }
-
-            let finalResult = UninstallResult(
-                success: successfullyRemovedIDs.count > 0,
-                appsUninstalled: successfullyRemovedIDs.count,
-                bytesFreed: bytesFreed,
-                errors: errors
-            )
-
-            inventory.cache.saveApps(inventory.apps)
 
             try? await Task.sleep(nanoseconds: 500_000_000)
 

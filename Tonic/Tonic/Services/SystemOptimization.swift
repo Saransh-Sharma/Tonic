@@ -366,6 +366,15 @@ public final class SystemOptimization: @unchecked Sendable {
         guard process.terminationStatus == 0 else {
             let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? "Command failed"
+            if BuildCapabilities.current.requiresScopeAccess {
+                throw NSError(
+                    domain: "SystemOptimization",
+                    code: Int(process.terminationStatus),
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "This maintenance action is limited in the Mac App Store edition by macOS sandbox rules.",
+                    ]
+                )
+            }
             throw NSError(
                 domain: "SystemOptimization",
                 code: Int(process.terminationStatus),

@@ -365,6 +365,8 @@ struct GlassChip: View {
 enum MetaBadgeStyle {
     case safe
     case needsReview
+    case needsAccess
+    case limitedByMacOS
     case risky
     case recommended
     case unused
@@ -377,6 +379,8 @@ enum MetaBadgeStyle {
         switch self {
         case .safe: return "Safe"
         case .needsReview: return "Needs Review"
+        case .needsAccess: return "Needs Access"
+        case .limitedByMacOS: return "Limited by macOS"
         case .risky: return "Risky"
         case .recommended: return "Recommended"
         case .unused: return "Unused"
@@ -391,7 +395,7 @@ enum MetaBadgeStyle {
         switch self {
         case .safe, .store:
             return TonicStatusPalette.text(.success)
-        case .needsReview, .large:
+        case .needsReview, .large, .needsAccess, .limitedByMacOS:
             return TonicStatusPalette.text(.warning)
         case .risky, .suspicious:
             return TonicStatusPalette.text(.danger)
@@ -406,7 +410,7 @@ enum MetaBadgeStyle {
         switch self {
         case .safe, .store:
             return .semantic(.success)
-        case .needsReview, .large:
+        case .needsReview, .large, .needsAccess, .limitedByMacOS:
             return .semantic(.warning)
         case .risky, .suspicious:
             return .semantic(.danger)

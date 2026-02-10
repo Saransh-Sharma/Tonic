@@ -394,6 +394,7 @@ final class SmartCareSessionStore: ObservableObject {
     ) async -> SmartScanRunSummary {
         var bytesFreed: Int64 = 0
         var errors = 0
+        var blockedBySandbox = 0
 
         for (index, item) in items.enumerated() {
             if Task.isCancelled {
@@ -412,6 +413,9 @@ final class SmartCareSessionStore: ObservableObject {
                     bytesFreed += result.bytesFreed
                 } catch {
                     errors += 1
+                    if BuildCapabilities.current.requiresScopeAccess {
+                        blockedBySandbox += 1
+                    }
                 }
             case .none:
                 break
@@ -423,11 +427,19 @@ final class SmartCareSessionStore: ObservableObject {
         }
 
         let scoreGain = items.reduce(0) { $0 + $1.scoreImpact }
+        let message: String?
+        if BuildCapabilities.current.requiresScopeAccess, blockedBySandbox > 0 {
+            message = "Ran \(items.count) tasks · Freed \(ByteCountFormatter.string(fromByteCount: bytesFreed, countStyle: .file)) · \(blockedBySandbox) advanced task(s) were limited by macOS sandbox rules."
+        } else {
+            message = nil
+        }
+
         return SmartScanRunSummary(
             tasksRun: items.count,
             spaceFreed: bytesFreed,
             errors: errors,
-            scoreImprovement: scoreGain
+            scoreImprovement: scoreGain,
+            message: message
         )
     }
 

@@ -133,6 +133,7 @@ struct DiskDiscrepancyReport: Sendable {
 final class HiddenSpaceScanner: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.tonic.app", category: "HiddenSpace")
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
     private let sizeCache = DirectorySizeCache.shared
     private let lock = NSLock()
     private let discrepancyLock = NSLock()
@@ -209,14 +210,13 @@ final class HiddenSpaceScanner: @unchecked Sendable {
         logger.info("Starting hidden space scan at: \(path)")
 
         var hiddenItems: [HiddenSpaceItem] = []
-        var isDirectory: ObjCBool = false
-
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+        guard let attrs = try? scopedFS.attributesOfItem(atPath: path) else {
             isScanning = false
             throw HiddenSpaceScanError.pathNotFound(path)
         }
+        let isDirectory = (attrs[.type] as? FileAttributeType) == .typeDirectory
 
-        if isDirectory.boolValue {
+        if isDirectory {
             hiddenItems = await scanDirectoryForHiddenSpace(path, includeDotfiles: includeDotfiles)
         }
 
@@ -248,8 +248,8 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     private func scanDirectoryForHiddenSpace(_ path: String, includeDotfiles: Bool) async -> [HiddenSpaceItem] {
         var items: [HiddenSpaceItem] = []
 
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: path),
+        guard let contents = try? scopedFS.contentsOfDirectory(
+            atPath: path,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .nameKey],
             options: includeDotfiles ? [] : [.skipsHiddenFiles]
         ) else {
@@ -266,7 +266,10 @@ final class HiddenSpaceScanner: @unchecked Sendable {
                 continue
             }
 
-            guard let resourceValues = try? item.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]) else {
+            guard let resourceValues = try? scopedFS.resourceValues(
+                for: item,
+                keys: [.isDirectoryKey, .fileSizeKey]
+            ) else {
                 continue
             }
 
@@ -367,14 +370,17 @@ final class HiddenSpaceScanner: @unchecked Sendable {
 
     private func getFinderSize(_ path: String) async -> Int64 {
         // Use NSURLTotalFileAvailableKey and NSURLTotalFileSizeKey for Finder-like size
-        if let url = URL(string: "file://\(path)"),
-           let resourceValues = try? url.resourceValues(forKeys: [.totalFileSizeKey, .fileAllocatedSizeKey]) {
+        let url = URL(fileURLWithPath: path)
+        if let resourceValues = try? scopedFS.resourceValues(
+            for: url,
+            keys: [.totalFileSizeKey, .fileAllocatedSizeKey]
+        ) {
             // Finder shows allocated size (block size * blocks)
             return Int64(resourceValues.totalFileSize ?? resourceValues.fileAllocatedSize ?? 0)
         }
 
         // Fallback to attributes
-        if let attrs = try? fileManager.attributesOfItem(atPath: path) {
+        if let attrs = try? scopedFS.attributesOfItem(atPath: path) {
             return (attrs[.size] as? Int64) ?? 0
         }
 
@@ -486,7 +492,7 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     // MARK: - Helper Methods
 
     private func getFileModificationDate(_ path: String) -> Date? {
-        return (try? fileManager.attributesOfItem(atPath: path)[.modificationDate] as? Date)
+        return (try? scopedFS.attributesOfItem(atPath: path)[.modificationDate] as? Date)
     }
 
     private func cachedDiscrepancy(for path: String) -> DiskDiscrepancyReport? {
@@ -507,6 +513,10 @@ final class HiddenSpaceScanner: @unchecked Sendable {
     }
 
     private func runDu(path: String) async -> Int64? {
+        guard scopedFS.canRead(path: path) else { return nil }
+        if BuildCapabilities.current.requiresScopeAccess {
+            return nil
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
         process.arguments = ["-sk", path]

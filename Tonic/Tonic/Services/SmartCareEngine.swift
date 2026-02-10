@@ -16,6 +16,7 @@ final class SmartCareEngine: @unchecked Sendable {
     private let deepCleanEngine = DeepCleanEngine.shared
     private let hiddenSpaceScanner = HiddenSpaceScanner()
     private let sizeCache = DirectorySizeCache.shared
+    private let scopedFS = ScopedFileSystem.shared
 
     private let progressWeights: [SmartCareDomain: Double] = [
         .cleanup: 0.53,
@@ -725,7 +726,10 @@ final class SmartCareEngine: @unchecked Sendable {
 
         // Fallback to legacy plist entries.
         let loginItemsPath = NSHomeDirectory() + "/Library/Preferences/com.apple.loginitems.plist"
-        if let plistData = FileManager.default.contents(atPath: loginItemsPath),
+        if scopedFS.canRead(path: loginItemsPath),
+           let plistData = try? scopedFS.withReadAccess(path: loginItemsPath, operation: {
+               FileManager.default.contents(atPath: loginItemsPath)
+           }),
            let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
            let loginItemsArray = plist["AutoLaunchedApplicationDictionary"] as? [[String: Any]] {
             for item in loginItemsArray {
@@ -757,9 +761,9 @@ final class SmartCareEngine: @unchecked Sendable {
         var entries: [PerformanceBackgroundEntry] = []
         var seenPaths = Set<String>()
 
-        for basePath in launchPaths where fileManager.fileExists(atPath: basePath) {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: basePath),
+        for basePath in launchPaths where scopedFS.fileExists(atPath: basePath) {
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: basePath,
                 includingPropertiesForKeys: nil,
                 options: [.skipsHiddenFiles]
             ) else { continue }
@@ -999,7 +1003,7 @@ final class SmartCareEngine: @unchecked Sendable {
         ]
 
         return entries.map { entry in
-            let exists = FileManager.default.fileExists(atPath: entry.path)
+            let exists = scopedFS.fileExists(atPath: entry.path)
             let paths = exists ? [entry.path] : []
             let size = exists ? sizeForPath(entry.path) : 0
             let smart = exists && size > 0
@@ -1036,8 +1040,8 @@ final class SmartCareEngine: @unchecked Sendable {
         var recentSize: Int64 = 0
         var oldSize: Int64 = 0
 
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: downloadsPath),
+        guard let contents = try? scopedFS.contentsOfDirectory(
+            atPath: downloadsPath,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
@@ -1048,7 +1052,10 @@ final class SmartCareEngine: @unchecked Sendable {
         }
 
         for url in contents {
-            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+            guard let values = try? scopedFS.resourceValues(
+                for: url,
+                keys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+            ) else {
                 continue
             }
             let modDate = values.contentModificationDate ?? Date.distantPast
@@ -1084,7 +1091,7 @@ final class SmartCareEngine: @unchecked Sendable {
             home + "/Workspaces"
         ]
         scanRoots.append(contentsOf: devRoots)
-        scanRoots = Array(Set(scanRoots.filter { fileManager.fileExists(atPath: $0) }))
+        scanRoots = Array(Set(scanRoots.filter { scopedFS.fileExists(atPath: $0) }))
         var allItems: [HiddenSpaceItem] = []
         var totalSize: Int64 = 0
         var duration: TimeInterval = 0
@@ -1110,13 +1117,12 @@ final class SmartCareEngine: @unchecked Sendable {
     }
 
     private func buildLogGroup(name: String, description: String, basePaths: [String]) -> FileGroup {
-        let fileManager = FileManager.default
         var paths: [String] = []
         var totalSize: Int64 = 0
 
-        for base in basePaths where fileManager.fileExists(atPath: base) {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: base),
+        for base in basePaths where scopedFS.fileExists(atPath: base) {
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: base,
                 includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) else { continue }
@@ -1179,7 +1185,7 @@ final class SmartCareEngine: @unchecked Sendable {
     }
 
     private func dedupeItems(_ items: [SmartCareItem], ledger: inout PathLedger) -> [SmartCareItem] {
-        items.compactMap { item in
+        items.compactMap { item -> SmartCareItem? in
             guard !item.paths.isEmpty else { return item }
             let uniquePaths = ledger.uniquePaths(from: item.paths)
             guard !uniquePaths.isEmpty else { return nil }
@@ -1204,22 +1210,23 @@ final class SmartCareEngine: @unchecked Sendable {
                 isSmartSelected: item.isSmartSelected,
                 action: action,
                 paths: uniquePaths,
-                scoreImpact: scoreImpact
+                scoreImpact: scoreImpact,
+                accessState: item.accessState,
+                blockedReason: item.blockedReason
             )
         }
     }
 
     private func sizeForPath(_ path: String) -> Int64 {
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
-            if isDirectory.boolValue {
-                return sizeCache.size(for: path, includeHidden: true) ?? 0
-            }
-            let url = URL(fileURLWithPath: path)
-            if let values = try? url.resourceValues(forKeys: [.fileSizeKey]) {
-                return Int64(values.fileSize ?? 0)
-            }
+        guard let attrs = try? scopedFS.attributesOfItem(atPath: path) else {
+            return 0
+        }
+        let isDirectory = (attrs[.type] as? FileAttributeType) == .typeDirectory
+        if isDirectory {
+            return sizeCache.size(for: path, includeHidden: true) ?? 0
+        }
+        if let fileSize = attrs[.size] as? Int64 {
+            return fileSize
         }
         return 0
     }
@@ -1247,7 +1254,9 @@ final class SmartCareEngine: @unchecked Sendable {
         smartlySelected: Bool,
         action: SmartCareAction
     ) -> SmartCareItem {
-        let impact = estimateScoreImpact(bytes: size, isSafe: safeToRun)
+        let access = scopedFS.accessState(forPaths: paths, requiresWrite: true)
+        let runnable = safeToRun && access.coveredPaths.count == paths.count
+        let impact = estimateScoreImpact(bytes: size, isSafe: runnable)
         return SmartCareItem(
             domain: domain,
             groupId: groupId,
@@ -1255,11 +1264,13 @@ final class SmartCareEngine: @unchecked Sendable {
             subtitle: subtitle,
             size: size,
             count: count,
-            safeToRun: safeToRun,
+            safeToRun: runnable,
             isSmartSelected: smartlySelected,
-            action: action,
+            action: runnable ? action : .none,
             paths: paths,
-            scoreImpact: impact
+            scoreImpact: impact,
+            accessState: access.state,
+            blockedReason: access.blockedPaths.values.first
         )
     }
 
@@ -1279,25 +1290,25 @@ final class SmartCareEngine: @unchecked Sendable {
         }
 
         let homeTrash = fileManager.homeDirectoryForCurrentUser.path + "/.Trash"
-        if fileManager.fileExists(atPath: homeTrash) {
+        if scopedFS.fileExists(atPath: homeTrash) {
             roots.append(homeTrash)
         }
 
         let uid = getuid()
-        if let volumeURLs = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Volumes"),
+        if let volumeURLs = try? scopedFS.contentsOfDirectory(
+            atPath: "/Volumes",
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) {
             for volume in volumeURLs {
-                let values = try? volume.resourceValues(forKeys: [.isDirectoryKey])
+                let values = try? scopedFS.resourceValues(for: volume, keys: [.isDirectoryKey])
                 guard values?.isDirectory == true else { continue }
                 let trashPath = volume.path + "/.Trashes/\(uid)"
-                if fileManager.fileExists(atPath: trashPath) {
+                if scopedFS.fileExists(atPath: trashPath) {
                     roots.append(trashPath)
                 }
                 let altTrash = volume.path + "/.Trash"
-                if fileManager.fileExists(atPath: altTrash) {
+                if scopedFS.fileExists(atPath: altTrash) {
                     roots.append(altTrash)
                 }
             }
@@ -1306,8 +1317,8 @@ final class SmartCareEngine: @unchecked Sendable {
         let uniqueRoots = Array(Set(roots))
         var items: [String] = []
         for root in uniqueRoots {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: root),
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                 options: [.skipsPackageDescendants]
             ) else { continue }
@@ -1320,24 +1331,24 @@ final class SmartCareEngine: @unchecked Sendable {
     private func canAccessTrash() -> Bool {
         let fileManager = FileManager.default
         let homeTrash = fileManager.homeDirectoryForCurrentUser.path + "/.Trash"
-        if fileManager.isReadableFile(atPath: homeTrash) {
+        if scopedFS.canRead(path: homeTrash) {
             return true
         }
         if let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first,
-           fileManager.isReadableFile(atPath: trashURL.path) {
+           scopedFS.canRead(path: trashURL.path) {
             return true
         }
         let uid = getuid()
-        if let volumeURLs = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Volumes"),
+        if let volumeURLs = try? scopedFS.contentsOfDirectory(
+            atPath: "/Volumes",
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) {
             for volume in volumeURLs {
-                let values = try? volume.resourceValues(forKeys: [.isDirectoryKey])
+                let values = try? scopedFS.resourceValues(for: volume, keys: [.isDirectoryKey])
                 guard values?.isDirectory == true else { continue }
                 let trashPath = volume.path + "/.Trashes/\(uid)"
-                if fileManager.isReadableFile(atPath: trashPath) {
+                if scopedFS.canRead(path: trashPath) {
                     return true
                 }
             }

@@ -7,7 +7,19 @@
 </div>
 
 <p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/2c288d48-308c-407b-96a1-751ec2eddc29/Screenshot%202026-01-28%20at%204.02.01%20PM.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1769598162&Signature=0xb9W3p5QHjVKJ17emyzuE+rAPY=" alt="Tonic App Manager - Login Items" width="1000" />
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/9ad81c0a680f6b7be68e06b390f1c402.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=vsKKvEtnfk9FziBC4X4detGn9Kg=" alt="Tonic Dashboard" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0fcb7dfe9b60ca6c920c38aad4629308.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=GmfHjvDiWMDcTeXGfHOvldhKkTw=" alt="Tonic Smart Scan" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/8b79fc419921bc5ff36a83021afefd8c.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=FiGXyP1PpnqcSIsXNMLIs+Gs7RE=" alt="Tonic Storage Intelligence Hub" width="1000" />
+</p>
+
+<p align="center">
+  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0b69437bf39ca44b8c8364d6219cb823.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=4KEK9D/Zz8Kt/THoQSndGDb5nQY=" alt="Tonic App Manager" width="1000" />
 </p>
 
 ## Overview
@@ -25,6 +37,9 @@ Tonic provides a true native Mac experience with:
 
 - [Design Doc](ARCHITECTURE.md)
 - [Product Requirements Document (PRD)](PRD.md)
+- [Store Security, Scopes, and Build Matrix Guide](STORE_SECURITY_SCOPES_AND_BUILDS.md)
+- [Development Setup](SETUP.md)
+- [Testing Guide](TESTING_GUIDE.md)
 
 ## Features
 
@@ -52,6 +67,65 @@ After scan, results are grouped into actionable sections with:
 - Per-item safety status (`safe to run`)
 - Smart-selected recommendations (preselected quick wins)
 - Review-first and one-click Smart Clean execution paths
+
+## Store Edition Security and Scope Access
+
+Tonic supports dual distribution targets and uses a scope-first model for Mac App Store safety.
+For more implementation detail, see [Store Security, Scopes, and Build Matrix Guide](STORE_SECURITY_SCOPES_AND_BUILDS.md).
+
+### Distribution flavors
+
+- **Direct target (`Tonic`)**
+  - Compile flavor: `.direct`
+  - Sparkle updater support: enabled
+  - Privileged flows: allowed by capability flags
+- **Store target (`TonicStore`)**
+  - Compile flag: `TONIC_STORE`
+  - Compile flavor: `.store`
+  - Sparkle updater support: disabled
+  - Update channel: App Store-managed
+  - Scope-based access required for full coverage
+
+### Store access model
+
+Store edition replaces broad-machine assumptions with explicit user-granted scopes:
+
+- Home
+- Applications
+- Startup disk (for "Full Mac" coverage)
+- Additional folders or external volumes
+
+Access is represented by strongly typed models (`AccessScope`, `ScopeAccessState`, `ScopeBlockedReason`) and persisted as security-scoped bookmarks.
+
+### Scoped bookmark lifecycle
+
+`AccessBroker` manages bookmark lifecycle:
+
+1. Capture user-selected URL (open panel or drag/drop).
+2. Canonicalize and deduplicate path roots.
+3. Save bookmark data (`.withSecurityScope`) to app container storage (`access_scopes_v1.json`).
+4. Revalidate on launch and status refresh.
+5. Resolve stale/disconnected/invalid states with user remediation.
+
+### Runtime enforcement
+
+`ScopedFileSystem` is the enforcement boundary for Store-safe I/O:
+
+- Scope coverage evaluation (`ready`, `needsAccess`, `limited`)
+- Authorized-path filtering for scans and cleanups
+- Read/write access wrappers with balanced security-scope start/stop
+- Scoped metadata reads via `resourceValues(...)`
+- Typed blocked-reason mapping for UI and service errors
+
+### Coverage tiers
+
+Store coverage is surfaced as:
+
+- `Minimal`
+- `Standard`
+- `Full Mac`
+
+The dashboard, onboarding, Storage Hub, and Smart Scan surfaces use this state to drive CTAs and messaging (`Grant Access`, `Needs access`, `Limited by macOS`).
 
 ### Deep Clean
 Ten cleanup categories:
@@ -141,14 +215,16 @@ Download the latest release from [GitHub Releases](https://github.com/tw93/Tonic
 ### First Launch
 1. Open Tonic from Applications or Spotlight
 2. Complete the onboarding flow (7 guided screens)
-3. Grant **Full Disk Access** in System Settings → Privacy
+3. Grant access:
+   - Store build: authorize scopes (Home + Applications; optionally startup disk for full coverage)
+   - Direct build: grant **Full Disk Access** in System Settings → Privacy (recommended for full scan surface)
 4. Optionally enable **Notifications** for threshold alerts
 5. Start with a Smart Scan from the dashboard
 
 ### Requirements
 - macOS 14.0 (Sonoma) or later
 - Apple Silicon or Intel Mac
-- Full Disk Access recommended for full functionality
+- Access scopes (Store) or Full Disk Access (Direct) recommended for full functionality
 
 ## Architecture
 
@@ -183,7 +259,7 @@ Tonic/
 - Xcode 15.0 or later
 - XcodeGen (`brew install xcodegen`)
 
-### Build
+### Generate Project
 
 ```bash
 # Clone the repository
@@ -191,21 +267,82 @@ git clone https://github.com/tw93/Tonic.git
 cd Tonic
 
 # Generate Xcode project
-xcodegen generate
+xcodegen generate --spec Tonic/project.yml
+```
 
-# Build debug version
-xcodebuild -scheme Tonic -configuration Debug build
+### Build Matrix (Direct + Store)
 
-# Build release version
-xcodebuild -scheme Tonic -configuration Release build
+```bash
+# Direct distribution target (Debug)
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
+
+# Store distribution target (Debug)
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme TonicStore \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
+
+# Direct distribution target (Release)
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  build
+
+# Store distribution target (Release)
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme TonicStore \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  build
+```
+
+### Migration-Critical Test Runs
+
+```bash
+# Full test suite
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO
+
+# Scope and access focused suites
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO \
+  -only-testing:TonicTests/AccessScopeModelsTests \
+  -only-testing:TonicTests/ScopeResolverTests \
+  -only-testing:TonicTests/ServiceErrorHandlingTests
 ```
 
 ### Run
 ```bash
 # Open the app
-open Tonic.xcodeproj
+open Tonic/Tonic.xcodeproj
 # Then press Cmd+R in Xcode
 ```
+
+### Security and Scope Notes for Developers
+
+- Avoid raw file I/O in Store-sensitive paths after only `canRead` checks.
+- Route file operations and metadata reads through `ScopedFileSystem`.
+- Preserve blocked reason taxonomy (`missingScope`, `staleBookmark`, `disconnectedScope`, `sandbox*Denied`, `macOSProtected`) through service and UI layers.
+- Keep direct target behavior unchanged unless the refactor is explicitly no-op for direct mode.
+- For App Store submission behavior and demo script, review `Tonic/APP_STORE_REVIEW_NOTES.md`.
 
 ## Contributing
 

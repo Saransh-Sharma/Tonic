@@ -2,422 +2,320 @@
 //  ServiceErrorHandlingTests.swift
 //  TonicTests
 //
-//  Tests for service error handling - verify TonicError integration in services
+//  Validates ServiceErrorHandler default mappings to TonicError.
 //
 
+import Foundation
 import XCTest
 @testable import Tonic
 
 final class ServiceErrorHandlingTests: XCTestCase {
+    private let handler = TestServiceErrorHandler()
 
-    // MARK: - File System Error Handling Tests
+    // MARK: - File System Mappings
 
-    func testHandleFileNotFoundError() {
-        let mockHandler = MockServiceErrorHandler()
+    func testPerformFileOperationMapsMissingFile() {
+        XCTAssertThrowsError(
+            try handler.performFileOperation(name: "read", path: "/missing/path") {
+                throw CocoaError(.fileNoSuchFile)
+            }
+        ) { error in
+            guard let tonicError = error as? TonicError else {
+                XCTFail("Expected TonicError")
+                return
+            }
+            guard case .fileMissing(let path) = tonicError else {
+                XCTFail("Expected .fileMissing, got \(tonicError)")
+                return
+            }
+            XCTAssertEqual(path, "/missing/path")
+        }
+    }
+
+    func testPerformFileOperationMapsReadPermissionDenied() {
+        XCTAssertThrowsError(
+            try handler.performFileOperation(name: "read", path: "/protected/path") {
+                throw CocoaError(.fileReadNoPermission)
+            }
+        ) { error in
+            guard let tonicError = error as? TonicError else {
+                XCTFail("Expected TonicError")
+                return
+            }
+            guard case .fileAccessDenied(let path) = tonicError else {
+                XCTFail("Expected .fileAccessDenied, got \(tonicError)")
+                return
+            }
+            XCTAssertEqual(path, "/protected/path")
+        }
+    }
+
+    func testPerformFileOperationMapsOutOfSpace() {
+        XCTAssertThrowsError(
+            try handler.performFileOperation(name: "write", path: "/disk/path") {
+                throw CocoaError(.fileWriteOutOfSpace)
+            }
+        ) { error in
+            guard let tonicError = error as? TonicError else {
+                XCTFail("Expected TonicError")
+                return
+            }
+            guard case .insufficientDiskSpace(let required, let available) = tonicError else {
+                XCTFail("Expected .insufficientDiskSpace, got \(tonicError)")
+                return
+            }
+            XCTAssertEqual(required, 0)
+            XCTAssertEqual(available, 0)
+        }
+    }
+
+    func testHandleFileSystemErrorFallsBackToFileOperationFailed() {
+        struct SampleError: LocalizedError {
+            var errorDescription: String? { "sample failure" }
+        }
+
+        let result = handler.handleFileSystemError(
+            SampleError(),
+            operation: "enumerate",
+            path: "/tmp/test"
+        )
+
+        guard case .fileOperationFailed(let operation, let reason) = result else {
+            XCTFail("Expected .fileOperationFailed, got \(result)")
+            return
+        }
+
+        XCTAssertEqual(operation, "enumerate")
+        XCTAssertEqual(reason, "sample failure")
+    }
+
+    // MARK: - Async Wrappers
+
+    func testPerformFileOperationAsyncMapsCocoaErrors() async {
+        await XCTAssertThrowsErrorAsync(
+            try await handler.performFileOperationAsync(name: "read", path: "/async/missing") {
+                throw CocoaError(.fileNoSuchFile)
+            }
+        ) { error in
+            guard let tonicError = error as? TonicError else {
+                XCTFail("Expected TonicError")
+                return
+            }
+            guard case .fileMissing(let path) = tonicError else {
+                XCTFail("Expected .fileMissing, got \(tonicError)")
+                return
+            }
+            XCTAssertEqual(path, "/async/missing")
+        }
+    }
+
+    // MARK: - Network Mappings
+
+    func testHandleNetworkTimeout() {
+        let result = handler.handleNetworkError(URLError(.timedOut), operation: "sync")
+
+        guard case .networkTimeout(let service) = result else {
+            XCTFail("Expected .networkTimeout, got \(result)")
+            return
+        }
+        XCTAssertEqual(service, "sync")
+    }
+
+    func testHandleNoInternetConnection() {
+        let result = handler.handleNetworkError(URLError(.notConnectedToInternet), operation: "sync")
+
+        guard case .noInternetConnection = result else {
+            XCTFail("Expected .noInternetConnection, got \(result)")
+            return
+        }
+    }
+
+    func testHandleInvalidNetworkResponse() {
+        let result = handler.handleNetworkError(URLError(.serverCertificateUntrusted), operation: "api")
+
+        guard case .invalidNetworkResponse(let service) = result else {
+            XCTFail("Expected .invalidNetworkResponse, got \(result)")
+            return
+        }
+        XCTAssertEqual(service, "api")
+    }
+
+    func testHandleNetworkErrorPassthroughForTonicError() {
+        let tonicError = TonicError.noInternetConnection
+        let result = handler.handleNetworkError(tonicError, operation: "api")
+
+        guard case .noInternetConnection = result else {
+            XCTFail("Expected passthrough TonicError, got \(result)")
+            return
+        }
+    }
+
+    // MARK: - Permission + Scan Mappings
+
+    func testHandlePermissionErrorMapsType() {
+        let result = handler.handlePermissionError("scan", requiredPermission: "Full Disk Access")
+
+        guard case .permissionDenied(let type) = result else {
+            XCTFail("Expected .permissionDenied, got \(result)")
+            return
+        }
+        XCTAssertEqual(type, "Full Disk Access")
+    }
+
+    func testHandleScanErrorPermissionDenied() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError)
+        let result = handler.handleScanError(error, operation: "/Users/test/Library")
+
+        guard case .scanPermissionDenied(let path) = result else {
+            XCTFail("Expected .scanPermissionDenied, got \(result)")
+            return
+        }
+        XCTAssertEqual(path, "/Users/test/Library")
+    }
+
+    func testHandleScanErrorDefaultsToScanFailed() {
+        let error = NSError(domain: "ScanError", code: 1001, userInfo: [NSLocalizedDescriptionKey: "scan failed"])
+        let result = handler.handleScanError(error, operation: "disk")
+
+        guard case .scanFailed(let reason) = result else {
+            XCTFail("Expected .scanFailed, got \(result)")
+            return
+        }
+        XCTAssertTrue(reason.contains("scan failed"))
+    }
+
+    func testHandleScanTimeoutIncludesOperation() {
+        let result = handler.handleScanTimeout("deep scan")
+        guard case .scanTimeout(let operation) = result else {
+            XCTFail("Expected .scanTimeout, got \(result)")
+            return
+        }
+        XCTAssertEqual(operation, "deep scan")
+    }
+
+    // MARK: - Clean + Data Mappings
+
+    func testHandleCleanErrorMapsFileAccessDenied() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)
+        let result = handler.handleCleanError(error, path: "/protected/file")
+
+        guard case .fileAccessDenied(let path) = result else {
+            XCTFail("Expected .fileAccessDenied, got \(result)")
+            return
+        }
+        XCTAssertEqual(path, "/protected/file")
+    }
+
+    func testHandleCleanErrorMapsFileMissing() {
         let error = NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError)
+        let result = handler.handleCleanError(error, path: "/missing/file")
 
-        let result = mockHandler.handleFileSystemError(error, operation: "read", path: "/nonexistent")
+        guard case .fileMissing(let path) = result else {
+            XCTFail("Expected .fileMissing, got \(result)")
+            return
+        }
+        XCTAssertEqual(path, "/missing/file")
+    }
 
-        if case .fileNotFound(let path) = result {
-            XCTAssertEqual(path, "/nonexistent")
-        } else {
-            XCTFail("Should convert to fileNotFound error")
+    func testHandleCleanErrorMapsOutOfSpace() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)
+        let result = handler.handleCleanError(error, path: "/tmp/file")
+
+        guard case .insufficientDiskSpace(let required, let available) = result else {
+            XCTFail("Expected .insufficientDiskSpace, got \(result)")
+            return
+        }
+        XCTAssertEqual(required, 0)
+        XCTAssertEqual(available, 0)
+    }
+
+    func testHandleCleanErrorDefaultsToFileWriteFailed() {
+        let error = NSError(domain: "CleanError", code: 999, userInfo: nil)
+        let result = handler.handleCleanError(error, path: "/tmp/file")
+
+        guard case .fileWriteFailed(let path) = result else {
+            XCTFail("Expected .fileWriteFailed, got \(result)")
+            return
+        }
+        XCTAssertEqual(path, "/tmp/file")
+    }
+
+    func testHandleDecodingErrorIncludesTypeAndReason() {
+        struct SampleDecodeError: LocalizedError {
+            var errorDescription: String? { "bad json" }
+        }
+
+        let result = handler.handleDecodingError(SampleDecodeError(), dataType: "ScopeState")
+
+        guard case .decodingFailed(let dataType, let reason) = result else {
+            XCTFail("Expected .decodingFailed, got \(result)")
+            return
+        }
+        XCTAssertEqual(dataType, "ScopeState")
+        XCTAssertEqual(reason, "bad json")
+    }
+
+    func testHandleEncodingAndInvalidFormat() {
+        let encoding = handler.handleEncodingError("ScopeState")
+        guard case .encodingFailed(let dataType) = encoding else {
+            XCTFail("Expected .encodingFailed, got \(encoding)")
+            return
+        }
+        XCTAssertEqual(dataType, "ScopeState")
+
+        let invalid = handler.handleInvalidDataFormat("ScopeState")
+        guard case .invalidDataFormat(let dataType) = invalid else {
+            XCTFail("Expected .invalidDataFormat, got \(invalid)")
+            return
+        }
+        XCTAssertEqual(dataType, "ScopeState")
+    }
+
+    // MARK: - Generic + Error Traits
+
+    func testHandleGenericErrorPassthroughAndWrap() {
+        let tonic = TonicError.fileMissing(path: "/tmp/missing")
+        let passthrough = handler.handleGenericError(tonic)
+        guard case .fileMissing(let path) = passthrough else {
+            XCTFail("Expected passthrough TonicError, got \(passthrough)")
+            return
+        }
+        XCTAssertEqual(path, "/tmp/missing")
+
+        struct OtherError: Error {}
+        let wrapped = handler.handleGenericError(OtherError())
+        guard case .generic = wrapped else {
+            XCTFail("Expected .generic, got \(wrapped)")
+            return
         }
     }
 
-    func testHandleAccessDeniedError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermission)
-
-        let result = mockHandler.handleFileSystemError(error, operation: "read", path: "/protected")
-
-        if case .accessDenied(let path) = result {
-            XCTAssertEqual(path, "/protected")
-        } else {
-            XCTFail("Should convert to accessDenied error")
-        }
-    }
-
-    func testHandleInsufficientSpaceError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpace)
-
-        let result = mockHandler.handleFileSystemError(error, operation: "write", path: "/disk")
-
-        if case .insufficientDiskSpace = result {
-            // Success
-        } else {
-            XCTFail("Should convert to insufficientDiskSpace error")
-        }
-    }
-
-    // MARK: - Network Error Handling Tests
-
-    func testHandleNetworkTimeoutError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = URLError(.timedOut)
-
-        let result = mockHandler.handleNetworkError(error, operation: "fetch")
-
-        if case .networkTimeout = result {
-            // Success
-        } else {
-            XCTFail("Should convert to networkTimeout error")
-        }
-    }
-
-    func testHandleNoNetworkConnectionError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = URLError(.notConnectedToInternet)
-
-        let result = mockHandler.handleNetworkError(error, operation: "sync")
-
-        if case .noNetworkConnection = result {
-            // Success
-        } else {
-            XCTFail("Should convert to noNetworkConnection error")
-        }
-    }
-
-    func testHandleBadServerResponseError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = URLError(.badServerResponse)
-
-        let result = mockHandler.handleNetworkError(error, operation: "api")
-
-        if case .invalidNetworkResponse = result {
-            // Success
-        } else {
-            XCTFail("Should convert to invalidNetworkResponse error")
-        }
-    }
-
-    // MARK: - Permission Error Handling Tests
-
-    func testHandleFullDiskAccessRequired() {
-        let mockHandler = MockServiceErrorHandler()
-
-        let result = mockHandler.handlePermissionError("scan", requiredPermission: "Full Disk Access")
-
-        if case .fullDiskAccessRequired = result {
-            // Success
-        } else {
-            XCTFail("Should convert to fullDiskAccessRequired error")
-        }
-    }
-
-    func testHandleAccessibilityPermissionRequired() {
-        let mockHandler = MockServiceErrorHandler()
-
-        let result = mockHandler.handlePermissionError("enable", requiredPermission: "Accessibility")
-
-        if case .accessibilityPermissionRequired = result {
-            // Success
-        } else {
-            XCTFail("Should convert to accessibilityPermissionRequired error")
-        }
-    }
-
-    func testHandleLocationPermissionRequired() {
-        let mockHandler = MockServiceErrorHandler()
-
-        let result = mockHandler.handlePermissionError("fetch", requiredPermission: "Location")
-
-        if case .locationPermissionRequired = result {
-            // Success
-        } else {
-            XCTFail("Should convert to locationPermissionRequired error")
-        }
-    }
-
-    // MARK: - Scan Error Handling Tests
-
-    func testHandleScanPermissionError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "ScanError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Permission denied"])
-
-        let result = mockHandler.handleScanError(error, scanType: "disk")
-
-        if case .scanPermissionDenied = result {
-            // Success
-        } else {
-            XCTFail("Should convert to scanPermissionDenied error")
-        }
-    }
-
-    func testHandleScanInterruptedError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "ScanError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Scan interrupted"])
-
-        let result = mockHandler.handleScanError(error, scanType: "disk")
-
-        if case .scanInterrupted = result {
-            // Success
-        } else {
-            XCTFail("Should convert to scanInterrupted error")
-        }
-    }
-
-    func testHandleScanTimeoutError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "ScanError", code: 3, userInfo: [NSLocalizedDescriptionKey: "Scan timeout"])
-
-        let result = mockHandler.handleScanError(error, scanType: "disk")
-
-        if case .scanTimeout = result {
-            // Success
-        } else {
-            XCTFail("Should convert to scanTimeout error")
-        }
-    }
-
-    // MARK: - Cleaning Error Handling Tests
-
-    func testHandleProtectedFileError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "CleanError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Protected file"])
-
-        let result = mockHandler.handleCleaningError(error, category: "cache")
-
-        if case .protectedFileEncountered = result {
-            // Success
-        } else {
-            XCTFail("Should convert to protectedFileEncountered error")
-        }
-    }
-
-    // MARK: - Data Error Handling Tests
-
-    func testHandleDataCorruptionError() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "DataError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode JSON"])
-
-        let result = mockHandler.handleDataError(error, dataType: "cache")
-
-        if case .dataCorrupted = result {
-            // Success
-        } else {
-            XCTFail("Should convert to dataCorrupted error")
-        }
-    }
-
-    // MARK: - Path Validation Tests
-
-    func testValidatePathExists() {
-        let mockHandler = MockServiceErrorHandler()
-
-        // Test with temp directory (should exist)
-        do {
-            try mockHandler.validatePathExists(NSTemporaryDirectory())
-            // Success - no error thrown
-        } catch {
-            XCTFail("Should not throw for existing path")
-        }
-    }
-
-    func testValidatePathExistsThrowsForNonexistent() {
-        let mockHandler = MockServiceErrorHandler()
-        let nonexistentPath = "/nonexistent/path/\(UUID().uuidString)"
-
-        do {
-            try mockHandler.validatePathExists(nonexistentPath)
-            XCTFail("Should throw for nonexistent path")
-        } catch let error as TonicError {
-            if case .fileNotFound = error {
-                // Success
-            } else {
-                XCTFail("Should throw fileNotFound error")
-            }
-        } catch {
-            XCTFail("Should throw TonicError")
-        }
-    }
-
-    func testValidatePathIsDirectory() {
-        let mockHandler = MockServiceErrorHandler()
-        let tempDir = NSTemporaryDirectory()
-
-        do {
-            try mockHandler.validatePathIsDirectory(tempDir)
-            // Success - no error thrown
-        } catch {
-            XCTFail("Should not throw for directory path")
-        }
-    }
-
-    func testValidatePathIsFile() {
-        let mockHandler = MockServiceErrorHandler()
-        let tempDir = NSTemporaryDirectory()
-
-        do {
-            try mockHandler.validatePathIsFile(tempDir)
-            XCTFail("Should throw for directory path")
-        } catch let error as TonicError {
-            if case .invalidPath = error {
-                // Success
-            } else {
-                XCTFail("Should throw invalidPath error")
-            }
-        } catch {
-            XCTFail("Should throw TonicError")
-        }
-    }
-
-    // MARK: - Disk Space Validation Tests
-
-    func testValidateDiskSpaceAvailable() {
-        let mockHandler = MockServiceErrorHandler()
-
-        do {
-            try mockHandler.validateDiskSpace(required: 1_000_000)  // 1 MB
-            // Success - should have at least 1 MB free
-        } catch {
-            // May fail on system with extremely low space, which is acceptable
-        }
-    }
-
-    // MARK: - Error Message Mapping Tests
-
-    func testErrorMessageMappingPermission() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "Test", code: 0, userInfo: [NSLocalizedDescriptionKey: "Permission denied"])
-
-        let result = mockHandler.handleFileSystemError(error, operation: "test", path: "/test")
-
-        if case .accessDenied = result {
-            // Success
-        } else {
-            XCTFail("Should map 'permission' message to accessDenied")
-        }
-    }
-
-    func testErrorMessageMappingSpace() {
-        let mockHandler = MockServiceErrorHandler()
-        let error = NSError(domain: "Test", code: 0, userInfo: [NSLocalizedDescriptionKey: "Out of space"])
-
-        let result = mockHandler.handleFileSystemError(error, operation: "test", path: "/test")
-
-        if case .insufficientDiskSpace = result {
-            // Success
-        } else {
-            XCTFail("Should map 'space' message to insufficientDiskSpace")
-        }
-    }
-
-    // MARK: - Cocoa Error Code Handling Tests
-
-    func testCocoaErrorFileReadPermission() {
-        let mockHandler = MockServiceErrorHandler()
-        let cocoaError = NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermission)
-
-        let result = mockHandler.handleFileSystemError(cocoaError, operation: "read", path: "/protected")
-
-        if case .accessDenied = result {
-            // Success
-        } else {
-            XCTFail("Should handle NSFileReadNoPermission")
-        }
-    }
-
-    func testCocoaErrorFileWritePermission() {
-        let mockHandler = MockServiceErrorHandler()
-        let cocoaError = NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermission)
-
-        let result = mockHandler.handleFileSystemError(cocoaError, operation: "write", path: "/protected")
-
-        if case .accessDenied = result {
-            // Success
-        } else {
-            XCTFail("Should handle NSFileWriteNoPermission")
-        }
-    }
-
-    // MARK: - Network Error Code Handling Tests
-
-    func testURLErrorNetworkConnectionLost() {
-        let mockHandler = MockServiceErrorHandler()
-        let urlError = URLError(.networkConnectionLost)
-
-        let result = mockHandler.handleNetworkError(urlError, operation: "sync")
-
-        if case .noNetworkConnection = result {
-            // Success
-        } else {
-            XCTFail("Should handle networkConnectionLost")
-        }
-    }
-
-    func testURLErrorCannotParseResponse() {
-        let mockHandler = MockServiceErrorHandler()
-        let urlError = URLError(.cannotParseResponse)
-
-        let result = mockHandler.handleNetworkError(urlError, operation: "api")
-
-        if case .invalidNetworkResponse = result {
-            // Success
-        } else {
-            XCTFail("Should handle cannotParseResponse")
-        }
-    }
-
-    // MARK: - Error Severity Tests
-
-    func testErrorSeverityLevels() {
-        // Verify that TonicError properly maps to severity levels
-        let fileNotFoundError = TonicError.fileNotFound(path: "/test")
-        XCTAssertEqual(fileNotFoundError.severity, .error)
-
-        let fdaError = TonicError.fullDiskAccessRequired
-        XCTAssertEqual(fdaError.severity, .critical)
-
-        let networkError = TonicError.networkTimeout
-        XCTAssertEqual(networkError.severity, .error)
-    }
-
-    // MARK: - Error Recoverability Tests
-
-    func testErrorRecoverability() {
-        // Verify that errors properly indicate if they're recoverable
-        let fileNotFoundError = TonicError.fileNotFound(path: "/test")
-        XCTAssertFalse(fileNotFoundError.isRecoverable)
-
-        let networkTimeoutError = TonicError.networkTimeout
-        XCTAssertTrue(networkTimeoutError.isRecoverable)
-
-        let fdaError = TonicError.fullDiskAccessRequired
-        XCTAssertTrue(fdaError.isRecoverable)
+    func testSeverityAndRecoverability() {
+        XCTAssertEqual(TonicError.permissionDenied(type: "Full Disk Access").severity, .warning)
+        XCTAssertEqual(TonicError.fileAccessDenied(path: "/tmp/file").severity, .error)
+        XCTAssertEqual(TonicError.networkTimeout(service: "sync").severity, .info)
+        XCTAssertEqual(TonicError.outOfMemory.severity, .critical)
+
+        XCTAssertTrue(TonicError.permissionDenied(type: "Full Disk Access").isRecoverable)
+        XCTAssertTrue(TonicError.networkTimeout(service: "sync").isRecoverable)
+        XCTAssertFalse(TonicError.outOfMemory.isRecoverable)
     }
 }
 
-// MARK: - Mock Service Error Handler
+private struct TestServiceErrorHandler: ServiceErrorHandler {}
 
-private struct MockServiceErrorHandler: ServiceErrorHandler {
-    func handleFileSystemError(_ error: Error, operation: String, path: String) -> TonicError {
-        let handler: ServiceErrorHandler = EmptyServiceErrorHandler()
-        return handler.handleFileSystemError(error, operation: operation, path: path)
-    }
-
-    func handleNetworkError(_ error: Error, operation: String) -> TonicError {
-        let handler: ServiceErrorHandler = EmptyServiceErrorHandler()
-        return handler.handleNetworkError(error, operation: operation)
-    }
-
-    func handlePermissionError(_ operation: String, requiredPermission: String) -> TonicError {
-        let handler: ServiceErrorHandler = EmptyServiceErrorHandler()
-        return handler.handlePermissionError(operation, requiredPermission: requiredPermission)
-    }
-}
-
-private struct EmptyServiceErrorHandler: ServiceErrorHandler {
-    func handleFileSystemError(_ error: Error, operation: String, path: String) -> TonicError {
-        return .fileOperationFailed(operation: operation, path: path, reason: error.localizedDescription)
-    }
-
-    func handleNetworkError(_ error: Error, operation: String) -> TonicError {
-        return .networkError(operation: operation, reason: error.localizedDescription)
-    }
-
-    func handlePermissionError(_ operation: String, requiredPermission: String) -> TonicError {
-        return .permissionDenied(permission: requiredPermission)
+private extension XCTestCase {
+    func XCTAssertThrowsErrorAsync<T>(
+        _ expression: @autoclosure () async throws -> T,
+        _ errorHandler: (Error) -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await expression()
+            XCTFail("Expected error to be thrown", file: file, line: line)
+        } catch {
+            errorHandler(error)
+        }
     }
 }

@@ -51,6 +51,11 @@ xcodegen generate
 
 This generates `Tonic/Tonic.xcodeproj` from `Tonic/project.yml`.
 
+The generated project includes two app targets:
+
+- `Tonic` (direct distribution)
+- `TonicStore` (Mac App Store-safe distribution with `TONIC_STORE`)
+
 ### 3. Open in Xcode
 
 ```bash
@@ -59,18 +64,33 @@ open Tonic/Tonic.xcodeproj
 
 ## Building
 
-### Debug Build
+### Build Direct Target (`Tonic`)
 
 ```bash
-xcodebuild -scheme Tonic -configuration Debug build
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
 ```
 
-Or from Xcode: Product > Build (Cmd+B)
-
-### Release Build
+### Build Store Target (`TonicStore`)
 
 ```bash
-xcodebuild -scheme Tonic -configuration Release build
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme TonicStore \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
+```
+
+### Release Builds
+
+```bash
+xcodebuild -project Tonic/Tonic.xcodeproj -scheme Tonic -configuration Release -destination 'platform=macOS' build
+xcodebuild -project Tonic/Tonic.xcodeproj -scheme TonicStore -configuration Release -destination 'platform=macOS' build
 ```
 
 ### Build Helper Tool
@@ -86,16 +106,64 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 From Xcode, press Cmd+R or select Product > Run.
 
 The first run may require granting permissions:
-- Full Disk Access (for scanning and cleanup)
+- Store target: authorized scopes (Home/Applications/startup disk) for full feature coverage
+- Direct target: Full Disk Access (for scanning and cleanup)
 - Notifications (for alerts)
 - Location (for weather widget)
+
+## Security Model Notes (Store Edition)
+
+Store edition uses security-scoped bookmarks and typed access-state handling.
+
+Key implementation surfaces:
+
+- `Tonic/Tonic/Models/AccessScopeModels.swift`
+- `Tonic/Tonic/Services/AccessBroker.swift`
+- `Tonic/Tonic/Services/ScopeResolver.swift`
+- `Tonic/Tonic/Services/ScopedFileSystem.swift`
+- `Tonic/Tonic/Utilities/BuildFlavor.swift`
+
+### What to use in new code
+
+- Use `ScopedFileSystem` for file reads/writes/trash/remove/enumeration.
+- Use scoped `resourceValues(...)` helpers for metadata reads.
+- Use `ScopeBlockedReason` instead of ad-hoc strings.
+- Do not add Store-sensitive logic that bypasses `withReadAccess`/`withWriteAccess`.
+
+### Blocked reason taxonomy
+
+- `missingScope`
+- `staleBookmark`
+- `disconnectedScope`
+- `sandboxReadDenied`
+- `sandboxWriteDenied`
+- `macOSProtected`
 
 ## Testing
 
 ### Run All Tests
 
 ```bash
-xcodebuild test -scheme Tonic -project Tonic/Tonic.xcodeproj
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO
+```
+
+### Run Scope/Access Migration Suites
+
+```bash
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO \
+  -only-testing:TonicTests/AccessScopeModelsTests \
+  -only-testing:TonicTests/ScopeResolverTests \
+  -only-testing:TonicTests/ServiceErrorHandlingTests
 ```
 
 ### Run Specific Test
@@ -150,6 +218,15 @@ swiftlint --config .swiftlint.yml --correct
 - Run `xcodegen generate` to regenerate project
 - Clean build folder: Product > Clean Build Folder (Shift+Cmd+K)
 
+### Store Target Fails or Behaves Differently
+
+- Confirm build scheme is `TonicStore`.
+- Verify `Tonic/Tonic/TonicStore.entitlements` contains sandbox and user-selected read/write.
+- Verify scope UI is used to grant Home/Applications/startup disk.
+- Check for stale/disconnected scopes in Settings permissions management UI.
+- Audit feature code for raw `FileManager` and raw `URL.resourceValues` calls.
+- Route all Store-sensitive file access through `ScopedFileSystem`.
+
 ### SwiftFormat/SwiftLint Not Found
 
 - Install via Homebrew: `brew install swiftformat swiftlint`
@@ -189,3 +266,5 @@ TONIC/
 - [CLAUDE.md](CLAUDE.md) - Project conventions and architecture
 - [README.md](README.md) - Project overview and features
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed architecture documentation
+- [STORE_SECURITY_SCOPES_AND_BUILDS.md](STORE_SECURITY_SCOPES_AND_BUILDS.md) - Scope/bookmark lifecycle and build matrix deep dive
+- [Tonic/APP_STORE_REVIEW_NOTES.md](Tonic/APP_STORE_REVIEW_NOTES.md) - Store review demo notes

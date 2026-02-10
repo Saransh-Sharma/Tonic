@@ -14,28 +14,80 @@ targets:
         excludes:
           - "**/*.xcassets"
           - "**/Info.plist"
+          - "**/Info-Store.plist"
           - "**/*.entitlements"
           - ".build/**"
           - ".swiftpm/**"
           - "build/**"
           - ".flow/**"
           - "Package.swift"
+      - path: Assets.xcassets
+        buildPhase: resources
     resources:
-      - path: Tonic/Assets.xcassets
-      - path: Tonic/Info.plist
+      - path: Tonic/Frameworks/Sparkle.zip
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tonic.Tonic
+        PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic
         INFOPLIST_FILE: Tonic/Info.plist
         CODE_SIGN_ENTITLEMENTS: Tonic/Tonic.entitlements
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         SWIFT_VERSION: "5.0"
-        DEVELOPMENT_TEAM: ""
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGN_STYLE: Manual
-        ENABLE_HARDENED_RUNTIME: NO
+        DEVELOPMENT_TEAM: CJ43UNM3AR
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER: readwrite
+        ENABLE_USER_SELECTED_FILES: readwrite
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
+        ENABLE_INCOMING_NETWORK_CONNECTIONS: NO
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 10
     entitlements:
       path: Tonic/Tonic.entitlements
+
+  TonicStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: Tonic
+        excludes:
+          - "**/*.xcassets"
+          - "**/Info.plist"
+          - "**/Info-Store.plist"
+          - "**/*.entitlements"
+          - ".build/**"
+          - ".swiftpm/**"
+          - "build/**"
+          - ".flow/**"
+          - "Package.swift"
+          - "Utilities/SparkleUpdater.swift"
+          - "Frameworks/Sparkle.zip"
+      - path: Assets.xcassets
+        buildPhase: resources
+    resources:
+      - path: Tonic/Info-Store.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic.store
+        INFOPLIST_FILE: Tonic/Info-Store.plist
+        CODE_SIGN_ENTITLEMENTS: Tonic/TonicStore.entitlements
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        SWIFT_VERSION: "5.0"
+        DEVELOPMENT_TEAM: CJ43UNM3AR
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER: readwrite
+        ENABLE_USER_SELECTED_FILES: readwrite
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
+        ENABLE_INCOMING_NETWORK_CONNECTIONS: NO
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 10
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) TONIC_STORE"
+    entitlements:
+      path: Tonic/TonicStore.entitlements
 
   TonicTests:
     type: bundle.unit-test
@@ -47,3 +99,4 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tonic.TonicTests
+        GENERATE_INFOPLIST_FILE: YES

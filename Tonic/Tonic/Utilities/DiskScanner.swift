@@ -27,7 +27,9 @@ enum DiskScanError: Error, LocalizedError {
         case .cancelled:
             return "Scan cancelled"
         case .permissionRequired(let path):
-            return "Full Disk Access required to scan \(path)"
+            return BuildCapabilities.current.requiresScopeAccess
+                ? "Access scope required to scan \(path)"
+                : "Full Disk Access required to scan \(path)"
         }
     }
 }
@@ -41,6 +43,7 @@ final class DiskScanner: @unchecked Sendable {
     // MARK: - Properties
 
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
     private let lock = NSLock()
     private let skipDirectoryNames: Set<String> = [".git", ".hg", ".svn", "node_modules", ".npm", ".venv", "venv", "build", "dist", ".build", "target"]
     private var _isScanning = false
@@ -110,13 +113,17 @@ final class DiskScanner: @unchecked Sendable {
         isScanning = true
         defer { isScanning = false }
 
-        // Check if path exists and is accessible
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
-            throw DiskScanError.notFound(path)
+        let access = scopedFS.accessState(forPath: path, requiresWrite: false)
+        guard access.state == .ready else {
+            throw DiskScanError.permissionRequired(path)
         }
 
-        guard isDirectory.boolValue else {
+        // Check if path exists and is accessible
+        guard scopedFS.fileExists(atPath: path) else {
+            throw DiskScanError.notFound(path)
+        }
+        guard let rootAttributes = try? scopedFS.attributesOfItem(atPath: path),
+              (rootAttributes[.type] as? FileAttributeType) == .typeDirectory else {
             throw DiskScanError.accessDenied(path)
         }
 
@@ -127,7 +134,10 @@ final class DiskScanner: @unchecked Sendable {
             // Get directory contents with error handling
             let children: [URL]
             do {
-                children = try fileManager.contentsOfDirectory(at: URL(fileURLWithPath: path), includingPropertiesForKeys: nil)
+                children = try scopedFS.contentsOfDirectory(
+                    atPath: path,
+                    includingPropertiesForKeys: nil
+                )
             } catch {
                 // If we can't access the directory, check if it's a permission issue
                 if (error as NSError).code == NSFileReadNoPermissionError {
@@ -239,9 +249,8 @@ final class DiskScanner: @unchecked Sendable {
         var entries: [DirectoryOverviewEntry] = []
 
         for path in paths {
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-                  isDirectory.boolValue else {
+            guard let attributes = try? scopedFS.attributesOfItem(atPath: path),
+                  (attributes[.type] as? FileAttributeType) == .typeDirectory else {
                 continue
             }
 
@@ -309,12 +318,12 @@ final class DiskScanner: @unchecked Sendable {
             return ChunkResult(entries: [], largeFiles: [], metrics: ChunkMetrics(), currentPath: path)
         }
 
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+        guard let attributes = try? scopedFS.attributesOfItem(atPath: path),
+              let fileType = attributes[.type] as? FileAttributeType else {
             return ChunkResult(entries: [], largeFiles: [], metrics: ChunkMetrics(), currentPath: path)
         }
 
-        if isDirectory.boolValue {
+        if fileType == .typeDirectory {
             return await scanDirectory(
                 path: path,
                 name: name,
@@ -332,7 +341,7 @@ final class DiskScanner: @unchecked Sendable {
         path: String,
         name: String
     ) -> ChunkResult {
-        guard let attributes = try? fileManager.attributesOfItem(atPath: path),
+        guard let attributes = try? scopedFS.attributesOfItem(atPath: path),
               (attributes[.size] as? Int64) != nil else {
             return ChunkResult(entries: [], largeFiles: [], metrics: ChunkMetrics(), currentPath: path)
         }
@@ -407,8 +416,12 @@ final class DiskScanner: @unchecked Sendable {
     }
 
     private func calculateDirectorySize(_ path: String) async -> Int64 {
-        // Use du command for all directories (fast and reliable with Full Disk Access)
-        return await getDirectorySizeFromDu(path) ?? 0
+        // Prefer `du` in direct builds; Store builds avoid subprocess path access and
+        // use scoped traversal for correctness under sandbox constraints.
+        if let directSize = await getDirectorySizeFromDu(path) {
+            return directSize
+        }
+        return await fastRecursiveScan(path: path)
     }
 
     /// Lightweight child listing used by recursive indexing to avoid repeated deep subtree sizing.
@@ -423,8 +436,8 @@ final class DiskScanner: @unchecked Sendable {
             .volumeNameKey,
             .fileResourceIdentifierKey
         ]
-        guard let urls = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: path),
+        guard let urls = try? scopedFS.contentsOfDirectory(
+            atPath: path,
             includingPropertiesForKeys: keys,
             options: []
         ) else {
@@ -441,7 +454,7 @@ final class DiskScanner: @unchecked Sendable {
                 continue
             }
 
-            guard let values = try? url.resourceValues(forKeys: Set(keys)) else {
+            guard let values = try? scopedFS.resourceValues(for: url, keys: Set(keys)) else {
                 continue
             }
 
@@ -480,8 +493,8 @@ final class DiskScanner: @unchecked Sendable {
 
     private func fastRecursiveScan(path: String) async -> Int64 {
         // Fallback to recursive scan only if du fails
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: path),
+        guard let contents = try? scopedFS.contentsOfDirectory(
+            atPath: path,
             includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
@@ -499,7 +512,7 @@ final class DiskScanner: @unchecked Sendable {
                     continue
                 }
 
-                guard let resourceValues = try? item.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey]),
+                guard let resourceValues = try? scopedFS.resourceValues(for: item, keys: [.fileSizeKey, .isDirectoryKey]),
                       let isDirectory = resourceValues.isDirectory else {
                     continue
                 }
@@ -563,7 +576,7 @@ final class DiskScanner: @unchecked Sendable {
                 let filePath = line.trimmingCharacters(in: .whitespaces)
                 guard !filePath.isEmpty,
                       !shouldSkipFileForLargeTracking(filePath),
-                      let attributes = try? fileManager.attributesOfItem(atPath: filePath),
+                      let attributes = try? scopedFS.attributesOfItem(atPath: filePath),
                       let fileSize = attributes[.size] as? Int64 else {
                     continue
                 }
@@ -585,6 +598,10 @@ final class DiskScanner: @unchecked Sendable {
     // MARK: - Helper Methods
 
     private func getDirectorySizeFromDu(_ path: String) async -> Int64? {
+        guard scopedFS.canRead(path: path) else { return nil }
+        if BuildCapabilities.current.requiresScopeAccess {
+            return nil
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
         process.arguments = ["-sk", path]
@@ -632,7 +649,7 @@ final class DiskScanner: @unchecked Sendable {
 
     private func getLastAccessTime(for path: String) -> Date? {
         let url = URL(fileURLWithPath: path)
-        if let values = try? url.resourceValues(forKeys: [.contentAccessDateKey, .contentModificationDateKey]) {
+        if let values = try? scopedFS.resourceValues(for: url, keys: [.contentAccessDateKey, .contentModificationDateKey]) {
             if let access = values.contentAccessDate {
                 return access
             }
@@ -640,12 +657,12 @@ final class DiskScanner: @unchecked Sendable {
                 return modification
             }
         }
-        return try? fileManager.attributesOfItem(atPath: path)[.modificationDate] as? Date
+        return try? scopedFS.attributesOfItem(atPath: path)[.modificationDate] as? Date
     }
 
     private func isSymlink(at path: String) -> Bool {
         do {
-            let attrs = try FileManager.default.attributesOfItem(atPath: path)
+            let attrs = try scopedFS.attributesOfItem(atPath: path)
             return attrs[.type] as? FileAttributeType == .typeSymbolicLink
         } catch {
             return false
@@ -970,6 +987,7 @@ struct DirectoryOverviewEntry: Identifiable, Hashable, Sendable {
 @Observable
 final class StorageIntelligenceEngine {
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
     private let scanner = DiskScanner()
     private let categoryScanner = ScanCategoryScanner()
     private let fileOperations = FileOperations.shared
@@ -1296,7 +1314,7 @@ final class StorageIntelligenceEngine {
     func addToCart(_ node: StorageNode) {
         let candidate = cleanupCandidate(for: node)
         guard candidate.blockedReason == nil else {
-            lastWarning = candidate.blockedReason
+            lastWarning = candidate.blockedReason?.userMessage
             return
         }
         cartNodeIDs.insert(node.id)
@@ -1454,7 +1472,7 @@ final class StorageIntelligenceEngine {
         let blockedCandidates = plan.items.filter { $0.blockedReason != nil }
         var failedItems = blockedCandidates.count
         var failures = blockedCandidates.compactMap { candidate in
-            candidate.blockedReason.map { "\(candidate.path): \($0)" }
+            candidate.blockedReason.map { "\(candidate.path): \($0.userMessage)" }
         }
 
         let executable = plan.items.filter { $0.blockedReason == nil }
@@ -2034,7 +2052,7 @@ final class StorageIntelligenceEngine {
             .contentAccessDateKey
         ]
 
-        guard let values = try? url.resourceValues(forKeys: keys) else {
+        guard let values = try? scopedFS.resourceValues(for: url, keys: keys) else {
             return NodeResourceMetadata(
                 volumeID: nil,
                 volumeName: nil,
@@ -2058,24 +2076,22 @@ final class StorageIntelligenceEngine {
     }
 
     private func countImmediateChildren(at path: String) -> Int {
-        guard let children = try? fileManager.contentsOfDirectory(
-            atPath: path
-        ) else {
+        guard let children = try? scopedFS.contentsOfDirectory(atPath: path) else {
             return 0
         }
         return children.count
     }
 
     private func cleanupCandidate(for node: StorageNode, duplicateConflict: Bool = false) -> CleanupCandidate {
-        let blockedReason: String?
+        let blockedReason: ScopeBlockedReason?
         if duplicateConflict {
-            blockedReason = "Duplicate filesystem item already in cart"
+            blockedReason = .sandboxWriteDenied
         } else if excludedPaths.contains(node.path) {
-            blockedReason = "Path is excluded"
+            blockedReason = .sandboxWriteDenied
         } else if node.riskLevel == .protected {
-            blockedReason = "Protected system location"
+            blockedReason = .macOSProtected
         } else if node.reclaimableBytes <= 0 {
-            blockedReason = "No reclaimable size"
+            blockedReason = .sandboxReadDenied
         } else {
             blockedReason = nil
         }
@@ -2115,7 +2131,11 @@ final class StorageIntelligenceEngine {
             bytes: hiddenEstimate,
             confidence: 0.58,
             explanation: "Estimated hidden and restricted content not fully visible from standard scan paths.",
-            recommendedActions: ["Grant Full Disk Access", "Run Full mode"]
+            recommendedActions: [
+                BuildCapabilities.current.requiresScopeAccess ? "Grant startup disk scope" : "Grant Full Disk Access",
+                "Run Full mode",
+            ],
+            blockedReason: BuildCapabilities.current.requiresScopeAccess ? .missingScope : nil
         ))
 
         result.append(StorageInsight(
@@ -2673,7 +2693,7 @@ final class StorageIntelligenceEngine {
             excludedBytes: excludedBytes,
             failedItems: blockedCount,
             failures: candidates.compactMap { candidate in
-                candidate.blockedReason.map { "\(candidate.path): \($0)" }
+                candidate.blockedReason.map { "\(candidate.path): \($0.userMessage)" }
             },
             beforeUsedBytes: nil,
             afterUsedBytes: nil,
@@ -2956,7 +2976,10 @@ final class StorageIntelligenceEngine {
 
     private func usedBytesForVolume(path: String) -> Int64 {
         let url = URL(fileURLWithPath: path)
-        guard let values = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]),
+        guard let values = try? scopedFS.resourceValues(
+            for: url,
+            keys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]
+        ),
               let total = values.volumeTotalCapacity,
               let free = values.volumeAvailableCapacity else {
             return 0
@@ -2966,7 +2989,7 @@ final class StorageIntelligenceEngine {
 
     private func totalCapacityForVolume(path: String) -> Int64 {
         let url = URL(fileURLWithPath: path)
-        guard let values = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey]),
+        guard let values = try? scopedFS.resourceValues(for: url, keys: [.volumeTotalCapacityKey]),
               let total = values.volumeTotalCapacity else {
             return 0
         }

@@ -134,8 +134,13 @@ final class MetricRowTests: XCTestCase {
         }
 
         XCTAssertTrue(normalized.allSatisfy { $0 >= 0 && $0 <= 1 })
-        XCTAssertEqual(normalized.min(), 0.0, accuracy: 0.01)
-        XCTAssertEqual(normalized.max(), 1.0, accuracy: 0.01)
+        guard let normalizedMin = normalized.min(),
+              let normalizedMax = normalized.max() else {
+            XCTFail("Expected normalized values to contain min and max")
+            return
+        }
+        XCTAssertEqual(normalizedMin, 0.0, accuracy: 0.01)
+        XCTAssertEqual(normalizedMax, 1.0, accuracy: 0.01)
     }
 
     func testSparklineColorCoding() {

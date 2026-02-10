@@ -64,6 +64,26 @@ public struct DeepCleanResult: Sendable, Identifiable {
     let totalSize: Int64
     let paths: [String]
     let safeToDelete: Bool
+    let accessState: ScopeAccessState
+    let blockedReason: ScopeBlockedReason?
+
+    init(
+        category: DeepCleanCategory,
+        itemCount: Int,
+        totalSize: Int64,
+        paths: [String],
+        safeToDelete: Bool,
+        accessState: ScopeAccessState = .ready,
+        blockedReason: ScopeBlockedReason? = nil
+    ) {
+        self.category = category
+        self.itemCount = itemCount
+        self.totalSize = totalSize
+        self.paths = paths
+        self.safeToDelete = safeToDelete
+        self.accessState = accessState
+        self.blockedReason = blockedReason
+    }
 
     var formattedSize: String {
         ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
@@ -76,6 +96,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
 
     private let fileManager = FileManager.default
     private let sizeCache = DirectorySizeCache.shared
+    private let scopedFS = ScopedFileSystem.shared
 
     public static let shared = DeepCleanEngine()
 
@@ -109,6 +130,22 @@ public final class DeepCleanEngine: @unchecked Sendable {
 
     /// Scan a specific category
     public func scanCategory(_ category: DeepCleanCategory) async -> DeepCleanResult {
+        let roots = categoryRoots(category)
+        let coverage = await MainActor.run {
+            scopedFS.accessState(forPaths: roots, requiresWrite: false)
+        }
+        if coverage.coveredPaths.isEmpty {
+            return DeepCleanResult(
+                category: category,
+                itemCount: 0,
+                totalSize: 0,
+                paths: [],
+                safeToDelete: false,
+                accessState: coverage.state,
+                blockedReason: coverage.blockedPaths.values.first
+            )
+        }
+
         var paths: [String] = []
         var totalSize: Int64 = 0
 
@@ -169,7 +206,9 @@ public final class DeepCleanEngine: @unchecked Sendable {
             itemCount: paths.count,
             totalSize: totalSize,
             paths: paths,
-            safeToDelete: true
+            safeToDelete: true,
+            accessState: coverage.state,
+            blockedReason: coverage.blockedPaths.values.first
         )
     }
 
@@ -194,9 +233,9 @@ public final class DeepCleanEngine: @unchecked Sendable {
 
         for path in result.paths {
             do {
-                let attrs = try? fileManager.attributesOfItem(atPath: path)
+                let attrs = try? scopedFS.attributesOfItem(atPath: path)
                 let size = attrs?[.size] as? Int64 ?? 0
-                try fileManager.removeItem(atPath: path)
+                try scopedFS.removeItem(atPath: path)
                 bytesFreed += size
             } catch {
                 // Skip items that can't be deleted
@@ -221,10 +260,9 @@ public final class DeepCleanEngine: @unchecked Sendable {
             "/System/Library/Caches"
         ]
 
-        for root in cacheRoots {
-            let rootURL = URL(fileURLWithPath: root)
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: rootURL,
+        for root in authorized(cacheRoots) {
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) else { continue }
@@ -234,7 +272,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
                 if nameLower.contains("docker") {
                     continue
                 }
-                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                let values = try? scopedFS.resourceValues(for: url, keys: [.isDirectoryKey, .fileSizeKey])
                 if values?.isDirectory == true {
                     if let size = await getDirectorySize(url.path) {
                         paths.append(ItemPath(path: url.path, size: size))
@@ -251,7 +289,6 @@ public final class DeepCleanEngine: @unchecked Sendable {
     private func scanUserCaches() async -> [ItemPath] {
         var paths: [ItemPath] = []
         let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first?.path ?? ""
-        let cacheURL = URL(fileURLWithPath: cacheDir)
         let excludedTopLevel: Set<String> = [
             "com.apple.dt.xcode",
             "com.apple.dt.xcodepreviews",
@@ -259,8 +296,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             "firefox",
             "com.docker.docker"
         ]
-        if let contents = try? fileManager.contentsOfDirectory(
-            at: cacheURL,
+        if let contents = try? scopedFS.contentsOfDirectory(
+            atPath: cacheDir,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) {
@@ -269,11 +306,11 @@ public final class DeepCleanEngine: @unchecked Sendable {
                 if excludedTopLevel.contains(nameLower) || nameLower.contains("docker") {
                     continue
                 }
-                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                let values = try? scopedFS.resourceValues(for: url, keys: [.isDirectoryKey, .fileSizeKey])
                 if values?.isDirectory == true {
                     if nameLower == "google" {
-                        if let googleContents = try? fileManager.contentsOfDirectory(
-                            at: url,
+                        if let googleContents = try? scopedFS.contentsOfDirectory(
+                            atPath: url.path,
                             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                             options: [.skipsHiddenFiles, .skipsPackageDescendants]
                         ) {
@@ -282,7 +319,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
                                 if childName.contains("chrome") {
                                     continue
                                 }
-                                let childValues = try? child.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                                let childValues = try? scopedFS.resourceValues(for: child, keys: [.isDirectoryKey, .fileSizeKey])
                                 if childValues?.isDirectory == true {
                                     if let size = sizeCache.size(for: child.path, includeHidden: true) {
                                         paths.append(ItemPath(path: child.path, size: size))
@@ -296,8 +333,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
                     }
 
                     if nameLower == "microsoft" {
-                        if let microsoftContents = try? fileManager.contentsOfDirectory(
-                            at: url,
+                        if let microsoftContents = try? scopedFS.contentsOfDirectory(
+                            atPath: url.path,
                             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                             options: [.skipsHiddenFiles, .skipsPackageDescendants]
                         ) {
@@ -306,7 +343,7 @@ public final class DeepCleanEngine: @unchecked Sendable {
                                 if childName.contains("edge") {
                                     continue
                                 }
-                                let childValues = try? child.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
+                                let childValues = try? scopedFS.resourceValues(for: child, keys: [.isDirectoryKey, .fileSizeKey])
                                 if childValues?.isDirectory == true {
                                     if let size = sizeCache.size(for: child.path, includeHidden: true) {
                                         paths.append(ItemPath(path: child.path, size: size))
@@ -339,8 +376,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             "/var/log"
         ]
 
-        for logPath in logPaths {
-            if fileManager.fileExists(atPath: logPath) {
+        for logPath in authorized(logPaths) {
+            if scopedFS.fileExists(atPath: logPath) {
                 if let size = await getDirectorySize(logPath) {
                     paths.append(ItemPath(path: logPath, size: size))
                 }
@@ -358,8 +395,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             fileManager.homeDirectoryForCurrentUser.path + "/.Trash"
         ]
 
-        for tempPath in tempPaths {
-            if fileManager.fileExists(atPath: tempPath) {
+        for tempPath in authorized(tempPaths) {
+            if scopedFS.fileExists(atPath: tempPath) {
                 if let size = await getDirectorySize(tempPath) {
                     paths.append(ItemPath(path: tempPath, size: size))
                 }
@@ -380,8 +417,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             home + "/Library/Caches/Firefox"
         ]
 
-        for cachePath in browserCachePaths {
-            if fileManager.fileExists(atPath: cachePath) {
+        for cachePath in authorized(browserCachePaths) {
+            if scopedFS.fileExists(atPath: cachePath) {
                 if let size = await getDirectorySize(cachePath) {
                     paths.append(ItemPath(path: cachePath, size: size))
                 }
@@ -396,14 +433,19 @@ public final class DeepCleanEngine: @unchecked Sendable {
         let downloadsDir = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first?.path ?? ""
 
         let thirtyDaysAgo = Date().addingTimeInterval(-30 * 24 * 60 * 60)
-        let downloadsURL = URL(fileURLWithPath: downloadsDir)
-        if let contents = try? fileManager.contentsOfDirectory(
-            at: downloadsURL,
+        guard authorized([downloadsDir]).contains(downloadsDir) else {
+            return []
+        }
+        if let contents = try? scopedFS.contentsOfDirectory(
+            atPath: downloadsDir,
             includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) {
             for url in contents {
-                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
+                guard let values = try? scopedFS.resourceValues(
+                    for: url,
+                    keys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+                ) else {
                     continue
                 }
                 guard let modDate = values.contentModificationDate, modDate < thirtyDaysAgo else { continue }
@@ -429,25 +471,25 @@ public final class DeepCleanEngine: @unchecked Sendable {
         }
 
         let homeTrash = fileManager.homeDirectoryForCurrentUser.path + "/.Trash"
-        if fileManager.fileExists(atPath: homeTrash) {
+        if scopedFS.fileExists(atPath: homeTrash) {
             roots.append(homeTrash)
         }
 
         let uid = getuid()
-        if let volumeURLs = try? fileManager.contentsOfDirectory(
-            at: URL(fileURLWithPath: "/Volumes"),
+        if let volumeURLs = try? scopedFS.contentsOfDirectory(
+            atPath: "/Volumes",
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) {
             for volume in volumeURLs {
-                let values = try? volume.resourceValues(forKeys: [.isDirectoryKey])
+                let values = try? scopedFS.resourceValues(for: volume, keys: [.isDirectoryKey])
                 guard values?.isDirectory == true else { continue }
                 let trashPath = volume.path + "/.Trashes/\(uid)"
-                if fileManager.fileExists(atPath: trashPath) {
+                if scopedFS.fileExists(atPath: trashPath) {
                     roots.append(trashPath)
                 }
                 let altTrash = volume.path + "/.Trash"
-                if fileManager.fileExists(atPath: altTrash) {
+                if scopedFS.fileExists(atPath: altTrash) {
                     roots.append(altTrash)
                 }
             }
@@ -459,9 +501,9 @@ public final class DeepCleanEngine: @unchecked Sendable {
     private func trashContents() -> [String] {
         var items: [String] = []
 
-        for root in trashRoots() {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: URL(fileURLWithPath: root),
+        for root in authorized(trashRoots()) {
+            guard let contents = try? scopedFS.contentsOfDirectory(
+                atPath: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
                 options: [.skipsPackageDescendants]
             ) else { continue }
@@ -477,13 +519,12 @@ public final class DeepCleanEngine: @unchecked Sendable {
     private func measureTrashSize(_ paths: [String]) -> Int64 {
         var total: Int64 = 0
         for path in paths {
-            var isDirectory: ObjCBool = false
-            if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
-                if isDirectory.boolValue {
-                    total += sizeCache.size(for: path, includeHidden: true) ?? 0
-                } else if let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]) {
-                    total += Int64(values.fileSize ?? 0)
-                }
+            guard let attrs = try? scopedFS.attributesOfItem(atPath: path) else { continue }
+            let isDirectory = (attrs[.type] as? FileAttributeType) == .typeDirectory
+            if isDirectory {
+                total += sizeCache.size(for: path, includeHidden: true) ?? 0
+            } else if let fileSize = attrs[.size] as? Int64 {
+                total += fileSize
             }
         }
         return total
@@ -504,8 +545,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             home + "/.cabal"
         ]
 
-        for devPath in devPaths {
-            if fileManager.fileExists(atPath: devPath) {
+        for devPath in authorized(devPaths) {
+            if scopedFS.fileExists(atPath: devPath) {
                 if let size = await getDirectorySize(devPath) {
                     paths.append(ItemPath(path: devPath, size: size))
                 }
@@ -524,8 +565,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             home + "/.docker"
         ]
 
-        for dockerPath in dockerPaths {
-            if fileManager.fileExists(atPath: dockerPath) {
+        for dockerPath in authorized(dockerPaths) {
+            if scopedFS.fileExists(atPath: dockerPath) {
                 if let size = await getDirectorySize(dockerPath) {
                     paths.append(ItemPath(path: dockerPath, size: size))
                 }
@@ -545,8 +586,8 @@ public final class DeepCleanEngine: @unchecked Sendable {
             home + "/Library/Developer/Xcode/iOS DeviceSupport"
         ]
 
-        for xcodePath in xcodePaths {
-            if fileManager.fileExists(atPath: xcodePath) {
+        for xcodePath in authorized(xcodePaths) {
+            if scopedFS.fileExists(atPath: xcodePath) {
                 if let size = await getDirectorySize(xcodePath) {
                     paths.append(ItemPath(path: xcodePath, size: size))
                 }
@@ -563,11 +604,43 @@ public final class DeepCleanEngine: @unchecked Sendable {
     }
 
     private func getFileSize(_ path: String) async -> Int64? {
-        guard fileManager.fileExists(atPath: path) else { return nil }
-        let url = URL(fileURLWithPath: path)
-        if let values = try? url.resourceValues(forKeys: [.fileSizeKey]) {
-            return Int64(values.fileSize ?? 0)
+        guard let attrs = try? scopedFS.attributesOfItem(atPath: path) else { return nil }
+        return attrs[.size] as? Int64
+    }
+
+    private func authorized(_ paths: [String], requiresWrite: Bool = false) -> [String] {
+        let filtered = scopedFS.filterAuthorizedPaths(paths, requiresWrite: requiresWrite)
+        return filtered.authorizedPaths
+    }
+
+    private func categoryRoots(_ category: DeepCleanCategory) -> [String] {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        switch category {
+        case .systemCache:
+            return ["/Library/Caches", "/System/Library/Caches"]
+        case .userCache:
+            return [home + "/Library/Caches"]
+        case .logFiles:
+            return [home + "/Library/Logs", "/Library/Logs", "/var/log"]
+        case .tempFiles:
+            return [NSTemporaryDirectory(), "/tmp"]
+        case .browserCache:
+            return [
+                home + "/Library/Caches/com.apple.Safari",
+                home + "/Library/Caches/Google/Chrome",
+                home + "/Library/Caches/Microsoft/Edge",
+                home + "/Library/Caches/Firefox",
+            ]
+        case .downloads:
+            return [home + "/Downloads"]
+        case .trash:
+            return [home + "/.Trash"]
+        case .development:
+            return [home + "/.npm", home + "/.yarn", home + "/.gradle", home + "/.m2"]
+        case .docker:
+            return [home + "/Library/Containers/com.docker.docker", home + "/.docker"]
+        case .xcode:
+            return [home + "/Library/Developer/Xcode/DerivedData", home + "/Library/Developer/Xcode/Archives"]
         }
-        return nil
     }
 }

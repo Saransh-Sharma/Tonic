@@ -61,6 +61,7 @@ class AppInventoryService: ObservableObject {
     private let updater = AppUpdater.shared
     let cache = AppCache.shared
     private let scanner = BackgroundAppScanner()
+    private let scopedFS = ScopedFileSystem.shared
     let fileOps = FileOperations.shared
     private let activityLog = ActivityLogStore.shared
     private let loginItemsManager = LoginItemsManager.shared
@@ -472,11 +473,17 @@ class AppInventoryService: ObservableObject {
     // MARK: - Uninstallation
 
     func uninstallSelectedApps() async -> UninstallResult {
+        await uninstallApps(selectedApps)
+    }
+
+    func uninstallApps(
+        _ appsToDelete: [AppMetadata],
+        progressHandler: ((Int, Int, AppMetadata, Int64) -> Void)? = nil
+    ) async -> UninstallResult {
         isUninstalling = true
         uninstallProgress = 0
         defer { isUninstalling = false }
 
-        let appsToDelete = selectedApps
         if appsToDelete.isEmpty {
             return UninstallResult(success: false, appsUninstalled: 0, bytesFreed: 0, errors: [])
         }
@@ -485,9 +492,23 @@ class AppInventoryService: ObservableObject {
         var errors: [UninstallError] = []
 
         for (index, app) in appsToDelete.enumerated() {
+            progressHandler?(index, appsToDelete.count, app, bytesFreed)
+
             if Task.isCancelled {
                 errors.append(UninstallError(path: app.path.path, message: "Cancelled"))
                 break
+            }
+
+            let access = scopedFS.accessState(forPath: app.path.path, requiresWrite: true)
+            if access.state != .ready {
+                errors.append(
+                    UninstallError(
+                        path: app.path.path,
+                        message: access.reason?.userMessage ?? "Missing access scope"
+                    )
+                )
+                uninstallProgress = Double(index + 1) / Double(appsToDelete.count)
+                continue
             }
 
             if ProtectedApps.isProtectedFromUninstall(app.bundleIdentifier) {
@@ -508,6 +529,8 @@ class AppInventoryService: ObservableObject {
 
             uninstallProgress = Double(index + 1) / Double(appsToDelete.count)
         }
+
+        progressHandler?(appsToDelete.count, appsToDelete.count, appsToDelete.last ?? appsToDelete[0], bytesFreed)
 
         recomputeFilteredApps()
         cache.saveApps(apps)

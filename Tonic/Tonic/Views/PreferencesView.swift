@@ -86,7 +86,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "Appearance"
         case .modules: return "Widget configuration"
-        case .permissions: return "System access"
+        case .permissions: return BuildCapabilities.current.requiresScopeAccess ? "Access & permissions" : "System access"
         case .updates: return "Software updates"
         case .about: return "App information"
         }
@@ -532,6 +532,7 @@ struct ThemeSelectorButton: View {
 
 struct PermissionsSettingsContent: View {
     @State private var permissionManager = PermissionManager.shared
+    @State private var accessBroker = AccessBroker.shared
     @State private var isRefreshing = false
 
     var body: some View {
@@ -543,6 +544,17 @@ struct PermissionsSettingsContent: View {
                         total: 3,
                         label: "Granted"
                     )
+
+                    if BuildCapabilities.current.requiresScopeAccess {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Coverage")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                            Text(accessBroker.coverageTier.rawValue)
+                                .font(DesignTokens.Typography.subhead)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+                        }
+                    }
 
                     Spacer()
 
@@ -570,8 +582,10 @@ struct PermissionsSettingsContent: View {
 
             PreferenceSection(header: "System Access") {
                 PermissionStatusRow(
-                    title: "Full Disk Access",
-                    subtitle: "Required to scan all files and folders on your Mac",
+                    title: BuildCapabilities.current.requiresScopeAccess ? "Authorized Locations" : "Full Disk Access",
+                    subtitle: BuildCapabilities.current.requiresScopeAccess
+                        ? "Grant folders or disks that Tonic can scan and clean"
+                        : "Required to scan all files and folders on your Mac",
                     icon: "externaldrive.fill",
                     status: permissionManager.permissionStatuses[.fullDiskAccess] ?? .notDetermined
                 )
@@ -591,10 +605,76 @@ struct PermissionsSettingsContent: View {
                     showDivider: false
                 )
             }
+
+            if BuildCapabilities.current.requiresScopeAccess {
+                PreferenceSection(header: "Access & Permissions") {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Text("Granted Scopes")
+                                .font(DesignTokens.Typography.subhead)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+                            Spacer()
+                            Text("\(accessBroker.activeScopes.count) active")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                        }
+
+                        if accessBroker.scopes.isEmpty {
+                            Text("No scopes added yet. Add Home, Applications, or your startup disk for deeper scans.")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                                .padding(.vertical, 4)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(accessBroker.scopes) { scope in
+                                    AccessScopeRow(
+                                        scope: scope,
+                                        status: accessBroker.status(for: scope),
+                                        onReauthorize: {
+                                            _ = accessBroker.reauthorizeScope(id: scope.id)
+                                            Task { await refreshPermissions() }
+                                        },
+                                        onRemove: {
+                                            accessBroker.removeScope(id: scope.id)
+                                            Task { await refreshPermissions() }
+                                        }
+                                    )
+
+                                    if scope.id != accessBroker.scopes.last?.id {
+                                        Divider()
+                                            .padding(.leading, DesignTokens.Spacing.md)
+                                    }
+                                }
+                            }
+                            .background(DesignTokens.Colors.backgroundSecondary.opacity(0.6))
+                            .cornerRadius(DesignTokens.CornerRadius.large)
+                        }
+
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Button("Add Scope") {
+                                _ = accessBroker.addScopeUsingOpenPanel()
+                                Task { await refreshPermissions() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+
+                            Button("Enable Full Mac Scan") {
+                                _ = accessBroker.addStartupDiskScope()
+                                Task { await refreshPermissions() }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                }
+            }
         }
         .padding(DesignTokens.Spacing.lg)
         .task {
             await permissionManager.checkAllPermissions()
+            accessBroker.refreshStatuses()
         }
     }
 
@@ -607,6 +687,73 @@ struct PermissionsSettingsContent: View {
         await permissionManager.checkAllPermissions()
         try? await Task.sleep(nanoseconds: 300_000_000)
         isRefreshing = false
+    }
+}
+
+struct AccessScopeRow: View {
+    let scope: AccessScope
+    let status: AccessScopeStatus
+    let onReauthorize: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(scope.displayName)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundColor(DesignTokens.Colors.textPrimary)
+                Text(scope.rootPath)
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(statusLabel)
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(statusColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(statusColor.opacity(0.14))
+                .cornerRadius(6)
+
+            if status != .active {
+                Button("Re-authorize", action: onReauthorize)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+
+            Button("Remove", role: .destructive, action: onRemove)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xs)
+    }
+
+    private var statusLabel: String {
+        switch status {
+        case .active:
+            return "Active"
+        case .disconnected:
+            return "Not Connected"
+        case .staleBookmark:
+            return "Needs Reauth"
+        case .invalid:
+            return "Invalid"
+        }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .active:
+            return TonicColors.success
+        case .disconnected:
+            return TonicColors.warning
+        case .staleBookmark, .invalid:
+            return TonicColors.error
+        }
     }
 }
 
@@ -792,7 +939,7 @@ struct UpdatesSettingsContent: View {
                     }
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
-                        Text("Tonic is Up to Date")
+                        Text(BuildCapabilities.current.usesStoreUpdates ? "Updates are managed by the App Store" : "Tonic is Up to Date")
                             .font(DesignTokens.Typography.subhead)
                             .foregroundColor(DesignTokens.Colors.textPrimary)
 
@@ -809,23 +956,29 @@ struct UpdatesSettingsContent: View {
 
                     Spacer()
 
-                    Button {
-                        checkForUpdates()
-                    } label: {
-                        HStack(spacing: DesignTokens.Spacing.xxs) {
-                            if isCheckingForUpdates {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
+                    if BuildCapabilities.current.usesStoreUpdates {
+                        Text("Open the App Store to check for updates.")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                    } else {
+                        Button {
+                            checkForUpdates()
+                        } label: {
+                            HStack(spacing: DesignTokens.Spacing.xxs) {
+                                if isCheckingForUpdates {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                                Text(isCheckingForUpdates ? "Checking..." : "Check Now")
                             }
-                            Text(isCheckingForUpdates ? "Checking..." : "Check Now")
+                            .font(DesignTokens.Typography.caption)
                         }
-                        .font(DesignTokens.Typography.caption)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isCheckingForUpdates)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(isCheckingForUpdates)
                 }
                 .padding(.vertical, DesignTokens.Spacing.sm)
                 .padding(.horizontal, DesignTokens.Spacing.md)
@@ -833,27 +986,36 @@ struct UpdatesSettingsContent: View {
 
             // Update Preferences Section
             PreferenceSection(header: "Preferences") {
-                PreferenceToggleRow(
-                    title: "Automatic Updates",
-                    subtitle: "Check for updates automatically in the background",
-                    icon: "arrow.triangle.2.circlepath",
-                    showDivider: true,
-                    isOn: $automaticallyChecksForUpdates
-                )
-                .onChange(of: automaticallyChecksForUpdates) { _, newValue in
-                    #if canImport(Sparkle)
-                    SparkleUpdater.shared.automaticallyChecksForUpdates = newValue
-                    #endif
-                }
+                if BuildCapabilities.current.usesStoreUpdates {
+                    Text("Automatic and beta update preferences are unavailable in the Mac App Store edition.")
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                } else {
+                    PreferenceToggleRow(
+                        title: "Automatic Updates",
+                        subtitle: "Check for updates automatically in the background",
+                        icon: "arrow.triangle.2.circlepath",
+                        showDivider: true,
+                        isOn: $automaticallyChecksForUpdates
+                    )
+                    .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                        #if canImport(Sparkle)
+                        SparkleUpdater.shared.automaticallyChecksForUpdates = newValue
+                        #endif
+                    }
 
-                PreferenceToggleRow(
-                    title: "Beta Updates",
-                    subtitle: "Include pre-release versions (may be unstable)",
-                    icon: "flask.fill",
-                    iconColor: DesignTokens.Colors.warning,
-                    showDivider: false,
-                    isOn: $allowBetaUpdates
-                )
+                    PreferenceToggleRow(
+                        title: "Beta Updates",
+                        subtitle: "Include pre-release versions (may be unstable)",
+                        icon: "flask.fill",
+                        iconColor: DesignTokens.Colors.warning,
+                        showDivider: false,
+                        isOn: $allowBetaUpdates
+                    )
+                }
             }
 
             // Release Notes Section
@@ -871,9 +1033,11 @@ struct UpdatesSettingsContent: View {
         }
         .padding(DesignTokens.Spacing.lg)
         .onAppear {
-            #if canImport(Sparkle)
-            automaticallyChecksForUpdates = SparkleUpdater.shared.automaticallyChecksForUpdates
-            #endif
+            if BuildCapabilities.current.supportsSparkle {
+                #if canImport(Sparkle)
+                automaticallyChecksForUpdates = SparkleUpdater.shared.automaticallyChecksForUpdates
+                #endif
+            }
         }
     }
 
@@ -1303,6 +1467,25 @@ struct AboutSettingsContent: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DesignTokens.Spacing.md)
                 .padding(.horizontal, DesignTokens.Spacing.md)
+            }
+
+            if BuildCapabilities.current.requiresScopeAccess {
+                PreferenceSection(header: "Advanced Maintenance") {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(DesignTokens.Colors.textSecondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Some low-level maintenance tasks are limited in the App Store edition.")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+                            Link("Learn about direct edition capabilities", destination: URL(string: "https://github.com/Saransh-Sharma/PreTonic")!)
+                                .font(DesignTokens.Typography.caption)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, DesignTokens.Spacing.sm)
+                    .padding(.horizontal, DesignTokens.Spacing.md)
+                }
             }
 
             // Copyright

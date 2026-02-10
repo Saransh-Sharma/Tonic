@@ -84,6 +84,8 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
     let action: SmartCareAction
     let paths: [String]
     let scoreImpact: Int
+    let accessState: ScopeAccessState
+    let blockedReason: ScopeBlockedReason?
 
     init(
         id: UUID = UUID(),
@@ -97,7 +99,9 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
         isSmartSelected: Bool,
         action: SmartCareAction,
         paths: [String],
-        scoreImpact: Int
+        scoreImpact: Int,
+        accessState: ScopeAccessState = .ready,
+        blockedReason: ScopeBlockedReason? = nil
     ) {
         self.id = id
         self.domain = domain
@@ -111,6 +115,8 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
         self.action = action
         self.paths = paths
         self.scoreImpact = scoreImpact
+        self.accessState = accessState
+        self.blockedReason = blockedReason
     }
 
     var formattedSize: String {
