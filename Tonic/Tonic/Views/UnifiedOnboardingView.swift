@@ -19,8 +19,10 @@ struct UnifiedOnboardingView: View {
     @State private var animateContent = false
 
     @State private var permissionManager = PermissionManager.shared
+    @State private var accessBroker = AccessBroker.shared
     @State private var notificationsEnabled = false
     @State private var notificationStatus: PermissionStatus = .notDetermined
+    @State private var isScopeDropTargeted = false
 
     private let totalPages = 7
 
@@ -289,8 +291,8 @@ struct UnifiedOnboardingView: View {
 
                 // Setup cards
                 VStack(spacing: 12) {
-                    // Full Disk Access — with step-by-step guidance
-                    fdaSetupCard
+                    // Access setup (Store) or Full Disk Access (Direct)
+                    permissionSetupCard
                         .offset(y: animateContent ? 0 : 15)
                         .opacity(animateContent ? 1 : 0)
                         .animation(.easeOut(duration: 0.3).delay(0.24), value: animateContent)
@@ -316,31 +318,35 @@ struct UnifiedOnboardingView: View {
             .padding(.horizontal, 32)
         }
         .task {
-            await permissionManager.checkAllPermissions()
+            await refreshPermissionsAndScopes()
             await refreshNotificationStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task {
-                await permissionManager.checkAllPermissions()
+                await refreshPermissionsAndScopes()
                 await refreshNotificationStatus()
             }
         }
     }
 
-    // MARK: - FDA Setup Card (Step-by-Step)
+    // MARK: - Access Setup Card
 
-    private var fdaSetupCard: some View {
+    private var permissionSetupCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Image(systemName: "lock.open.fill")
+                Image(systemName: BuildCapabilities.current.requiresScopeAccess ? "scope" : "lock.open.fill")
                     .font(.title3)
                     .foregroundColor(permissionManager.hasFullDiskAccess ? .green : TonicColors.accent)
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Full Disk Access")
+                    Text(BuildCapabilities.current.requiresScopeAccess ? "Authorized Locations" : "Full Disk Access")
                         .font(.headline)
-                    Text("Lets Tonic scan your entire disk — not just the parts macOS allows by default.")
+                    Text(
+                        BuildCapabilities.current.requiresScopeAccess
+                        ? "Grant Home, Applications, and optionally your startup disk for full coverage."
+                        : "Lets Tonic scan your entire disk — not just the parts macOS allows by default."
+                    )
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
@@ -354,7 +360,7 @@ struct UnifiedOnboardingView: View {
                         .foregroundColor(.green)
                         .transition(.scale.combined(with: .opacity))
                 } else {
-                    Text("Required")
+                    Text(BuildCapabilities.current.requiresScopeAccess ? "Recommended" : "Required")
                         .font(.caption2).bold()
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -365,29 +371,70 @@ struct UnifiedOnboardingView: View {
             }
 
             if !permissionManager.hasFullDiskAccess {
-                // Step-by-step instructions
-                VStack(alignment: .leading, spacing: 6) {
-                    stepRow(number: 1, text: "Click below to open System Settings")
-                    stepRow(number: 2, text: "Find **Tonic** in the list and flip the switch on")
-                    stepRow(number: 3, text: "Come back here — we'll detect it automatically")
-                }
-                .padding(.leading, 38)
-                .padding(.top, 2)
+                if BuildCapabilities.current.requiresScopeAccess {
+                    VStack(alignment: .leading, spacing: 6) {
+                        stepRow(number: 1, text: "Click **Add Scope**")
+                        stepRow(number: 2, text: "Select Home or Applications (recommended)")
+                        stepRow(number: 3, text: "Optional: select startup disk for Full coverage")
+                    }
+                    .padding(.leading, 38)
+                    .padding(.top, 2)
 
-                Button {
-                    _ = permissionManager.requestFullDiskAccess()
-                } label: {
-                    Text("Open System Settings")
+                    HStack(spacing: 8) {
+                        Button("Add Scope") {
+                            _ = accessBroker.addScopeUsingOpenPanel()
+                            Task { await refreshPermissionsAndScopes() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        Button("Enable Full Mac Scan") {
+                            _ = accessBroker.addStartupDiskScope()
+                            Task { await refreshPermissionsAndScopes() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding(.leading, 38)
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        stepRow(number: 1, text: "Click below to open System Settings")
+                        stepRow(number: 2, text: "Find **Tonic** in the list and flip the switch on")
+                        stepRow(number: 3, text: "Come back here — we'll detect it automatically")
+                    }
+                    .padding(.leading, 38)
+                    .padding(.top, 2)
+
+                    Button {
+                        _ = permissionManager.requestFullDiskAccess()
+                    } label: {
+                        Text("Open System Settings")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .padding(.leading, 38)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .padding(.leading, 38)
             }
         }
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor))
         .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    BuildCapabilities.current.requiresScopeAccess && isScopeDropTargeted
+                        ? TonicColors.accent.opacity(0.9)
+                        : Color.clear,
+                    style: StrokeStyle(lineWidth: 2, dash: [8, 4])
+                )
+        )
+        .dropDestination(for: URL.self) { urls, _ in
+            handleDroppedScopeURLs(urls)
+        } isTargeted: { targeted in
+            isScopeDropTargeted = targeted
+        }
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: permissionManager.hasFullDiskAccess)
+        .animation(.easeInOut(duration: 0.2), value: isScopeDropTargeted)
     }
 
     private func stepRow(number: Int, text: String) -> some View {
@@ -402,6 +449,24 @@ struct UnifiedOnboardingView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+    }
+
+    @MainActor
+    private func handleDroppedScopeURLs(_ urls: [URL]) -> Bool {
+        guard BuildCapabilities.current.requiresScopeAccess else { return false }
+        var added = false
+        for url in urls {
+            do {
+                _ = try accessBroker.addScope(from: url)
+                added = true
+            } catch {
+                continue
+            }
+        }
+        if added {
+            Task { await refreshPermissionsAndScopes() }
+        }
+        return added
     }
 
     // MARK: - Notification Setup Card (Conditional)
@@ -517,8 +582,8 @@ struct UnifiedOnboardingView: View {
             // Status summary
             VStack(spacing: 8) {
                 readyStatusRow(
-                    icon: "lock.open.fill",
-                    title: "Full Disk Access",
+                    icon: BuildCapabilities.current.requiresScopeAccess ? "scope" : "lock.open.fill",
+                    title: BuildCapabilities.current.requiresScopeAccess ? "Authorized Locations" : "Full Disk Access",
                     isGranted: permissionManager.hasFullDiskAccess,
                     delay: 0.35
                 )
@@ -535,7 +600,11 @@ struct UnifiedOnboardingView: View {
             .padding(.horizontal, 40)
 
             if !permissionManager.hasFullDiskAccess {
-                Text("Tip: Grant Full Disk Access for the complete experience.")
+                Text(
+                    BuildCapabilities.current.requiresScopeAccess
+                    ? "Tip: Add your startup disk to unlock Full coverage."
+                    : "Tip: Grant Full Disk Access for the complete experience."
+                )
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .opacity(animateContent ? 1 : 0)
@@ -547,7 +616,7 @@ struct UnifiedOnboardingView: View {
         .padding(.horizontal, 32)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task {
-                await permissionManager.checkAllPermissions()
+                await refreshPermissionsAndScopes()
                 await refreshNotificationStatus()
             }
         }
@@ -650,6 +719,11 @@ struct UnifiedOnboardingView: View {
         notificationsEnabled = granted
         let status = await PermissionManager.shared.checkPermission(.notifications)
         notificationStatus = status
+    }
+
+    private func refreshPermissionsAndScopes() async {
+        await permissionManager.checkAllPermissions()
+        accessBroker.refreshStatuses()
     }
 
     private func completeOnboarding() {
