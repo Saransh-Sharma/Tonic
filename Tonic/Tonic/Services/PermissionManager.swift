@@ -38,6 +38,9 @@ public enum TonicPermission: String, CaseIterable, Sendable {
     var description: String {
         switch self {
         case .fullDiskAccess:
+            if BuildCapabilities.current.requiresScopeAccess {
+                return "Grant authorized locations for scanning and cleanup"
+            }
             return "Required to scan all files on your Mac"
         case .accessibility:
             return "Required for enhanced system monitoring"
@@ -92,6 +95,11 @@ public final class PermissionManager: @unchecked Sendable {
     // MARK: - Full Disk Access
 
     private func checkFullDiskAccess() async -> PermissionStatus {
+        if BuildCapabilities.current.requiresScopeAccess {
+            AccessBroker.shared.refreshStatuses()
+            return AccessBroker.shared.hasUsableScope ? .authorized : .notDetermined
+        }
+
         // Try to access a protected location
         let testPaths = [
             "/Library/Application Support",
@@ -112,6 +120,13 @@ public final class PermissionManager: @unchecked Sendable {
     }
 
     public func requestFullDiskAccess() -> Bool {
+        if BuildCapabilities.current.requiresScopeAccess {
+            return AccessBroker.shared.addScopeUsingOpenPanel(
+                title: "Grant Access Scope",
+                message: "Choose a folder or disk to authorize for scanning."
+            ) != nil
+        }
+
         // Open System Settings to Privacy & Security > Full Disk Access (macOS 14+)
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
 
@@ -156,7 +171,6 @@ public final class PermissionManager: @unchecked Sendable {
     }
 
     public var criticalPermissionsGranted: Bool {
-        // Full Disk Access is critical for most operations
         guard let fdaStatus = permissionStatuses[.fullDiskAccess] else { return false }
         return fdaStatus == .authorized
     }
@@ -169,6 +183,18 @@ public final class PermissionManager: @unchecked Sendable {
 
     /// Returns whether a feature can be used based on permissions
     public func canUseFeature(_ feature: Feature) -> (allowed: Bool, reason: String?) {
+        if BuildCapabilities.current.requiresScopeAccess {
+            switch feature {
+            case .diskScan, .appManager, .smartScan:
+                if !hasFullDiskAccess {
+                    return (false, "Grant at least one authorized location to continue.")
+                }
+                return (true, nil)
+            case .basicScan:
+                return (true, nil)
+            }
+        }
+
         switch feature {
         case .diskScan, .appManager:
             if !hasFullDiskAccess {

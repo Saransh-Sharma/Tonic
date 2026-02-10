@@ -16,6 +16,7 @@ final class SmartScanEngine: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.tonic.app", category: "SmartScan")
     private let diskScanner = DiskScanner()
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
     private let lock = NSLock()
 
     private let categoryScanner = ScanCategoryScanner()
@@ -333,7 +334,7 @@ final class SmartScanEngine: @unchecked Sendable {
         for recommendation in recommendations where recommendation.safeToFix {
             for path in recommendation.affectedPaths {
                 // Get size before deletion
-                let attrs = try? fileManager.attributesOfItem(atPath: path)
+                let attrs = try? scopedFS.attributesOfItem(atPath: path)
                 let size = (attrs?[.size] as? Int64) ?? 0
 
                 // Delete using FileOperations
@@ -385,11 +386,11 @@ final class SmartScanEngine: @unchecked Sendable {
             "/Applications/\(appName).app",
             FileManager.default.homeDirectoryForCurrentUser.path + "/Applications/\(appName).app"
         ]
-        return appPaths.contains { fileManager.fileExists(atPath: $0) }
+        return appPaths.contains { scopedFS.fileExists(atPath: $0) }
     }
 
     private func getFileSize(_ path: String) -> Int64? {
-        return (try? fileManager.attributesOfItem(atPath: path)[.size] as? Int64) ?? nil
+        return (try? scopedFS.attributesOfItem(atPath: path)[.size] as? Int64) ?? nil
     }
 }
 
