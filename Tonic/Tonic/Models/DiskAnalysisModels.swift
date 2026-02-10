@@ -350,6 +350,7 @@ struct StorageInsight: Identifiable, Codable, Sendable {
     let confidence: Double
     let explanation: String
     let recommendedActions: [String]
+    var blockedReason: ScopeBlockedReason?
 }
 
 enum CleanupActionType: String, Codable, CaseIterable, Sendable {
@@ -366,8 +367,89 @@ struct CleanupCandidate: Identifiable, Codable, Sendable, Hashable {
     let estimatedReclaimBytes: Int64
     let riskLevel: StorageRiskLevel
     let safeReason: String
-    let blockedReason: String?
+    let blockedReason: ScopeBlockedReason?
     let selected: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case nodeId
+        case path
+        case actionType
+        case estimatedReclaimBytes
+        case riskLevel
+        case safeReason
+        case blockedReason
+        case selected
+    }
+
+    init(
+        id: UUID,
+        nodeId: String,
+        path: String,
+        actionType: CleanupActionType,
+        estimatedReclaimBytes: Int64,
+        riskLevel: StorageRiskLevel,
+        safeReason: String,
+        blockedReason: ScopeBlockedReason?,
+        selected: Bool
+    ) {
+        self.id = id
+        self.nodeId = nodeId
+        self.path = path
+        self.actionType = actionType
+        self.estimatedReclaimBytes = estimatedReclaimBytes
+        self.riskLevel = riskLevel
+        self.safeReason = safeReason
+        self.blockedReason = blockedReason
+        self.selected = selected
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        nodeId = try container.decode(String.self, forKey: .nodeId)
+        path = try container.decode(String.self, forKey: .path)
+        actionType = try container.decode(CleanupActionType.self, forKey: .actionType)
+        estimatedReclaimBytes = try container.decode(Int64.self, forKey: .estimatedReclaimBytes)
+        riskLevel = try container.decode(StorageRiskLevel.self, forKey: .riskLevel)
+        safeReason = try container.decode(String.self, forKey: .safeReason)
+        selected = try container.decode(Bool.self, forKey: .selected)
+
+        if let typed = try container.decodeIfPresent(ScopeBlockedReason.self, forKey: .blockedReason) {
+            blockedReason = typed
+        } else if let legacy = try container.decodeIfPresent(String.self, forKey: .blockedReason) {
+            blockedReason = Self.mapLegacyBlockedReason(legacy)
+        } else {
+            blockedReason = nil
+        }
+    }
+
+    private static func mapLegacyBlockedReason(_ value: String) -> ScopeBlockedReason? {
+        if let exact = ScopeBlockedReason(rawValue: value) {
+            return exact
+        }
+
+        let normalized = value.lowercased()
+        if normalized.contains("duplicate") || normalized.contains("excluded") {
+            return .missingScope
+        }
+        if normalized.contains("protected") {
+            return .macOSProtected
+        }
+        if normalized.contains("write") {
+            return .sandboxWriteDenied
+        }
+        if normalized.contains("stale") {
+            return .staleBookmark
+        }
+        if normalized.contains("disconnect") {
+            return .disconnectedScope
+        }
+        if normalized.contains("scope") || normalized.contains("access") {
+            return .missingScope
+        }
+        return nil
+    }
 }
 
 struct CleanupCandidateGroup: Identifiable, Sendable {
