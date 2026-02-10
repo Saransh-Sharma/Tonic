@@ -179,7 +179,7 @@ class PerformanceTestBase: XCTestCase {
     /// Assert operation completes within specified time
     func XCTAssertCompletes(
         within timeout: TimeInterval,
-        operation: () -> Void,
+        operation: @escaping () -> Void,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
