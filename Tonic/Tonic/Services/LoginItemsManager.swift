@@ -246,52 +246,6 @@ final class LoginItemsManager: @unchecked Sendable {
 
     // MARK: - Management Actions
 
-    /// Enable or disable a login item
-    public func setLoginItem(_ item: LoginItem, enabled: Bool) async throws {
-        // Implementation for toggling login items
-        // This requires ServiceManagement framework APIs
-        if #available(macOS 13.0, *) {
-            // Use SMAppService
-        } else {
-            // Use LSSharedFileList
-        }
-        errorMessage = "Toggle not yet implemented"
-    }
-
-    /// Remove a login item
-    public func removeLoginItem(_ item: LoginItem) async throws {
-        try await removeLoginItem(atPath: item.path.path)
-    }
-
-    /// Remove a login item by path from the user login items plist
-    public func removeLoginItem(atPath path: String) async throws {
-        let loginItemsPath = NSHomeDirectory() + "/Library/Preferences/com.apple.loginitems.plist"
-        guard let data = FileManager.default.contents(atPath: loginItemsPath),
-              var plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
-            throw LoginItemError.notFound
-        }
-
-        guard var items = plist["AutoLaunchedApplicationDictionary"] as? [[String: Any]] else {
-            throw LoginItemError.notFound
-        }
-
-        let originalCount = items.count
-        items.removeAll { ($0["Path"] as? String) == path }
-        guard items.count != originalCount else {
-            throw LoginItemError.notFound
-        }
-
-        plist["AutoLaunchedApplicationDictionary"] = items
-        let updatedData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try updatedData.write(to: URL(fileURLWithPath: loginItemsPath))
-    }
-
-    /// Add a new login item
-    public func addLoginItem(at url: URL, hidden: Bool = false) async throws {
-        // Implementation for adding login items
-        errorMessage = "Add not yet implemented"
-    }
-
     /// Load a launch service
     public func loadLaunchService(_ service: LaunchService) async throws {
         let process = Process()

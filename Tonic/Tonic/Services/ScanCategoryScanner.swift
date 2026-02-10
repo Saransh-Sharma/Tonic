@@ -49,6 +49,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let tempPaths = getTempDirectories()
 
         for path in tempPaths {
+            if Task.isCancelled { break }
             let (size, count) = await measureFilesInPath(path)
             if size > 0 {
                 paths.append(path)
@@ -74,6 +75,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let cachePaths = getCacheDirectories()
 
         for path in cachePaths {
+            if Task.isCancelled { break }
             let (size, count) = await measureFilesInPath(path)
             if size > 0 {
                 paths.append(path)
@@ -99,6 +101,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let logPaths = getLogDirectories()
 
         for path in logPaths {
+            if Task.isCancelled { break }
             let (size, count) = await measureFilesInPath(path, minAgeHours: 24)
             if size > 0 {
                 paths.append(path)
@@ -158,6 +161,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         }
 
         for item in contents {
+            if Task.isCancelled { break }
             let path = item.path
             let name = (path as NSString).lastPathComponent
 
@@ -200,6 +204,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         }
 
         for url in contents {
+            if Task.isCancelled { break }
             guard let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
                 continue
             }
@@ -258,12 +263,14 @@ final class ScanCategoryScanner: @unchecked Sendable {
         ]
 
         for path in launchAgentPaths where fileManager.fileExists(atPath: path) {
+            if Task.isCancelled { break }
             guard let contents = try? fileManager.contentsOfDirectory(
                 at: URL(fileURLWithPath: path),
                 includingPropertiesForKeys: [.fileSizeKey]
             ) else { continue }
 
             for item in contents {
+                if Task.isCancelled { break }
                 let (size, _) = await measureFilesInPath(item.path)
                 if size > 0 {
                     paths.append(item.path)
@@ -322,6 +329,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         ]
 
         for path in browserCachePaths where fileManager.fileExists(atPath: path) {
+            if Task.isCancelled { break }
             let (size, count) = await measureFilesInPath(path)
             if size > 0 {
                 paths.append(path)
@@ -366,12 +374,14 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let appPaths = ["/Applications", fileManager.homeDirectoryForCurrentUser.path + "/Applications"]
 
         for appPath in appPaths where fileManager.fileExists(atPath: appPath) {
+            if Task.isCancelled { break }
             guard let apps = try? fileManager.contentsOfDirectory(
                 at: URL(fileURLWithPath: appPath),
                 includingPropertiesForKeys: [.isApplicationKey]
             ) else { continue }
 
             for app in apps where app.pathExtension == "app" {
+                if Task.isCancelled { break }
                 let appName = app.deletingPathExtension().lastPathComponent
                 let (size, _) = await measureFilesInPath(app.path)
 
@@ -400,22 +410,26 @@ final class ScanCategoryScanner: @unchecked Sendable {
         let appPaths = ["/Applications", fileManager.homeDirectoryForCurrentUser.path + "/Applications"]
 
         for appPath in appPaths where fileManager.fileExists(atPath: appPath) {
+            if Task.isCancelled { break }
             guard let apps = try? fileManager.contentsOfDirectory(
                 at: URL(fileURLWithPath: appPath),
                 includingPropertiesForKeys: nil
             ) else { continue }
 
             for app in apps where app.pathExtension == "app" {
+                if Task.isCancelled { break }
                 let appName = app.deletingPathExtension().lastPathComponent
                 appsByName[appName, default: []].append(app)
             }
         }
 
         for (appName, paths) in appsByName where paths.count > 1 {
+            if Task.isCancelled { break }
             var metadatas: [AppMetadata] = []
             var totalSize: Int64 = 0
 
             for path in paths {
+                if Task.isCancelled { break }
                 let (size, _) = await measureFilesInPath(path.path)
                 totalSize += size
 
@@ -453,6 +467,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         }
 
         for item in contents {
+            if Task.isCancelled { break }
             let appName = item.lastPathComponent
             let appExists = isAppInstalled(appName)
 
@@ -492,6 +507,7 @@ final class ScanCategoryScanner: @unchecked Sendable {
         var fileCount = 0
 
         for url in contents {
+            if Task.isCancelled { return (totalSize, fileCount) }
             guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]) else {
                 continue
             }

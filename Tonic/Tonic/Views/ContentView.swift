@@ -15,8 +15,8 @@ struct ContentView: View {
     @State private var showOnboarding = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
+    @State private var featureFlagsRefreshID = UUID()
     @Binding var showCommandPalette: Bool
-    @Environment(\.isHighContrast) private var isHighContrast
 
     @State private var permissionManager = PermissionManager.shared
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
@@ -32,9 +32,10 @@ struct ContentView: View {
         ZStack {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selectedDestination: $selectedDestination)
+                    .id(featureFlagsRefreshID)
             } detail: {
                 DetailView(
-                    item: selectedDestination,
+                    selectedDestination: $selectedDestination,
                     onPermissionNeeded: { feature in
                         missingPermissionFor = feature
                         showPermissionPrompt = true
@@ -65,12 +66,53 @@ struct ContentView: View {
                     )
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openAppManagerFromStorageHub)) { _ in
+                selectedDestination = .appManager
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
+                guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
+                      let _ = WidgetType(rawValue: rawModule) else {
+                    return
+                }
+
+                // Navigate to Settings in the main window
+                selectedDestination = .settings
+
+                // After navigation completes, post the module selection notifications
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .openSettingsSection,
+                        object: nil,
+                        userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.modules.rawValue]
+                    )
+
+                    // Small delay to ensure ModulesSettingsContent is ready
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        NotificationCenter.default.post(
+                            name: .openModuleSettings,
+                            object: nil,
+                            userInfo: notification.userInfo
+                        )
+                    }
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TonicDidCompleteReset"))) { _ in
                 // App was reset — re-read onboarding flag and trigger onboarding
                 hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
                 showOnboarding = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .featureFlagsDidChange)) { _ in
+                featureFlagsRefreshID = UUID()
+                selectedDestination = NavigationDestination.sanitize(selectedDestination)
+            }
+            .onChange(of: selectedDestination) { _, newValue in
+                let sanitized = NavigationDestination.sanitize(newValue)
+                if sanitized != newValue {
+                    selectedDestination = sanitized
+                }
+            }
             .onAppear {
+                selectedDestination = NavigationDestination.sanitize(selectedDestination)
                 checkFirstLaunch()
             }
 
@@ -97,7 +139,7 @@ struct ContentView: View {
 }
 
 struct DetailView: View {
-    let item: NavigationDestination
+    @Binding var selectedDestination: NavigationDestination
     let onPermissionNeeded: (PermissionManager.Feature) -> Void
     @ObservedObject var smartCareSession: SmartCareSessionStore
     @ObservedObject var dashboardScanSession: SmartScanManager
@@ -124,14 +166,14 @@ struct DetailView: View {
 
     @ViewBuilder
     private var contentForItem: some View {
-        switch item {
+        switch selectedDestination {
         case .dashboard:
-            DashboardView(scanManager: dashboardScanSession)
+            DashboardHomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
         case .systemCleanup:
             MaintenanceView(smartCareSession: smartCareSession)
         case .appManager:
             if permissionManager.hasFullDiskAccess {
-                AppInventoryView()
+                AppManagerView()
             } else {
                 PermissionRequiredView(
                     icon: "externaldrive.fill",
@@ -149,7 +191,7 @@ struct DetailView: View {
                 PermissionRequiredView(
                     icon: "externaldrive.fill",
                     title: "Full Disk Access Required",
-                    description: "Disk Analysis needs Full Disk Access to scan all directories on your Mac.",
+                    description: "Storage Intelligence Hub needs Full Disk Access to scan all directories on your Mac.",
                     onGrantPermission: {
                         onPermissionNeeded(.diskScan)
                     }
@@ -226,8 +268,6 @@ struct PermissionPromptView: View {
             return "Tonic needs Full Disk Access to scan all files and applications on your Mac."
         case .smartScan:
             return "Smart Scan requires Full Disk Access to perform a comprehensive system scan."
-        case .systemOptimization:
-            return "System optimization requires the privileged helper tool to be installed."
         case .basicScan, nil:
             return "Tonic needs additional permissions to function properly."
         }
@@ -333,11 +373,7 @@ struct PermissionRequiredView: View {
 
 // MARK: - Views that use SystemCleanupView
 
-struct AppManagerView: View {
-    var body: some View {
-        AppInventoryView()
-    }
-}
+// AppManagerView is defined in Views/AppManager/AppManagerView.swift
 
 struct MonitoringView: View {
     var body: some View {
@@ -404,7 +440,9 @@ struct CommandPaletteView: View {
     @State private var selectedIndex: Int = 0
     @FocusState private var isSearchFocused: Bool
 
-    private let allDestinations = NavigationDestination.allCases
+    private var allDestinations: [NavigationDestination] {
+        NavigationDestination.allCases.filter(FeatureFlags.isEnabled)
+    }
 
     /// Filter destinations based on fuzzy search
     private var filteredDestinations: [NavigationDestination] {
@@ -519,6 +557,12 @@ struct CommandPaletteView: View {
                                         .foregroundColor(DesignTokens.Colors.textTertiary)
                                 }
 
+                                #if DEBUG
+                                if destination.wipFeature != nil {
+                                    Badge(text: "WIP", color: DesignTokens.Colors.warning, size: .small)
+                                }
+                                #endif
+
                                 Spacer()
 
                                 if index == selectedIndex {
@@ -539,6 +583,9 @@ struct CommandPaletteView: View {
                     }
                     .listStyle(.plain)
                     .onChange(of: selectedIndex) { oldValue, newValue in
+                        guard filteredDestinations.indices.contains(newValue) else {
+                            return
+                        }
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
@@ -550,6 +597,13 @@ struct CommandPaletteView: View {
             .onAppear {
                 isSearchFocused = true
                 selectedIndex = 0
+            }
+            .onChange(of: filteredDestinations.count) { _, newCount in
+                if newCount == 0 {
+                    selectedIndex = 0
+                } else if selectedIndex >= newCount {
+                    selectedIndex = newCount - 1
+                }
             }
         }
     }

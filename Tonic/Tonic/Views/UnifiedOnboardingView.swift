@@ -19,8 +19,6 @@ struct UnifiedOnboardingView: View {
     @State private var animateContent = false
 
     @State private var permissionManager = PermissionManager.shared
-    @State private var helperManager = PrivilegedHelperManager.shared
-    @State private var isInstallingHelper = false
     @State private var notificationsEnabled = false
     @State private var notificationStatus: PermissionStatus = .notDetermined
 
@@ -303,25 +301,6 @@ struct UnifiedOnboardingView: View {
                         .opacity(animateContent ? 1 : 0)
                         .animation(.easeOut(duration: 0.3).delay(0.32), value: animateContent)
 
-                    // Privileged Helper
-                    OnboardingSetupCard(
-                        icon: "checkmark.shield.fill",
-                        title: "Privileged Helper",
-                        description: "Enables deep cleaning, DNS flushing, RAM clearing, and fan control.",
-                        badgeText: "Recommended",
-                        badgeColor: TonicColors.accent,
-                        isGranted: helperManager.isHelperInstalled,
-                        action: {
-                            Task {
-                                await installHelper()
-                            }
-                        },
-                        actionLabel: isInstallingHelper ? "Installing..." : "Install",
-                        isLoading: isInstallingHelper
-                    )
-                    .offset(y: animateContent ? 0 : 15)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3).delay(0.40), value: animateContent)
                 }
 
                 Text("You can always change these in Settings.")
@@ -338,7 +317,6 @@ struct UnifiedOnboardingView: View {
         }
         .task {
             await permissionManager.checkAllPermissions()
-            _ = helperManager.checkInstallationStatus()
             await refreshNotificationStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -550,12 +528,6 @@ struct UnifiedOnboardingView: View {
                     isGranted: notificationsEnabled,
                     delay: 0.45
                 )
-                readyStatusRow(
-                    icon: "checkmark.shield.fill",
-                    title: "Privileged Helper",
-                    isGranted: helperManager.isHelperInstalled,
-                    delay: 0.55
-                )
             }
             .padding()
             .background(Color(nsColor: .controlBackgroundColor))
@@ -662,17 +634,6 @@ struct UnifiedOnboardingView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             animateContent = true
         }
-    }
-
-    private func installHelper() async {
-        isInstallingHelper = true
-        do {
-            try await helperManager.installHelper()
-            _ = helperManager.checkInstallationStatus()
-        } catch {
-            print("Helper installation failed: \(error)")
-        }
-        isInstallingHelper = false
     }
 
     private func requestNotifications() {

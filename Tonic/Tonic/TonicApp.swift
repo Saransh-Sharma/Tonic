@@ -11,12 +11,10 @@ import SwiftUI
 struct TonicApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var showCommandPalette = false
-    @State private var appIsHighContrast = false
 
     var body: some Scene {
         WindowGroup {
             ContentView(showCommandPalette: $showCommandPalette)
-                .supportHighContrast()
         }
         .commands {
             // Command Palette
@@ -74,6 +72,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize user defaults
         setupUserDefaults()
+
+        // Log install/update activity
+        let version = Bundle.main.appVersion
+        let build = Bundle.main.buildNumber
+        ActivityLogStore.shared.recordInstallIfNeeded(version: version, build: build)
+        ActivityLogStore.shared.recordUpdateIfNeeded(version: version, build: build)
 
         // Apply saved theme preference
         applyThemePreference()
@@ -153,8 +157,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showAbout() {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        let version = Bundle.main.appVersion
+        let build = Bundle.main.buildNumber
 
         let alert = NSAlert()
         alert.messageText = "Tonic for Mac"

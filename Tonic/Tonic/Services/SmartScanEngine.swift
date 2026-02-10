@@ -30,6 +30,41 @@ final class SmartScanEngine: @unchecked Sendable {
         set { lock.locked { _currentStage = newValue } }
     }
 
+    // MARK: - Partial Results (for live UI)
+
+    var partialSpaceFoundBytes: Int64? {
+        lock.locked { _scanData.junkFiles?.totalSize }
+    }
+
+    var partialFlaggedCount: Int? {
+        lock.locked {
+            var hasAny = false
+            var total = 0
+
+            if let junk = _scanData.junkFiles {
+                hasAny = true
+                total += junk.totalFiles
+            }
+
+            if let performance = _scanData.performanceIssues {
+                hasAny = true
+                total += performance.launchAgents.count
+                total += performance.loginItems.count
+                total += performance.browserCaches.count
+            }
+
+            if let apps = _scanData.appIssues {
+                hasAny = true
+                total += apps.unusedApps.count
+                total += apps.largeApps.count
+                total += apps.duplicateApps.count
+                total += apps.orphanedFiles.count
+            }
+
+            return hasAny ? total : nil
+        }
+    }
+
     private struct ScanData {
         var diskUsage: DiskUsageSummary?
         var junkFiles: JunkCategory?

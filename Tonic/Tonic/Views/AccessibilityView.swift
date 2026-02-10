@@ -12,7 +12,6 @@ import SwiftUI
 struct AccessibilityView: View {
     @State private var reduceMotion = false
     @State private var reduceTransparency = false
-    @State private var highContrast = false
     @State private var preferredContentSize = ContentSize.regular
     @State private var voiceOverEnabled = false
     @State private var increaseLineHeight = false
@@ -53,12 +52,6 @@ struct AccessibilityView: View {
     private var visionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             AccessibilitySectionHeader(icon: "eye.fill", title: "Vision", description: "Adjust visual display options")
-
-            AccessibilityToggle(
-                title: "High Contrast Mode",
-                description: "Increase contrast for better visibility",
-                isOn: $highContrast
-            )
 
             AccessibilityToggle(
                 title: "Increase Line Height",

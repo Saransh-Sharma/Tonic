@@ -4,7 +4,7 @@
 
 **Version:** 1.0  
 **Status:** In Development  
-**Last Updated:** January 2026
+**Last Updated:** February 2026
 
 ---
 
@@ -83,7 +83,7 @@ macOS users face several challenges in maintaining their systems:
 4. **Fragmented User Experience**
    - Multiple apps needed for different maintenance tasks
    - No unified dashboard for system health
-   - Settings scattered across System Preferences
+   - Settings scattered across System Settings
    - Menu bar widgets require separate installations
 
 ### User Pain Points
@@ -174,44 +174,45 @@ macOS users face several challenges in maintaining their systems:
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| Dashboard | Implemented | System health score, quick actions, recommendations |
-| Smart Scan | Implemented | Multi-stage scanning with health scoring |
-| Deep Clean | Implemented | 10 cleanup categories with progress tracking |
-| Disk Analysis | Implemented | Directory browser with large file identification |
-| Disk Map | Implemented | Treemap visualization of disk usage |
-| System Monitoring | Implemented | Real-time CPU, Memory, Disk, Network, Battery |
-| Menu Bar Widgets | Implemented | 7 widget types with customization |
-| App Inventory | Implemented | Categorized app list with search and filters |
-| App Uninstall | Implemented | Complete removal with associated files |
-| Notification Rules | Implemented | Custom alerts based on system metrics |
-| Weather Widget | Implemented | Current conditions and 7-day forecast |
-| Preferences | Implemented | Theme, updates, permissions management |
-| Onboarding | Implemented | 4-page wizard for first-time users |
+| Dashboard | Implemented | System health score, Smart Scan action lane, and recommendation surfaces |
+| Smart Scan | Implemented | Three-pillar scan (Space, Performance, Apps) with actionable run flow |
+| Deep Clean | Implemented | Multi-category cleanup with progress and safety checks |
+| Storage Scan (Storage Intelligence Hub) | Implemented | Quick/Full/Targeted local storage analysis with guided cleanup |
+| Cloud Storage Scan | Partially Implemented | Provider detection and cache sizing available; deeper selective cleanup is limited |
+| System Monitoring | Implemented | Real-time CPU, Memory, Disk, Network, GPU, and Battery metrics |
+| Menu Bar Widgets | Implemented | Customizable multi-module widgets with OneView unified mode |
+| Apps Scanner | Implemented | Fast app inventory scan plus size enrichment and issue-focused app analysis in Smart Scan |
+| App Management | Implemented | Categorized inventory, login/background item visibility, uninstall flows |
+| Notification Rules | Implemented | Threshold alerts with cooldown and permission-aware behavior |
+| Preferences | Implemented | Theme, modules, permissions, and update controls |
+| Onboarding | Implemented | First-run flow for permissions and setup |
 
 ### Feature Groupings
 
 #### System Cleanup
-- Smart Scan (4-stage analysis)
-- Deep Clean (10 categories)
-- Hidden Space Scanner
-- Cloud Storage Detection
-- Collector Bin (staging area)
+- Smart Scan (Space, Performance, Apps pillars)
+- Deep Clean (category-driven cleanup)
+- Hidden Space analysis
+- Cloud storage scan (provider-level detection and cache metrics)
+- Collector Bin (staging and restore path)
 
 #### System Monitoring
 - Real-time Dashboard
 - System Status Dashboard
-- Menu Bar Widgets (7 types)
+- Menu Bar Widgets (individual items + OneView unified mode)
 - Notification Rules Engine
 
 #### App Management
-- App Inventory (8 categories)
-- App Uninstaller
-- App Update Detection
+- App Manager Scanner (inventory-first discovery + optional size enrichment)
+- Smart Scan Apps pillar (unused/large/duplicate/orphaned issue surfacing)
+- App uninstallation and associated file cleanup
+- App update checks
 
-#### Disk Analysis
-- Directory Browser
-- Large File Scanner
-- Treemap Visualization
+#### Storage Intelligence
+- Storage scan modes (Quick, Full, Targeted)
+- Explore views (path browser, orbit map, treemap)
+- Act workflows (Guided Assistant, Cart + Review)
+- Insights and history (reclaim packs, anomaly/trend/forecast signals)
 
 ---
 
@@ -219,72 +220,73 @@ macOS users face several challenges in maintaining their systems:
 
 ### 6.1 Dashboard
 
-**Description:** Main entry point showing system health score, quick actions, real-time stats, and recommendations.
+**Description:** Main entry point showing system health score, Smart Scan action lane, real-time stats, and recommendations.
 
 **User Flow:**
 1. User opens Tonic
 2. Sees health score (0-100) with color-coded rating
-3. Reviews recommendations for improvement
-4. Clicks quick action button to perform task
-5. Views recent activity timeline
+3. Uses the primary Smart Scan action to start, stop, or continue system review
+4. Reviews contextual actions after scan results (run Smart Clean, review details, export report)
+5. Checks recommendations and recent activity timeline
 
 **Requirements:**
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
 | Health Score Display | Must Have | Show 0-100 score with circular progress indicator |
-| Quick Actions | Must Have | 4 buttons: Smart Scan, Deep Clean, Optimize, Analyze Disk |
+| Smart Scan Action Lane | Must Have | Primary Smart Scan CTA with state-aware actions (scan, stop, run, review, export) |
 | Real-time Stats | Must Have | Storage, Memory, CPU percentages update every 2s |
 | Recommendations | Must Have | Actionable items with space estimates |
 | Activity Timeline | Should Have | Show recent scan/clean operations |
 
 **Acceptance Criteria:**
 - [ ] Health score displays within 1 second of app launch
-- [ ] Quick action buttons trigger correct view navigation
+- [ ] Smart Scan action lane reflects scan state and exposes correct follow-up actions
 - [ ] Stats update in real-time without lag
 - [ ] Recommendations show potential space reclamation
 
 **Technical Notes:**
-- Health score calculated from: disk usage (25%), cache files (25%), app issues (25%), performance issues (25%)
+- Health and recommendation scoring is derived from Smart Scan findings, runnable safety, and aggregated cleanup impact
 - Stats fetched from `WidgetDataManager.shared`
 
 ---
 
 ### 6.2 Smart Scan
 
-**Description:** Multi-stage scanning engine that analyzes the system and generates a health score with actionable recommendations.
+**Description:** Smart Scan is the guided analysis and execution experience that scans Space, Performance, and Apps pillars, then lets users run recommended actions safely.
 
 **User Flow:**
-1. User clicks "Smart Scan" on dashboard
-2. Scan progresses through 4 stages with visual feedback
-3. Results show health score and categorized recommendations
-4. User selects recommendations to clean
-5. Clean operation executes with progress
+1. User clicks "Smart Scan" from dashboard
+2. Scan runs through three pillars with live counters and stage timeline
+3. Results show grouped findings by Space, Performance, and Apps
+4. User can review by pillar or trigger quick actions from result tiles
+5. User runs Smart Clean for recommended runnable items or selects custom items
 
 **Scanning Stages:**
 
-| Stage | Duration | Actions |
-|-------|----------|---------|
-| Preparing | ~0.5s | Initialize, load preferences |
-| Scanning Disk | Variable | Enumerate caches, logs, temp files |
-| Checking Apps | Variable | Identify unused apps, duplicates, orphaned files |
-| Analyzing System | Variable | Detect hidden space, performance issues |
+| Stage | Purpose | Representative Output |
+|-------|---------|-----------------------|
+| Space | Detect reclaimable storage and clutter | Reclaimable bytes, cleanup groups, safe-to-run items |
+| Performance | Detect maintenance and startup/background friction | Flagged maintenance/login/background items |
+| Apps | Detect app lifecycle issues | Unused/large/duplicate/orphaned app findings |
 
 **Requirements:**
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
-| Stage Progression | Must Have | Show current stage with progress percentage |
-| Cancel Operation | Must Have | Allow user to cancel mid-scan |
-| Recommendation Types | Must Have | Cache, Logs, Temp Files, Duplicates, Large Files, Hidden Space |
-| Health Score | Must Have | Calculate 0-100 score based on findings |
-| Selective Clean | Should Have | Allow user to select specific recommendations |
+| Stage Progression | Must Have | Show current stage and completed stages for Space/Performance/Apps |
+| Live Counters | Must Have | Show space found, performance flags, and app scan count during execution |
+| Cancel Operation | Must Have | Allow user to stop scan or run in progress |
+| Selective Execution | Must Have | Let user run only selected runnable items after review |
+| Smart Recommendations | Must Have | Preselect safe, high-value actions for one-click Smart Clean |
+| Drill-down Managers | Should Have | Per-pillar review screens for manual inspection and selection |
 
 **Acceptance Criteria:**
-- [ ] Scan completes within 30 seconds on typical user system
-- [ ] All 4 stages display with accurate progress
-- [ ] Health score matches manual calculation of findings
-- [ ] Recommendations show expected space reclamation
+- [ ] Smart Scan surfaces all three pillars in order with visible progression
+- [ ] Live counters update while scanning and reflect final result totals
+- [ ] Canceling scan/run leaves app responsive and returns control to user
+- [ ] Smart Clean executes only safe runnable actions unless user overrides by explicit selection
+- [ ] Results provide clear per-item reclaim estimates and actionability
 
 ---
 
@@ -358,75 +360,128 @@ macOS users face several challenges in maintaining their systems:
 
 ### 6.5 Menu Bar Widgets
 
-**Description:** Real-time system metrics displayed as separate menu bar items.
+**Description:** Real-time system modules displayed in the menu bar, available as individual status items or as a unified OneView status item.
 
-**Widget Types:**
+**Widget Modules:**
 
-| Widget | Data Source | Display Modes |
-|--------|-------------|---------------|
-| CPU | `host_processor_info()` | Icon, Icon+Value, Icon+Value+Sparkline |
-| Memory | `vm_statistics64()` | Icon, Icon+Value, Icon+Value+Sparkline |
-| Disk | `getfsstat()` | Icon, Icon+Value |
-| Network | `sysctl` | Icon, Icon+Value |
-| GPU | IOKit AGX | Icon, Icon+Value |
-| Battery | IOKit IOPS | Icon, Icon+Value |
-| Weather | Open-Meteo API | Icon, Icon+Value, Icon+Value+Forecast |
+| Module | Scope | Notes |
+|--------|-------|-------|
+| CPU | Core/system usage | Supports chart/gauge style visualizations |
+| GPU | Apple Silicon focused metrics | Platform-dependent visibility |
+| Memory | Usage and pressure | Includes pressure-focused views |
+| Disk | Capacity and I/O | Includes speed/chart representations |
+| Network | Throughput/connectivity | Dual upload/download visualization options |
+| Battery | Power and health | Portable-Mac dependent visibility |
+| Sensors | Temperature/fans | Includes fan control modes |
+| Bluetooth | Device connectivity/battery | Multi-device summary views |
+| Clock | Timezone/time display | Stack/label-style views |
+| Weather | Environment integration | Optional module shown when weather/location integration is configured |
 
 **Requirements:**
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
-| Independent Widgets | Must Have | Each metric has separate NSStatusItem |
-| Display Modes | Must Have | 3 modes per widget |
-| Customization | Must Have | Enable/disable, reorder, colors |
-| Onboarding | Must Have | First-run widget setup wizard |
-| Click Behavior | Must Have | Opens detail popover |
+| Individual + Unified Modes | Must Have | Support per-widget status items and OneView unified mode |
+| Visualization Compatibility | Must Have | Enforce per-module compatible visualization options |
+| Customization | Must Have | Enable/disable, reorder, color, refresh, and module settings |
+| Popover Drill-down | Must Have | Clicking widgets opens detail popovers with contextual metrics |
+| Settings Persistence | Must Have | Widget configuration persists across restarts and migration versions |
+| Threshold Notifications | Should Have | Per-widget alert thresholds with cooldown/de-dup behavior |
 
 **Acceptance Criteria:**
-- [ ] Each enabled widget appears in menu bar
-- [ ] Widgets update at configured interval
-- [ ] Click opens detail popover with graphs
-- [ ] Settings persist across app restarts
+- [ ] Enabled modules appear correctly in individual mode and in unified OneView mode
+- [ ] Incompatible visualization selections are prevented or normalized safely
+- [ ] Settings changes are reflected in runtime without app restart
+- [ ] Popovers open reliably with module-specific details
+- [ ] Notification thresholds respect cooldown settings and permission state
 
 ---
 
 ### 6.6 App Management
 
-**Description:** Inventory of installed applications with search, filter, and uninstall capabilities.
+**Description:** App Management combines inventory scanning, filtering, update awareness, and uninstall operations into one workflow.
+
+**Scanner Model:**
+
+| Scanner Path | Behavior | User Outcome |
+|--------------|----------|--------------|
+| App Manager Scanner | Fast discovery first, optional size enrichment pass | Quick inventory load with progressively better size accuracy |
+| Smart Scan Apps Pillar | Issue-oriented app checks during Smart Scan | Cleanup-ready app recommendations in Smart Scan results |
 
 **Inventory Categories:**
 
 | Category | Examples |
 |----------|----------|
-| Apps | Standard .app bundles |
-| Extensions | Safari, Finder, System Extensions |
-| Preference Panes | System Preferences panes |
-| Quick Look Plugins | .qlgenerator files |
-| Spotlight Importers | .mdimporter bundles |
-| Frameworks | .framework bundles |
-| System Utilities | Built-in system apps |
-| Login Items | Apps launching at login |
+| Apps | Standard `.app` bundles |
+| App Extensions | Finder/Safari/system extensions |
+| Preference Panes | `.prefPane` bundles |
+| Quick Look Plugins | `.qlgenerator` bundles |
+| Spotlight Importers | `.mdimporter` bundles |
+| Frameworks | `.framework` and runtime artifacts |
+| System Utilities | Helper and utility bundles |
+| Login Items | Launch agents/daemons/login entries |
 
 **Requirements:**
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
-| App Listing | Must Have | Show all installed items by category |
-| Search | Must Have | Search by name or bundle identifier |
-| Sorting | Must Have | By name, size, last used, install date |
-| Filtering | Should Have | Quick filters (unused, large, development) |
-| Uninstall | Must Have | Remove app bundle + associated files |
-| Batch Operations | Should Have | Select multiple apps for action |
+| App Listing | Must Have | Show categorized items with counts and sizes |
+| Search + Sort + Filter | Must Have | Search by name/bundle ID; sort/filter for usage and category workflows |
+| Login/Background Visibility | Must Have | Expose startup/background item inventory in app context |
+| Update Awareness | Should Have | Surface available app update counts and status |
+| Safe Uninstall | Must Have | Remove app bundle and associated files with safety checks |
+| Batch Selection | Should Have | Support multi-item selection for workflow efficiency |
 
 **Acceptance Criteria:**
-- [ ] All 8 categories display correct item counts
-- [ ] Search returns results within 500ms
-- [ ] Uninstall removes all associated files (preferences, caches, support)
-- [ ] Protected apps (system, password managers) cannot be uninstalled
+- [ ] Initial scan populates inventory quickly before full size enrichment completes
+- [ ] Category filters, search, and sort produce consistent results
+- [ ] Login/background-related entries are visible and filterable
+- [ ] Uninstall flow honors protected-item rules and reports outcomes clearly
+- [ ] Smart Scan app issues map cleanly into App Management review context
 
 ---
 
-### 6.7 Notification Rules
+### 6.7 Storage Scan
+
+**Description:** Storage Scan (Storage Intelligence Hub) provides local storage analysis plus action-oriented cleanup workflows, with optional cloud provider scan context.
+
+**Local Storage Modes:**
+
+| Mode | Scope | Purpose |
+|------|-------|---------|
+| Quick | Reduced depth/priority pass | Fast overview for immediate decisions |
+| Full | Comprehensive path indexing | Maximum fidelity for cleanup planning |
+| Targeted | User-selected paths | Focused analysis for known hot spots |
+
+**Requirements:**
+
+| Requirement | Priority | Description |
+|-------------|----------|-------------|
+| Permission Handling | Must Have | Guide users through Full Disk Access requirements |
+| Explore Views | Must Have | Provide browser, orbit map, and treemap views for scanned nodes |
+| Action Workflows | Must Have | Support Guided Assistant and Cart + Review cleanup modes |
+| Insight Surfaces | Should Have | Show reclaim packs, anomalies, trends, and forecast narratives |
+| History Tracking | Should Have | Persist scan history and trend context for repeat scans |
+| Safety Guardrails | Must Have | Risk-level labeling, blocked/protected paths, and pre-execution review |
+
+**Cloud Storage Scan Requirements:**
+
+| Requirement | Priority | Description |
+|-------------|----------|-------------|
+| Provider Detection | Must Have | Detect iCloud, Dropbox, Google Drive, and OneDrive presence |
+| Usage Summary | Must Have | Report cache size and synced file counts per detected provider |
+| Cache Cleanup | Should Have | Support cache clearing where provider paths are known and safe |
+
+**Acceptance Criteria:**
+- [ ] Quick/Full/Targeted modes execute and report progress/state transitions
+- [ ] Users can navigate scan results and select cleanup candidates before execution
+- [ ] Cleanup workflow reports estimated reclaim and blocked-path reasons
+- [ ] Repeat scans on similar scopes contribute to trend/history views
+- [ ] Cloud scan returns provider-level summaries when provider paths exist
+
+---
+
+### 6.8 Notification Rules
 
 **Description:** User-configurable alerts based on system metrics.
 
@@ -474,8 +529,7 @@ macOS users face several challenges in maintaining their systems:
 | Full Disk Access | Scan and clean all files | Disk scanning, cleanup, app uninstall |
 | Accessibility | Automate system tasks | System optimization, launch services rebuild |
 | Notifications | Alert users | Scan completion, low disk space, alerts |
-| Location | Weather widget | Current location for weather |
-| Location (In Use) | Weather updates | Continuous weather updates |
+| Location (When In Use) | Weather widget | Local weather and environment module context |
 
 ### Technical Dependencies
 
@@ -512,14 +566,17 @@ macOS users face several challenges in maintaining their systems:
 
 ### Onboarding Flow
 
-**4-Page Wizard:**
+**7-Screen Guided Flow:**
 
 | Page | Title | Content |
 |------|-------|---------|
-| 1 | Welcome | App overview, features, continue button |
-| 2 | Permissions | Full Disk Access explanation, grant button, fallback to System Settings |
-| 3 | Helper | Privileged Helper explanation, install button |
-| 4 | Ready | Summary, launch dashboard button |
+| 1 | Welcome | Product intro and value framing |
+| 2 | Smart Scan | Space/Performance/Apps overview |
+| 3 | Storage Lens | Storage intelligence and visual analysis intro |
+| 4 | App Manager | App inventory and uninstall value framing |
+| 5 | Menu Widgets | Real-time monitoring and alerting intro |
+| 6 | Setup | Full Disk Access + Notifications setup guidance |
+| 7 | Ready | Final summary and launch action |
 
 **UX Principles:**
 - Clear value proposition on each page
@@ -536,7 +593,8 @@ macOS users face several challenges in maintaining their systems:
 
 2. **Collector Bin**
    - Deleted items staged in Collector Bin first
-   - 7-day retention with restore capability
+   - Restore/remove workflow before permanent deletion
+   - Capacity guardrails enforced by item count and total staged size limits
    - Permanent deletion requires explicit confirmation
 
 3. **Whitelist**
@@ -572,34 +630,31 @@ macOS users face several challenges in maintaining their systems:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Dashboard | Complete | Health score, quick actions, stats, recommendations |
-| Smart Scan | Complete | 4-stage scan, health score, recommendations |
-| Deep Clean | Complete | 10 categories, progress tracking |
-| Disk Analysis | Complete | Directory browser, large files |
-| Disk Map | Complete | Treemap visualization |
-| System Monitoring | Complete | CPU, Memory, Disk, Network, Battery |
-| Menu Bar Widgets | Complete | 7 widget types, customization |
-| App Inventory | Complete | 8 categories, search, sort, filter |
-| App Uninstall | Complete | Bundle + associated files removal |
-| Notification Rules | Complete | Custom alerts, presets, history |
-| Weather Widget | Complete | Open-Meteo, 7-day forecast |
-| Preferences | Complete | Theme, updates, permissions |
-| Onboarding | Complete | 4-page wizard |
+| Dashboard | Complete | Health score, Smart Scan action lane, stats, recommendations |
+| Smart Scan | Complete | Three-pillar scan (Space/Performance/Apps), runnable recommendations |
+| Deep Clean | Complete | Category-driven cleanup with progress and summaries |
+| Storage Scan (Storage Intelligence Hub) | Complete | Quick/Full/Targeted scans, explore/act/insights/history surfaces |
+| Disk Treemap/Orbit Views | Complete | Visual storage terrain for scanned nodes |
+| System Monitoring | Complete | CPU, Memory, Disk, Network, GPU, Battery metrics |
+| Menu Bar Widgets | Complete | Individual + OneView runtime modes with persistent customization |
+| App Manager Scanner | Complete | Fast inventory scan with optional size enrichment and category workflows |
+| App Uninstall | Complete | Bundle + associated files removal with protection checks |
+| Notification Rules | Complete | Threshold alerts with cooldown controls |
+| Preferences | Complete | Theme, updates, permissions, module configuration |
+| Onboarding | Complete | 7-screen guided setup flow |
 | Collector Bin | Complete | Staging, restore, permanent delete |
 
 ### Partially Implemented
 
 | Feature | Status | Missing |
 |---------|--------|---------|
-| App Updates | Partial | Sparkle integration complete, batch updates not implemented |
-| Cloud Storage Scan | Partial | Detection works, selective cleaning not implemented |
-| Network Disk Scan | Partial | Detection works, detailed analysis not implemented |
+| App Updates | Partial | Detection is present; full end-to-end batch update workflow is incomplete |
+| Cloud Storage Scan | Partial | Provider scan and summary work; fine-grained selective cleanup is limited |
 
 ### Not Yet Implemented
 
 | Feature | Priority | Description |
 |---------|----------|-------------|
-| Batch Uninstall | Medium | Select multiple apps, remove in one operation |
 | Docker/VM Deep Clean | Medium | Container/image management UI |
 | Duplicate Finder | Low | Find and merge duplicate files |
 | Time Machine Management | Low | Local snapshots cleanup UI |
@@ -619,7 +674,7 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 |--------|--------|-------------|
 | GitHub Stars | 1,000 in 6 months | GitHub repository |
 | Downloads | 10,000 in 6 months | GitHub Releases |
-| Active Users | 1,000 DAU in 6 months | Anonymous analytics (opt-in) |
+| Community Engagement | 1,000 contributors/participants in 6 months | Issues, discussions, and feedback participation |
 
 ### Engagement Metrics
 
@@ -650,7 +705,7 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 
 ## 11. Freemium Model
 
-> **Note:** The freemium model is planned but not yet implemented. The following describes the intended feature split between Tonic Basic (free) and Tonic Pro (paid). Pricing has not been determined.
+> **Note:** Freemium support is partially modeled in internal licensing logic, but production packaging and purchase UX are still being finalized.
 
 ### Tiers
 
@@ -659,66 +714,55 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 | **Dashboard** | ✓ | ✓ |
 | **Smart Scan** | ✓ | ✓ |
 | **System Monitoring** | ✓ | ✓ |
-| **Menu Bar Widgets** | 3 widgets | All 7 widgets |
-| **App Inventory** | View only | Uninstall + batch operations |
-| **Deep Clean** | Basic categories | All 10 categories |
-| **Disk Analysis** | Browser only | Browser + Treemap + Large Files |
-| **Notification Rules** | Presets only | Custom rules (unlimited) |
-| **Weather Widget** | Current temp only | 7-day forecast |
+| **Menu Bar Widgets** | Core subset | Full module set + advanced customization |
+| **App Scanner / Inventory** | View and scan | Advanced actions, uninstall, expanded workflows |
+| **Deep Clean** | Core categories | Full category set |
+| **Storage Scan (Hub)** | Basic scan + browse | Full workflows (guided/cart/insights/history) |
+| **Notification Rules** | Presets | Custom rules (unlimited) |
+| **Cloud Storage Scan** | Provider detection summary | Expanded cleanup controls (planned) |
 | **App Updates** | - | ✓ |
-| **Docker/VM Cleanup** | - | ✓ |
-| **Hidden Space Scan** | - | ✓ |
-| **Cloud Storage Manager** | - | ✓ |
 | **Priority Support** | - | ✓ |
 
 ### Free Tier (Tonic Basic)
 
-**Purpose:** Provide core value to all users, demonstrate quality, build user base
+**Purpose:** Deliver essential cleanup and monitoring value with safe defaults.
 
 **Included Features:**
-- Dashboard with health score
-- Smart Scan (basic categories)
-- System Monitoring (real-time)
-- 3 Menu Bar Widgets (CPU, Memory, Disk)
-- App Inventory (view only)
-- Notification Rules (presets only)
-- Preferences (basic settings)
+- Dashboard with health indicators
+- Smart Scan core recommendations
+- Real-time monitoring and core menu modules
+- App scanning and inventory visibility
+- Basic storage scan and browsing
+- Preset notification rules
 
 **Limitations:**
-- Cannot uninstall apps
-- Cannot access development/Docker/Xcode categories
-- Cannot create custom notification rules
-- Weather widget limited to current temperature
-- No treemap visualization
+- Advanced uninstall and batch remediation workflows may be restricted
+- Full storage insight/action workflows may be restricted
+- Fine-grained cloud cleanup controls may be restricted
 
 ### Pro Tier (Tonic Pro)
 
-**Purpose:** Generate revenue, reward power users, fund continued development
+**Purpose:** Unlock full power-user workflows and advanced automation/safety controls.
 
 **Additional Features:**
-- All 7 Menu Bar Widgets (including GPU, Battery, Weather with forecast)
-- Complete Deep Clean (all 10 categories)
-- App Uninstall with batch operations
-- Disk Treemap visualization
-- Custom Notification Rules (unlimited)
-- Docker/VM cleanup management
-- Hidden space scanner
-- Cloud storage manager
-- Future: App updater
+- Full widget module and visualization configuration
+- Expanded Smart Scan and Deep Clean controls
+- Advanced app remediation/uninstall workflows
+- Full Storage Hub workflow surface (guided, cart, insights, history)
+- Expanded cloud storage cleanup controls
+- App updater workflows
 
 **Implementation Notes:**
-- In-app purchase via Sparkle or App Store
-- License key or subscription model (undecided)
-- No forced subscription, lifetime option considered
-- Pro features remain free during beta period
+- StoreKit-backed productization is planned; current codebase includes tier/limit scaffolding
+- Final purchase model (subscription, lifetime, or mixed) is still under product decision
+- No forced subscription objective remains
 
 ### Upgrade UX
 
 - Non-intrusive upgrade prompts
-- Feature comparison visible before attempting locked feature
+- Feature comparison visible before attempting locked features
 - Clear value proposition for Pro
 - No degraded experience for free users
-- Respectful notification frequency
 
 ---
 
@@ -726,12 +770,14 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 
 | Term | Definition |
 |------|------------|
-| Collector Bin | Staging area for items marked for deletion, allows restore |
-| Deep Clean | Comprehensive cleanup across multiple system categories |
-| Health Score | 0-100 rating of system condition based on multiple factors |
-| Menu Bar Widget | Real-time system metric displayed in macOS menu bar |
-| Smart Scan | Multi-stage analysis with health scoring and recommendations |
-| Treemap | Visualization technique showing hierarchy and size proportionally |
+| Apps Scanner | Combined app discovery workflows in App Manager and Smart Scan app issue analysis |
+| Collector Bin | Staging area for items marked for deletion, with restore path before permanent delete |
+| Deep Clean | Category-driven cleanup workflow for reclaimable system and app clutter |
+| Health Score | 0-100 rating of system condition based on scan findings and actionability |
+| Menu Bar Widget | Real-time system module displayed in menu bar (individual or unified OneView mode) |
+| Smart Scan | Three-pillar analysis flow (Space, Performance, Apps) with runnable recommendations |
+| Storage Scan | Storage Intelligence Hub analysis workflow for local storage and cleanup planning |
+| Treemap | Area-based visualization that represents hierarchical size distribution |
 | Whitelist | User-specified paths protected from cleanup operations |
 
 ---
@@ -741,19 +787,21 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 ```
 ~/Library/Application Support/Tonic/
 ├── CollectorBin/
-│   └── items.json              # Staged deletion items
-├── preferences.json            # User preferences
-└── widgetConfigs.json          # Widget configuration
+│   └── bin_items.json          # Collector Bin staged item metadata
+└── (feature data persisted via UserDefaults keys)
 
-~/Library/Caches/com.tonic.Tonic/
-├── Cache.db                    # Disk scan cache
-└── WeatherCache/               # Cached weather data
+~/Library/Caches/com.pretonic.tonic/
+└── appcache.json               # App inventory scan cache
 
-~/Library/Logs/com.tonic.Tonic/
-└── app.log                     # Application logs
+~/Library/Logs/Tonic/
+└── tonic.log                   # Application logs
 
-/Library/PrivilegedHelperTools/
-└── com.tonicformac.app.helper  # Privileged helper binary (if installed)
+UserDefaults keys (representative):
+- tonic.widget.store.configs
+- tonic.history.*
+- tonic.notificationRules.*
+- tonic.activity.log
+- tonic.license.*
 ```
 
 ---
@@ -771,5 +819,5 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 ---
 
 *Document Version: 1.0*  
-*Last Updated: January 2026*  
+*Last Updated: February 2026*  
 *Next Review: April 2026*

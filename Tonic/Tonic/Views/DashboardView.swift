@@ -9,63 +9,6 @@
 import SwiftUI
 import IOKit.ps
 
-// MARK: - Activity Timeline Model
-
-struct ActivityItem: Identifiable, Equatable {
-    let id = UUID()
-    let timestamp: Date
-    let type: ActivityType
-    let title: String
-    let description: String
-    let impact: ImpactLevel
-
-    enum ActivityType: String {
-        case scan = "Scan"
-        case clean = "Clean"
-        case optimize = "Optimize"
-        case alert = "Alert"
-        case info = "Info"
-
-        var icon: String {
-            switch self {
-            case .scan: return "magnifyingglass"
-            case .clean: return "sparkles"
-            case .optimize: return "gearshape.2"
-            case .alert: return "exclamationmark.triangle.fill"
-            case .info: return "info.circle"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .scan: return DesignTokens.Colors.accent
-            case .clean: return DesignTokens.Colors.success
-            case .optimize: return DesignTokens.Colors.accent
-            case .alert: return DesignTokens.Colors.error
-            case .info: return DesignTokens.Colors.textSecondary
-            }
-        }
-    }
-
-    enum ImpactLevel: String {
-        case high = "High"
-        case medium = "Medium"
-        case low = "Low"
-
-        var color: Color {
-            switch self {
-            case .high: return DesignTokens.Colors.error
-            case .medium: return DesignTokens.Colors.warning
-            case .low: return DesignTokens.Colors.success
-            }
-        }
-    }
-
-    static func == (lhs: ActivityItem, rhs: ActivityItem) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
 // MARK: - Recommendation Model
 
 struct Recommendation: Identifiable, Equatable {
@@ -199,10 +142,17 @@ class SmartScanManager: ObservableObject {
     @Published var currentPhase: ScanPhase = .idle
     @Published var healthScore: Int = 0
     @Published var hasScanResult: Bool = false
-    @Published var activityHistory: [ActivityItem] = []
     @Published var recommendations: [Recommendation] = []
+    @Published var lastScanDate: Date?
+    @Published var lastReclaimableBytes: Int64?
+    @Published var scanStartDate: Date?
+    @Published var spaceFoundBytes: Int64?
+    @Published var appsScannedCount: Int?
+    @Published var flaggedCount: Int?
 
     private let scanEngine = SmartScanEngine()
+    private let activityLog = ActivityLogStore.shared
+    private var scanTask: Task<Void, Never>?
 
     enum ScanPhase: String, CaseIterable {
         case idle = "Ready"
@@ -229,57 +179,105 @@ class SmartScanManager: ObservableObject {
 
     // MARK: - Smart Scan
 
-    func startSmartScan() async {
-        guard !isScanning else { return }
+    func startSmartScan() {
+        guard scanTask == nil else { return }
+
+        scanTask = Task {
+            await runSmartScan()
+        }
+    }
+
+    func stopSmartScan() {
+        scanTask?.cancel()
+        isScanning = false
+        scanProgress = 0.0
+        currentPhase = .idle
+        scanStartDate = nil
+    }
+
+    private func runSmartScan() async {
+        guard !isScanning else {
+            scanTask = nil
+            return
+        }
+
         isScanning = true
+        scanStartDate = Date()
         scanProgress = 0.0
         currentPhase = .preparing
 
-        let stages: [ScanStage] = [.preparing, .scanningDisk, .checkingApps, .analyzingSystem]
+        spaceFoundBytes = nil
+        appsScannedCount = nil
+        flaggedCount = nil
+
+        defer {
+            scanTask = nil
+        }
+
+        let stages: [ScanStage] = [.preparing, .scanningDisk, .analyzingSystem, .checkingApps]
         for stage in stages {
+            if Task.isCancelled { break }
             currentPhase = mapPhase(from: stage)
             scanProgress = await scanEngine.runStage(stage)
+            if Task.isCancelled { break }
+            refreshLiveCounters()
+        }
+
+        if Task.isCancelled {
+            isScanning = false
+            scanProgress = 0.0
+            currentPhase = .idle
+            scanStartDate = nil
+            return
         }
 
         let result = await scanEngine.finalizeScan()
         healthScore = result.systemHealthScore
         hasScanResult = true
+        lastScanDate = Date()
+        lastReclaimableBytes = result.totalSpaceToReclaim
         updateRecommendations(from: result)
 
-        // Add to activity
-        let activity = ActivityItem(
-            timestamp: Date(),
-            type: .scan,
-            title: "Smart Scan Completed",
-            description: "Found \(formatBytes(result.totalSpaceToReclaim)) of reclaimable space",
+        spaceFoundBytes = result.totalSpaceToReclaim
+        flaggedCount = recommendations.filter { !$0.isCompleted }.count
+
+        let detail = "Found \(formatBytes(result.totalSpaceToReclaim)) reclaimable · Score +\(result.systemHealthScore) · Duration \(formatDuration(result.scanDuration))"
+        let event = ActivityEvent(
+            category: .scan,
+            title: "Smart Scan completed",
+            detail: detail,
             impact: activityImpact(for: result.totalSpaceToReclaim)
         )
-        activityHistory.insert(activity, at: 0)
-        if activityHistory.count > 10 {
-            activityHistory.removeLast()
-        }
+        activityLog.record(event)
 
         scanProgress = 1.0
         currentPhase = .complete
         isScanning = false
+        scanStartDate = nil
+    }
+
+    private func refreshLiveCounters() {
+        if let bytes = scanEngine.partialSpaceFoundBytes {
+            spaceFoundBytes = bytes
+        }
+        flaggedCount = scanEngine.partialFlaggedCount
     }
 
     // MARK: - Quick Actions
 
     func quickScan() async {
-        await startSmartScan()
+        startSmartScan()
     }
 
     func quickClean() async {
         // Simulate quick clean
-        let activity = ActivityItem(
-            timestamp: Date(),
-            type: .clean,
-            title: "Quick Clean",
-            description: "Cleaned temporary files and cache",
+        let event = ActivityEvent(
+            category: .clean,
+            title: "Quick Clean completed",
+            detail: "Cleaned temporary files and cache",
             impact: .medium
         )
-        activityHistory.insert(activity, at: 0)
+        activityLog.record(event)
 
         // Update a recommendation
         if let index = recommendations.firstIndex(where: { $0.type == .clean }) {
@@ -289,14 +287,13 @@ class SmartScanManager: ObservableObject {
 
     func quickOptimize() async {
         // Simulate optimization
-        let activity = ActivityItem(
-            timestamp: Date(),
-            type: .optimize,
-            title: "System Optimized",
-            description: "Optimized memory and startup items",
+        let event = ActivityEvent(
+            category: .optimize,
+            title: "System optimized",
+            detail: "Optimized memory and startup items",
             impact: .low
         )
-        activityHistory.insert(activity, at: 0)
+        activityLog.record(event)
     }
 
     // MARK: - Helpers
@@ -365,10 +362,14 @@ class SmartScanManager: ObservableObject {
         }
     }
 
-    private func activityImpact(for reclaimableBytes: Int64) -> ActivityItem.ImpactLevel {
+    private func activityImpact(for reclaimableBytes: Int64) -> ActivityImpact {
         if reclaimableBytes >= 1_000_000_000 { return .high }
         if reclaimableBytes >= 250_000_000 { return .medium }
         return .low
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        String(format: "%.1fs", seconds)
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -387,6 +388,7 @@ struct DashboardView: View {
     @State private var showWidgetCustomization = false
     @State private var showHealthScoreExplanation = false
     @State private var isActivityExpanded = false
+    @State private var activityStore = ActivityLogStore.shared
     @State private var detailRecommendation: ScanRecommendation?
     @State private var showingRecommendationDetail = false
 
@@ -585,9 +587,7 @@ struct DashboardView: View {
     private var smartScanButton: some View {
         Button {
             if !scanManager.isScanning {
-                Task {
-                    await scanManager.startSmartScan()
-                }
+                scanManager.startSmartScan()
             }
         } label: {
             HStack(spacing: DesignTokens.Spacing.sm) {
@@ -802,7 +802,7 @@ struct DashboardView: View {
 
                 Spacer()
 
-                if scanManager.activityHistory.count > 3 {
+                if activityStore.entries.count > 3 {
                     Button {
                         withAnimation(DesignTokens.Animation.fast) {
                             isActivityExpanded.toggle()
@@ -820,22 +820,46 @@ struct DashboardView: View {
 
             // Activity list (collapsed: 3 items, expanded: all)
             let visibleActivities = isActivityExpanded
-                ? Array(scanManager.activityHistory)
-                : Array(scanManager.activityHistory.prefix(3))
+                ? Array(activityStore.entries)
+                : Array(activityStore.entries.prefix(3))
 
-            VStack(spacing: 0) {
-                ForEach(visibleActivities) { activity in
-                    CompactActivityRow(activity: activity)
+            if visibleActivities.isEmpty {
+                emptyActivityState
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(visibleActivities) { activity in
+                        CompactActivityRow(activity: activity)
 
-                    if activity.id != visibleActivities.last?.id {
-                        Divider()
-                            .padding(.leading, DesignTokens.Spacing.md + 32)
+                        if activity.id != visibleActivities.last?.id {
+                            Divider()
+                                .padding(.leading, DesignTokens.Spacing.md + 32)
+                        }
                     }
                 }
+                .background(DesignTokens.Colors.backgroundSecondary)
+                .cornerRadius(DesignTokens.CornerRadius.medium)
             }
-            .background(DesignTokens.Colors.backgroundSecondary)
-            .cornerRadius(DesignTokens.CornerRadius.medium)
         }
+    }
+
+    private var emptyActivityState: some View {
+        VStack(alignment: .center, spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 20))
+                .foregroundColor(DesignTokens.Colors.textTertiary)
+
+            Text("No activity yet")
+                .font(DesignTokens.Typography.subheadEmphasized)
+                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+            Text("Run a Smart Scan to get started.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(DesignTokens.Spacing.md)
+        .background(DesignTokens.Colors.backgroundSecondary)
+        .cornerRadius(DesignTokens.CornerRadius.medium)
     }
 }
 
@@ -928,13 +952,13 @@ struct DashboardRecommendationRow: View {
 // MARK: - Compact Activity Row Component
 
 struct CompactActivityRow: View {
-    let activity: ActivityItem
+    let activity: ActivityEvent
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             // Icon
-            Image(systemName: activity.type.icon)
-                .foregroundColor(activity.type.color)
+            Image(systemName: activity.category.icon)
+                .foregroundColor(activity.category.color)
                 .font(.system(size: 14))
                 .frame(width: 24, height: 24)
 
@@ -944,10 +968,10 @@ struct CompactActivityRow: View {
                     .font(DesignTokens.Typography.subhead)
                     .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                Text(activity.description)
+                Text(activity.detail)
                     .font(DesignTokens.Typography.caption)
                     .foregroundColor(DesignTokens.Colors.textSecondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
 
             Spacer()
@@ -960,7 +984,7 @@ struct CompactActivityRow: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .padding(.vertical, DesignTokens.Spacing.sm)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(activity.title), \(activity.description), \(relativeTime)")
+        .accessibilityLabel("\(activity.title), \(activity.detail), \(relativeTime)")
     }
 
     private var relativeTime: String {

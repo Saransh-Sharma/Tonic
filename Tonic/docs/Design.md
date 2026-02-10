@@ -826,7 +826,192 @@ ActionConfirmationModal(
 
 ---
 
-## 1.13 Environment Setup
+## 1.13 Widget Components
+
+Widget-specific components for the Menu Bar Widgets screen. Defined in `TonicWidgetComponents.swift`. The widgets screen uses **`protectionMagenta`** as its world color.
+
+### Components
+
+| Component | Purpose | File |
+|-----------|---------|------|
+| `WidgetHeroModule` | Top-of-screen hero with breathing glow, active widget icon cluster, and count chip | `TonicWidgetComponents.swift` |
+| `WidgetCard` | Rich glass card for each active widget — drag handle, sparkline, live value, settings gear | `TonicWidgetComponents.swift` |
+| `WidgetSourceTile` | Grid tile for available (disabled) widgets — icon, name, description, checkmark/plus indicator | `TonicWidgetComponents.swift` |
+| `OneViewModeCard` | Featured toggle card for Unified Menu Bar Mode — icon rotation animation on enable | `TonicWidgetComponents.swift` |
+| `WidgetMiniPreview` | Inline dark menu bar preview showing icon + sparkline + value for a single widget | `TonicWidgetComponents.swift` |
+| `WidgetCommandDock` | Sticky bottom dock with live preview strip of all active widgets + Apply/Notifications buttons | `TonicWidgetComponents.swift` |
+
+### WidgetHeroModule
+
+Two states: `.idle` (no active widgets) and `.active(count:)`.
+
+```swift
+WidgetHeroModule(
+    state: .active(count: 5),
+    activeIcons: ["cpu", "memorychip", "internaldrive", "network", "battery.100"]
+)
+```
+
+Features:
+- `.breathingHero()` continuous gentle scale + glow animation
+- `.heroBloom()` soft magenta glow halo
+- `CounterChip` with `.numericText()` transition when count changes
+- Hero icon scale bump on count change (`stageCheckmarkSpring`)
+
+### WidgetCard
+
+```swift
+WidgetCard(
+    config: widgetConfig,
+    sparklineData: [30, 35, 32, 38, 36],
+    currentValue: "42%",
+    isDragging: false,
+    isDropTarget: false,
+    onSettings: { openSettings() },
+    onRemove: { removeWidget() }
+)
+```
+
+Features:
+- Glass surface with `TonicRadiusToken.l`
+- `.depthLift()` hover effect (Y offset, shadow, scale)
+- Drag state: opacity 0.5, scale 0.97
+- Drop target: world-colored accent border glow
+- Settings gear: 15-degree rotation on hover (`fast` duration)
+- Live sparkline and `.numericText()` value transition
+- Context menu with Settings and Remove actions
+
+### WidgetSourceTile
+
+```swift
+WidgetSourceTile(
+    type: .cpu,
+    isEnabled: false,
+    description: "Monitor CPU usage and core activity.",
+    onToggle: { enableWidget(.cpu) }
+)
+```
+
+Features:
+- Grid layout (minimum 160pt width via `LazyVGrid` adaptive)
+- World-tinted accent border when enabled
+- `.depthLift()` hover
+- Tap animation with `TonicMotionToken.springTap`
+- Checkmark icon (enabled) or plus icon (available)
+
+### OneViewModeCard
+
+```swift
+OneViewModeCard(
+    enabled: $unifiedMode,
+    onToggle: { newValue in
+        preferences.setUnifiedMenuBarMode(newValue)
+        WidgetCoordinator.shared.refreshWidgets()
+    }
+)
+```
+
+Features:
+- `.raised` glass variant
+- Grid icon 90-degree rotation on toggle with `springTap`
+- World-colored accent border when enabled
+- `.depthLift()` hover
+
+### WidgetMiniPreview
+
+```swift
+WidgetMiniPreview(
+    config: cpuConfig,
+    value: "42%",
+    sparklineData: [30, 35, 32, 38, 36]
+)
+```
+
+Features:
+- Dark rounded rect background (mimics menu bar)
+- Icon + sparkline + monospacedDigit value
+- `.numericText()` transition on value changes
+- Used inside `WidgetCommandDock` preview strip
+
+### WidgetCommandDock
+
+```swift
+WidgetCommandDock(
+    activeWidgets: enabledConfigs,
+    previewValues: enabledConfigs.map { config in
+        (config: config, value: "42%", sparkline: [30, 35, 32])
+    },
+    onApply: { WidgetCoordinator.shared.refreshWidgets() },
+    onNotifications: { showNotificationSettings = true }
+)
+```
+
+Features:
+- Horizontal `WidgetMiniPreview` strip (auto-scrolling)
+- Preview strip animates additions/removals with `stageEnterSpring`
+- Widget count text with `.numericText()` transition
+- `PrimaryActionButton` ("Apply Changes") + `SecondaryPillButton` ("Notifications")
+- `.raised` glass surface
+- Entrance animation with `modalPresentSpring` (fade + slide up)
+
+### Widget Screen Animations
+
+| Animation | Trigger | Tokens Used |
+|-----------|---------|-------------|
+| Widget enable pop-in | Toggle on / tap available tile | `stageEnterSpring`, scale 0.95->1 + opacity transition |
+| Widget disable shrink | Toggle off / remove | `stageEnterSpring`, scale 1->0.95 + opacity transition |
+| Drag reorder with lift | Drag & drop active widgets | `stageEnterSpring`, opacity 0.5, scale 0.97, accent border glow |
+| Hero breathing + bloom | Always (idle and active) | `.breathingHero()`, `.heroBloom()` |
+| Hero count bump | Widget count changes | `stageCheckmarkSpring` scale 1.0->1.05->1.0 |
+| Section stagger cascade | Initial load / navigation | `.staggeredReveal(index:)`, per-card stagger |
+| Dock entrance | First appear | `modalPresentSpring` with 0.2s delay, fade + slide up |
+| Dock preview strip | Widgets added/removed | `stageEnterSpring`, scale + opacity transitions |
+| Hover depth lift | Mouse hover on cards/tiles | `.depthLift()`, Y offset -3, shadow deepens, scale 1.005 |
+| Category chip select | Filter tap | `springTap`, scale 1.02, cross-fade grid with `med` easing |
+| Toggle micro-feedback | Toggle switch change | `springTap` wrapping |
+| Gear icon hover | Settings gear hover | 15-degree rotation, `fast` duration |
+| Live value updates | Continuous (data refresh) | `.numericText()` content transition |
+
+### Widget Screen View Hierarchy
+
+```
+TonicThemeProvider(world: .protectionMagenta) {
+  ZStack {
+    WorldCanvasBackground()
+    VStack(spacing: TonicSpaceToken.three) {
+      PageHeader(title:subtitle:trailing:)
+      ScrollView {
+        VStack(spacing: TonicSpaceToken.four) {
+          WidgetHeroModule(...)        .staggeredReveal(index: 0)
+          OneViewModeCard(...)         .staggeredReveal(index: 1)
+          activeWidgetsSection         .staggeredReveal(index: 2)
+            // WidgetCard per widget   .staggeredReveal(index: 2 + i)
+          availableWidgetsSection      .staggeredReveal(index: 3 + N)
+            // GlassChip filter chips (All / System / Environment)
+            // LazyVGrid of WidgetSourceTile
+        }
+      }
+      WidgetCommandDock(...)
+    }
+  }
+}
+```
+
+### Category Filter (WidgetFilterCategory)
+
+The available widgets section includes filter chips:
+
+| Category | Widgets |
+|----------|---------|
+| **All** | All disabled widgets |
+| **System** | CPU, Memory, Disk, GPU, Sensors |
+| **Environment** | Network, Battery, Weather, Bluetooth, Clock |
+
+Filter chips use `GlassChip` with `.world(.protectionMagenta)` role when selected, `.semantic(.neutral)` when deselected.
+
+---
+
+## 1.14 Environment Setup
 
 ### TonicThemeProvider
 
@@ -1396,6 +1581,7 @@ PopoverDetailGrid(pairs:)
 | `TonicThemeTokens.swift` | World colors, palettes, neutral/text/stroke tokens, spacing, radius, typography, motion, glass, shadow, button, chip, canvas, semantic, theme struct |
 | `TonicVisualPrimitives.swift` | View modifiers — glass surface, canvas background, depth effects, hover/press, breathing, sweep, stagger, burst, pulse, typography views |
 | `TonicSmartScanComponents.swift` | 30+ reusable UI components — buttons, chips, rows, headers, grids, state panels, detail views, hub components |
+| `TonicWidgetComponents.swift` | Widget-specific components — WidgetHeroModule, WidgetCard, WidgetSourceTile, OneViewModeCard, WidgetMiniPreview, WidgetCommandDock |
 | `TonicThemeProvider.swift` | Environment plumbing — `TonicThemeProvider`, `@Environment(\.tonicTheme)`, glass rendering mode, force legacy glass |
 
 ### Legacy System
@@ -1417,6 +1603,7 @@ PopoverDetailGrid(pairs:)
 - **Modern tokens**: `Tonic/Tonic/Design/TonicThemeTokens.swift`
 - **Modern primitives**: `Tonic/Tonic/Design/TonicVisualPrimitives.swift`
 - **Modern components**: `Tonic/Tonic/Design/TonicSmartScanComponents.swift`
+- **Widget components**: `Tonic/Tonic/Design/TonicWidgetComponents.swift`
 - **Modern plumbing**: `Tonic/Tonic/Design/TonicThemeProvider.swift`
 - **Legacy tokens**: `Tonic/Tonic/Design/DesignTokens.swift`
 - **Legacy components**: `Tonic/Tonic/Design/DesignComponents.swift`

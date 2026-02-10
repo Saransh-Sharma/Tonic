@@ -49,7 +49,7 @@ final class PreferenceListTests: XCTestCase {
     // MARK: - PreferenceRow Tests
 
     func testPreferenceRowWithTitle() {
-        let title = "Launch at Login"
+        let title = "Automatic Updates"
         XCTAssertFalse(title.isEmpty)
     }
 
@@ -222,9 +222,9 @@ final class PreferenceListTests: XCTestCase {
 
     func testAccessibilityLabels() {
         let labels = [
-            "Launch at Login - Toggle",
+            "Automatic Updates - Toggle",
             "Theme - Picker",
-            "Clear Cache - Button",
+            "App Data - Status",
             "System Status - Text",
         ]
 
@@ -334,8 +334,8 @@ final class PreferenceListTests: XCTestCase {
     // MARK: - Organization Tests
 
     func testGroupingByCategory() {
-        let generalSettings = ["Launch at Login", "Theme"]
-        let advancedSettings = ["Debug Mode", "Cache Size"]
+        let generalSettings = ["Automatic Updates", "Theme"]
+        let advancedSettings = ["Debug Mode", "Diagnostics"]
 
         XCTAssertEqual(generalSettings.count, 2)
         XCTAssertEqual(advancedSettings.count, 2)

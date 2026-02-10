@@ -358,6 +358,15 @@ public final class NotificationManager: Sendable {
     /// Toggle the enabled state of notifications
     public func toggleNotifications() {
         config.notificationsEnabled.toggle()
+        let title = config.notificationsEnabled ? "Notifications enabled" : "Notifications disabled"
+        let detail = "Respect DND: \(config.respectDoNotDisturb ? "On" : "Off")"
+        let event = ActivityEvent(
+            category: .notification,
+            title: title,
+            detail: detail,
+            impact: .none
+        )
+        ActivityLogStore.shared.record(event)
     }
 
     /// Update the minimum interval between notifications
@@ -369,6 +378,15 @@ public final class NotificationManager: Sendable {
     /// Toggle respect for Do Not Disturb
     public func toggleRespectDoNotDisturb() {
         config.respectDoNotDisturb.toggle()
+        let title = config.respectDoNotDisturb ? "Respect DND enabled" : "Respect DND disabled"
+        let detail = "Notifications: \(config.notificationsEnabled ? "On" : "Off")"
+        let event = ActivityEvent(
+            category: .notification,
+            title: title,
+            detail: detail,
+            impact: .none
+        )
+        ActivityLogStore.shared.record(event)
     }
 
     /// Reset all notification settings to defaults

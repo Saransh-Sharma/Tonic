@@ -20,7 +20,6 @@ public final class AppResetService {
         case stoppingWidgets
         case clearingCache
         case removingAppData
-        case uninstallingHelper
         case resettingPreferences
         case preparingOnboarding
 
@@ -29,7 +28,6 @@ public final class AppResetService {
             case .stoppingWidgets: return "Stopping widgets"
             case .clearingCache: return "Clearing cache files"
             case .removingAppData: return "Removing app data"
-            case .uninstallingHelper: return "Uninstalling helper tool"
             case .resettingPreferences: return "Resetting preferences"
             case .preparingOnboarding: return "Preparing fresh start"
             }
@@ -40,7 +38,6 @@ public final class AppResetService {
             case .stoppingWidgets: return "square.grid.2x2"
             case .clearingCache: return "trash"
             case .removingAppData: return "folder"
-            case .uninstallingHelper: return "wrench.and.screwdriver"
             case .resettingPreferences: return "gearshape"
             case .preparingOnboarding: return "sparkles"
             }
@@ -92,11 +89,6 @@ public final class AppResetService {
         return directorySize(at: appSupportURL)
     }
 
-    /// Whether the helper tool is currently installed
-    public var isHelperInstalled: Bool {
-        PrivilegedHelperManager.shared.isHelperInstalled
-    }
-
     // MARK: - Reset Operations
 
     /// Perform the complete app reset
@@ -110,27 +102,22 @@ public final class AppResetService {
         completedSteps.insert(.stoppingWidgets)
 
         // Step 2: Clear cache
-        state = .inProgress(step: .clearingCache, progress: 0.17)
+        state = .inProgress(step: .clearingCache, progress: 0.20)
         await clearCacheFiles(warnings: &warnings)
         completedSteps.insert(.clearingCache)
 
         // Step 3: Remove app data
-        state = .inProgress(step: .removingAppData, progress: 0.33)
+        state = .inProgress(step: .removingAppData, progress: 0.40)
         await clearAppData(warnings: &warnings)
         completedSteps.insert(.removingAppData)
 
-        // Step 4: Uninstall helper
-        state = .inProgress(step: .uninstallingHelper, progress: 0.50)
-        await uninstallHelperGracefully(warnings: &warnings)
-        completedSteps.insert(.uninstallingHelper)
-
-        // Step 5: Reset preferences
-        state = .inProgress(step: .resettingPreferences, progress: 0.67)
+        // Step 4: Reset preferences
+        state = .inProgress(step: .resettingPreferences, progress: 0.60)
         resetAllUserDefaults()
         completedSteps.insert(.resettingPreferences)
 
-        // Step 6: Reset singletons and prepare onboarding
-        state = .inProgress(step: .preparingOnboarding, progress: 0.83)
+        // Step 5: Reset singletons and prepare onboarding
+        state = .inProgress(step: .preparingOnboarding, progress: 0.80)
         resetSingletonStates()
         completedSteps.insert(.preparingOnboarding)
 
@@ -182,20 +169,6 @@ public final class AppResetService {
         try? await Task.sleep(nanoseconds: 150_000_000)
     }
 
-    private func uninstallHelperGracefully(warnings: inout [String]) async {
-        guard PrivilegedHelperManager.shared.isHelperInstalled else {
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            return
-        }
-
-        do {
-            try await PrivilegedHelperManager.shared.uninstallHelper()
-        } catch {
-            warnings.append("Helper tool could not be removed: \(error.localizedDescription)")
-        }
-        try? await Task.sleep(nanoseconds: 150_000_000)
-    }
-
     private func resetAllUserDefaults() {
         let defaults = UserDefaults.standard
         let bundleId = Bundle.main.bundleIdentifier ?? "com.tonic.Tonic"
@@ -212,18 +185,19 @@ public final class AppResetService {
             "tonic.widget.configs",
             "tonic.widget.updateInterval",
             "tonic.appearance.themeMode",
-            "tonic.appearance.accentColor",
             "tonic.appearance.iconStyle",
             "tonic.appearance.reduceTransparency",
             "tonic.appearance.reduceMotion",
-            "launchAtLogin",
             "automaticallyChecksForUpdates",
             "allowBetaUpdates",
             "firstLaunch",
             "scanEnabled",
             "notificationsEnabled",
             "autoCleanEnabled",
-            "themePreference"
+            "themePreference",
+            "tonic.activity.log",
+            "tonic.activity.hasLoggedInstall",
+            "tonic.activity.lastLoggedVersion"
         ]
 
         for key in knownKeys {
@@ -235,7 +209,6 @@ public final class AppResetService {
     private func resetSingletonStates() {
         // Reset appearance to defaults
         AppearancePreferences.shared.setThemeMode(.system)
-        AppearancePreferences.shared.setAccentColor(.blue)
         AppearancePreferences.shared.setIconStyle(.filled)
         AppearancePreferences.shared.setReduceTransparency(false)
         AppearancePreferences.shared.setReduceMotion(false)

@@ -3,10 +3,6 @@
 //  Tonic
 //
 //  Fan control component with mode selection and per-fan sliders
-//  Task ID: fn-8-v3b.11
-//
-//  NOTE: Actual SMC fan speed control requires privileged helper (task fn-8-v3b.13)
-//  This component provides the UI and state management; SMC writes are deferred.
 //
 
 import SwiftUI
@@ -14,17 +10,11 @@ import SwiftUI
 // MARK: - Fan Control View
 
 /// Comprehensive fan control UI with mode selection and per-fan speed sliders
-/// Matches Stats Master's fan control implementation pattern
 ///
 /// Features:
-/// - Mode selector: Auto / Manual / System
-/// - Per-fan controls with min/max labels and sliders
-/// - Safety features: warning dialog, thermal auto-switch
-/// - Settings persistence via SensorsModuleSettings
-///
-/// **IMPORTANT:** SMC fan speed writes require the privileged helper tool.
-/// This component stores target speeds and will send them to the helper
-/// once it's implemented in task fn-8-v3b.13.
+/// - Read-only Auto mode indicator
+/// - Per-fan speed visualization with disabled controls
+/// - Settings persistence for stored fan speed percentages
 public struct FanControlView: View {
 
     // MARK: - Properties
@@ -32,26 +22,8 @@ public struct FanControlView: View {
     @State private var dataManager = WidgetDataManager.shared
     @State private var currentMode: SensorsModuleSettings.FanControlMode = .auto
     @State private var fanSpeeds: [String: Int] = [:]  // fanId -> speed (0-100%)
-    @State private var showWarningDialog = false
-    @State private var hasPendingModeChange = false
-    @State private var pendingMode: SensorsModuleSettings.FanControlMode = .manual
 
     private let fanSpeedStorageKey = "tonic.widget.sensors.manualFanSpeeds"
-
-    // Privileged helper availability check
-    // Uses PrivilegedHelperManager to check if SMC writes are available
-    // SMC writes may work directly on Apple Silicon, or require helper on Intel
-    private var isHelperAvailable: Bool {
-        return PrivilegedHelperManager.shared.isFanControlAvailable
-    }
-
-    private let thermalThreshold: Double = 85.0  // Celsius
-    private var shouldShowThermalWarning: Bool {
-        guard let maxTemp = dataManager.sensorsData.temperatures.map(\.value).max() else {
-            return false
-        }
-        return maxTemp >= thermalThreshold && currentMode == .manual
-    }
 
     // MARK: - Body
 
@@ -67,46 +39,14 @@ public struct FanControlView: View {
                 emptyStateView
             } else {
                 fanControlsList
-
-                // Helper not available notice
-                if currentMode == .manual && !isHelperAvailable {
-                    helperNotAvailableNotice
-                }
-            }
-
-            // Thermal Warning
-            if shouldShowThermalWarning {
-                thermalWarningBanner
             }
         }
         .padding(PopoverConstants.horizontalPadding)
         .padding(.vertical, PopoverConstants.verticalPadding)
         .onAppear {
             loadSettings()
-            // Revert to auto mode if helper is not available
-            if currentMode == .manual && !isHelperAvailable {
-                currentMode = .auto
-                saveSettings()
-            }
             initializeFanSpeeds()
-            checkThermalThreshold()
-        }
-        .onChange(of: currentMode) { _, newValue in
-            handleModeChange(newValue)
-        }
-        .onChange(of: dataManager.sensorsData.temperatures) { _, _ in
-            checkThermalThreshold()
-        }
-        .alert("Manual Fan Control", isPresented: $showWarningDialog) {
-            Button("Cancel", role: .cancel) {
-                hasPendingModeChange = false
-            }
-            Button("I Understand", role: .destructive) {
-                hasPendingModeChange = false
-                applyModeChange(pendingMode)
-            }
-        } message: {
-            Text(manualModeWarningMessage)
+            enforceReadOnlyMode()
         }
     }
 
@@ -120,24 +60,18 @@ public struct FanControlView: View {
                     .foregroundColor(DesignTokens.Colors.textPrimary)
 
                 Spacer()
-
-                // Sync indicator
-                let syncEnabled = WidgetPreferences.shared.widgetConfigs
-                    .first(where: { $0.type == .sensors })?.moduleSettings.sensors.syncFanControl ?? true
-                if syncEnabled && currentMode != .auto {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignTokens.Colors.accent)
-                }
             }
 
             Picker("", selection: $currentMode) {
-                ForEach(SensorsModuleSettings.FanControlMode.allCases, id: \.self) { mode in
-                    Label(mode.displayName, systemImage: mode.icon)
-                        .tag(mode)
-                }
+                Label(SensorsModuleSettings.FanControlMode.auto.displayName, systemImage: SensorsModuleSettings.FanControlMode.auto.icon)
+                    .tag(SensorsModuleSettings.FanControlMode.auto)
             }
             .pickerStyle(.segmented)
+            .disabled(true)
+
+            Text("Manual fan control is disabled in this build.")
+                .font(PopoverConstants.detailLabelFont)
+                .foregroundColor(DesignTokens.Colors.textSecondary)
         }
     }
 
@@ -150,18 +84,9 @@ public struct FanControlView: View {
                     fan: fan,
                     speed: Binding(
                         get: { fanSpeeds[fan.id] ?? 50 },
-                        set: { newSpeed in
-                            fanSpeeds[fan.id] = newSpeed
-                            updateFanSpeed(fanId: fan.id, speed: newSpeed)
-                            // Sync other fans if enabled
-                            let syncEnabled = WidgetPreferences.shared.widgetConfigs
-                                .first(where: { $0.type == .sensors })?.moduleSettings.sensors.syncFanControl ?? true
-                            if syncEnabled {
-                                syncAllFans(to: newSpeed)
-                            }
-                        }
+                        set: { _ in }
                     ),
-                    isEditable: currentMode == .manual
+                    isEditable: false
                 )
             }
         }
@@ -187,93 +112,7 @@ public struct FanControlView: View {
         .padding(.vertical, PopoverConstants.sectionSpacing)
     }
 
-    // MARK: - Thermal Warning Banner
-
-    private var thermalWarningBanner: some View {
-        HStack(spacing: PopoverConstants.compactSpacing) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("High Temperature")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text("Fans switched to Auto for safety")
-                    .font(.system(size: 9))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Button("Dismiss") {
-                // User acknowledged, stay in auto mode
-                saveSettings()
-            }
-            .font(.system(size: 9))
-            .buttonStyle(.bordered)
-        }
-        .padding(PopoverConstants.compactSpacing)
-        .background(TonicColors.warning.opacity(0.1))
-        .cornerRadius(PopoverConstants.innerCornerRadius)
-    }
-
-    // MARK: - Helper Not Available Notice
-
-    private var helperNotAvailableNotice: some View {
-        HStack(spacing: PopoverConstants.compactSpacing) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Manual Mode Unavailable")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text("The privileged helper tool is required for manual fan control. This will be available after task fn-8-v3b.13 is completed.")
-                    .font(.system(size: 9))
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Button("Return to Auto") {
-                currentMode = .auto
-            }
-            .font(.system(size: 9))
-            .buttonStyle(.bordered)
-        }
-        .padding(PopoverConstants.compactSpacing)
-        .background(TonicColors.warning.opacity(0.1))
-        .cornerRadius(PopoverConstants.innerCornerRadius)
-    }
-
     // MARK: - Helper Methods
-
-    private var manualModeWarningMessage: String {
-        """
-        Manual fan control allows you to set fan speeds manually.
-
-        Important:
-        • Setting fans too low may cause overheating
-        • High temperatures will automatically switch back to Auto mode
-        • Actual fan speed control requires the privileged helper (task fn-8-v3b.13)
-
-        Are you sure you want to enable manual fan control?
-        """
-    }
-
-    /// Check thermal threshold and auto-switch to auto mode if exceeded
-    private func checkThermalThreshold() {
-        guard let maxTemp = dataManager.sensorsData.temperatures.map(\.value).max() else {
-            return
-        }
-
-        if maxTemp >= thermalThreshold && currentMode == .manual {
-            // Auto-switch to auto mode for safety
-            applyModeChange(.auto)
-        }
-    }
 
     private func loadSettings() {
         // Get sensors widget config to read fan control mode
@@ -287,9 +126,10 @@ public struct FanControlView: View {
         }
     }
 
-    private func saveSettings() {
+    private func enforceReadOnlyMode() {
+        currentMode = .auto
         WidgetPreferences.shared.updateConfig(for: .sensors) { config in
-            config.moduleSettings.sensors.fanControlMode = currentMode
+            config.moduleSettings.sensors.fanControlMode = .auto
         }
     }
 
@@ -313,77 +153,6 @@ public struct FanControlView: View {
         }
     }
 
-    private func handleModeChange(_ newMode: SensorsModuleSettings.FanControlMode) {
-        // Prevent manual mode if helper is not available
-        if newMode == .manual && !isHelperAvailable {
-            // Show alert and revert to auto mode
-            DispatchQueue.main.async {
-                self.currentMode = .auto
-            }
-            return
-        }
-
-        // Get current warning acknowledged status
-        let hasAcknowledged = WidgetPreferences.shared.widgetConfigs
-            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.hasAcknowledgedFanWarning ?? false
-
-        // Check if user has acknowledged warning for manual mode
-        if newMode == .manual && !hasAcknowledged {
-            pendingMode = newMode
-            hasPendingModeChange = true
-            showWarningDialog = true
-            // Revert to previous mode until user acknowledges
-            DispatchQueue.main.async {
-                self.loadSettings()
-            }
-            return
-        }
-
-        applyModeChange(newMode)
-    }
-
-    private func applyModeChange(_ newMode: SensorsModuleSettings.FanControlMode) {
-        // Mark warning as acknowledged if entering manual mode
-        if newMode == .manual {
-            WidgetPreferences.shared.updateConfig(for: .sensors) { config in
-                config.moduleSettings.sensors.hasAcknowledgedFanWarning = true
-                config.moduleSettings.sensors.fanControlMode = newMode
-            }
-        } else {
-            saveSettings()
-        }
-
-        currentMode = newMode
-
-        // Apply mode change to all fans
-        if newMode == .auto {
-            restoreAutoFanControl()
-        }
-    }
-
-    private func updateFanSpeed(fanId: String, speed: Int) {
-        guard currentMode == .manual else { return }
-
-        // Clamp speed between 0 and 100
-        let clampedSpeed = max(0, min(100, speed))
-
-        // NOTE: Actual SMC fan control requires privileged helper (task fn-8-v3b.13)
-        // The helper will expose SMC write commands via XPC
-        // For now, store the speed value for UI display and persistence
-        fanSpeeds[fanId] = clampedSpeed
-
-        // Save speed if preference is enabled
-        let saveSpeed = WidgetPreferences.shared.widgetConfigs
-            .first(where: { $0.type == .sensors })?.moduleSettings.sensors.saveFanSpeed ?? false
-        if saveSpeed {
-            persistFanSpeeds()
-        }
-    }
-
-    private func persistFanSpeeds() {
-        UserDefaults.standard.set(fanSpeeds, forKey: fanSpeedStorageKey)
-    }
-
     private func loadPersistedFanSpeeds() -> [String: Int] {
         guard let raw = UserDefaults.standard.dictionary(forKey: fanSpeedStorageKey), !raw.isEmpty else {
             return [:]
@@ -398,19 +167,6 @@ public struct FanControlView: View {
             }
         }
         return persisted
-    }
-
-    private func syncAllFans(to speed: Int) {
-        for fan in dataManager.sensorsData.fans {
-            fanSpeeds[fan.id] = speed
-            updateFanSpeed(fanId: fan.id, speed: speed)
-        }
-    }
-
-    private func restoreAutoFanControl() {
-        // NOTE: Restoring auto mode requires privileged helper (task fn-8-v3b.13)
-        // The helper will send SMC command to re-enable automatic fan control
-        // This is a safety-critical operation and must go through the privileged helper
     }
 
     // MARK: - Initializer

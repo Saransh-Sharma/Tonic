@@ -39,11 +39,9 @@ public final class AppearancePreferences: @unchecked Sendable {
     public static let shared = AppearancePreferences()
 
     public var themeMode: ThemeMode = .system
-    public var accentColor: AccentColor = .blue
     public var iconStyle: IconStyle = .filled
     public var reduceTransparency: Bool = false
     public var reduceMotion: Bool = false
-    public var useHighContrast: Bool = false
     public var colorPalette: TonicColorPalette = .defaultPurple
 
     private init() {
@@ -52,43 +50,68 @@ public final class AppearancePreferences: @unchecked Sendable {
 
     private enum Keys {
         static let themeMode = "tonic.appearance.themeMode"
-        static let accentColor = "tonic.appearance.accentColor"
         static let iconStyle = "tonic.appearance.iconStyle"
         static let reduceTransparency = "tonic.appearance.reduceTransparency"
         static let reduceMotion = "tonic.appearance.reduceMotion"
-        static let useHighContrast = "tonic.appearance.useHighContrast"
         static let colorPalette = "tonic.appearance.colorPalette"
     }
 
     public func setThemeMode(_ mode: ThemeMode) {
         themeMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: Keys.themeMode)
-    }
-
-    public func setAccentColor(_ color: AccentColor) {
-        accentColor = color
-        UserDefaults.standard.set(color.rawValue, forKey: Keys.accentColor)
+        Task { @MainActor in
+            let event = ActivityEvent(
+                category: .preference,
+                title: "Theme updated",
+                detail: "Theme: \(mode.rawValue)",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setIconStyle(_ style: IconStyle) {
         iconStyle = style
         UserDefaults.standard.set(style.rawValue, forKey: Keys.iconStyle)
+        Task { @MainActor in
+            let event = ActivityEvent(
+                category: .preference,
+                title: "Icon style updated",
+                detail: "Style: \(style.rawValue)",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setReduceTransparency(_ reduce: Bool) {
         reduceTransparency = reduce
         UserDefaults.standard.set(reduce, forKey: Keys.reduceTransparency)
+        Task { @MainActor in
+            let title = reduce ? "Reduce transparency enabled" : "Reduce transparency disabled"
+            let event = ActivityEvent(
+                category: .preference,
+                title: title,
+                detail: "Reduce transparency: \(reduce ? "On" : "Off")",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setReduceMotion(_ reduce: Bool) {
         reduceMotion = reduce
         UserDefaults.standard.set(reduce, forKey: Keys.reduceMotion)
-    }
-
-    public func setUseHighContrast(_ use: Bool) {
-        useHighContrast = use
-        UserDefaults.standard.set(use, forKey: Keys.useHighContrast)
-        NotificationCenter.default.post(name: NSNotification.Name("TonicThemeDidChange"), object: nil)
+        Task { @MainActor in
+            let title = reduce ? "Reduce motion enabled" : "Reduce motion disabled"
+            let event = ActivityEvent(
+                category: .preference,
+                title: title,
+                detail: "Reduce motion: \(reduce ? "On" : "Off")",
+                impact: .none
+            )
+            ActivityLogStore.shared.record(event)
+        }
     }
 
     public func setColorPalette(_ palette: TonicColorPalette) {
@@ -103,11 +126,6 @@ public final class AppearancePreferences: @unchecked Sendable {
             themeMode = mode
         }
 
-        if let colorString = UserDefaults.standard.string(forKey: Keys.accentColor),
-           let color = AccentColor(rawValue: colorString) {
-            accentColor = color
-        }
-
         if let styleString = UserDefaults.standard.string(forKey: Keys.iconStyle),
            let style = IconStyle(rawValue: styleString) {
             iconStyle = style
@@ -120,36 +138,6 @@ public final class AppearancePreferences: @unchecked Sendable {
 
         reduceTransparency = UserDefaults.standard.bool(forKey: Keys.reduceTransparency)
         reduceMotion = UserDefaults.standard.bool(forKey: Keys.reduceMotion)
-        useHighContrast = UserDefaults.standard.bool(forKey: Keys.useHighContrast)
-    }
-}
-
-/// Accent color options
-public enum AccentColor: String, CaseIterable, Identifiable {
-    case blue = "Blue"
-    case purple = "Purple"
-    case pink = "Pink"
-    case red = "Red"
-    case orange = "Orange"
-    case yellow = "Yellow"
-    case green = "Green"
-    case teal = "Teal"
-    case gray = "Gray"
-
-    public var id: String { rawValue }
-
-    var color: Color {
-        switch self {
-        case .blue: return Color(red: 0.3, green: 0.5, blue: 1.0)
-        case .purple: return Color(red: 0.5, green: 0.3, blue: 1.0)
-        case .pink: return Color(red: 1.0, green: 0.3, blue: 0.6)
-        case .red: return Color(red: 1.0, green: 0.3, blue: 0.3)
-        case .orange: return Color(red: 1.0, green: 0.5, blue: 0.0)
-        case .yellow: return Color(red: 1.0, green: 0.8, blue: 0.0)
-        case .green: return Color(red: 0.3, green: 0.8, blue: 0.4)
-        case .teal: return Color(red: 0.2, green: 0.7, blue: 0.7)
-        case .gray: return Color(red: 0.5, green: 0.5, blue: 0.5)
-        }
     }
 }
 
@@ -164,7 +152,6 @@ public enum IconStyle: String, CaseIterable, Identifiable {
 /// Appearance settings view
 struct AppearanceSettingsView: View {
     @State private var preferences = AppearancePreferences.shared
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -175,7 +162,6 @@ struct AppearanceSettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     themeSection
-                    accentColorSection
                     iconStyleSection
                     effectsSection
                 }
@@ -212,30 +198,6 @@ struct AppearanceSettingsView: View {
                         isSelected: preferences.themeMode == mode
                     ) {
                         preferences.setThemeMode(mode)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Accent Color Section
-
-    private var accentColorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Accent Color")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 12) {
-                ForEach(AccentColor.allCases) { color in
-                    AccentColorButton(
-                        color: color,
-                        isSelected: preferences.accentColor == color
-                    ) {
-                        preferences.setAccentColor(color)
                     }
                 }
             }
@@ -318,34 +280,6 @@ struct ThemeModeButton: View {
                 Text(mode.rawValue)
                     .font(.caption2)
                     .foregroundColor(isSelected ? .primary : .secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct AccentColorButton: View {
-    let color: AccentColor
-    let isSelected: Bool
-
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(color.color)
-                    .frame(width: 32, height: 32)
-
-                if isSelected {
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                }
             }
         }
         .buttonStyle(.plain)

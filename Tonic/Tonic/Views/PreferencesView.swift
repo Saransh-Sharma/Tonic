@@ -67,9 +67,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case modules = "Modules"
     case permissions = "Permissions"
-    case helper = "Helper"
     case updates = "Updates"
-    case help = "Help"
     case about = "About"
 
     var id: String { rawValue }
@@ -79,21 +77,17 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "gearshape.fill"
         case .modules: return "square.grid.2x2.fill"
         case .permissions: return "hand.raised.fill"
-        case .helper: return "wrench.and.screwdriver.fill"
         case .updates: return "arrow.down.circle.fill"
-        case .help: return "bubble.right.fill"
         case .about: return "info.circle.fill"
         }
     }
 
     var description: String {
         switch self {
-        case .general: return "Appearance and startup"
+        case .general: return "Appearance"
         case .modules: return "Widget configuration"
         case .permissions: return "System access"
-        case .helper: return "Advanced features"
         case .updates: return "Software updates"
-        case .help: return "Feedback and support"
         case .about: return "App information"
         }
     }
@@ -182,7 +176,7 @@ struct PreferencesView: View {
             Spacer()
 
             // Version footer
-            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
+            Text("Version \(Bundle.main.appVersion)")
                 .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textTertiary)
                 .padding(.bottom, DesignTokens.Spacing.md)
@@ -208,12 +202,8 @@ struct PreferencesView: View {
                         ModulesSettingsContent()
                     case .permissions:
                         PermissionsSettingsContent()
-                    case .helper:
-                        HelperSettingsContent()
                     case .updates:
                         UpdatesSettingsContent()
-                    case .help:
-                        HelpSettingsContent()
                     case .about:
                         AboutSettingsContent()
                     }
@@ -318,9 +308,7 @@ struct SettingsSectionHeader: View {
         case .general: return "Customize how Tonic looks and behaves"
         case .modules: return "Configure menu bar widgets"
         case .permissions: return "Manage system permissions for full functionality"
-        case .helper: return "Enable advanced system operations"
         case .updates: return "Keep Tonic up to date"
-        case .help: return "Get help and send us feedback"
         case .about: return "Learn more about Tonic"
         }
     }
@@ -331,8 +319,8 @@ struct SettingsSectionHeader: View {
 
 struct GeneralSettingsContent: View {
     @State private var preferences = AppearancePreferences.shared
-    @AppStorage("launchAtLogin") private var launchAtLogin = false
     @State private var showResetSheet = false
+    @State private var showFeedbackSheet = false
 
     var body: some View {
         PreferenceList {
@@ -365,27 +353,6 @@ struct GeneralSettingsContent: View {
                         .padding(.leading, DesignTokens.Spacing.md)
 
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                        Text("Accent Color")
-                            .font(DesignTokens.Typography.captionEmphasized)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DesignTokens.Spacing.sm), count: 5), spacing: DesignTokens.Spacing.sm) {
-                            ForEach(AccentColor.allCases) { color in
-                                AccentColorButton(color: color, isSelected: preferences.accentColor == color) {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        preferences.setAccentColor(color)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md)
-
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                         Text("Color Palette")
                             .font(DesignTokens.Typography.captionEmphasized)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
@@ -404,50 +371,65 @@ struct GeneralSettingsContent: View {
                 }
             }
 
-            // General Section
             PreferenceSection(header: "General") {
-                PreferenceToggleRow(
-                    title: "Launch at Login",
-                    subtitle: "Automatically start Tonic when you log in",
-                    icon: "power",
-                    showDivider: true,
-                    isOn: $launchAtLogin
-                )
+                VStack(spacing: 0) {
+                    ShortcutRow(title: "Open Command Palette", shortcut: "⌘K")
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
 
-                PreferenceToggleRow(
-                    title: "High Contrast Mode",
-                    subtitle: "Use bold colors with maximum contrast (WCAG AAA)",
-                    icon: "contrast",
-                    showDivider: false,
-                    isOn: Binding(
-                        get: { preferences.useHighContrast },
-                        set: { newValue in
-                            preferences.setUseHighContrast(newValue)
+                    Divider()
+                        .padding(.leading, DesignTokens.Spacing.md)
+
+                    Button {
+                        showFeedbackSheet = true
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Image(systemName: "bubble.right.fill")
+                                .foregroundColor(TonicColors.accent)
+
+                            Text("Open Feedback Form")
+                                .font(DesignTokens.Typography.caption)
+                                .foregroundColor(DesignTokens.Colors.textPrimary)
+
+                            Spacer()
                         }
-                    )
-                )
+                        .padding(.vertical, DesignTokens.Spacing.sm)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
-            // Data Section
-            PreferenceSection(header: "Data") {
-                PreferenceButtonRow(
-                    title: "Clear Cache",
-                    subtitle: "Remove temporary files created by Tonic",
-                    icon: "trash.fill",
-                    showDivider: true,
-                    buttonTitle: "Clear",
-                    action: { /* Clear cache action */ }
-                )
+            #if DEBUG
+            PreferenceSection(header: "Developer Debug") {
+                let features = WIPFeature.allCases
+                VStack(spacing: 0) {
+                    ForEach(Array(features.enumerated()), id: \.element) { index, feature in
+                        PreferenceToggleRow(
+                            title: feature.displayName,
+                            subtitle: "Show this WIP route in app navigation",
+                            icon: feature.icon,
+                            iconColor: DesignTokens.Colors.warning,
+                            showDivider: index < features.count - 1,
+                            isOn: debugFeatureBinding(for: feature)
+                        )
+                    }
 
-                PreferenceButtonRow(
-                    title: "Reset Settings",
-                    subtitle: "Restore all settings to their defaults",
-                    icon: "arrow.counterclockwise",
-                    showDivider: false,
-                    buttonTitle: "Reset",
-                    action: { /* Reset settings action */ }
-                )
+                    PreferenceButtonRow(
+                        title: "Reset Feature Overrides",
+                        subtitle: "Restore Debug defaults for all WIP routes",
+                        icon: "arrow.counterclockwise",
+                        iconColor: DesignTokens.Colors.warning,
+                        showDivider: false,
+                        buttonTitle: "Reset",
+                        buttonStyle: .secondary
+                    ) {
+                        FeatureFlags.clearAllOverrides()
+                        NotificationCenter.default.post(name: .featureFlagsDidChange, object: nil)
+                    }
+                }
             }
+            #endif
 
             // Danger Zone Section
             PreferenceSection(header: "Danger Zone") {
@@ -467,7 +449,22 @@ struct GeneralSettingsContent: View {
         .sheet(isPresented: $showResetSheet) {
             ResetConfirmationSheet(isPresented: $showResetSheet)
         }
+        .sheet(isPresented: $showFeedbackSheet) {
+            FeedbackSheetView()
+        }
     }
+
+    #if DEBUG
+    private func debugFeatureBinding(for feature: WIPFeature) -> Binding<Bool> {
+        Binding(
+            get: { FeatureFlags.isEnabled(feature) },
+            set: { enabled in
+                FeatureFlags.set(feature, enabled: enabled)
+                NotificationCenter.default.post(name: .featureFlagsDidChange, object: nil)
+            }
+        )
+    }
+    #endif
 }
 
 
@@ -771,271 +768,6 @@ struct PermissionCard: View {
     }
 }
 
-// MARK: - Helper Settings Content
-
-struct HelperSettingsContent: View {
-    @State private var helperManager = PrivilegedHelperManager.shared
-    @State private var isInstalling = false
-    @State private var isUninstalling = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-
-    var body: some View {
-        PreferenceList {
-            // Status Section
-            PreferenceSection(header: "Helper Tool") {
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    // Animated status icon
-                    ZStack {
-                        Circle()
-                            .fill(statusColor.opacity(0.15))
-                            .frame(width: 44, height: 44)
-
-                        if isInstalling || isUninstalling {
-                            ProgressView()
-                                .scaleEffect(0.9)
-                        } else {
-                            Image(systemName: helperManager.isHelperInstalled ? "checkmark.shield.fill" : "xmark.shield.fill")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(statusColor)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxxs) {
-                        Text(isInstalling || isUninstalling ? "Processing..." : (helperManager.isHelperInstalled ? "Installed & Ready" : "Not Installed"))
-                            .font(DesignTokens.Typography.subhead)
-                            .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                        Text(helperManager.isHelperInstalled ? "All advanced features are available" : "Install to unlock advanced system features")
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-                    }
-
-                    Spacer()
-
-                    // Status badge
-                    if !isInstalling && !isUninstalling {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(statusColor)
-                                .frame(width: 8, height: 8)
-
-                            Text(helperManager.isHelperInstalled ? "Active" : "Inactive")
-                                .font(DesignTokens.Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(statusColor)
-                        }
-                    }
-                }
-                .padding(.vertical, DesignTokens.Spacing.sm)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-            }
-
-            // Features Section
-            PreferenceSection(header: "Capabilities") {
-                VStack(spacing: 0) {
-                    SettingsHelperFeatureRow(
-                        icon: "bolt.fill",
-                        title: "System Optimization",
-                        description: "Flush DNS cache, clear RAM, and rebuild system services",
-                        color: TonicColors.warning
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
-
-                    SettingsHelperFeatureRow(
-                        icon: "sparkles",
-                        title: "Smart Scan",
-                        description: "Run intelligent system scans and cleanup recommendations",
-                        color: TonicColors.accent
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
-
-                    SettingsHelperFeatureRow(
-                        icon: "eye.fill",
-                        title: "Hidden Space Analysis",
-                        description: "Access and analyze hidden system directories",
-                        color: TonicColors.accent
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
-
-                    SettingsHelperFeatureRow(
-                        icon: "shield.fill",
-                        title: "Secure Operations",
-                        description: "All operations run with minimal required privileges",
-                        color: TonicColors.success
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                }
-            }
-
-            // Action Section
-            PreferenceSection(header: "Actions") {
-                VStack(spacing: DesignTokens.Spacing.xs) {
-                    if !helperManager.isHelperInstalled {
-                        Button {
-                            Task { await installHelper() }
-                        } label: {
-                            HStack(spacing: DesignTokens.Spacing.xs) {
-                                if isInstalling {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "plus.circle.fill")
-                                }
-                                Text(isInstalling ? "Installing..." : "Install Helper Tool")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, DesignTokens.Spacing.sm)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isInstalling)
-                    } else {
-                        HStack(spacing: DesignTokens.Spacing.sm) {
-                            Button {
-                                Task { await reinstallHelper() }
-                            } label: {
-                                HStack(spacing: DesignTokens.Spacing.xxs) {
-                                    if isInstalling {
-                                        ProgressView()
-                                            .scaleEffect(0.7)
-                                    } else {
-                                        Image(systemName: "arrow.clockwise")
-                                    }
-                                    Text(isInstalling ? "Reinstalling..." : "Reinstall")
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(isInstalling || isUninstalling)
-
-                            Button {
-                                Task { await uninstallHelper() }
-                            } label: {
-                                HStack(spacing: DesignTokens.Spacing.xxs) {
-                                    if isUninstalling {
-                                        ProgressView()
-                                            .scaleEffect(0.7)
-                                    } else {
-                                        Image(systemName: "trash")
-                                    }
-                                    Text(isUninstalling ? "Removing..." : "Uninstall")
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(DesignTokens.Colors.destructive)
-                            .disabled(isInstalling || isUninstalling)
-                        }
-                    }
-                }
-                .padding(.vertical, DesignTokens.Spacing.sm)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-            }
-        }
-        .padding(DesignTokens.Spacing.lg)
-        .task {
-            _ = helperManager.checkInstallationStatus()
-        }
-        .alert("Error", isPresented: $showError) {
-            Button("OK") { showError = false }
-        } message: {
-            if let error = errorMessage {
-                Text(error)
-            }
-        }
-    }
-
-    private var statusColor: Color {
-        if isInstalling || isUninstalling { return DesignTokens.Colors.textTertiary }
-        return helperManager.isHelperInstalled ? DesignTokens.Colors.success : DesignTokens.Colors.destructive
-    }
-
-    private func installHelper() async {
-        isInstalling = true
-        do {
-            try await helperManager.installHelper()
-        } catch {
-            errorMessage = "Installation failed: \(error.localizedDescription)"
-            showError = true
-        }
-        isInstalling = false
-    }
-
-    private func reinstallHelper() async {
-        isInstalling = true
-        do {
-            try await helperManager.uninstallHelper()
-            try await Task.sleep(nanoseconds: 500_000_000)
-            try await helperManager.installHelper()
-        } catch {
-            errorMessage = "Reinstallation failed: \(error.localizedDescription)"
-            showError = true
-        }
-        isInstalling = false
-    }
-
-    private func uninstallHelper() async {
-        isUninstalling = true
-        do {
-            try await helperManager.uninstallHelper()
-        } catch {
-            errorMessage = "Uninstallation failed: \(error.localizedDescription)"
-            showError = true
-        }
-        isUninstalling = false
-    }
-}
-
-// MARK: - Settings Helper Feature Row
-
-struct SettingsHelperFeatureRow: View {
-    let icon: String
-    let title: String
-    let description: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(color.opacity(0.15))
-                    .frame(width: 32, height: 32)
-
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(color)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DesignTokens.Typography.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                Text(description)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
-            }
-
-            Spacer()
-        }
-    }
-}
-
-
 // MARK: - Updates Settings Content
 
 struct UpdatesSettingsContent: View {
@@ -1064,7 +796,7 @@ struct UpdatesSettingsContent: View {
                             .font(DesignTokens.Typography.subhead)
                             .foregroundColor(DesignTokens.Colors.textPrimary)
 
-                        Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
+                        Text("Version \(Bundle.main.appVersion)")
                             .font(DesignTokens.Typography.caption)
                             .foregroundColor(DesignTokens.Colors.textSecondary)
 
@@ -1401,7 +1133,7 @@ struct FeedbackSheetView: View {
     }
 
     private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        Bundle.main.appVersion
     }
 
     private var systemMacOSVersion: String {
@@ -1438,158 +1170,6 @@ struct SystemInfoRow: View {
                 .font(DesignTokens.Typography.caption)
                 .foregroundColor(DesignTokens.Colors.textPrimary)
                 .fontWeight(.medium)
-        }
-    }
-}
-
-// MARK: - Help Settings Content
-
-struct HelpSettingsContent: View {
-    @State private var showFeedbackSheet = false
-
-    var body: some View {
-        PreferenceList {
-            // Feedback Section
-            PreferenceSection(header: "Give Feedback") {
-                VStack(spacing: DesignTokens.Spacing.md) {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                        Text("We'd love to hear from you!")
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                        Text("Share bug reports, feature suggestions, or any feedback to help us improve Tonic.")
-                            .font(DesignTokens.Typography.caption)
-                            .foregroundColor(DesignTokens.Colors.textSecondary)
-                    }
-
-                    Button {
-                        showFeedbackSheet = true
-                    } label: {
-                        HStack(spacing: DesignTokens.Spacing.xs) {
-                            Image(systemName: "bubble.right.fill")
-                            Text("Open Feedback Form")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DesignTokens.Spacing.sm)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.vertical, DesignTokens.Spacing.sm)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-            }
-
-            // Support Section
-            PreferenceSection(header: "Support") {
-                VStack(spacing: 0) {
-                    HelpLinkRow(
-                        title: "GitHub Issues",
-                        subtitle: "Report bugs or suggest features on GitHub",
-                        icon: "exclamationmark.bubble.fill",
-                        url: "https://github.com/Saransh-Sharma/PreTonic/issues"
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
-
-                    HelpLinkRow(
-                        title: "Documentation",
-                        subtitle: "Learn more about Tonic's features",
-                        icon: "book.fill",
-                        url: "https://github.com/Saransh-Sharma/PreTonic/wiki"
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md + 16 + DesignTokens.Spacing.sm)
-
-                    HelpLinkRow(
-                        title: "Project Website",
-                        subtitle: "Visit the Tonic project on GitHub",
-                        icon: "globe",
-                        url: "https://github.com/Saransh-Sharma/PreTonic"
-                    )
-                    .padding(.vertical, DesignTokens.Spacing.sm)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                }
-            }
-
-            // Keyboard Shortcuts Section
-            PreferenceSection(header: "Keyboard Shortcuts") {
-                VStack(spacing: 0) {
-                    ShortcutRow(title: "Open Feedback", shortcut: "⌘?")
-                        .padding(.vertical, DesignTokens.Spacing.sm)
-                        .padding(.horizontal, DesignTokens.Spacing.md)
-
-                    Divider()
-                        .padding(.leading, DesignTokens.Spacing.md)
-
-                    ShortcutRow(title: "Open Command Palette", shortcut: "⌘K")
-                        .padding(.vertical, DesignTokens.Spacing.sm)
-                        .padding(.horizontal, DesignTokens.Spacing.md)
-                }
-            }
-        }
-        .padding(DesignTokens.Spacing.lg)
-        .sheet(isPresented: $showFeedbackSheet) {
-            FeedbackSheetView()
-        }
-    }
-}
-
-// MARK: - Help Link Row
-
-struct HelpLinkRow: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-    let url: String
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Link(destination: URL(string: url)!) {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(TonicColors.accent.opacity(0.15))
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(TonicColors.accent)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignTokens.Typography.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(DesignTokens.Colors.textPrimary)
-
-                    Text(subtitle)
-                        .font(DesignTokens.Typography.caption)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DesignTokens.Colors.textTertiary)
-            }
-            .padding(DesignTokens.Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium)
-                    .fill(isHovered ? DesignTokens.Colors.unemphasizedSelectedContentBackground : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(DesignTokens.Animation.fast) {
-                isHovered = hovering
-            }
         }
     }
 }
@@ -1652,7 +1232,7 @@ struct AboutSettingsContent: View {
                             Text("Version")
                                 .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
-                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
+                            Text(Bundle.main.appVersion)
                                 .font(DesignTokens.Typography.subhead)
                                 .foregroundColor(DesignTokens.Colors.textPrimary)
                         }
@@ -1662,7 +1242,7 @@ struct AboutSettingsContent: View {
                             Text("Build")
                                 .font(DesignTokens.Typography.caption)
                                 .foregroundColor(DesignTokens.Colors.textSecondary)
-                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1")
+                            Text(Bundle.main.buildNumber)
                                 .font(DesignTokens.Typography.subhead)
                                 .foregroundColor(DesignTokens.Colors.textPrimary)
                         }

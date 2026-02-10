@@ -489,4 +489,242 @@ final class DiskAnalysisViewTests: XCTestCase {
         XCTAssertTrue(path.contains(" "))
         XCTAssertTrue(path.contains("("))
     }
+
+    // MARK: - Storage Hub Regression Tests
+
+    func testTreemapLayoutPreservesAreaRatiosWithinTolerance() {
+        let weights: [Int64] = [500, 300, 200]
+        let rect = CGRect(x: 0, y: 0, width: 1000, height: 600)
+        let slices = TreemapLayoutEngine.sliceAndDice(weights: weights, in: rect)
+
+        XCTAssertEqual(slices.count, weights.count)
+
+        let totalWeight = Double(weights.reduce(0, +))
+        let totalArea = Double(rect.width * rect.height)
+        let tolerance = 0.02
+
+        for (index, slice) in slices.enumerated() {
+            let expectedRatio = Double(weights[index]) / totalWeight
+            let actualRatio = Double(slice.width * slice.height) / totalArea
+            XCTAssertLessThanOrEqual(abs(expectedRatio - actualRatio), tolerance)
+        }
+    }
+
+    func testScanCoverageIsNotTruncatedAtHundredEntries() async throws {
+        let root = try makeTempDirectory(name: "scan-coverage")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        for index in 0..<130 {
+            let fileURL = root.appendingPathComponent("file-\(index).tmp")
+            try Data(repeating: UInt8(index % 255), count: 2048).write(to: fileURL)
+        }
+
+        let engine = StorageIntelligenceEngine()
+        for await _ in engine.startScan(mode: .quick, rootPath: root.path) { }
+
+        XCTAssertEqual(engine.visibleNodes.count, 130)
+    }
+
+    func testTargetedModeUsesTargetedPaths() async throws {
+        let root = try makeTempDirectory(name: "scan-targeted")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let targetA = root.appendingPathComponent("A")
+        let targetB = root.appendingPathComponent("B")
+        try FileManager.default.createDirectory(at: targetA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: targetB, withIntermediateDirectories: true)
+        try Data("A".utf8).write(to: targetA.appendingPathComponent("only-a.txt"))
+        try Data("B".utf8).write(to: targetB.appendingPathComponent("only-b.txt"))
+
+        let engine = StorageIntelligenceEngine()
+        for await _ in engine.startScan(mode: .targeted, rootPath: root.path, targetedPaths: [targetA.path]) { }
+
+        XCTAssertEqual(engine.currentPath, targetA.path)
+        XCTAssertFalse(engine.visibleNodes.isEmpty)
+        XCTAssertTrue(engine.visibleNodes.allSatisfy { $0.path.hasPrefix(targetA.path) })
+        XCTAssertFalse(engine.visibleNodes.contains(where: { $0.path.hasPrefix(targetB.path) }))
+    }
+
+    func testNodeIndexedEventIsEmittedDuringScan() async throws {
+        let root = try makeTempDirectory(name: "scan-node-indexed")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try Data("hello".utf8).write(to: root.appendingPathComponent("sample.txt"))
+
+        let engine = StorageIntelligenceEngine()
+        var sawNodeIndexed = false
+        for await event in engine.startScan(mode: .quick, rootPath: root.path) {
+            if case .nodeIndexed = event {
+                sawNodeIndexed = true
+            }
+        }
+
+        XCTAssertTrue(sawNodeIndexed)
+    }
+
+    func testNodeIndexedBatchEventIsEmittedDuringFullScan() async throws {
+        let root = try makeTempDirectory(name: "scan-node-indexed-batch")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let child = root.appendingPathComponent("dir")
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        try Data("hello".utf8).write(to: child.appendingPathComponent("sample.txt"))
+
+        let engine = StorageIntelligenceEngine()
+        var sawBatch = false
+        for await event in engine.startScan(mode: .full, rootPath: root.path) {
+            if case .nodeIndexedBatch(let nodes) = event, !nodes.isEmpty {
+                sawBatch = true
+            }
+        }
+
+        XCTAssertTrue(sawBatch)
+    }
+
+    func testQuickScanEmitsProgressForSmallDirectory() async throws {
+        let root = try makeTempDirectory(name: "scan-progress-small")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fileURL = root.appendingPathComponent("small.bin")
+        try Data(repeating: 0x1, count: 4096).write(to: fileURL)
+
+        let engine = StorageIntelligenceEngine()
+        var progressEvents = 0
+        var maxBytes: Int64 = 0
+
+        for await event in engine.startScan(mode: .quick, rootPath: root.path) {
+            if case .progress(_, let bytesScanned, _) = event {
+                progressEvents += 1
+                maxBytes = max(maxBytes, bytesScanned)
+            }
+        }
+
+        XCTAssertGreaterThan(progressEvents, 0)
+        XCTAssertGreaterThan(maxBytes, 0)
+    }
+
+    func testFullScanCompletesAndUpdatesIndexingCounters() async throws {
+        let root = try makeTempDirectory(name: "scan-indexing-progress")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let parent = root.appendingPathComponent("parent")
+        let child = parent.appendingPathComponent("child")
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: 2_048).write(to: parent.appendingPathComponent("one.dat"))
+        try Data(repeating: 0xCD, count: 3_072).write(to: child.appendingPathComponent("two.dat"))
+
+        let engine = StorageIntelligenceEngine()
+        for await _ in engine.startScan(mode: .full, rootPath: root.path) { }
+
+        XCTAssertEqual(engine.session?.status, .completed)
+        XCTAssertGreaterThanOrEqual(engine.session?.indexedDirectories ?? 0, 1)
+        XCTAssertGreaterThanOrEqual(engine.session?.indexedNodes ?? 0, 1)
+    }
+
+    func testExcludeForeverDoesNotIncreaseReclaimedMetrics() async throws {
+        let root = try makeTempDirectory(name: "scan-exclude-forever")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fileURL = root.appendingPathComponent("candidate.tmp")
+        try Data(repeating: 7, count: 4096).write(to: fileURL)
+
+        let engine = StorageIntelligenceEngine()
+        for await _ in engine.startScan(mode: .quick, rootPath: root.path) { }
+
+        guard let candidateNode = engine.visibleNodes.first else {
+            XCTFail("Expected at least one visible node after scan")
+            return
+        }
+        engine.addToCart(candidateNode)
+
+        let result = await engine.executeCleanup(mode: .excludeForever)
+        XCTAssertEqual(result.cleanedBytes, 0)
+        XCTAssertEqual(result.cleanedItems, 0)
+        XCTAssertEqual(result.excludedItems, 1)
+        XCTAssertGreaterThan(result.excludedBytes, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    func testLegacyStorageNodeDecodesWithDefaultEstimatedFlag() throws {
+        let payload: [String: Any] = [
+            "id": "/tmp/legacy-node",
+            "path": "/tmp/legacy-node",
+            "name": "legacy-node",
+            "kind": "directory",
+            "logicalBytes": 0,
+            "physicalBytes": 0,
+            "childrenSummary": [
+                "totalChildren": 0,
+                "loadedChildren": 0,
+                "hasMore": false
+            ],
+            "riskLevel": "low",
+            "domain": "Other",
+            "fileType": "Other",
+            "depth": 1,
+            "isHidden": false,
+            "isDirectory": true,
+            "lastOpenedEstimated": true,
+            "reclaimableBytes": 0
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+        let decoded = try JSONDecoder().decode(StorageNode.self, from: data)
+        XCTAssertFalse(decoded.sizeIsEstimated)
+    }
+
+    func testLegacyDirEntryDecodesWithMetadataHintDefaults() throws {
+        let payload: [String: Any] = [
+            "name": "legacy.txt",
+            "path": "/tmp/legacy.txt",
+            "size": 256,
+            "isDir": false,
+            "lastAccess": Date().timeIntervalSince1970,
+            "isEstimated": false
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+        let decoded = try JSONDecoder().decode(DirEntry.self, from: data)
+        XCTAssertNil(decoded.volumeIDHint)
+        XCTAssertNil(decoded.volumeNameHint)
+        XCTAssertNil(decoded.filesystemIDHint)
+        XCTAssertNil(decoded.lastOpenedHint)
+        XCTAssertTrue(decoded.lastOpenedEstimated)
+    }
+
+    func testLegacyStorageSessionDecodesWithDefaultIndexCounters() throws {
+        let payload: [String: Any] = [
+            "id": UUID().uuidString,
+            "mode": "Quick",
+            "scope": [
+                "rootPath": "/tmp",
+                "targetedPaths": []
+            ],
+            "startAt": Date().timeIntervalSince1970,
+            "endAt": Date().timeIntervalSince1970,
+            "status": "completed",
+            "confidence": 0.9,
+            "scannedBytes": 1024,
+            "scannedItems": 12,
+            "warnings": []
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+        let decoded = try JSONDecoder().decode(StorageScanSession.self, from: data)
+        XCTAssertEqual(decoded.indexedDirectories, 0)
+        XCTAssertEqual(decoded.indexedNodes, 0)
+        XCTAssertEqual(decoded.filesPerSecond, 0)
+        XCTAssertEqual(decoded.directoriesPerSecond, 0)
+        XCTAssertEqual(decoded.eventBatchesPerSecond, 0)
+        XCTAssertEqual(decoded.avgBatchLatency, 0)
+        XCTAssertEqual(decoded.energyMode, "adaptive")
+        XCTAssertTrue(decoded.stageDurations.isEmpty)
+    }
+
+    private func makeTempDirectory(name: String) throws -> URL {
+        let base = FileManager.default.temporaryDirectory
+        let directory = base.appendingPathComponent("tonic-tests-\(name)-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
 }
