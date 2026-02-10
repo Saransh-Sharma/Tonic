@@ -44,6 +44,7 @@ struct DiskAnalysisView: View {
     @State private var isCheckingPermissions = false
     @State private var hasFullDiskAccess = false
     @State private var permissionManager = PermissionManager.shared
+    @State private var accessBroker = AccessBroker.shared
     @State private var latestProgressPath: String = ""
     @State private var latestProgressBytes: Int64 = 0
     @State private var latestProgressFiles: Int64 = 0
@@ -68,7 +69,7 @@ struct DiskAnalysisView: View {
             if isCheckingPermissions {
                 ProgressView("Checking permissions…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !hasFullDiskAccess {
+            } else if !hasFullDiskAccess && !BuildCapabilities.current.requiresScopeAccess {
                 permissionRequiredView
             } else {
                 tabBar
@@ -130,6 +131,14 @@ struct DiskAnalysisView: View {
                     Label(isScanning ? "Stop" : "Scan", systemImage: isScanning ? "stop.circle.fill" : "play.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
+
+                if BuildCapabilities.current.requiresScopeAccess {
+                    Button("Add Scope") {
+                        _ = accessBroker.addScopeUsingOpenPanel()
+                        Task { await checkPermissions() }
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
 
             HStack(spacing: 8) {
@@ -177,6 +186,12 @@ struct DiskAnalysisView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .lineLimit(1)
+                }
+
+                if BuildCapabilities.current.requiresScopeAccess {
+                    Label("Coverage: \(accessBroker.coverageTier.rawValue)", systemImage: "scope")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .font(.caption)
@@ -319,17 +334,21 @@ struct DiskAnalysisView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
 
-            Text("Full Disk Access Required")
+            Text(BuildCapabilities.current.requiresScopeAccess ? "Access Scope Required" : "Full Disk Access Required")
                 .font(.title3.weight(.semibold))
 
-            Text("Storage Intelligence Hub needs Full Disk Access to provide accurate hidden-space analysis and safe cleanup recommendations.")
+            Text(
+                BuildCapabilities.current.requiresScopeAccess
+                ? "Storage Intelligence Hub scans locations you authorize. Add at least one scope to begin."
+                : "Storage Intelligence Hub needs Full Disk Access to provide accurate hidden-space analysis and safe cleanup recommendations."
+            )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
 
             HStack {
-                Button("Open System Settings") {
+                Button(BuildCapabilities.current.requiresScopeAccess ? "Add Scope" : "Open System Settings") {
                     _ = permissionManager.requestFullDiskAccess()
                 }
                 .buttonStyle(.borderedProminent)
@@ -347,6 +366,10 @@ struct DiskAnalysisView: View {
     private var hubHomeView: some View {
         ScrollView {
             VStack(spacing: 12) {
+                if BuildCapabilities.current.requiresScopeAccess {
+                    accessCoverageCard
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Storage Storyboard")
                         .font(.headline)
@@ -456,6 +479,45 @@ struct DiskAnalysisView: View {
             }
             .padding(12)
         }
+    }
+
+    private var accessCoverageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Access Coverage", systemImage: "scope")
+                    .font(.headline)
+                Spacer()
+                Text(accessBroker.coverageTier.rawValue)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            Text("Storage Hub scans the locations you authorize. Add Home, Applications, or your startup disk to increase coverage.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button("Add Scope") {
+                    _ = accessBroker.addScopeUsingOpenPanel()
+                    Task { await checkPermissions() }
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Enable Full Mac Scan") {
+                    _ = accessBroker.addStartupDiskScope()
+                    Task { await checkPermissions() }
+                }
+                .buttonStyle(.bordered)
+
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var exploreView: some View {
@@ -879,7 +941,7 @@ struct DiskAnalysisView: View {
                                         .foregroundStyle(.secondary)
 
                                     if let blocked = candidate.blockedReason {
-                                        Text(blocked)
+                                        Text(blocked.userMessage)
                                             .font(.caption2)
                                             .foregroundStyle(.orange)
                                     }
@@ -1597,6 +1659,9 @@ struct DiskAnalysisView: View {
         guard isScanning, let startAt = engine.session?.startAt else { return nil }
         let elapsed = Date().timeIntervalSince(startAt)
         guard elapsed >= 300 else { return nil }
+        if BuildCapabilities.current.requiresScopeAccess {
+            return "This scan is taking longer than expected. Try targeted scan roots, exclude cloud/dev paths, or add a broader scope."
+        }
         return "This scan is taking longer than expected. Try targeted scope, exclude cloud/dev paths, or re-run with Full Disk Access."
     }
 
@@ -1850,6 +1915,7 @@ struct DiskAnalysisView: View {
         isCheckingPermissions = true
         let status = await permissionManager.checkPermission(.fullDiskAccess)
         hasFullDiskAccess = (status == .authorized)
+        accessBroker.refreshStatuses()
         isCheckingPermissions = false
     }
 
