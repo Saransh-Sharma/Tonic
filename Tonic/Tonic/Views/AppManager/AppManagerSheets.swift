@@ -513,8 +513,8 @@ struct UninstallFlowSheet: View {
             }
 
             let finalResult = UninstallResult(
-                success: completed > 0,
-                appsUninstalled: completed,
+                success: successfullyRemovedIDs.count > 0,
+                appsUninstalled: successfullyRemovedIDs.count,
                 bytesFreed: bytesFreed,
                 errors: errors
             )

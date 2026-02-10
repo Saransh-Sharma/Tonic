@@ -136,12 +136,6 @@ struct AppManagerView: View {
         .onChange(of: selection) { _, newValue in
             inventory.selectedAppIDs = newValue
         }
-        // Recompute cached filters when view-driven filter inputs change
-        .onChange(of: inventory.selectedTab) { _, _ in inventory.recomputeFilteredApps() }
-        .onChange(of: inventory.quickFilterCategory) { _, _ in inventory.recomputeFilteredApps() }
-        .onChange(of: inventory.searchText) { _, _ in inventory.recomputeFilteredApps() }
-        .onChange(of: inventory.sortOption) { _, _ in inventory.recomputeFilteredApps() }
-        .onChange(of: inventory.loginItemFilter) { _, _ in inventory.recomputeFilteredApps() }
         // Persist view mode
         .onChange(of: inventory.viewMode) { _, newValue in
             UserDefaults.standard.set(newValue.rawValue, forKey: "appManagerViewMode")
@@ -165,7 +159,7 @@ struct AppManagerView: View {
         if let date = inventory.lastScanDate {
             let formatter = RelativeDateTimeFormatter()
             formatter.unitsStyle = .abbreviated
-            return "Scanned \(formatter.localizedString(for: date, relativeTo: Date())) ago"
+            return "Scanned \(formatter.localizedString(for: date, relativeTo: Date()))"
         }
         return nil
     }
