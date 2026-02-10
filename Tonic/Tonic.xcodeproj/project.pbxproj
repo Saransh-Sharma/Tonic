@@ -27,6 +27,7 @@
 		12DEB1190DD4C7467FC738F6 /* ClockPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6CFDAFF55B5E098F9F535E /* ClockPopoverView.swift */; };
 		13E29847983C0FBD19B2B2B1 /* TonicAppManagerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 436094BE1E437872585A06AC /* TonicAppManagerComponents.swift */; };
 		170D848FBB38BD96786BC899 /* SystemEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6B7ADAF0ABCB5AEEA36577 /* SystemEnums.swift */; };
+		C3F4806D1E9F63F4C5D6E7F8 /* SystemSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F26E4B9C7D41D2A3B4C5D6 /* SystemSnapshot.swift */; };
 		1727F78B0204C6120F2E17C5 /* NetworkChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C395734E2C727C789EAA8CC1 /* NetworkChartStatusItem.swift */; };
 		17BD4D5AF9EA05F9F06E25CA /* AppUninstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4931B7598A1D0CD30637B9 /* AppUninstaller.swift */; };
 		18AE91A4E839245A61F5CA42 /* DiskWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBE8CE926FCCAC1EC3EAB08 /* DiskWidgetView.swift */; };
@@ -113,6 +114,7 @@
 		6F6D07822BD1FE900C12E240 /* MemoryWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE5C86B14193919871BD65D /* MemoryWidgetView.swift */; };
 		6FF736D5DA9FDB0FF7A48689 /* BarChartStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD3BBA638AA98EA7AF58C9D /* BarChartStatusItem.swift */; };
 		7017941384A4FFCCB75A6936 /* SystemOptimization.swift in Sources */ = {isa = PBXBuildFile; fileRef = D93D1B8E09E5991FE9ECC72E /* SystemOptimization.swift */; };
+		D4A5917E2FA07405D6E7F8A9 /* SystemSnapshotProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E37F5C0D8E52E3B4C5D6E7 /* SystemSnapshotProvider.swift */; };
 		719ED9A6C5307F82551DB46A /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D350F88446754381EE0BD /* DesignTokens.swift */; };
 		72CB352CBFEA9B06450751C5 /* GeneralPreferencesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB03775DCEA7F141621E13AB /* GeneralPreferencesSection.swift */; };
 		73043BBCCA017E4792B30836 /* CollectorBin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC56077AD3AFE41C36422AC /* CollectorBin.swift */; };
@@ -380,6 +382,7 @@
 		9D23CCD48C23AACA84946A2C /* SmartCareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCareView.swift; sourceTree = "<group>"; };
 		9F37226DB5AD5FE10BBE1013 /* CrashReportingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportingService.swift; sourceTree = "<group>"; };
 		A16A760A7E4F28602E349C48 /* ActivityLogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLogModels.swift; sourceTree = "<group>"; };
+		A1F26E4B9C7D41D2A3B4C5D6 /* SystemSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSnapshot.swift; sourceTree = "<group>"; };
 		A17D350F88446754381EE0BD /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		A2399186CE3F16CBEFFE6A2A /* BarChartWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartWidgetView.swift; sourceTree = "<group>"; };
 		A3EE11B3E976DB5E15289E8E /* BatteryWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryWidgetView.swift; sourceTree = "<group>"; };
@@ -401,6 +404,7 @@
 		B20510DFA8C765B38FCAFFD4 /* WiFiInterferenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiInterferenceService.swift; sourceTree = "<group>"; };
 		B2A905D8D3EE76E1638D7DC1 /* NotificationThreshold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationThreshold.swift; sourceTree = "<group>"; };
 		B2EDCA4C395EBFBC64D865E1 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		B2E37F5C0D8E52E3B4C5D6E7 /* SystemSnapshotProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemSnapshotProvider.swift; sourceTree = "<group>"; };
 		B2FD03443C350B66793E7833 /* NotificationConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationConfig.swift; sourceTree = "<group>"; };
 		B4B47A4B58EAA8412A0B8653 /* PreferenceListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceListTests.swift; sourceTree = "<group>"; };
 		B848B21FCC1AB8D6E44494D8 /* NetworkWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkWidgetView.swift; sourceTree = "<group>"; };
@@ -493,6 +497,7 @@
 				02F5A19FCEB78F810B81DA5A /* SmartScanModels.swift */,
 				A56B890338E693AF95871FDD /* SmartScanRouting.swift */,
 				FF6B7ADAF0ABCB5AEEA36577 /* SystemEnums.swift */,
+				A1F26E4B9C7D41D2A3B4C5D6 /* SystemSnapshot.swift */,
 				A47001BF7AD43597B7E5D1B7 /* TonicError.swift */,
 				C89FD02244F27A1C0D7B3379 /* VisualizationType.swift */,
 				A8303DABE1FD859FB176CBD3 /* WeatherData.swift */,
@@ -660,6 +665,7 @@
 				3E1BBE2ADA7581875AA3A4EE /* SMCReader.swift */,
 				72AD10607F74D2095C83BB7A /* SpeedTestService.swift */,
 				D93D1B8E09E5991FE9ECC72E /* SystemOptimization.swift */,
+				B2E37F5C0D8E52E3B4C5D6E7 /* SystemSnapshotProvider.swift */,
 				6959B3085A8C85E79867968A /* WeatherService.swift */,
 				603DE5F764EDC1D8DBFA7D17 /* WidgetDataManager.swift */,
 				C52FAF36FF0A4CBAC00AAE9A /* WidgetHistoryStore.swift */,
@@ -1174,6 +1180,8 @@
 				F3AE82B1D68E8D9741C34DAA /* StackWidgetView.swift in Sources */,
 				170D848FBB38BD96786BC899 /* SystemEnums.swift in Sources */,
 				7017941384A4FFCCB75A6936 /* SystemOptimization.swift in Sources */,
+				C3F4806D1E9F63F4C5D6E7F8 /* SystemSnapshot.swift in Sources */,
+				D4A5917E2FA07405D6E7F8A9 /* SystemSnapshotProvider.swift in Sources */,
 				1CB2CA4C0BC9DA3A90CFA276 /* SystemStatusDashboard.swift in Sources */,
 				42D2054403347221C2B1E9B3 /* TabbedSettingsView.swift in Sources */,
 				34248CE9F7BC7D10636E1199 /* TachometerStatusItem.swift in Sources */,
@@ -1262,7 +1270,7 @@
 				DEVELOPMENT_TEAM = CJ43UNM3AR;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
@@ -1374,7 +1382,7 @@
 				DEVELOPMENT_TEAM = CJ43UNM3AR;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
