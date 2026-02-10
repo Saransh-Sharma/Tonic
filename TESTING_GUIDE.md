@@ -12,18 +12,90 @@ This document outlines the testing infrastructure, patterns, and best practices 
 
 ### Run All Tests
 ```bash
-xcodebuild test -scheme Tonic -configuration Debug
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO
 ```
 
 ### Run Specific Test Suite
 ```bash
-xcodebuild test -scheme Tonic -destination 'platform=macOS' -only-testing:TonicTests/DesignTokensTests
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -destination 'platform=macOS' \
+  -only-testing:TonicTests/DesignTokensTests \
+  test CODE_SIGNING_ALLOWED=NO
 ```
 
 ### Generate Coverage Report
 ```bash
-xcodebuild test -scheme Tonic -configuration Debug -resultBundlePath /tmp/test-results -derivedDataPath /tmp/derived-data
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  -resultBundlePath /tmp/test-results \
+  -derivedDataPath /tmp/derived-data \
+  test CODE_SIGNING_ALLOWED=NO
 ```
+
+## Distribution Build Matrix Validation
+
+Before submitting changes that touch security/scopes, validate both app targets:
+
+```bash
+# Direct target
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
+
+# Store target
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme TonicStore \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build CODE_SIGNING_ALLOWED=NO
+```
+
+## Scope and Bookmark Migration Test Set
+
+For Store-access work, run this baseline every time:
+
+```bash
+xcodebuild \
+  -project Tonic/Tonic.xcodeproj \
+  -scheme Tonic \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  test CODE_SIGNING_ALLOWED=NO \
+  -only-testing:TonicTests/AccessScopeModelsTests \
+  -only-testing:TonicTests/ScopeResolverTests \
+  -only-testing:TonicTests/ServiceErrorHandlingTests
+```
+
+Why these suites:
+
+- `AccessScopeModelsTests` validates typed scope state/blocked reason behavior and key broker/filesystem access paths.
+- `ScopeResolverTests` validates canonical path normalization and best-scope matching behavior.
+- `ServiceErrorHandlingTests` validates user-facing error mapping integrity.
+
+## Store Security Regression Checklist
+
+When changing scanners, cleaners, uninstall, or storage hub behavior:
+
+1. Build `Tonic` and `TonicStore` successfully.
+2. Ensure no new raw filesystem access bypasses scoped facade in Store-sensitive paths.
+3. Ensure typed blocked reasons flow to service/UI layers (`Needs access`, `Limited by macOS`).
+4. Ensure scope grant/re-auth flows still function (onboarding, dashboard, preferences).
+5. Re-run migration test set above.
+6. Run at least one manual Store smoke pass with startup-disk scope authorization.
 
 ## Test Organization
 
@@ -67,6 +139,17 @@ TonicTests/
 | Views | 75%+ | 🔄 In Progress | Dashboard, Maintenance, DiskAnalysis, AppInventory |
 | Services | 70%+ | ⏳ Planned | Error handling tests (depends on T6) |
 | Utilities | 80%+ | ⏳ Planned | Logger, validators, helpers |
+
+### Scope/Sandbox Critical Areas
+
+The following areas are high-risk and should be included in regression passes for Store-safe behavior:
+
+- `AccessBroker` scope lifecycle, status transitions, and `withAccess(...)`.
+- `ScopeResolver` canonicalization and protected path detection.
+- `ScopedFileSystem` scoped metadata reads and mutation wrappers.
+- Smart Scan / SmartCare access-state propagation into manager views.
+- Deep Clean and Storage Hub candidate blocking reasons.
+- App inventory/uninstall mutation path consistency.
 
 ## Testing Patterns
 
