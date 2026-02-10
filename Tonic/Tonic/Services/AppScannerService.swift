@@ -98,6 +98,8 @@ struct CachedAppData: Codable, Sendable {
 /// Background scanner for apps without blocking UI
 final class BackgroundAppScanner: @unchecked Sendable {
     private let fileManager = FileManager.default
+    private let scopedFS = ScopedFileSystem.shared
+    private let sizeCache = DirectorySizeCache.shared
     private var scanTask: Task<Void, Never>?
 
     func cancelScan() {
@@ -106,26 +108,26 @@ final class BackgroundAppScanner: @unchecked Sendable {
 
     /// Fast scan - just discovers apps without calculating sizes
     func scanAppsFast() async -> [FastAppData] {
-        let appDirectories = [
+        let appDirectories = authorized([
             "/Applications",
-            NSHomeDirectory() + "/Applications"
-        ]
+            NSHomeDirectory() + "/Applications",
+        ])
 
-        let prefPaneDirectories = [
+        let prefPaneDirectories = authorized([
             "/Library/PreferencePanes",
-            NSHomeDirectory() + "/Library/PreferencePanes"
-        ]
+            NSHomeDirectory() + "/Library/PreferencePanes",
+        ])
 
-        let libraryDirectories = [
+        let libraryDirectories = authorized([
             "/Library",
-            NSHomeDirectory() + "/Library"
-        ]
+            NSHomeDirectory() + "/Library",
+        ])
 
-        let loginItemPaths = [
+        let loginItemPaths = authorized([
             NSHomeDirectory() + "/Library/LaunchAgents",
             "/Library/LaunchAgents",
             "/Library/LaunchDaemons"
-        ]
+        ])
 
         var apps: [FastAppData] = []
         var seenPaths = Set<String>()
@@ -156,7 +158,7 @@ final class BackgroundAppScanner: @unchecked Sendable {
             ]
             for path in frameworkPaths {
                 if Task.isCancelled { break }
-                if fileManager.fileExists(atPath: path) {
+                if scopedFS.fileExists(atPath: path) {
                     if let result = await scanDirectory(path, extensions: ["framework", "mdimporter", "qlgenerator"], seenPaths: &seenPaths) {
                         apps.append(contentsOf: result)
                     }
@@ -167,11 +169,11 @@ final class BackgroundAppScanner: @unchecked Sendable {
         // Scan for login items and background agents
         for path in loginItemPaths {
             if Task.isCancelled { break }
-            if fileManager.fileExists(atPath: path) {
+            if scopedFS.fileExists(atPath: path) {
                 if let result = await scanDirectory(path, extensions: ["app"], seenPaths: &seenPaths, forceType: .loginItems) {
                     apps.append(contentsOf: result)
                 }
-                if let plistContents = try? fileManager.contentsOfDirectory(atPath: path) {
+                if let plistContents = try? scopedFS.contentsOfDirectory(atPath: path) {
                     for item in plistContents where item.hasSuffix(".plist") {
                         if Task.isCancelled { break }
                         let fullPath = (path as NSString).appendingPathComponent(item)
@@ -208,8 +210,8 @@ final class BackgroundAppScanner: @unchecked Sendable {
 
         for directory in directories {
             if Task.isCancelled { break }
-            guard fileManager.fileExists(atPath: directory) else { continue }
-            guard let appContents = try? fileManager.contentsOfDirectory(atPath: directory) else { continue }
+            guard scopedFS.fileExists(atPath: directory) else { continue }
+            guard let appContents = try? scopedFS.contentsOfDirectory(atPath: directory) else { continue }
 
             for item in appContents {
                 if Task.isCancelled { break }
@@ -228,9 +230,9 @@ final class BackgroundAppScanner: @unchecked Sendable {
 
                 for extDirURL in extensionDirs {
                     if Task.isCancelled { break }
-                    guard fileManager.fileExists(atPath: extDirURL.path) else { continue }
+                    guard scopedFS.fileExists(atPath: extDirURL.path) else { continue }
 
-                    if let extContents = try? fileManager.contentsOfDirectory(atPath: extDirURL.path) {
+                    if let extContents = try? scopedFS.contentsOfDirectory(atPath: extDirURL.path) {
                         for extItem in extContents {
                             if Task.isCancelled { break }
 
@@ -254,19 +256,37 @@ final class BackgroundAppScanner: @unchecked Sendable {
         return extensions
     }
 
+    private struct BundleInfoSnapshot {
+        let info: [String: Any]
+        let bundleIdentifier: String
+    }
+
+    private func bundleInfoSnapshot(at url: URL) -> BundleInfoSnapshot? {
+        (try? scopedFS.withReadAccess(path: url.path, operation: {
+            guard let bundle = Bundle(url: url),
+                  let info = bundle.infoDictionary else {
+                return nil
+            }
+            return BundleInfoSnapshot(
+                info: info,
+                bundleIdentifier: bundle.bundleIdentifier ?? ""
+            )
+        })) ?? nil
+    }
+
     /// Read metadata for an .appex bundle with fallback for when Bundle() fails
     private func readAppExtensionMetadata(_ url: URL) async -> FastAppData? {
-        if let bundle = Bundle(url: url),
-           let info = bundle.infoDictionary {
+        if let snapshot = bundleInfoSnapshot(at: url) {
+            let info = snapshot.info
             let name = info["CFBundleName"] as? String
                 ?? info["CFBundleDisplayName"] as? String
                 ?? url.deletingPathExtension().lastPathComponent
 
-            let bundleID = bundle.bundleIdentifier ?? ""
+            let bundleID = snapshot.bundleIdentifier
             let version = info["CFBundleVersion"] as? String
                 ?? info["CFBundleShortVersionString"] as? String
 
-            let installDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
+            let installDate = (try? scopedFS.resourceValues(for: url, keys: [.creationDateKey]))?.creationDate
             let categoryRaw = info["LSApplicationCategoryType"] as? String ?? "other"
             let category = appCategory(from: categoryRaw)
 
@@ -288,7 +308,7 @@ final class BackgroundAppScanner: @unchecked Sendable {
             path: url.path,
             bundleIdentifier: name,
             version: "Unknown",
-            installDate: (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date(),
+            installDate: (try? scopedFS.resourceValues(for: url, keys: [.creationDateKey]))?.creationDate ?? Date(),
             category: .other,
             totalSize: 0,
             itemType: .appExtensions
@@ -297,26 +317,32 @@ final class BackgroundAppScanner: @unchecked Sendable {
 
     /// Scan a directory for items with specific extensions
     private func scanDirectory(_ directory: String, extensions: [String], seenPaths: inout Set<String>, forceType: ItemType? = nil) async -> [FastAppData]? {
-        guard fileManager.fileExists(atPath: directory) else { return nil }
+        guard scopedFS.fileExists(atPath: directory) else { return nil }
 
         var items: [FastAppData] = []
+        var discovered: [URL] = []
+        do {
+            try scopedFS.enumerateDirectory(
+                atPath: directory,
+                includingPropertiesForKeys: [.isApplicationKey],
+                options: [.skipsHiddenFiles]
+            ) { url in
+                discovered.append(url)
+            }
+        } catch {
+            return nil
+        }
 
-        if let enumerator = fileManager.enumerator(
-            at: URL(fileURLWithPath: directory),
-            includingPropertiesForKeys: [.isApplicationKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            while let url = enumerator.nextObject() as? URL {
-                if Task.isCancelled { break }
+        for url in discovered {
+            if Task.isCancelled { break }
 
-                let path = url.path
-                if seenPaths.contains(path) { continue }
-                seenPaths.insert(path)
+            let path = url.path
+            if seenPaths.contains(path) { continue }
+            seenPaths.insert(path)
 
-                if extensions.contains(url.pathExtension) {
-                    if let itemData = await readAppMetadataFast(url, forceType: forceType) {
-                        items.append(itemData)
-                    }
+            if extensions.contains(url.pathExtension) {
+                if let itemData = await readAppMetadataFast(url, forceType: forceType) {
+                    items.append(itemData)
                 }
             }
         }
@@ -398,27 +424,27 @@ final class BackgroundAppScanner: @unchecked Sendable {
                 path: url.path,
                 bundleIdentifier: name,
                 version: "1.0",
-                installDate: (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date(),
+                installDate: (try? scopedFS.resourceValues(for: url, keys: [.creationDateKey]))?.creationDate ?? Date(),
                 category: .other,
                 totalSize: 0,
                 itemType: forceType ?? .loginItems
             )
         }
 
-        guard let bundle = Bundle(url: url),
-              let info = bundle.infoDictionary else {
+        guard let snapshot = bundleInfoSnapshot(at: url) else {
             return nil
         }
+        let info = snapshot.info
 
         let name = info["CFBundleName"] as? String
             ?? info["CFBundleDisplayName"] as? String
             ?? url.deletingPathExtension().lastPathComponent
 
-        let bundleID = bundle.bundleIdentifier ?? ""
+        let bundleID = snapshot.bundleIdentifier
         let version = info["CFBundleVersion"] as? String
             ?? info["CFBundleShortVersionString"] as? String
 
-        let installDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
+        let installDate = (try? scopedFS.resourceValues(for: url, keys: [.creationDateKey]))?.creationDate
         let categoryRaw = info["LSApplicationCategoryType"] as? String ?? "other"
         let category = appCategory(from: categoryRaw)
         let itemType = forceType ?? getItemType(for: url, info: info)
@@ -460,7 +486,11 @@ final class BackgroundAppScanner: @unchecked Sendable {
     }
 
     private func getSizeUsingDu(_ path: String) async -> Int64? {
-        await withCheckedContinuation { continuation in
+        guard scopedFS.canRead(path: path) else { return nil }
+        if BuildCapabilities.current.requiresScopeAccess {
+            return sizeCache.size(for: path, includeHidden: true)
+        }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Int64?, Never>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
             process.arguments = ["-sk", path]
@@ -502,5 +532,9 @@ final class BackgroundAppScanner: @unchecked Sendable {
                 continuation.resume(returning: nil)
             }
         }
+    }
+
+    private func authorized(_ paths: [String]) -> [String] {
+        scopedFS.filterAuthorizedPaths(paths, requiresWrite: false).authorizedPaths
     }
 }
