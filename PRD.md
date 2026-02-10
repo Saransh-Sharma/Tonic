@@ -83,7 +83,7 @@ macOS users face several challenges in maintaining their systems:
 4. **Fragmented User Experience**
    - Multiple apps needed for different maintenance tasks
    - No unified dashboard for system health
-   - Settings scattered across System Preferences
+   - Settings scattered across System Settings
    - Menu bar widgets require separate installations
 
 ### User Pain Points
@@ -174,7 +174,7 @@ macOS users face several challenges in maintaining their systems:
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| Dashboard | Implemented | System health score, quick actions, and recommendation surfaces |
+| Dashboard | Implemented | System health score, Smart Scan action lane, and recommendation surfaces |
 | Smart Scan | Implemented | Three-pillar scan (Space, Performance, Apps) with actionable run flow |
 | Deep Clean | Implemented | Multi-category cleanup with progress and safety checks |
 | Storage Scan (Storage Intelligence Hub) | Implemented | Quick/Full/Targeted local storage analysis with guided cleanup |
@@ -220,28 +220,28 @@ macOS users face several challenges in maintaining their systems:
 
 ### 6.1 Dashboard
 
-**Description:** Main entry point showing system health score, quick actions, real-time stats, and recommendations.
+**Description:** Main entry point showing system health score, Smart Scan action lane, real-time stats, and recommendations.
 
 **User Flow:**
 1. User opens Tonic
 2. Sees health score (0-100) with color-coded rating
-3. Reviews recommendations for improvement
-4. Clicks quick action button to perform task
-5. Views recent activity timeline
+3. Uses the primary Smart Scan action to start, stop, or continue system review
+4. Reviews contextual actions after scan results (run Smart Clean, review details, export report)
+5. Checks recommendations and recent activity timeline
 
 **Requirements:**
 
 | Requirement | Priority | Description |
 |-------------|----------|-------------|
 | Health Score Display | Must Have | Show 0-100 score with circular progress indicator |
-| Quick Actions | Must Have | 4 buttons: Smart Scan, Deep Clean, App Manager, Storage Scan |
+| Smart Scan Action Lane | Must Have | Primary Smart Scan CTA with state-aware actions (scan, stop, run, review, export) |
 | Real-time Stats | Must Have | Storage, Memory, CPU percentages update every 2s |
 | Recommendations | Must Have | Actionable items with space estimates |
 | Activity Timeline | Should Have | Show recent scan/clean operations |
 
 **Acceptance Criteria:**
 - [ ] Health score displays within 1 second of app launch
-- [ ] Quick action buttons trigger correct view navigation
+- [ ] Smart Scan action lane reflects scan state and exposes correct follow-up actions
 - [ ] Stats update in real-time without lag
 - [ ] Recommendations show potential space reclamation
 
@@ -375,7 +375,7 @@ macOS users face several challenges in maintaining their systems:
 | Sensors | Temperature/fans | Includes fan control modes |
 | Bluetooth | Device connectivity/battery | Multi-device summary views |
 | Clock | Timezone/time display | Stack/label-style views |
-| Weather | Environment integration | Supported where configured; outside strict parity runtime set |
+| Weather | Environment integration | Optional module shown when weather/location integration is configured |
 
 **Requirements:**
 
@@ -529,8 +529,7 @@ macOS users face several challenges in maintaining their systems:
 | Full Disk Access | Scan and clean all files | Disk scanning, cleanup, app uninstall |
 | Accessibility | Automate system tasks | System optimization, launch services rebuild |
 | Notifications | Alert users | Scan completion, low disk space, alerts |
-| Location | Weather widget | Current location for weather |
-| Location (In Use) | Weather updates | Continuous weather updates |
+| Location (When In Use) | Weather widget | Local weather and environment module context |
 
 ### Technical Dependencies
 
@@ -567,14 +566,17 @@ macOS users face several challenges in maintaining their systems:
 
 ### Onboarding Flow
 
-**4-Page Wizard:**
+**7-Screen Guided Flow:**
 
 | Page | Title | Content |
 |------|-------|---------|
-| 1 | Welcome | App overview, features, continue button |
-| 2 | Permissions | Full Disk Access explanation, grant button, fallback to System Settings |
-| 3 | Helper | Privileged Helper explanation, install button |
-| 4 | Ready | Summary, launch dashboard button |
+| 1 | Welcome | Product intro and value framing |
+| 2 | Smart Scan | Space/Performance/Apps overview |
+| 3 | Storage Lens | Storage intelligence and visual analysis intro |
+| 4 | App Manager | App inventory and uninstall value framing |
+| 5 | Menu Widgets | Real-time monitoring and alerting intro |
+| 6 | Setup | Full Disk Access + Notifications setup guidance |
+| 7 | Ready | Final summary and launch action |
 
 **UX Principles:**
 - Clear value proposition on each page
@@ -591,7 +593,8 @@ macOS users face several challenges in maintaining their systems:
 
 2. **Collector Bin**
    - Deleted items staged in Collector Bin first
-   - 7-day retention with restore capability
+   - Restore/remove workflow before permanent deletion
+   - Capacity guardrails enforced by item count and total staged size limits
    - Permanent deletion requires explicit confirmation
 
 3. **Whitelist**
@@ -627,7 +630,7 @@ macOS users face several challenges in maintaining their systems:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Dashboard | Complete | Health score, quick actions, stats, recommendations |
+| Dashboard | Complete | Health score, Smart Scan action lane, stats, recommendations |
 | Smart Scan | Complete | Three-pillar scan (Space/Performance/Apps), runnable recommendations |
 | Deep Clean | Complete | Category-driven cleanup with progress and summaries |
 | Storage Scan (Storage Intelligence Hub) | Complete | Quick/Full/Targeted scans, explore/act/insights/history surfaces |
@@ -638,7 +641,7 @@ macOS users face several challenges in maintaining their systems:
 | App Uninstall | Complete | Bundle + associated files removal with protection checks |
 | Notification Rules | Complete | Threshold alerts with cooldown controls |
 | Preferences | Complete | Theme, updates, permissions, module configuration |
-| Onboarding | Complete | 4-page setup flow |
+| Onboarding | Complete | 7-screen guided setup flow |
 | Collector Bin | Complete | Staging, restore, permanent delete |
 
 ### Partially Implemented
@@ -671,7 +674,7 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 |--------|--------|-------------|
 | GitHub Stars | 1,000 in 6 months | GitHub repository |
 | Downloads | 10,000 in 6 months | GitHub Releases |
-| Active Users | 1,000 DAU in 6 months | Anonymous analytics (opt-in) |
+| Community Engagement | 1,000 contributors/participants in 6 months | Issues, discussions, and feedback participation |
 
 ### Engagement Metrics
 
@@ -702,7 +705,7 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 
 ## 11. Freemium Model
 
-> **Note:** The freemium model is planned but not yet implemented. The split below describes intended packaging and may change before release.
+> **Note:** Freemium support is partially modeled in internal licensing logic, but production packaging and purchase UX are still being finalized.
 
 ### Tiers
 
@@ -750,9 +753,9 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 - App updater workflows
 
 **Implementation Notes:**
-- In-app purchase via Sparkle or App Store
-- License key or subscription model (undecided)
-- No forced subscription, lifetime option under consideration
+- StoreKit-backed productization is planned; current codebase includes tier/limit scaffolding
+- Final purchase model (subscription, lifetime, or mixed) is still under product decision
+- No forced subscription objective remains
 
 ### Upgrade UX
 
@@ -784,19 +787,21 @@ See [GitHub Issues](https://github.com/tw93/Tonic/issues) for current bugs and k
 ```
 ~/Library/Application Support/Tonic/
 ├── CollectorBin/
-│   └── items.json              # Staged deletion items
-├── preferences.json            # User preferences
-└── widgetConfigs.json          # Widget configuration
+│   └── bin_items.json          # Collector Bin staged item metadata
+└── (feature data persisted via UserDefaults keys)
 
-~/Library/Caches/com.tonic.Tonic/
-├── Cache.db                    # Disk scan cache
-└── WeatherCache/               # Cached weather data
+~/Library/Caches/com.pretonic.tonic/
+└── appcache.json               # App inventory scan cache
 
-~/Library/Logs/com.tonic.Tonic/
-└── app.log                     # Application logs
+~/Library/Logs/Tonic/
+└── tonic.log                   # Application logs
 
-/Library/PrivilegedHelperTools/
-└── com.tonicformac.app.helper  # Privileged helper binary (if installed)
+UserDefaults keys (representative):
+- tonic.widget.store.configs
+- tonic.history.*
+- tonic.notificationRules.*
+- tonic.activity.log
+- tonic.license.*
 ```
 
 ---
