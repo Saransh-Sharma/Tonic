@@ -6,21 +6,6 @@
   <p><em>Beautiful native macOS system management.</em></p>
 </div>
 
-<p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/9ad81c0a680f6b7be68e06b390f1c402.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=vsKKvEtnfk9FziBC4X4detGn9Kg=" alt="Tonic Dashboard" width="1000" />
-</p>
-
-<p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0fcb7dfe9b60ca6c920c38aad4629308.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=GmfHjvDiWMDcTeXGfHOvldhKkTw=" alt="Tonic Smart Scan" width="1000" />
-</p>
-
-<p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/8b79fc419921bc5ff36a83021afefd8c.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=FiGXyP1PpnqcSIsXNMLIs+Gs7RE=" alt="Tonic Storage Intelligence Hub" width="1000" />
-</p>
-
-<p align="center">
-  <img src="https://maas-log-prod.cn-wlcb.ufileos.com/anthropic/1bcffa2d-4b2d-423b-9fad-fdfecf8f249e/0b69437bf39ca44b8c8364d6219cb823.png?UCloudPublicKey=TOKEN_e15ba47a-d098-4fbd-9afc-a0dcf0e4e621&Expires=1770743571&Signature=4KEK9D/Zz8Kt/THoQSndGDb5nQY=" alt="Tonic App Manager" width="1000" />
-</p>
 
 ## Overview
 
@@ -209,8 +194,6 @@ Create custom alerts based on:
 
 ## Quick Start
 
-### Download
-Download the latest release from [GitHub Releases](https://github.com/tw93/Tonic/releases) and move Tonic.app to `/Applications`.
 
 ### First Launch
 1. Open Tonic from Applications or Spotlight
@@ -251,23 +234,6 @@ Tonic/
     ├── Models/                           # Data models and persisted config
     ├── Design/                           # Design tokens/components/motion
     └── Utilities/                        # Scanning and system helpers
-```
-
-## Building from Source
-
-### Prerequisites
-- Xcode 15.0 or later
-- XcodeGen (`brew install xcodegen`)
-
-### Generate Project
-
-```bash
-# Clone the repository
-git clone https://github.com/tw93/Tonic.git
-cd Tonic
-
-# Generate Xcode project
-xcodegen generate --spec Tonic/project.yml
 ```
 
 ### Build Matrix (Direct + Store)
@@ -344,13 +310,6 @@ open Tonic/Tonic.xcodeproj
 - Keep direct target behavior unchanged unless the refactor is explicitly no-op for direct mode.
 - For App Store submission behavior and demo script, review `Tonic/APP_STORE_REVIEW_NOTES.md`.
 
-## Contributing
-
-Contributions are welcome through the upstream repository issues and pull requests: [tw93/Tonic](https://github.com/tw93/Tonic).
-
-## License
-
-For licensing details, refer to the upstream repository: [tw93/Tonic](https://github.com/tw93/Tonic).
 
 ## Acknowledgments
 
