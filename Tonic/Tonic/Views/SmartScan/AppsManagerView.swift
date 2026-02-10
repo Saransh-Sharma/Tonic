@@ -24,6 +24,7 @@ struct AppsManagerView: View {
     @State private var selectedFilter: AppFilter
     @State private var expandedItemIDs: Set<UUID> = []
     @State private var childSelectionByParent: [UUID: Set<String>] = [:]
+    private let accessBroker = AccessBroker.shared
 
     init(
         domainResult: SmartCareDomainResult?,
@@ -136,6 +137,25 @@ struct AppsManagerView: View {
                 RightItemsPane {
                     ManagerSummaryStrip(text: summaryText)
 
+                    if blockedItemsCount > 0 {
+                        HStack(spacing: TonicSpaceToken.two) {
+                            Text("\(blockedItemsCount) item\(blockedItemsCount == 1 ? "" : "s") need additional access.")
+                                .font(TonicTypeToken.micro)
+                                .foregroundStyle(TonicTextToken.secondary)
+                            Spacer()
+                            Button("Grant Access") {
+                                _ = accessBroker.addScopeUsingOpenPanel()
+                                accessBroker.refreshStatuses()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                        .padding(.horizontal, TonicSpaceToken.two)
+                        .padding(.vertical, TonicSpaceToken.one)
+                        .background(TonicGlassToken.fill)
+                        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+                    }
+
                     if currentItems.isEmpty {
                         PlaceholderStatePanel(
                             title: "Nothing to process",
@@ -148,7 +168,7 @@ struct AppsManagerView: View {
                                     ExpandableSelectionRow(
                                         icon: "app.badge",
                                         title: item.title,
-                                        subtitle: item.subtitle,
+                                        subtitle: itemSubtitle(for: item),
                                         metric: item.formattedSize,
                                         selectionState: selectionState(for: item),
                                         isExpandable: isExpandable(item),
@@ -248,6 +268,10 @@ struct AppsManagerView: View {
         "\(selectedNavTitle) · Selected: \(selectedItems.count) · Estimated: \(formatBytes(selectedItems.reduce(0) { $0 + $1.size }))"
     }
 
+    private var blockedItemsCount: Int {
+        currentItems.filter { $0.accessState != .ready }.count
+    }
+
     private func matchesFilter(_ item: SmartCareItem) -> Bool {
         switch selectedFilter {
         case .all:
@@ -264,6 +288,15 @@ struct AppsManagerView: View {
     private func badges(for item: SmartCareItem) -> [MetaBadgeStyle] {
         let title = item.title.lowercased()
         var results: [MetaBadgeStyle] = []
+
+        switch item.accessState {
+        case .ready:
+            break
+        case .needsAccess:
+            results.append(.needsAccess)
+        case .limited:
+            results.append(item.blockedReason == .macOSProtected ? .limitedByMacOS : .needsAccess)
+        }
 
         if title.contains("unused") {
             results.append(.unused)
@@ -285,6 +318,20 @@ struct AppsManagerView: View {
             results.append(.needsReview)
         }
         return results
+    }
+
+    private func itemSubtitle(for item: SmartCareItem) -> String {
+        if let blocked = item.blockedReason {
+            return "\(item.subtitle) • \(blocked.userMessage)"
+        }
+        switch item.accessState {
+        case .ready:
+            return item.subtitle
+        case .needsAccess:
+            return "\(item.subtitle) • Needs access"
+        case .limited:
+            return "\(item.subtitle) • Limited by macOS"
+        }
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -410,7 +457,9 @@ struct AppsManagerView: View {
                 isSmartSelected: item.isSmartSelected,
                 action: .delete(paths: paths),
                 paths: paths,
-                scoreImpact: item.scoreImpact
+                scoreImpact: item.scoreImpact,
+                accessState: item.accessState,
+                blockedReason: item.blockedReason
             )
         case .runOptimization:
             return item

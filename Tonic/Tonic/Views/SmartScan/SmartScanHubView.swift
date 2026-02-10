@@ -32,6 +32,7 @@ struct SmartScanHubView: View {
     let onQuickActionDone: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let accessBroker = AccessBroker.shared
 
     // Collapsible hero state
     @State private var heroCompact = false
@@ -260,6 +261,24 @@ struct SmartScanHubView: View {
 
     private var resultsSections: some View {
         VStack(spacing: TonicSpaceToken.three) {
+            if blockedItemsCount > 0 {
+                HStack(spacing: TonicSpaceToken.two) {
+                    Text("\(blockedItemsCount) recommendation\(blockedItemsCount == 1 ? "" : "s") need additional access.")
+                        .font(TonicTypeToken.caption)
+                        .foregroundStyle(TonicTextToken.secondary)
+                    Spacer()
+                    Button("Grant Access") {
+                        _ = accessBroker.addScopeUsingOpenPanel()
+                        accessBroker.refreshStatuses()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(TonicSpaceToken.two)
+                .background(TonicGlassToken.fill)
+                .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+            }
+
             ForEach(Array(sectionModels.enumerated()), id: \.element.id) { index, section in
                 pillarSectionView(for: section)
                     .opacity(sectionOpacity(for: index))
@@ -337,8 +356,17 @@ struct SmartScanHubView: View {
         case .running:
             return "Running Smart Clean: \(Int(runProgress * 100))%"
         case .results:
+            if blockedItemsCount > 0 {
+                return "Recommended: \(recommendedCount) tasks • Needs access: \(blockedItemsCount) • Space: \(spaceResultMetric)"
+            }
             return "Recommended: \(recommendedCount) tasks • Space: \(spaceResultMetric) • Apps: \(appsResultMetric)"
         }
+    }
+
+    private var blockedItemsCount: Int {
+        (scanResult?.domainResults.values.flatMap(\.items) ?? [])
+            .filter { $0.accessState != .ready }
+            .count
     }
 
     private var dockPrimaryEnabled: Bool {
