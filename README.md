@@ -12,21 +12,27 @@
 
 ## Overview
 
-Tonic is a beautiful, native macOS application for system management and optimization. It combines disk cleanup, performance monitoring, and app management into a single, polished interface built entirely with SwiftUI.
+Tonic is a native macOS system management app focused on cleanup, monitoring, storage intelligence, and app lifecycle management. It combines Smart Scan, Storage Scan, menu bar monitoring, and App Manager into a single SwiftUI experience.
 
 Tonic provides a true native Mac experience with:
 - **Real-time system monitoring** with live menu bar widgets
 - **One-click smart scanning** that identifies junk and reclaimable space
 - **Deep cleaning** across 10 categories of system clutter
-- **Disk analysis** with interactive treemap visualization
+- **Storage Scan (Storage Intelligence Hub)** with path browser, orbit map, and treemap visualization
 - **App inventory** with uninstall and update capabilities
+
+## Documentation
+
+- [Design Doc](ARCHITECTURE.md)
+- [Product Requirements Document (PRD)](PRD.md)
 
 ## Features
 
 ### Dashboard
 The main dashboard provides an at-a-glance view of your Mac's health with:
 - System health score (0-100) with color-coded rating
-- Quick action buttons for common tasks
+- Smart Scan-first primary action flow
+- Contextual action states (Run Smart Scan, Stop Scan, Run Smart Clean, Review, Export report)
 - Real-time storage, memory, and CPU statistics
 - Actionable recommendations for improvement
 - Recent activity timeline
@@ -112,12 +118,12 @@ Menu widgets support both **individual status items** and **OneView unified mode
 - **Alerting**: threshold-based notifications with cooldown/deduplication controls
 
 ### App Management
-- **App Inventory** - Categorized view of all apps and extensions
-- **Login Items** - View and manage launch agents, daemons, and startup items
-- **Smart Filtering** - By category, size, last used, install date
-- **Batch Operations** - Select multiple apps for actions
-- **Complete Uninstall** - Removes app bundle + all associated files
-- **Update Checking** - Sparkle-based update detection
+- **Inventory + Activity Surface** - Unified view across discovered apps, extensions, login items, launch services, and background activities
+- **Operational Filters** - Search, tab/category filters, quick filters, and sort controls
+- **Two-pass scan behavior** - Fast discovery first, followed by optional size enrichment
+- **Selection workflows** - Multi-select and task-oriented review
+- **Safe uninstall flow** - Removes app bundle and associated files with protection checks
+- **Update awareness** - Update availability checks for discovered apps
 
 ### Notification Rules
 Create custom alerts based on:
@@ -134,9 +140,9 @@ Download the latest release from [GitHub Releases](https://github.com/tw93/Tonic
 
 ### First Launch
 1. Open Tonic from Applications or Spotlight
-2. Complete the onboarding wizard (4 pages)
+2. Complete the onboarding flow (7 guided screens)
 3. Grant **Full Disk Access** in System Settings → Privacy
-4. Optionally install the **Privileged Helper** for system-level operations
+4. Optionally enable **Notifications** for threshold alerts
 5. Start with a Smart Scan from the dashboard
 
 ### Requirements
@@ -146,27 +152,29 @@ Download the latest release from [GitHub Releases](https://github.com/tw93/Tonic
 
 ## Architecture
 
-```
+```text
 Tonic/
-├── TonicApp.swift                    # App entry point
-├── Views/                            # SwiftUI feature surfaces
-│   ├── DashboardHomeView.swift       # Dashboard and quick actions
-│   ├── SmartCareView.swift           # Smart Scan hub + managers
-│   ├── SmartScan/                    # Space/Performance/Apps manager screens
-│   ├── DiskAnalysisView.swift        # Storage Intelligence Hub
-│   ├── AppManager/AppManagerView.swift # App inventory + scanner UI
-│   └── PreferencesView.swift         # App settings
-├── Services/                         # Core engines and background services
-│   ├── SmartCareEngine.swift         # Smart Scan pipeline
-│   ├── DeepCleanEngine.swift         # Deep clean categories
-│   ├── AppInventoryService.swift     # App scanner/inventory orchestration
-│   ├── CloudStorageScanner.swift     # Cloud provider scan
-│   ├── WidgetDataManager.swift       # Widget/system metrics
-│   └── NotificationManager.swift     # Threshold notification rules
-├── MenuBarWidgets/                   # Widget runtime, popovers, settings
-├── Models/                           # Data models and persisted config
-├── Design/                           # Design tokens/components/motion
-└── Utilities/                        # Scanning and system helpers
+└── Tonic/
+    ├── TonicApp.swift                    # App entry point
+    ├── Views/                            # SwiftUI feature surfaces
+    │   ├── DashboardHomeView.swift       # Smart Scan-first dashboard + action lane
+    │   ├── SmartCareView.swift           # Smart Scan hub + managers
+    │   ├── SmartScan/                    # Space/Performance/Apps manager screens
+    │   ├── DiskAnalysisView.swift        # Storage Intelligence Hub
+    │   ├── AppManager/AppManagerView.swift # App inventory + scanner UI
+    │   └── PreferencesView.swift         # App settings
+    ├── Services/                         # Core engines and background services
+    │   ├── SmartCareEngine.swift         # Smart Scan pipeline
+    │   ├── DeepCleanEngine.swift         # Deep clean categories
+    │   ├── AppInventoryService.swift     # App scanner/inventory orchestration
+    │   ├── CloudStorageScanner.swift     # Cloud provider scan
+    │   ├── WidgetDataManager.swift       # Widget/system metrics
+    │   ├── NotificationRuleEngine.swift  # Rule evaluation + trigger history
+    │   └── NotificationManager.swift     # Notification delivery/settings bridge
+    ├── MenuBarWidgets/                   # Widget runtime, popovers, settings
+    ├── Models/                           # Data models and persisted config
+    ├── Design/                           # Design tokens/components/motion
+    └── Utilities/                        # Scanning and system helpers
 ```
 
 ## Building from Source
@@ -201,14 +209,11 @@ open Tonic.xcodeproj
 
 ## Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
-- Code style and conventions
-- Submitting pull requests
-- Reporting issues
+Contributions are welcome through the upstream repository issues and pull requests: [tw93/Tonic](https://github.com/tw93/Tonic).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+For licensing details, refer to the upstream repository: [tw93/Tonic](https://github.com/tw93/Tonic).
 
 ## Acknowledgments
 
