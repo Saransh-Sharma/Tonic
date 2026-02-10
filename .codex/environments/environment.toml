@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "xcodebuild -scheme Tonic -configuration Debug buildxcodebuild -scheme Tonic -configuration Debug build"
+command = "xcodebuild -scheme Tonic -configuration Debug build"
