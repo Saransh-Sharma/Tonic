@@ -8,6 +8,19 @@
 import SwiftUI
 import AppKit
 
+private func loadAppIcon(for path: URL) async -> NSImage? {
+    await withCheckedContinuation { continuation in
+        DispatchQueue.global(qos: .userInitiated).async {
+            let icon = NSWorkspace.shared.icon(forFile: path.path)
+            if icon.isValid && !icon.representations.isEmpty {
+                continuation.resume(returning: icon)
+            } else {
+                continuation.resume(returning: nil)
+            }
+        }
+    }
+}
+
 // MARK: - App Hero State
 
 enum AppHeroState {
@@ -305,20 +318,7 @@ struct AppItemCard: View {
             }
         }
         .task {
-            appIcon = await loadIconAsync(for: app.path)
-        }
-    }
-
-    private func loadIconAsync(for path: URL) async -> NSImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .default).async {
-                let icon = NSWorkspace.shared.icon(forFile: path.path)
-                if icon.isValid && icon.representations.count > 0 {
-                    continuation.resume(returning: icon)
-                } else {
-                    continuation.resume(returning: nil)
-                }
-            }
+            appIcon = await loadAppIcon(for: app.path)
         }
     }
 }
@@ -441,7 +441,7 @@ struct AppItemGridCard: View {
             }
         }
         .task {
-            appIcon = await loadIconAsync(for: app.path)
+            appIcon = await loadAppIcon(for: app.path)
         }
     }
 
@@ -452,18 +452,6 @@ struct AppItemGridCard: View {
         return formatter.localizedString(for: lastUsed, relativeTo: Date())
     }
 
-    private func loadIconAsync(for path: URL) async -> NSImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .default).async {
-                let icon = NSWorkspace.shared.icon(forFile: path.path)
-                if icon.isValid && icon.representations.count > 0 {
-                    continuation.resume(returning: icon)
-                } else {
-                    continuation.resume(returning: nil)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - App Command Dock
@@ -630,20 +618,7 @@ struct LoginItemRow: View {
         }
         .buttonStyle(.plain)
         .task {
-            appIcon = await loadIconAsync(for: item.path)
-        }
-    }
-
-    private func loadIconAsync(for path: URL) async -> NSImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let icon = NSWorkspace.shared.icon(forFile: path.path)
-                if icon.isValid && icon.representations.count > 0 {
-                    continuation.resume(returning: icon)
-                } else {
-                    continuation.resume(returning: nil)
-                }
-            }
+            appIcon = await loadAppIcon(for: item.path)
         }
     }
 }
@@ -710,6 +685,7 @@ struct EmptyStateFloatModifier: ViewModifier {
 /// Three dots animating sequentially during scan loading
 struct ScanningDotsView: View {
     @State private var activeDot = 0
+    @State private var timer: Timer?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -721,11 +697,16 @@ struct ScanningDotsView: View {
             }
         }
         .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
+            timer?.invalidate()
+            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     activeDot = (activeDot + 1) % 3
                 }
             }
+        }
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
         }
     }
 }
