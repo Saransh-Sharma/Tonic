@@ -10,8 +10,7 @@ import Foundation
 // MARK: - App Cache
 
 /// Persistent cache for app scan results
-@Observable
-final class AppCache: Sendable {
+final class AppCache: @unchecked Sendable {
     private let cacheURL: URL
 
     static let shared = AppCache()
@@ -37,8 +36,17 @@ final class AppCache: Sendable {
 
     func saveApps(_ apps: [AppMetadata]) {
         let cachedData = apps.map { CachedAppData(from: $0) }
-        guard let data = try? JSONEncoder().encode(cachedData) else { return }
-        try? data.write(to: cacheURL)
+        do {
+            try FileManager.default.createDirectory(
+                at: cacheURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let data = try JSONEncoder().encode(cachedData)
+            try data.write(to: cacheURL, options: .atomic)
+        } catch {
+            print("[AppCache] Failed to save cache: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -71,7 +79,8 @@ struct CachedAppData: Codable, Sendable {
     }
 
     func toAppMetadata() -> AppMetadata? {
-        guard let url = URL(string: path) else { return nil }
+        guard !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: path)
         return AppMetadata(
             bundleIdentifier: bundleIdentifier,
             appName: name,
@@ -451,38 +460,47 @@ final class BackgroundAppScanner: @unchecked Sendable {
     }
 
     private func getSizeUsingDu(_ path: String) async -> Int64? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
-        process.arguments = ["-sk", path]
+        await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+            process.arguments = ["-sk", path]
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
 
             let timeoutTask = Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                process.terminate()
+                if process.isRunning {
+                    process.terminate()
+                }
             }
 
-            guard let data = try? pipe.fileHandleForReading.readToEnd(),
-                  let output = String(data: data, encoding: .utf8) else {
+            process.terminationHandler = { _ in
                 timeoutTask.cancel()
-                return nil
+
+                guard let data = try? pipe.fileHandleForReading.readToEnd(),
+                      let output = String(data: data, encoding: .utf8) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let parts = output.split(whereSeparator: \.isWhitespace)
+                guard let first = parts.first,
+                      let kb = Int64(first) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                continuation.resume(returning: kb * 1024)
             }
 
-            timeoutTask.cancel()
-
-            let parts = output.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            if let kb = Int64(parts.first ?? "0") {
-                return kb * 1024
+            do {
+                try process.run()
+            } catch {
+                timeoutTask.cancel()
+                continuation.resume(returning: nil)
             }
-        } catch {
-            return nil
         }
-
-        return nil
     }
 }
