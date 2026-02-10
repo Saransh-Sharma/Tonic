@@ -32,13 +32,20 @@ The main dashboard provides an at-a-glance view of your Mac's health with:
 - Recent activity timeline
 
 ### Smart Scan
-Four-stage scanning engine that analyzes your system:
-1. **Preparing** - Initialize scan and load preferences
-2. **Scanning Disk** - Enumerate caches, logs, and temporary files
-3. **Checking Apps** - Identify unused applications and duplicates
-4. **Analyzing System** - Detect hidden space and optimization opportunities
+Smart Scan is a three-pillar analysis flow that runs through:
+1. **Space** - Cleanup and clutter analysis (cache/temp/log/trash targets, hidden space, old downloads, dev and Xcode leftovers)
+2. **Performance** - Login/background maintenance checks and optimization candidates
+3. **Apps** - App lifecycle issues (unused apps, large installations, duplicates, orphaned support files)
 
-Results include a health score and categorized recommendations with estimated space to reclaim.
+During scan, Tonic shows live counters for:
+- Reclaimable space found
+- Performance items flagged
+- Apps reviewed
+
+After scan, results are grouped into actionable sections with:
+- Per-item safety status (`safe to run`)
+- Smart-selected recommendations (preselected quick wins)
+- Review-first and one-click Smart Clean execution paths
 
 ### Deep Clean
 Ten cleanup categories:
@@ -53,11 +60,32 @@ Ten cleanup categories:
 - Docker (container data and images)
 - Xcode (DerivedData, Archives, DeviceSupport)
 
-### Disk Analysis
-- **Directory Browser** - Navigate any folder with back/up controls
-- **Large Files View** - Quickly identify space hogs (100MB+)
-- **Treemap Visualization** - Visual representation of disk usage by file type
-- **Permission Handling** - Guided Full Disk Access setup
+### Apps Scanner
+Tonic includes two complementary app-scanning workflows:
+
+- **App Manager Scanner (inventory-first)**
+  - Fast discovery of installed app-related items, then optional size enrichment
+  - Coverage across apps, extensions, preference panes, quick look plugins, spotlight importers, frameworks, system utilities, and login items
+  - Search, category filters, sort controls, update checks, and uninstall flows from one workspace
+- **Smart Scan Apps Pillar (issue-first)**
+  - Focuses on cleanup/optimization candidates: unused, oversized, duplicate, and orphaned app data
+  - Integrates directly into Smart Clean recommendation flow
+
+### Storage Scan
+Storage scanning is powered by the **Storage Intelligence Hub** (Disk Analysis) plus cloud provider scanning:
+
+- **Scan modes**: Quick, Full, and Targeted scope
+- **Guided permissions**: Full Disk Access checks and setup helpers
+- **Explore surfaces**: path navigation, orbit map, and treemap terrain views
+- **Action workflows**: Guided Assistant or Cart + Review cleanup modes
+- **Insights**: reclaim packs, anomaly detection, trend/history, and forecast narratives
+- **Safety model**: risk levels, blocked/protected paths, dry-run style review before execution
+
+Cloud storage scan support includes provider detection and cache sizing for:
+- iCloud
+- Dropbox
+- Google Drive
+- OneDrive
 
 ### System Monitoring
 Real-time metrics for:
@@ -68,32 +96,20 @@ Real-time metrics for:
 - **Battery** - Charge percentage, health, time remaining (portable Macs)
 
 ### Menu Bar Widgets
-Ten customizable widgets that live in your menu bar with Stats Master-style popovers:
-- **CPU Widget** - Usage percentage with optional sparkline, per-core breakdown, scheduler/speed limits, uptime
-- **Memory Widget** - Usage with pressure indicator (pressure gauge), swap usage, top processes
-- **Disk Widget** - Primary volume usage, I/O statistics, per-disk charts
-- **Network Widget** - Bandwidth and connection status, WiFi details (RSSI, noise, SNR), DNS servers
-- **GPU Widget** - Apple Silicon unified memory, per-GPU metrics (M-series only), temperature, render/tiler stats
-- **Battery Widget** - Charge level, health, electrical metrics (amperage, voltage, wattage), adapter info
-- **Weather Widget** - Current conditions and 7-day forecast
-- **Sensors Widget** - Temperature readings, **fan control with sliders** (Manual/Auto/System modes)
-- **Bluetooth Widget** - Connection status, device list with multi-battery support (case, left, right)
-- **Clock Widget** - Multiple timezones with customizable formats
+Menu widgets support both **individual status items** and **OneView unified mode**:
 
-Each widget supports three display modes:
-- Icon only (minimal)
-- Icon + value
-- Icon + value + sparkline
-
-**Advanced Features**:
-- **Fan Control**: Adjust fan speeds manually or set modes (Automatic/Forced/System)
-- **Pressure Gauge**: Visual memory pressure indicator (3-color arc with needle)
-- **Per-GPU Monitoring**: Separate stats for each GPU in multi-GPU systems
-- **Multi-Battery Display**: See individual battery levels for AirPods case, left, and right
-- **WiFi Details**: Signal strength (RSSI), noise, SNR, band, channel width
-- **Electrical Metrics**: Amperage, voltage, and wattage for battery analysis
-- **Chart History**: Configurable history depth (60-180 samples) for all charts
-- **Tabbed Settings**: Module, Widgets, Popup, and Notifications settings tabs
+- **Core runtime modules**: CPU, GPU, Memory, Disk, Network, Battery, Sensors, Bluetooth, Clock
+- **Environment module support**: Weather service integration is available where configured
+- **Visualization system**: per-module compatible visualizations (mini, line/bar charts, gauges, stacks, network dual charts, battery detail variants)
+- **Popover depth**: detailed drill-down panels per module with process lists, history, and device-specific metrics
+- **Advanced controls**:
+  - Memory pressure gauge
+  - Sensor fan control modes (Manual/Auto/System)
+  - Per-GPU and electrical/battery diagnostics
+  - Bluetooth multi-battery breakdowns
+  - Network quality details (RSSI/noise/SNR/DNS)
+- **Settings model**: Module, Widgets, Popup, and Notifications tabs with persisted preferences
+- **Alerting**: threshold-based notifications with cooldown/deduplication controls
 
 ### App Management
 - **App Inventory** - Categorized view of all apps and extensions
@@ -132,30 +148,25 @@ Download the latest release from [GitHub Releases](https://github.com/tw93/Tonic
 
 ```
 Tonic/
-├── TonicApp.swift           # App entry point
-├── Views/                   # SwiftUI views
-│   ├── ContentView.swift    # Navigation split view
-│   ├── DashboardView.swift  # Main dashboard
-│   ├── SmartScanView.swift  # Scanning UI
-│   ├── DiskAnalysisView.swr # Disk browser
-│   ├── SystemStatusDashboard.swift  # Real-time monitoring
-│   └── PreferencesView.swift # Settings
-├── Services/                # Business logic
-│   ├── SmartScanEngine.swift
-│   ├── DeepCleanEngine.swift
-│   ├── WidgetDataManager.swift
-│   ├── WeatherService.swift
-│   └── NotificationRuleEngine.swift
-├── Models/                  # Data types
-├── Design/                  # Design system
-│   ├── DesignTokens.swift   # Colors, spacing, typography
-│   ├── DesignComponents.swift
-│   └── DesignAnimations.swift
-├── MenuBar/                 # Menu bar integration
-├── MenuBarWidgets/          # Widget implementations
-└── Utilities/               # Helpers
-    ├── DiskScanner.swift
-    └── SparkleUpdater.swift
+├── TonicApp.swift                    # App entry point
+├── Views/                            # SwiftUI feature surfaces
+│   ├── DashboardHomeView.swift       # Dashboard and quick actions
+│   ├── SmartCareView.swift           # Smart Scan hub + managers
+│   ├── SmartScan/                    # Space/Performance/Apps manager screens
+│   ├── DiskAnalysisView.swift        # Storage Intelligence Hub
+│   ├── AppManager/AppManagerView.swift # App inventory + scanner UI
+│   └── PreferencesView.swift         # App settings
+├── Services/                         # Core engines and background services
+│   ├── SmartCareEngine.swift         # Smart Scan pipeline
+│   ├── DeepCleanEngine.swift         # Deep clean categories
+│   ├── AppInventoryService.swift     # App scanner/inventory orchestration
+│   ├── CloudStorageScanner.swift     # Cloud provider scan
+│   ├── WidgetDataManager.swift       # Widget/system metrics
+│   └── NotificationManager.swift     # Threshold notification rules
+├── MenuBarWidgets/                   # Widget runtime, popovers, settings
+├── Models/                           # Data models and persisted config
+├── Design/                           # Design tokens/components/motion
+└── Utilities/                        # Scanning and system helpers
 ```
 
 ## Building from Source
