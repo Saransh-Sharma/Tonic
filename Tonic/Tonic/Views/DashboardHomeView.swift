@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 // MARK: - Dashboard Home
 
@@ -21,6 +22,7 @@ struct DashboardHomeView: View {
     @State private var widgetPreferences = WidgetPreferences.shared
     @State private var activityStore = ActivityLogStore.shared
     @State private var permissionManager = PermissionManager.shared
+    @State private var accessBroker = AccessBroker.shared
 
     @State private var systemSnapshot: SystemSnapshot?
     @State private var snapshotLoadError: String?
@@ -76,6 +78,7 @@ struct DashboardHomeView: View {
             }
             Task {
                 await permissionManager.checkAllPermissions()
+                accessBroker.refreshStatuses()
             }
             refreshSnapshot()
         }
@@ -150,6 +153,7 @@ struct DashboardHomeView: View {
                     diskFreeText: diskFreeText,
                     isDiskLow: isDiskLow,
                     hasFullDiskAccess: hasFullDiskAccess,
+                    coverageTier: BuildCapabilities.current.requiresScopeAccess ? accessBroker.coverageTier : nil,
                     onRequestFullDiskAccess: { _ = permissionManager.requestFullDiskAccess() },
                     onRunScan: { scanManager.startSmartScan() },
                     onStopScan: { scanManager.stopSmartScan() },
@@ -202,6 +206,7 @@ struct DashboardHomeView: View {
                     diskFreeText: diskFreeText,
                     isDiskLow: isDiskLow,
                     hasFullDiskAccess: hasFullDiskAccess,
+                    coverageTier: BuildCapabilities.current.requiresScopeAccess ? accessBroker.coverageTier : nil,
                     onRequestFullDiskAccess: { _ = permissionManager.requestFullDiskAccess() },
                     onRunScan: { scanManager.startSmartScan() },
                     onStopScan: { scanManager.stopSmartScan() },
@@ -452,7 +457,10 @@ struct DashboardHomeView: View {
     }
 
     private var hasFullDiskAccess: Bool {
-        permissionManager.permissionStatuses[.fullDiskAccess] == .authorized
+        if BuildCapabilities.current.requiresScopeAccess {
+            return accessBroker.hasUsableScope
+        }
+        return permissionManager.permissionStatuses[.fullDiskAccess] == .authorized
     }
 
     private var isActivityNavigationEnabled: Bool {
@@ -538,6 +546,7 @@ private struct DashboardScanSummaryTile: View {
     let diskFreeText: String
     let isDiskLow: Bool
     let hasFullDiskAccess: Bool
+    let coverageTier: ScopeCoverageTier?
     let onRequestFullDiskAccess: () -> Void
     let onRunScan: () -> Void
     let onStopScan: () -> Void
@@ -548,6 +557,8 @@ private struct DashboardScanSummaryTile: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tonicTheme) private var theme
     @State private var showScopePopover = false
+    @State private var accessBroker = AccessBroker.shared
+    @State private var isScopeDropTargeted = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -664,6 +675,23 @@ private struct DashboardScanSummaryTile: View {
 
             whatItChecks
 
+            if let coverageTier {
+                HStack(spacing: TonicSpaceToken.one) {
+                    GlassChip(
+                        title: "Coverage: \(coverageTier.rawValue)",
+                        icon: "scope",
+                        role: .world(.smartScanPurple),
+                        strength: .subtle
+                    )
+
+                    if !hasFullDiskAccess {
+                        Text("Authorize Home, Applications, or your startup disk for deeper results.")
+                            .font(TonicTypeToken.micro)
+                            .foregroundStyle(TonicTextToken.tertiary)
+                    }
+                }
+            }
+
             MicroText("Runs locally • No deletions without approval • ~45 seconds")
         }
     }
@@ -773,67 +801,83 @@ private struct DashboardScanSummaryTile: View {
         }
     }
 
+    @ViewBuilder
     private var actionsRow: some View {
-        Group {
-            if scanManager.isScanning {
-                HStack(spacing: TonicSpaceToken.two) {
-                    PrimaryActionButton(
-                        title: "Stop scan",
-                        icon: "stop.fill",
-                        action: onStopScan,
-                        isEnabled: true
-                    )
-                }
-            } else if scanManager.hasScanResult {
-                HStack(spacing: TonicSpaceToken.two) {
-                    PrimaryActionButton(
-                        title: hasRunnableWork ? "Run Smart Clean" : "Run Again",
-                        icon: hasRunnableWork ? "sparkles" : "play.fill",
-                        action: hasRunnableWork ? onRunSmartClean : onRunScan,
-                        isEnabled: true
-                    )
+        if scanManager.isScanning {
+            HStack(spacing: TonicSpaceToken.two) {
+                PrimaryActionButton(
+                    title: "Stop scan",
+                    icon: "stop.fill",
+                    action: onStopScan,
+                    isEnabled: true
+                )
+            }
+        } else if scanManager.hasScanResult {
+            HStack(spacing: TonicSpaceToken.two) {
+                PrimaryActionButton(
+                    title: hasRunnableWork ? "Run Smart Clean" : "Run Again",
+                    icon: hasRunnableWork ? "sparkles" : "play.fill",
+                    action: hasRunnableWork ? onRunSmartClean : onRunScan,
+                    isEnabled: true
+                )
 
-                    SecondaryPillButton(title: "Review", action: onOpenSmartScan)
-                    TertiaryGhostButton(title: "Export report", action: onExportReport)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
-                    if !hasFullDiskAccess {
-                        Button(action: onRequestFullDiskAccess) {
-                            GlassChip(
-                                title: "Limited scan—Grant Full Disk Access",
-                                icon: "lock.shield",
-                                role: .semantic(.warning),
-                                strength: .subtle
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    HStack(spacing: TonicSpaceToken.two) {
-                        PrimaryActionButton(
-                            title: "Run Smart Scan",
-                            icon: "play.fill",
-                            action: onRunScan,
-                            isEnabled: true
+                SecondaryPillButton(title: "Review", action: onOpenSmartScan)
+                TertiaryGhostButton(title: "Export report", action: onExportReport)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
+                if !hasFullDiskAccess {
+                    Button(action: onRequestFullDiskAccess) {
+                        GlassChip(
+                            title: BuildCapabilities.current.requiresScopeAccess
+                                ? (isScopeDropTargeted ? "Drop location to authorize" : "Limited scan—Grant Access Scope")
+                                : "Limited scan—Grant Full Disk Access",
+                            icon: "lock.shield",
+                            role: .semantic(.warning),
+                            strength: .subtle
                         )
-
-                        Button {
-                            showScopePopover.toggle()
-                        } label: {
-                            Text("What gets scanned?")
-                                .font(TonicTypeToken.caption.weight(.semibold))
-                                .foregroundStyle(TonicTextToken.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .popover(isPresented: $showScopePopover, arrowEdge: .bottom) {
-                            DashboardWhatGetsScannedPopover()
-                                .frame(width: 320)
-                                .padding(TonicSpaceToken.three)
-                        }
-
-                        Spacer(minLength: 0)
                     }
+                    .buttonStyle(.plain)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TonicRadiusToken.chip)
+                            .stroke(
+                                BuildCapabilities.current.requiresScopeAccess && isScopeDropTargeted
+                                    ? TonicStatusPalette.text(.warning).opacity(0.9)
+                                    : Color.clear,
+                                style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                            )
+                    )
+                    .onDrop(
+                        of: [UTType.fileURL.identifier],
+                        isTargeted: $isScopeDropTargeted
+                    ) { providers in
+                        handleDroppedScopeProviders(providers)
+                    }
+                }
+
+                HStack(spacing: TonicSpaceToken.two) {
+                    PrimaryActionButton(
+                        title: "Run Smart Scan",
+                        icon: "play.fill",
+                        action: onRunScan,
+                        isEnabled: true
+                    )
+
+                    Button {
+                        showScopePopover.toggle()
+                    } label: {
+                        Text("What gets scanned?")
+                            .font(TonicTypeToken.caption.weight(.semibold))
+                            .foregroundStyle(TonicTextToken.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showScopePopover, arrowEdge: .bottom) {
+                        DashboardWhatGetsScannedPopover()
+                            .frame(width: 320)
+                            .padding(TonicSpaceToken.three)
+                    }
+
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -914,6 +958,40 @@ private struct DashboardScanSummaryTile: View {
     private var appsMetric: String {
         let count = scanManager.recommendations.filter { $0.category == .apps }.count
         return "\(count) app\(count == 1 ? "" : "s")"
+    }
+
+    private func handleDroppedScopeProviders(_ providers: [NSItemProvider]) -> Bool {
+        guard BuildCapabilities.current.requiresScopeAccess else { return false }
+        let typeIdentifier = UTType.fileURL.identifier
+        let matchingProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(typeIdentifier) }
+        guard !matchingProviders.isEmpty else { return false }
+
+        for provider in matchingProviders {
+            provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, _ in
+                let droppedURL: URL?
+                if let data = item as? Data {
+                    droppedURL = URL(dataRepresentation: data, relativeTo: nil)
+                } else if let url = item as? URL {
+                    droppedURL = url
+                } else if let string = item as? String {
+                    droppedURL = URL(string: string)
+                } else {
+                    droppedURL = nil
+                }
+
+                guard let droppedURL else { return }
+                Task { @MainActor in
+                    do {
+                        _ = try accessBroker.addScope(from: droppedURL)
+                        accessBroker.refreshStatuses()
+                    } catch {
+                        return
+                    }
+                }
+            }
+        }
+
+        return true
     }
 }
 
