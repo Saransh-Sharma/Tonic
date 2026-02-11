@@ -123,11 +123,16 @@ class PerformanceTestBase: XCTestCase {
 
     /// Measure memory used by a closure
     func measureMemoryUsage(closure: () -> Void) -> Int64 {
-        // Force garbage collection
-        DispatchQueue.main.sync {
+        // Drain autorelease pools without synchronously re-entering main queue.
+        let drainAutoreleasePool = {
             autoreleasepool {
                 // Clear autorelease pool
             }
+        }
+        if Thread.isMainThread {
+            drainAutoreleasePool()
+        } else {
+            DispatchQueue.main.sync(execute: drainAutoreleasePool)
         }
 
         let beforeMemory = getMemoryUsage()
