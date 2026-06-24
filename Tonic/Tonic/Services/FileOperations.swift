@@ -58,6 +58,27 @@ public struct FileOperationResult: Sendable {
     public let bytesFreed: Int64
     public let errors: [FileOperationError]
     public let duration: TimeInterval
+    /// For `.trash` operations: maps each original path to the resulting Trash URL
+    /// path, enabling later restore (Put Back) of recoverable items.
+    public let trashMap: [String: String]
+
+    public init(
+        success: Bool,
+        operationType: FileOperationType,
+        filesProcessed: Int,
+        bytesFreed: Int64,
+        errors: [FileOperationError],
+        duration: TimeInterval,
+        trashMap: [String: String] = [:]
+    ) {
+        self.success = success
+        self.operationType = operationType
+        self.filesProcessed = filesProcessed
+        self.bytesFreed = bytesFreed
+        self.errors = errors
+        self.duration = duration
+        self.trashMap = trashMap
+    }
 
     public var formattedBytesFreed: String {
         ByteCountFormatter.string(fromByteCount: bytesFreed, countStyle: .file)
@@ -221,6 +242,7 @@ public final class FileOperations: @unchecked Sendable {
         var errors: [FileOperationError] = []
         var processedCount = 0
         var bytesFreed: Int64 = 0
+        var trashMap: [String: String] = [:]
         isProcessing = true
 
         for (index, path) in paths.enumerated() {
@@ -245,9 +267,10 @@ public final class FileOperations: @unchecked Sendable {
                 var resultingURL: NSURL?
                 try scopedFS.trashItem(at: path, resultingItemURL: &resultingURL)
 
-                if resultingURL != nil {
+                if let resultingURL {
                     processedCount += 1
                     bytesFreed += fileSize
+                    trashMap[path] = (resultingURL as URL).path
                 } else {
                     errors.append(FileOperationError(
                         path: path,
@@ -264,10 +287,11 @@ public final class FileOperations: @unchecked Sendable {
 
         // Record operation for undo when at least one item moved to Trash.
         if processedCount > 0 {
+            let trashedOriginals = Array(trashMap.keys)
             let record = FileOperationRecord(
                 operationType: .trash,
-                originalPaths: paths,
-                destinationPaths: nil
+                originalPaths: trashedOriginals,
+                destinationPaths: trashedOriginals.map { trashMap[$0] ?? "" }
             )
             addToHistory(record)
         }
@@ -281,7 +305,8 @@ public final class FileOperations: @unchecked Sendable {
             filesProcessed: processedCount,
             bytesFreed: bytesFreed,
             errors: errors,
-            duration: Date().timeIntervalSince(startTime)
+            duration: Date().timeIntervalSince(startTime),
+            trashMap: trashMap
         )
     }
 

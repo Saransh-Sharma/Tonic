@@ -69,6 +69,77 @@ enum SmartCareAction: Hashable, Sendable {
     }
 }
 
+// MARK: - Smart Care Data Class
+
+/// Classifies an item by recoverability policy. Personal files are routed to the
+/// macOS Trash (recoverable via Put Back / in-app Restore); system junk is removed
+/// permanently so the reclaimed space is actually freed immediately.
+enum SmartCareDataClass: String, Hashable, Sendable {
+    /// User-owned, irreplaceable content (duplicates, large/old files, downloads,
+    /// mail attachments, app leftovers). Deleted to Trash, never permanently.
+    case personal
+    /// Regenerable system junk (caches, logs, temp files, dev artifacts). Removed
+    /// permanently — trashing it would not free space until the Trash is emptied.
+    case systemJunk
+
+    /// Whether deleting this class requires the review-before-removing sheet.
+    var requiresReview: Bool { self == .personal }
+
+    /// Whether deletion is recoverable (moved to Trash) vs permanent.
+    var isRecoverable: Bool { self == .personal }
+}
+
+// MARK: - Smart Care Selection
+
+enum SmartCareSelectionPolicy: Hashable, Sendable {
+    case standard
+    case keepOneCopy
+
+    func validatedSelection(proposed: Set<String>, orderedChildIDs: [String]) -> Set<String> {
+        guard self == .keepOneCopy, orderedChildIDs.count > 1 else {
+            return proposed
+        }
+
+        let validIDs = Set(orderedChildIDs)
+        var selection = proposed.intersection(validIDs)
+        guard selection.count >= orderedChildIDs.count else {
+            return selection
+        }
+
+        selection.remove(orderedChildIDs[0])
+        return selection
+    }
+}
+
+enum SmartCareSelectionProjection {
+    static func uniqueOrderedPaths(_ paths: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for path in paths where !seen.contains(path) {
+            seen.insert(path)
+            result.append(path)
+        }
+        return result
+    }
+
+    static func selectedDeletePaths(for item: SmartCareItem, selectedChildIDs: Set<String>) -> [String] {
+        let paths = uniqueOrderedPaths(item.paths)
+        let validatedSelection = item.selectionPolicy.validatedSelection(
+            proposed: selectedChildIDs,
+            orderedChildIDs: paths
+        )
+        return paths.filter { validatedSelection.contains($0) }
+    }
+
+    static func projectedSize(for item: SmartCareItem, selectedPathCount: Int, totalPathCount: Int) -> Int64 {
+        guard item.size > 0, selectedPathCount > 0 else { return 0 }
+        let fullCount = max(totalPathCount, 1)
+        let denominator = item.selectionPolicy == .keepOneCopy ? max(fullCount - 1, 1) : fullCount
+        let proportion = min(1, Double(selectedPathCount) / Double(denominator))
+        return max(1, Int64((Double(item.size) * proportion).rounded()))
+    }
+}
+
 // MARK: - Smart Care Item
 
 struct SmartCareItem: Identifiable, Hashable, Sendable {
@@ -86,6 +157,8 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
     let scoreImpact: Int
     let accessState: ScopeAccessState
     let blockedReason: ScopeBlockedReason?
+    let selectionPolicy: SmartCareSelectionPolicy
+    let dataClass: SmartCareDataClass
 
     init(
         id: UUID = UUID(),
@@ -101,7 +174,9 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
         paths: [String],
         scoreImpact: Int,
         accessState: ScopeAccessState = .ready,
-        blockedReason: ScopeBlockedReason? = nil
+        blockedReason: ScopeBlockedReason? = nil,
+        selectionPolicy: SmartCareSelectionPolicy = .standard,
+        dataClass: SmartCareDataClass = .systemJunk
     ) {
         self.id = id
         self.domain = domain
@@ -117,6 +192,8 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
         self.scoreImpact = scoreImpact
         self.accessState = accessState
         self.blockedReason = blockedReason
+        self.selectionPolicy = selectionPolicy
+        self.dataClass = dataClass
     }
 
     var formattedSize: String {
@@ -130,25 +207,37 @@ struct SmartCareItem: Identifiable, Hashable, Sendable {
 
 // MARK: - Smart Care Group
 
+/// Structured reason a group has no actionable items, so views can render the
+/// right empty state without string-matching the description copy.
+enum SmartCareEmptyState: String, Hashable, Sendable {
+    case nothingFound
+    case needsAccess
+    case partial
+    case labsPreview
+}
+
 struct SmartCareGroup: Identifiable, Hashable, Sendable {
     let id: UUID
     let domain: SmartCareDomain
     let title: String
     let description: String
     let items: [SmartCareItem]
+    let emptyState: SmartCareEmptyState?
 
     init(
         id: UUID = UUID(),
         domain: SmartCareDomain,
         title: String,
         description: String,
-        items: [SmartCareItem]
+        items: [SmartCareItem],
+        emptyState: SmartCareEmptyState? = nil
     ) {
         self.id = id
         self.domain = domain
         self.title = title
         self.description = description
         self.items = items
+        self.emptyState = emptyState
     }
 }
 
