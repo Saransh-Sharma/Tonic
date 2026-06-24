@@ -75,6 +75,7 @@ struct AppDetailSheet: View {
                                     Spacer()
                                 }
                             }
+                            .atelierHoverLift()
 
                             // Size details
                             GlassCard(radius: TonicRadiusToken.l) {

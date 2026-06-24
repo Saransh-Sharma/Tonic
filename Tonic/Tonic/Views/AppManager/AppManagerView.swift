@@ -31,7 +31,7 @@ struct AppManagerView: View {
                         searchText: isZeroState ? nil : $inventory.searchText,
                         trailing: isZeroState ? nil : AnyView(headerTrailing)
                     )
-                    .staggeredReveal(index: 0)
+                    .atelierStagger(0)
                     .padding(.horizontal, TonicSpaceToken.three)
                     .padding(.top, TonicSpaceToken.two)
 
@@ -43,21 +43,21 @@ struct AppManagerView: View {
                                 state: heroState,
                                 topAppIcons: cachedTopIcons
                             )
-                            .staggeredReveal(index: 0)
+                            .atelierStagger(0)
 
                             if !isZeroState {
                                 // Category filter chips
                                 categoryFilterChips
-                                    .staggeredReveal(index: 1)
+                                    .atelierStagger(1)
 
                                 // Summary tiles row
                                 summaryTilesRow
-                                    .staggeredReveal(index: 2)
+                                    .atelierStagger(2)
 
                                 // Quick filter chips (only for non-login-items tabs)
                                 if inventory.selectedTab != .loginItems {
                                     quickFilterChips
-                                        .staggeredReveal(index: 3)
+                                        .atelierStagger(3)
                                 }
 
                                 // App list section
@@ -329,7 +329,7 @@ struct AppManagerView: View {
             loginItemsSection
         } else if inventory.isLoading && inventory.filteredApps.isEmpty {
             ScanLoadingState(message: "Discovering applications...")
-                .staggeredReveal(index: 4)
+                .atelierStagger(4)
         } else if inventory.filteredApps.isEmpty {
             EmptyStatePanel(
                 icon: "app.dashed",
@@ -339,7 +339,7 @@ struct AppManagerView: View {
                     : "No results match your search."
             )
             .emptyStateFloat()
-            .staggeredReveal(index: 4)
+            .atelierStagger(4)
         } else if inventory.viewMode == .grid {
             LazyVGrid(columns: gridColumns, spacing: TonicSpaceToken.two) {
                 ForEach(inventory.filteredApps) { app in
@@ -386,7 +386,7 @@ struct AppManagerView: View {
                 message: "Login items are applications and services that launch automatically when you log in."
             )
             .emptyStateFloat()
-            .staggeredReveal(index: 4)
+            .atelierStagger(4)
         } else {
             // Login item sub-filter chips
             if inventory.selectedTab == .loginItems {
@@ -410,7 +410,7 @@ struct AppManagerView: View {
                         }
                     }
                 }
-                .staggeredReveal(index: 3)
+                .atelierStagger(3)
             }
 
             LazyVStack(spacing: TonicSpaceToken.two) {
@@ -420,7 +420,7 @@ struct AppManagerView: View {
                     }
 
                     if index < 15 {
-                        row.staggeredReveal(index: 4 + index)
+                        row.atelierStagger(4 + index)
                     } else {
                         row
                     }
