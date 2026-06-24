@@ -30,6 +30,10 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            AtelierAmbientCanvas(world: selectedDestination.ambientWorld)
+                .opacity(0.45)
+                .animation(AtelierMotion.standard, value: selectedDestination)
+
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selectedDestination: $selectedDestination)
                     .id(featureFlagsRefreshID)
@@ -46,6 +50,7 @@ struct ContentView: View {
             }
             .navigationTitle("Tonic")
             .frame(minWidth: 800, minHeight: 500)
+            .animation(AtelierMotion.springPanel, value: selectedDestination)
             .sheet(isPresented: $showOnboarding) {
                 UnifiedOnboardingView(isPresented: $showOnboarding)
             }
@@ -146,27 +151,51 @@ struct DetailView: View {
 
     @State private var permissionManager = PermissionManager.shared
     @State private var checkedPermissions = false
+    /// Destinations that have been visited at least once. They stay mounted in a
+    /// keep-alive ZStack so each screen preserves its state (scroll position,
+    /// in-progress work) instead of being torn down and re-initialized on every
+    /// navigation. Heavy screens pause their work via `isActive` when not selected.
+    @State private var visited: Set<NavigationDestination> = []
 
     var body: some View {
         Group {
             if !checkedPermissions {
                 ProgressView("Checking permissions...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(nsColor: .windowBackgroundColor))
+                    .background(Color.clear)
                     .task {
                         await permissionManager.checkAllPermissions()
                         checkedPermissions = true
                     }
             } else {
-                contentForItem
+                keepAliveContainer
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.clear)
+        .onAppear { visited.insert(selectedDestination) }
+        .onChange(of: selectedDestination) { _, newValue in
+            visited.insert(newValue)
+        }
+    }
+
+    /// Keeps every visited destination mounted; only the selected one is visible
+    /// and interactive. Lazy: a screen isn't built until first visited.
+    private var keepAliveContainer: some View {
+        ZStack {
+            ForEach(NavigationDestination.allCases.filter { visited.contains($0) }, id: \.self) { dest in
+                destinationView(dest)
+                    .opacity(dest == selectedDestination ? 1 : 0)
+                    .allowsHitTesting(dest == selectedDestination)
+                    .accessibilityHidden(dest != selectedDestination)
+                    .zIndex(dest == selectedDestination ? 1 : 0)
+            }
+        }
+        .animation(AtelierMotion.standard, value: selectedDestination)
     }
 
     @ViewBuilder
-    private var contentForItem: some View {
-        switch selectedDestination {
+    private func destinationView(_ destination: NavigationDestination) -> some View {
+        switch destination {
         case .dashboard:
             DashboardHomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
         case .systemCleanup:
@@ -197,8 +226,10 @@ struct DetailView: View {
                     }
                 )
             }
+        case .recentlyCleaned:
+            RecentlyCleanedView()
         case .liveMonitoring:
-            SystemStatusDashboard()
+            SystemStatusDashboard(isActive: destination == selectedDestination)
         case .menuBarWidgets:
             WidgetCustomizationView()
         case .developerTools:
@@ -260,6 +291,7 @@ struct PermissionPromptView: View {
         }
         .padding(24)
         .frame(width: 500, height: 400)
+        .atelierSurface(radius: AtelierLayout.radiusLg)
     }
 
     private var messageText: String {
@@ -387,6 +419,7 @@ struct PermissionRequiredView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .background(Color.clear)
     }
 }
 
@@ -528,10 +561,10 @@ struct CommandPaletteView: View {
                 // Search input
                 HStack(spacing: DesignTokens.Spacing.xxs) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                        .foregroundColor(TonicTextToken.secondary)
 
                     TextField("Search screens...", text: $searchText)
-                        .font(DesignTokens.Typography.body)
+                        .font(AtelierTypography.body)
                         .textFieldStyle(.plain)
                         .focused($isSearchFocused)
                         .onSubmit {
@@ -544,7 +577,7 @@ struct CommandPaletteView: View {
                             selectedIndex = 0
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                                .foregroundColor(TonicTextToken.secondary)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear search")
@@ -552,7 +585,7 @@ struct CommandPaletteView: View {
                     }
                 }
                 .padding(DesignTokens.Spacing.sm)
-                .background(DesignTokens.Colors.backgroundSecondary)
+                .background(TonicNeutralToken.adaptiveOverlay(0.06))
 
                 Divider()
 
@@ -564,16 +597,16 @@ struct CommandPaletteView: View {
                                 Image(systemName: destination.systemImage)
                                     .font(.system(size: 14, weight: .semibold))
                                     .frame(width: 20)
-                                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                                    .foregroundColor(TonicTextToken.secondary)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(destination.displayName)
-                                        .font(DesignTokens.Typography.body)
-                                        .foregroundColor(DesignTokens.Colors.textPrimary)
+                                        .font(AtelierTypography.body)
+                                        .foregroundColor(TonicTextToken.primary)
 
                                     Text(destination.rawValue)
-                                        .font(DesignTokens.Typography.caption)
-                                        .foregroundColor(DesignTokens.Colors.textTertiary)
+                                        .font(AtelierTypography.caption)
+                                        .foregroundColor(TonicTextToken.tertiary)
                                 }
 
                                 #if DEBUG
@@ -587,7 +620,7 @@ struct CommandPaletteView: View {
                                 if index == selectedIndex {
                                     Text("↵")
                                         .font(.caption)
-                                        .foregroundColor(DesignTokens.Colors.textSecondary)
+                                        .foregroundColor(TonicTextToken.tertiary)
                                 }
                             }
                             .tag(index)
@@ -610,9 +643,7 @@ struct CommandPaletteView: View {
                 }
             }
             .frame(width: 500, height: 450)
-            .background(DesignTokens.Colors.background)
-            .cornerRadius(DesignTokens.CornerRadius.large)
-            .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 6)
+            .atelierSurface(radius: AtelierLayout.radiusLg)
             .onAppear {
                 isSearchFocused = true
                 selectedIndex = 0
@@ -641,6 +672,25 @@ struct CommandPaletteView: View {
         searchText = ""
         selectedIndex = 0
         isPresented = false
+    }
+}
+
+extension NavigationDestination {
+    /// World color used for the app-wide ambient canvas, so the background matches
+    /// the active screen's theme instead of always reading Smart Scan purple.
+    var ambientWorld: TonicWorld {
+        switch self {
+        case .dashboard, .systemCleanup, .menuBarWidgets, .developerTools, .designSandbox:
+            return .smartScanPurple
+        case .appManager:
+            return .applicationsBlue
+        case .diskAnalysis, .recentlyCleaned:
+            return .cleanupGreen
+        case .liveMonitoring:
+            return .performanceOrange
+        case .settings:
+            return .protectionMagenta
+        }
     }
 }
 

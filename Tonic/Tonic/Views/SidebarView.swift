@@ -30,7 +30,7 @@ struct SidebarView: View {
     /// Base grouped navigation sections following the new IA
     private let baseSections: [SidebarSection] = [
         SidebarSection(nil, items: [.dashboard]),
-        SidebarSection("Maintenance", items: [.systemCleanup, .diskAnalysis, .appManager]),
+        SidebarSection("Maintenance", items: [.systemCleanup, .diskAnalysis, .appManager, .recentlyCleaned]),
         SidebarSection("Explore", items: [.liveMonitoring]),
         SidebarSection("Menu Bar", items: [.menuBarWidgets]),
         SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
@@ -61,7 +61,11 @@ struct SidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
         }
+        .padding(8)
+        .atelierSurface(radius: AtelierLayout.radiusLg)
         .frame(minWidth: DesignTokens.Layout.sidebarWidth)
     }
 
@@ -75,7 +79,8 @@ struct SidebarView: View {
                 .frame(width: 22, height: 22)
 
             Text("Tonic")
-                .font(DesignTokens.Typography.bodyEmphasized)
+                .font(AtelierTypography.bodyStrong)
+                .foregroundStyle(TonicTextToken.primary)
 
             Spacer()
         }
@@ -94,8 +99,8 @@ struct SidebarView: View {
                 }
             } header: {
                 Text(title)
-                    .font(DesignTokens.Typography.caption)
-                    .foregroundColor(DesignTokens.Colors.textSecondary)
+                    .font(AtelierTypography.micro)
+                    .foregroundColor(TonicTextToken.tertiary)
                     .textCase(.uppercase)
                     .padding(.top, section.id == sections.first?.id ? 0 : DesignTokens.Spacing.xxs)
             }
@@ -113,10 +118,12 @@ struct SidebarView: View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: destination.systemImage)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(DesignTokens.Colors.textSecondary)
+                .foregroundColor(TonicTextToken.secondary)
                 .frame(width: 18)
 
             Text(destination.sidebarDisplayName)
+                .font(AtelierTypography.caption)
+                .foregroundStyle(TonicTextToken.primary)
 
             #if DEBUG
             if destination.wipFeature != nil {
@@ -138,6 +145,7 @@ extension NavigationDestination {
         case .systemCleanup: return "Smart Scan"
         case .appManager: return "Apps"
         case .diskAnalysis: return "Storage Hub"
+        case .recentlyCleaned: return "Recently Cleaned"
         case .liveMonitoring: return "Activity"
         case .menuBarWidgets: return "Widgets"
         case .developerTools: return "Developer Tools"
