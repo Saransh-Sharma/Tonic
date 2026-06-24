@@ -79,31 +79,8 @@ struct PrimaryActionButton: View {
     let action: () -> Void
     var isEnabled = true
 
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
-        let style = TonicButtonTokens.style(variant: .primary, colorScheme: colorScheme)
-
-        Button(action: action) {
-            HStack(spacing: TonicSpaceToken.two) {
-                if let icon {
-                    Image(systemName: icon)
-                }
-                Text(title)
-                    .font(TonicTypeToken.body.weight(.semibold))
-            }
-            .foregroundStyle(style.foreground.opacity(isEnabled ? 1 : 0.6))
-            .padding(.horizontal, TonicSpaceToken.four)
-            .padding(.vertical, TonicSpaceToken.two)
-            .background(style.background.opacity(isEnabled ? 1 : 0.4))
-            .overlay(
-                Capsule()
-                    .stroke(style.stroke.opacity(isEnabled ? 1 : 0.4), lineWidth: 1)
-            )
-            .clipShape(Capsule())
-        }
-        .buttonStyle(PressEffect(focusShape: .capsule))
-        .disabled(!isEnabled)
+        AtelierPrimaryButton(title: title, icon: icon, isEnabled: isEnabled, action: action)
     }
 }
 
@@ -111,25 +88,10 @@ struct SecondaryPillButton: View {
     let title: String
     let action: () -> Void
     var accessibilityIdentifier: String? = nil
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let style = TonicButtonTokens.style(variant: .secondary, colorScheme: colorScheme)
-
-        Button(action: action) {
-            Text(title)
-                .font(TonicTypeToken.caption.weight(.medium))
-                .foregroundStyle(style.foreground)
-                .padding(.horizontal, TonicSpaceToken.three)
-                .padding(.vertical, TonicSpaceToken.two)
-                .background(style.background)
-                .overlay(
-                    Capsule().stroke(style.stroke, lineWidth: 1)
-                )
-                .clipShape(Capsule())
-        }
-        .buttonStyle(PressEffect(focusShape: .capsule))
-        .optionalAccessibilityIdentifier(accessibilityIdentifier)
+        AtelierSecondaryButton(title: title, action: action)
+            .optionalAccessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -148,24 +110,9 @@ struct TertiaryGhostButton: View {
 struct IconOnlyButton: View {
     let systemName: String
     let action: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let style = TonicButtonTokens.style(variant: .secondary, colorScheme: colorScheme)
-
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(style.foreground)
-                .frame(width: 30, height: 30)
-                .background(style.background)
-                .overlay(
-                    RoundedRectangle(cornerRadius: TonicRadiusToken.m)
-                        .stroke(style.stroke, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
-        }
-        .buttonStyle(PressEffect(focusShape: .rounded(TonicRadiusToken.m)))
+        AtelierIconButton(systemName: systemName, action: action)
     }
 }
 
@@ -176,19 +123,7 @@ struct SearchField: View {
     var placeholder = "Search"
 
     var body: some View {
-        HStack(spacing: TonicSpaceToken.two) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(TonicTextToken.tertiary)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(TonicTypeToken.caption)
-                .foregroundStyle(TonicTextToken.primary)
-        }
-        .padding(.horizontal, TonicSpaceToken.two)
-        .padding(.vertical, TonicSpaceToken.one)
-        .background(TonicGlassToken.fill)
-        .overlay(RoundedRectangle(cornerRadius: TonicRadiusToken.m).stroke(TonicGlassToken.stroke, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
+        AtelierSearchField(text: $text, placeholder: placeholder)
     }
 }
 
@@ -230,18 +165,18 @@ struct SegmentedFilter<Option: Hashable & Identifiable>: View {
                     selected = option
                 } label: {
                     Text(title(option))
-                        .font(TonicTypeToken.micro.weight(.semibold))
-                        .foregroundStyle(selected.id == option.id ? TonicNeutralToken.white : TonicTextToken.secondary)
+                        .font(AtelierTypography.micro)
+                        .foregroundStyle(selected.id == option.id ? TonicTextToken.primary : TonicTextToken.secondary)
                         .padding(.horizontal, TonicSpaceToken.two)
                         .padding(.vertical, 6)
-                        .background(selected.id == option.id ? TonicGlassToken.stroke : Color.clear)
+                        .background(selected.id == option.id ? TonicNeutralToken.adaptiveOverlay(0.16) : Color.clear)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(4)
-        .background(TonicGlassToken.fill)
+        .background(TonicNeutralToken.adaptiveOverlay(0.08))
         .clipShape(Capsule())
     }
 }
@@ -299,7 +234,7 @@ struct SidebarWorldItem: View {
             .foregroundStyle(isSelected ? TonicTextToken.primary : TonicTextToken.secondary)
             .padding(.horizontal, TonicSpaceToken.three)
             .padding(.vertical, TonicSpaceToken.two)
-            .background(isSelected ? TonicNeutralToken.white.opacity(0.10) : Color.clear)
+            .background(isSelected ? TonicNeutralToken.adaptiveOverlay(0.10) : Color.clear)
             .overlay(
                 RoundedRectangle(cornerRadius: TonicRadiusToken.m)
                     .stroke(isSelected ? TonicStrokeToken.subtle : Color.clear, lineWidth: 1)
@@ -1210,7 +1145,7 @@ private struct StageStepperItem: View {
     var body: some View {
         HStack(spacing: TonicSpaceToken.one) {
             Circle()
-                .fill(isComplete || isActive ? TonicNeutralToken.white : TonicNeutralToken.white.opacity(0.40))
+                .fill(isComplete || isActive ? TonicTextToken.primary : TonicTextToken.tertiary)
                 .frame(width: 7, height: 7)
             Text(stage)
                 .font(TonicTypeToken.micro.weight(isActive ? .semibold : .regular))
