@@ -22,7 +22,7 @@ Tonic uses a **dual-tier design system**:
 - **World-Colored Experiences**: Each feature area has its own color world
 - **Glass Surfaces**: Translucent layered surfaces with depth
 - **Spring-Based Motion**: Physically-modeled animations with `accessibilityReduceMotion` respect
-- **8 Swappable Palettes**: Users choose a palette; all worlds adapt automatically
+- **Single Luxury Palette**: A unified Atelier base palette is applied app-wide
 - **Accessibility**: WCAG AA contrast minimum, reduce motion support, keyboard navigation
 
 ---
@@ -59,29 +59,15 @@ struct TonicWorldColorToken {
 }
 ```
 
-### TonicColorPalette (8 Palettes)
+### Atelier Palette (Single System)
 
-Users select a palette via `AppearancePreferences.shared.colorPalette`. All worlds re-derive their colors from the active palette.
-
-| Palette | Display Name | Mood |
-|---------|-------------|------|
-| `.defaultPurple` | Default Purple | Creative, focused, modern |
-| `.ocean` | Ocean | Cool, professional, trustworthy |
-| `.sunset` | Sunset | Warm, energetic, optimistic |
-| `.forest` | Forest | Natural, grounding, serene |
-| `.lavender` | Lavender | Elegant, calm, contemplative |
-| `.midnight` | Midnight | Dramatic, modern, powerful |
-| `.roseGold` | Rose Gold | Luxurious, warm, sophisticated |
-| `.arctic` | Arctic | Clean, minimal, precise |
-
-#### How Palette Selection Works
+The redesign uses one fixed Atelier luxury base palette.  
+`TonicWorld` is still used, but only for world-level accents and glow identity.
 
 ```
-User picks palette in Preferences
-  → AppearancePreferences.shared.colorPalette = .ocean
-  → TonicWorld.token reads palette.worldToken(for: self)
-  → TonicThemeProvider body reads preferences.colorPalette (Observation tracking)
-  → SwiftUI re-renders with new colors
+TonicThemeProvider(world: ...)
+  → TonicWorld.token resolves directly from Atelier world mapping
+  → Shared luxury neutrals + typography + motion remain consistent app-wide
 ```
 
 ### TonicTheme
