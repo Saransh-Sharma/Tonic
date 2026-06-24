@@ -282,32 +282,32 @@ final class TonicThemeTokensTests: XCTestCase {
 
     func testMutedProWorldTokenHexValues() {
         let smartScan = TonicWorld.smartScanPurple.token
-        XCTAssertEqual(smartScan.darkMode.darkHex, "0C0B1B")
-        XCTAssertEqual(smartScan.darkMode.midHex, "2E295E")
-        XCTAssertEqual(smartScan.darkMode.lightHex, "AFA6E6")
-        XCTAssertEqual(smartScan.lightMode.darkHex, "F1F0FF")
-        XCTAssertEqual(smartScan.lightMode.midHex, "D6D1FF")
-        XCTAssertEqual(smartScan.lightMode.lightHex, "5B4EF0")
+        XCTAssertEqual(smartScan.darkMode.darkHex, "0D0A16")
+        XCTAssertEqual(smartScan.darkMode.midHex, "443566")
+        XCTAssertEqual(smartScan.darkMode.lightHex, "B8A6E3")
+        XCTAssertEqual(smartScan.lightMode.darkHex, "F7F2FB")
+        XCTAssertEqual(smartScan.lightMode.midHex, "E7DBF5")
+        XCTAssertEqual(smartScan.lightMode.lightHex, "6A4AA1")
 
         let cleanup = TonicWorld.cleanupGreen.token
-        XCTAssertEqual(cleanup.darkMode.darkHex, "0A1712")
-        XCTAssertEqual(cleanup.lightMode.lightHex, "1F6A4A")
+        XCTAssertEqual(cleanup.darkMode.darkHex, "0B150F")
+        XCTAssertEqual(cleanup.lightMode.lightHex, "2D6C4D")
 
         let clutter = TonicWorld.clutterTeal.token
-        XCTAssertEqual(clutter.darkMode.midHex, "244A50")
-        XCTAssertEqual(clutter.lightMode.midHex, "CDEFF1")
+        XCTAssertEqual(clutter.darkMode.midHex, "2E4E55")
+        XCTAssertEqual(clutter.lightMode.midHex, "D2EBEE")
 
         let apps = TonicWorld.applicationsBlue.token
-        XCTAssertEqual(apps.darkMode.lightHex, "86A6E6")
-        XCTAssertEqual(apps.lightMode.lightHex, "2B4ED6")
+        XCTAssertEqual(apps.darkMode.lightHex, "8AA7DB")
+        XCTAssertEqual(apps.lightMode.lightHex, "2D5CB8")
 
         let performance = TonicWorld.performanceOrange.token
-        XCTAssertEqual(performance.darkMode.midHex, "6E341B")
-        XCTAssertEqual(performance.lightMode.darkHex, "FFF3EC")
+        XCTAssertEqual(performance.darkMode.midHex, "6A3D18")
+        XCTAssertEqual(performance.lightMode.darkHex, "FFF5EA")
 
         let protection = TonicWorld.protectionMagenta.token
-        XCTAssertEqual(protection.darkMode.lightHex, "E4A0CA")
-        XCTAssertEqual(protection.lightMode.midHex, "FFD1EB")
+        XCTAssertEqual(protection.darkMode.lightHex, "CF94BA")
+        XCTAssertEqual(protection.lightMode.midHex, "F3D8E8")
     }
 
     func testDerivedGlowAndGlassProfiles() {
