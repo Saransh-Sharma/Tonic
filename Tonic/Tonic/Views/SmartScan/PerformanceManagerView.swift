@@ -415,7 +415,9 @@ struct PerformanceManagerView: View {
                 paths: paths,
                 scoreImpact: item.scoreImpact,
                 accessState: item.accessState,
-                blockedReason: item.blockedReason
+                blockedReason: item.blockedReason,
+                selectionPolicy: item.selectionPolicy,
+                dataClass: item.dataClass
             )
         case .runOptimization:
             return item
