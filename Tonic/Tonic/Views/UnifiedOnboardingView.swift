@@ -23,6 +23,7 @@ struct UnifiedOnboardingView: View {
     @State private var notificationsEnabled = false
     @State private var notificationStatus: PermissionStatus = .notDetermined
     @State private var isScopeDropTargeted = false
+    @AppStorage(TonicUserDefaultsKey.powerUserModeEnabled) private var powerUserModeEnabled = false
 
     private let totalPages = 7
 
@@ -297,11 +298,16 @@ struct UnifiedOnboardingView: View {
                         .opacity(animateContent ? 1 : 0)
                         .animation(.easeOut(duration: 0.3).delay(0.24), value: animateContent)
 
+                    modeChoiceCard
+                        .offset(y: animateContent ? 0 : 15)
+                        .opacity(animateContent ? 1 : 0)
+                        .animation(.easeOut(duration: 0.3).delay(0.28), value: animateContent)
+
                     // Notifications — conditional UI based on status
                     notificationSetupCard
                         .offset(y: animateContent ? 0 : 15)
                         .opacity(animateContent ? 1 : 0)
-                        .animation(.easeOut(duration: 0.3).delay(0.32), value: animateContent)
+                        .animation(.easeOut(duration: 0.3).delay(0.36), value: animateContent)
 
                 }
 
@@ -471,6 +477,69 @@ struct UnifiedOnboardingView: View {
 
     // MARK: - Notification Setup Card (Conditional)
 
+    private var modeChoiceCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title3)
+                    .foregroundColor(TonicColors.accent)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Experience")
+                        .font(.headline)
+                    Text("Choose how much detail Tonic shows. You can change this anytime.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                onboardingModeButton(.standard)
+                onboardingModeButton(.powerUser)
+            }
+            .padding(.leading, 38)
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(10)
+    }
+
+    private func onboardingModeButton(_ mode: TonicUserMode) -> some View {
+        let isSelected = (mode == .powerUser) == powerUserModeEnabled
+
+        return Button {
+            powerUserModeEnabled = mode == .powerUser
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: mode.icon)
+                    Text(mode.title)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                Text(mode.subtitle)
+                    .font(.caption2)
+                    .foregroundColor(isSelected ? .primary.opacity(0.78) : .secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(isSelected ? TonicColors.accent.opacity(0.14) : Color.secondary.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? TonicColors.accent.opacity(0.8) : Color.secondary.opacity(0.18), lineWidth: 1)
+            )
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(mode.title) mode")
+        .accessibilityHint(mode.subtitle)
+    }
+
     private var notificationSetupCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
@@ -592,6 +661,12 @@ struct UnifiedOnboardingView: View {
                     title: "Notifications",
                     isGranted: notificationsEnabled,
                     delay: 0.45
+                )
+                readyStatusRow(
+                    icon: powerUserModeEnabled ? TonicUserMode.powerUser.icon : TonicUserMode.standard.icon,
+                    title: powerUserModeEnabled ? "Power User Mode" : "Standard Mode",
+                    isGranted: true,
+                    delay: 0.55
                 )
             }
             .padding()
