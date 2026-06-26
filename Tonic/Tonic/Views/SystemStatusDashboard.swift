@@ -541,6 +541,8 @@ class SystemMonitor: ObservableObject {
 // MARK: - Main Dashboard View
 
 struct SystemStatusDashboard: View {
+    /// When false (screen kept alive but not visible), polling is paused.
+    var isActive: Bool = true
     @StateObject private var monitor = SystemMonitor()
     @State private var selectedUpdateInterval: TimeInterval = 2.0
 
@@ -552,19 +554,23 @@ struct SystemStatusDashboard: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            headerView
-                .padding(.horizontal, DesignTokens.Spacing.lg)
-                .padding(.top, DesignTokens.Spacing.lg)
-                .padding(.bottom, DesignTokens.Spacing.md)
+        TonicThemeProvider(world: .performanceOrange) {
+            ZStack {
+                WorldCanvasBackground()
 
-            Divider()
-                .padding(.horizontal, DesignTokens.Spacing.lg)
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header
+                    headerView
+                        .padding(.horizontal, DesignTokens.Spacing.lg)
+                        .padding(.top, DesignTokens.Spacing.lg)
+                        .padding(.bottom, DesignTokens.Spacing.md)
 
-            // Main content - List of MetricRows
-            if let status = monitor.currentStatus {
-                List {
+                    Divider()
+                        .padding(.horizontal, DesignTokens.Spacing.lg)
+
+                    // Main content - List of MetricRows
+                    if let status = monitor.currentStatus {
+                        List {
                     // CPU Section
                     Section {
                         MetricRow(
@@ -730,25 +736,36 @@ struct SystemStatusDashboard: View {
                     } header: {
                         sectionHeader(title: "System")
                     }
+                        }
+                        .listStyle(.inset)
+                        .scrollContentBackground(.hidden)
+                    } else {
+                        // Loading state
+                        VStack {
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("Loading system status...")
+                                .font(DesignTokens.Typography.body)
+                                .foregroundColor(DesignTokens.Colors.textSecondary)
+                                .padding(.top, DesignTokens.Spacing.md)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-            } else {
-                // Loading state
-                VStack {
-                    Spacer()
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text("Loading system status...")
-                        .font(DesignTokens.Typography.body)
-                        .foregroundColor(DesignTokens.Colors.textSecondary)
-                        .padding(.top, DesignTokens.Spacing.md)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(DesignTokens.Colors.background)
+        .onAppear {
+            if !isActive { monitor.stopMonitoring() }
+        }
+        .onChange(of: isActive) { _, active in
+            if active {
+                monitor.startMonitoring()
+            } else {
+                monitor.stopMonitoring()
+            }
+        }
     }
 
     // MARK: - Header View

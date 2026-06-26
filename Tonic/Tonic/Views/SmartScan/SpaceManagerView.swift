@@ -39,6 +39,7 @@ struct SpaceManagerView: View {
         let title: String
         let description: String
         let items: [SmartCareItem]
+        var emptyState: SmartCareEmptyState = .nothingFound
     }
 
     let domainResult: SmartCareDomainResult?
@@ -51,6 +52,7 @@ struct SpaceManagerView: View {
     @State private var selectedCategoryID: String?
     @State private var expandedItemIDs: Set<UUID> = []
     @State private var childSelectionByParent: [UUID: Set<String>] = [:]
+    @AppStorage(TonicUserDefaultsKey.powerUserModeEnabled) private var powerUserModeEnabled = false
     private let accessBroker = AccessBroker.shared
 
     init(
@@ -177,12 +179,15 @@ struct SpaceManagerView: View {
                     if let activeCategory {
                         if activeCategory.items.isEmpty {
                             PlaceholderStatePanel(
-                                title: "Coming soon",
+                                title: emptyTitle(for: activeCategory),
                                 message: activeCategory.description
                             )
                         } else {
                             ScrollView {
                                 VStack(spacing: TonicSpaceToken.one) {
+                                    if !powerUserModeEnabled {
+                                        powerUserUnlockPanel
+                                    }
                                     ForEach(activeCategory.items) { item in
                                         row(for: item)
                                     }
@@ -217,14 +222,19 @@ struct SpaceManagerView: View {
     }
 
     private var cleanupSidebarItems: [SidebarItem] {
-        [
+        var items: [SidebarItem] = [
             .cleanup(.systemJunk),
             .cleanup(.mailAttachments),
             .cleanup(.downloads),
-            .cleanup(.trashBins),
-            .cleanup(.xcodeJunk),
-            .cleanup(.hiddenSpace)
+            .cleanup(.trashBins)
         ]
+        if powerUserModeEnabled {
+            items.append(contentsOf: [
+                .cleanup(.xcodeJunk),
+                .cleanup(.hiddenSpace)
+            ])
+        }
+        return items
     }
 
     private var clutterSidebarItems: [SidebarItem] {
@@ -320,11 +330,17 @@ struct SpaceManagerView: View {
     private func cleanupCategories(for nav: CleanupNav) -> [SpaceCategory] {
         switch nav {
         case .systemJunk:
-            return [
+            var categories = [
                 category(id: "systemJunk", title: "System Junk", fallbackDescription: "Cached files and logs", groupTitle: "System Junk"),
-                category(id: "xcodeJunk", title: "Xcode Junk", fallbackDescription: "Build artifacts and developer caches", groupTitle: "Xcode Junk"),
-                category(id: "hiddenSpace", title: "Hidden Space", fallbackDescription: "Project and cache artifacts", groupTitle: "Hidden Space")
+                category(id: "largeOld", title: "Large & Old Files", fallbackDescription: "Large files not modified recently", groupTitle: "Large & Old Files")
             ]
+            if powerUserModeEnabled {
+                categories.append(contentsOf: [
+                    category(id: "xcodeJunk", title: "Xcode Junk", fallbackDescription: "Build artifacts and developer caches", groupTitle: "Xcode Junk"),
+                    category(id: "hiddenSpace", title: "Hidden Space", fallbackDescription: "Project and cache artifacts", groupTitle: "Hidden Space")
+                ])
+            }
+            return categories
         case .mailAttachments:
             return [category(id: "mailAttachments", title: "Mail Attachments", fallbackDescription: "Mail attachments stored locally", groupTitle: "Mail Attachments")]
         case .downloads:
@@ -343,11 +359,21 @@ struct SpaceManagerView: View {
         case .downloads:
             return [category(id: "downloads", title: "Downloads", fallbackDescription: "Downloads and old files", groupTitle: "Downloads")]
         case .duplicates:
-            return [placeholderCategory(id: "duplicates", title: "Duplicates", description: "Duplicate scanner data is not wired in this pass.")]
+            return [category(
+                id: "duplicates",
+                title: "Duplicates",
+                fallbackDescription: "No duplicate files found in authorized folders.",
+                groupTitle: "Duplicates"
+            )]
         case .similarImages:
-            return [placeholderCategory(id: "similarImages", title: "Similar Images", description: "Similar image scanner data is not wired in this pass.")]
+            return [placeholderCategory(id: "similarImages", title: "Similar Images", description: "Labs preview: image similarity needs a dedicated visual review flow before it is safe for launch.", emptyState: .labsPreview)]
         case .largeOld:
-            return [placeholderCategory(id: "largeOld", title: "Large & Old Files", description: "Large/old file scanner data is not wired in this pass.")]
+            return [category(
+                id: "largeOld",
+                title: "Large & Old Files",
+                fallbackDescription: "No large old files found in authorized folders.",
+                groupTitle: "Large & Old Files"
+            )]
         }
     }
 
@@ -355,11 +381,17 @@ struct SpaceManagerView: View {
         guard let group = domainResult?.groups.first(where: { $0.title == groupTitle }) else {
             return SpaceCategory(id: id, title: title, description: fallbackDescription, items: [])
         }
-        return SpaceCategory(id: id, title: title, description: group.description, items: group.items)
+        return SpaceCategory(
+            id: id,
+            title: title,
+            description: group.description,
+            items: group.items,
+            emptyState: group.emptyState ?? .nothingFound
+        )
     }
 
-    private func placeholderCategory(id: String, title: String, description: String) -> SpaceCategory {
-        SpaceCategory(id: id, title: title, description: description, items: [])
+    private func placeholderCategory(id: String, title: String, description: String, emptyState: SmartCareEmptyState = .nothingFound) -> SpaceCategory {
+        SpaceCategory(id: id, title: title, description: description, items: [], emptyState: emptyState)
     }
 
     private func countForSidebar(_ item: SidebarItem) -> Int {
@@ -378,10 +410,10 @@ struct SpaceManagerView: View {
     private func selectedChildIDs(for item: SmartCareItem) -> Set<String> {
         let childIDs = childEntries(for: item).map(\.id)
         if let explicit = childSelectionByParent[item.id] {
-            return explicit.intersection(Set(childIDs))
+            return item.selectionPolicy.validatedSelection(proposed: explicit, orderedChildIDs: childIDs)
         }
         if selectedItemIDs.contains(item.id) {
-            return Set(childIDs)
+            return item.selectionPolicy.validatedSelection(proposed: Set(childIDs), orderedChildIDs: childIDs)
         }
         return []
     }
@@ -442,21 +474,25 @@ struct SpaceManagerView: View {
     }
 
     private func toggleParentSelection(for item: SmartCareItem) {
-        let childIDs = Set(childEntries(for: item).map(\.id))
+        let orderedChildIDs = childEntries(for: item).map(\.id)
+        let childIDs = Set(orderedChildIDs)
         let currentlySelected = selectedChildIDs(for: item)
         let shouldSelectAll = currentlySelected.count < childIDs.count
-        let updated = shouldSelectAll ? childIDs : []
+        let proposed = shouldSelectAll ? childIDs : []
+        let updated = item.selectionPolicy.validatedSelection(proposed: proposed, orderedChildIDs: orderedChildIDs)
         childSelectionByParent[item.id] = updated
         syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
     }
 
     private func toggleChildSelection(for item: SmartCareItem, childID: String) {
+        let orderedChildIDs = childEntries(for: item).map(\.id)
         var updated = selectedChildIDs(for: item)
         if updated.contains(childID) {
             updated.remove(childID)
         } else {
             updated.insert(childID)
         }
+        updated = item.selectionPolicy.validatedSelection(proposed: updated, orderedChildIDs: orderedChildIDs)
         childSelectionByParent[item.id] = updated
         syncParentSelectionFlag(itemID: item.id, selectedChildCount: updated.count)
     }
@@ -475,12 +511,14 @@ struct SpaceManagerView: View {
 
         switch item.action {
         case .delete:
-            let paths = uniqueOrderedPaths(item.paths).filter { selectedChildIDs.contains($0) }
+            let orderedPaths = SmartCareSelectionProjection.uniqueOrderedPaths(item.paths)
+            let paths = SmartCareSelectionProjection.selectedDeletePaths(for: item, selectedChildIDs: selectedChildIDs)
             guard !paths.isEmpty else { return nil }
-            let fullCount = max(uniqueOrderedPaths(item.paths).count, 1)
-            let proportion = Double(paths.count) / Double(fullCount)
-            let scaledSize = Int64((Double(item.size) * proportion).rounded())
-            let adjustedSize = item.size == 0 ? 0 : max(1, scaledSize)
+            let adjustedSize = SmartCareSelectionProjection.projectedSize(
+                for: item,
+                selectedPathCount: paths.count,
+                totalPathCount: orderedPaths.count
+            )
 
             return SmartCareItem(
                 id: item.id,
@@ -496,7 +534,9 @@ struct SpaceManagerView: View {
                 paths: paths,
                 scoreImpact: item.scoreImpact,
                 accessState: item.accessState,
-                blockedReason: item.blockedReason
+                blockedReason: item.blockedReason,
+                selectionPolicy: item.selectionPolicy,
+                dataClass: item.dataClass
             )
         case .runOptimization:
             return item
@@ -522,7 +562,7 @@ struct SpaceManagerView: View {
     private func badges(for item: SmartCareItem) -> [MetaBadgeStyle] {
         switch item.accessState {
         case .ready:
-            return item.safeToRun ? [.recommended] : [.needsReview]
+            return item.safeToRun && item.isSmartSelected ? [.recommended] : [.needsReview]
         case .needsAccess:
             return [.needsAccess]
         case .limited:
@@ -542,5 +582,48 @@ struct SpaceManagerView: View {
         case .limited:
             return "\(item.subtitle) • Limited by macOS"
         }
+    }
+
+    private func emptyTitle(for category: SpaceCategory) -> String {
+        switch category.emptyState {
+        case .labsPreview:
+            return "Labs preview"
+        case .needsAccess:
+            return "Grant access to scan"
+        case .partial:
+            return "Results may be partial"
+        case .nothingFound:
+            return "Nothing found"
+        }
+    }
+
+    private var powerUserUnlockPanel: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Image(systemName: TonicUserMode.powerUser.icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(TonicTextToken.secondary)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Power User Mode reveals developer caches and path-level scan detail.")
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                Text("Keep Standard mode for a calmer cleanup surface.")
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+
+            Spacer()
+
+            Button("Enable") {
+                powerUserModeEnabled = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, TonicSpaceToken.two)
+        .padding(.vertical, TonicSpaceToken.one)
+        .background(TonicGlassToken.fill)
+        .clipShape(RoundedRectangle(cornerRadius: TonicRadiusToken.m))
     }
 }

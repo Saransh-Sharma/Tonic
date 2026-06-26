@@ -70,7 +70,7 @@ struct WidgetCustomizationView: View {
                                     : .active(count: enabledConfigs.count),
                                 activeIcons: enabledConfigs.map(\.type.icon)
                             )
-                            .staggeredReveal(index: 0)
+                            .atelierStagger(0)
 
                             // 2. OneView Mode Toggle
                             OneViewModeCard(
@@ -80,15 +80,15 @@ struct WidgetCustomizationView: View {
                                     WidgetCoordinator.shared.refreshWidgets()
                                 }
                             )
-                            .staggeredReveal(index: 1)
+                            .atelierStagger(1)
 
                             // 3. Active Widgets Section
                             activeWidgetsSection
-                                .staggeredReveal(index: 2)
+                                .atelierStagger(2)
 
                             // 4. Available Widgets Section
                             availableWidgetsSection
-                                .staggeredReveal(index: 3 + enabledConfigs.count)
+                                .atelierStagger(3 + enabledConfigs.count)
                         }
                         .padding(.bottom, TonicSpaceToken.three)
                     }
@@ -173,7 +173,7 @@ struct WidgetCustomizationView: View {
                                 }
                             }
                         )
-                        .staggeredReveal(index: 2 + index)
+                        .atelierStagger(2 + index)
                         .onDrag {
                             draggedWidget = config.type
                             return NSItemProvider(object: config.type.rawValue as NSString)
@@ -266,7 +266,7 @@ struct WidgetCustomizationView: View {
                                 }
                             }
                         )
-                        .staggeredReveal(index: 4 + enabledConfigs.count + index)
+                        .atelierStagger(4 + enabledConfigs.count + index)
                     }
                 }
             }

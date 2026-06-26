@@ -41,22 +41,22 @@ struct DashboardHomeView: View {
 
                 VStack(spacing: TonicSpaceToken.three) {
                     PageHeader(
-                        title: "Dashboard",
+                        title: "Mac Health Command Center",
                         subtitle: headerSubtitle,
                         trailing: AnyView(headerTrailingActions)
                     )
-                    .staggeredReveal(index: 0)
+                    .atelierStagger(0)
 
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: TonicSpaceToken.two) {
                             overviewSection
-                                .staggeredReveal(index: 1)
+                                .atelierStagger(1)
 
                             cardsSection
-                                .staggeredReveal(index: 2)
+                                .atelierStagger(2)
 
                             utilitiesSection
-                                .staggeredReveal(index: 3)
+                                .atelierStagger(3)
                         }
                         .padding(.bottom, TonicSpaceToken.three)
                     }
@@ -92,7 +92,7 @@ struct DashboardHomeView: View {
         }
 
         guard scanManager.hasScanResult else {
-            return "Not scanned yet"
+            return "Storage, cleanup, apps, widgets, and live status in one place"
         }
 
         let recommendationCount = scanManager.recommendations.filter { !$0.isCompleted }.count
@@ -692,13 +692,13 @@ private struct DashboardScanSummaryTile: View {
                 }
             }
 
-            MicroText("Runs locally • No deletions without approval • ~45 seconds")
+            MicroText("Runs locally • Review before cleaning • Restore supported")
         }
     }
 
     private var quickSnapshot: some View {
         VStack(alignment: .leading, spacing: TonicSpaceToken.one) {
-            Text("Quick Snapshot")
+            Text("Command Center Snapshot")
                 .font(TonicTypeToken.caption.weight(.semibold))
                 .foregroundStyle(TonicTextToken.primary)
 
@@ -815,13 +815,12 @@ private struct DashboardScanSummaryTile: View {
         } else if scanManager.hasScanResult {
             HStack(spacing: TonicSpaceToken.two) {
                 PrimaryActionButton(
-                    title: hasRunnableWork ? "Run Smart Clean" : "Run Again",
+                    title: hasRunnableWork ? "Review Smart Clean" : "Run Again",
                     icon: hasRunnableWork ? "sparkles" : "play.fill",
-                    action: hasRunnableWork ? onRunSmartClean : onRunScan,
+                    action: hasRunnableWork ? onOpenSmartScan : onRunScan,
                     isEnabled: true
                 )
 
-                SecondaryPillButton(title: "Review", action: onOpenSmartScan)
                 TertiaryGhostButton(title: "Export report", action: onExportReport)
             }
         } else {

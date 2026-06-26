@@ -110,7 +110,6 @@ struct WorldGradientRecipe {
 
 struct WorldCanvasBackground: View {
     @Environment(\.tonicTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
     let recipe: WorldGradientRecipe
 
     init(recipe: WorldGradientRecipe = .default) {
@@ -118,34 +117,8 @@ struct WorldCanvasBackground: View {
     }
 
     var body: some View {
-        ZStack {
-            TonicCanvasTokens.fill(for: theme.world, colorScheme: colorScheme)
-
-            TonicCanvasTokens.tint(for: theme.world, colorScheme: colorScheme)
-
-            RadialGradient(
-                colors: [TonicCanvasTokens.edgeGlow(for: theme.world, colorScheme: colorScheme), .clear],
-                center: .topLeading,
-                startRadius: 20,
-                endRadius: 360
-            )
-
-            RadialGradient(
-                colors: [TonicCanvasTokens.edgeGlow(for: theme.world, colorScheme: colorScheme).opacity(0.85), .clear],
-                center: .bottomTrailing,
-                startRadius: 20,
-                endRadius: 360
-            )
-
-            // Keep a subtle mid-tone wash so the world identity stays visible.
-            RadialGradient(
-                gradient: Gradient(colors: [theme.canvasMid.opacity(colorScheme == .dark ? 0.14 : 0.10), .clear]),
-                center: recipe.center,
-                startRadius: 30,
-                endRadius: 680
-            )
-        }
-        .ignoresSafeArea()
+        let _ = recipe
+        AtelierAmbientCanvas(world: theme.world)
     }
 }
 
@@ -574,6 +547,7 @@ struct PulseGlow: ViewModifier {
 
 struct HeroHighlightSweep: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     let active: Bool
     let radius: CGFloat?
     @State private var xOffset: CGFloat = -280
@@ -583,7 +557,7 @@ struct HeroHighlightSweep: ViewModifier {
             .overlay {
                 if active && !reduceMotion {
                     LinearGradient(
-                        colors: [.clear, TonicNeutralToken.white.opacity(0.12), .clear],
+                        colors: [.clear, TonicNeutralToken.adaptiveOverlay(colorScheme == .dark ? 0.12 : 0.06), .clear],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

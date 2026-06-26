@@ -24,6 +24,7 @@ struct AppsManagerView: View {
     @State private var selectedFilter: AppFilter
     @State private var expandedItemIDs: Set<UUID> = []
     @State private var childSelectionByParent: [UUID: Set<String>] = [:]
+    @AppStorage(TonicUserDefaultsKey.powerUserModeEnabled) private var powerUserModeEnabled = false
     private let accessBroker = AccessBroker.shared
 
     init(
@@ -60,7 +61,7 @@ struct AppsManagerView: View {
             header: AnyView(
                 PageHeader(
                     title: "Applications Manager",
-                    subtitle: "Uninstall + Updates + Leftovers",
+                    subtitle: powerUserModeEnabled ? "Uninstall + Leftovers + Labs" : "Uninstall + Leftovers",
                     showsBack: true,
                     searchText: nil,
                     onBack: onBack,
@@ -75,12 +76,14 @@ struct AppsManagerView: View {
                         isSelected: selectedNav == .uninstaller,
                         action: { selectedNav = .uninstaller }
                     )
-                    LeftNavListItem(
-                        title: "Updater",
-                        count: updaterItems.count,
-                        isSelected: selectedNav == .updater,
-                        action: { selectedNav = .updater }
-                    )
+                    if powerUserModeEnabled {
+                        LeftNavListItem(
+                            title: "Updater Labs",
+                            count: updaterItems.count,
+                            isSelected: selectedNav == .updater,
+                            action: { selectedNav = .updater }
+                        )
+                    }
                     LeftNavListItem(
                         title: "Leftovers",
                         count: leftoversItems.count,
@@ -111,8 +114,8 @@ struct AppsManagerView: View {
 
                     if currentItems.isEmpty {
                         PlaceholderStatePanel(
-                            title: "No app items",
-                            message: selectedNav == .updater ? "Updater data is not wired in this pass." : "No items found for this section."
+                            title: selectedNav == .updater ? "Labs preview" : "No app items",
+                            message: selectedNav == .updater ? "App update checks are coming after a reliability pass. Tonic will not recommend app updates until that workflow is production-ready." : "No items found for this section."
                         )
                     } else {
                         ForEach(currentItems) { item in
@@ -158,8 +161,8 @@ struct AppsManagerView: View {
 
                     if currentItems.isEmpty {
                         PlaceholderStatePanel(
-                            title: "Nothing to process",
-                            message: selectedNav == .updater ? "Updater integration is a placeholder in this pass." : "No matching apps were found."
+                            title: selectedNav == .updater ? "App updates coming soon" : "Nothing to process",
+                            message: selectedNav == .updater ? "This Labs surface is intentionally disabled for 1.0 so update recommendations do not appear as empty or unreliable results." : "No matching apps were found."
                         )
                     } else {
                         ScrollView {
@@ -208,6 +211,10 @@ struct AppsManagerView: View {
             )
         )
         .padding(TonicSpaceToken.three)
+        .onAppear(perform: sanitizeSelectedNav)
+        .onChange(of: powerUserModeEnabled) { _, _ in
+            sanitizeSelectedNav()
+        }
     }
 
     private var allItems: [SmartCareItem] {
@@ -234,7 +241,7 @@ struct AppsManagerView: View {
         case .uninstaller:
             return allUninstallerItems.filter(matchesFilter)
         case .updater:
-            return updaterItems
+            return powerUserModeEnabled ? updaterItems : []
         case .leftovers:
             return leftoversItems
         }
@@ -251,7 +258,7 @@ struct AppsManagerView: View {
     private var selectedNavTitle: String {
         switch selectedNav {
         case .uninstaller: return "Uninstaller"
-        case .updater: return "Updater"
+        case .updater: return "Updater Labs"
         case .leftovers: return "Leftovers"
         }
     }
@@ -259,7 +266,7 @@ struct AppsManagerView: View {
     private var selectedNavDescription: String {
         switch selectedNav {
         case .uninstaller: return "Remove apps with related support files."
-        case .updater: return "Review outdated apps before updating."
+        case .updater: return "Coming soon after update checks are reliable."
         case .leftovers: return "Remove orphaned files from removed apps."
         }
     }
@@ -270,6 +277,12 @@ struct AppsManagerView: View {
 
     private var blockedItemsCount: Int {
         currentItems.filter { $0.accessState != .ready }.count
+    }
+
+    private func sanitizeSelectedNav() {
+        if selectedNav == .updater && !powerUserModeEnabled {
+            selectedNav = .uninstaller
+        }
     }
 
     private func matchesFilter(_ item: SmartCareItem) -> Bool {
@@ -459,7 +472,9 @@ struct AppsManagerView: View {
                 paths: paths,
                 scoreImpact: item.scoreImpact,
                 accessState: item.accessState,
-                blockedReason: item.blockedReason
+                blockedReason: item.blockedReason,
+                selectionPolicy: item.selectionPolicy,
+                dataClass: item.dataClass
             )
         case .runOptimization:
             return item

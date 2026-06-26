@@ -50,7 +50,6 @@ extension EnvironmentValues {
 struct TonicThemeProvider<Content: View>: View {
     let world: TonicWorld
     @ViewBuilder let content: () -> Content
-    private var preferences = AppearancePreferences.shared
 
     init(world: TonicWorld, @ViewBuilder content: @escaping () -> Content) {
         self.world = world
@@ -58,10 +57,6 @@ struct TonicThemeProvider<Content: View>: View {
     }
 
     var body: some View {
-        // Reading colorPalette in body creates an Observation tracking dependency.
-        // SwiftUI will re-render when the palette changes, causing world.token
-        // to return updated colors for the new palette.
-        let _ = preferences.colorPalette
         content()
             .environment(\.tonicTheme, TonicTheme(world: world))
     }
@@ -69,14 +64,12 @@ struct TonicThemeProvider<Content: View>: View {
 
 struct TonicThemeModifier: ViewModifier {
     let world: TonicWorld
-    private var preferences = AppearancePreferences.shared
 
     init(world: TonicWorld) {
         self.world = world
     }
 
     func body(content: Content) -> some View {
-        let _ = preferences.colorPalette
         content.environment(\.tonicTheme, TonicTheme(world: world))
     }
 }

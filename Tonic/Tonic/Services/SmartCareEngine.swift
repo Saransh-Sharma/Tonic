@@ -239,7 +239,7 @@ final class SmartCareEngine: @unchecked Sendable {
             .trash,
         ]
 
-        let deepCleanWeight = 0.72
+        let deepCleanWeight = 0.64
         let extraWeight = 1.0 - deepCleanWeight
 
         let deepStart = Date()
@@ -264,6 +264,10 @@ final class SmartCareEngine: @unchecked Sendable {
         async let junkFilesTask = categoryScanner.scanJunkFiles()
         async let hiddenTask = scanHiddenSpace()
         async let downloadsSplitTask = scanDownloadsSplit(thresholdDays: 30)
+        let clutterDepth = ScanCategoryScanner.ClutterScanDepth(
+            rawValue: UserDefaults.standard.string(forKey: TonicUserDefaultsKey.clutterScanDepth) ?? ""
+        ) ?? .quick
+        async let clutterTask = categoryScanner.scanClutterFiles(depth: clutterDepth)
 
         let junkFiles = await junkFilesTask
         update(
@@ -287,6 +291,17 @@ final class SmartCareEngine: @unchecked Sendable {
             )
         )
         let downloadsSplit = await downloadsSplitTask
+        update(
+            deepCleanWeight + extraWeight * 0.82,
+            "Finding clutter",
+            "Finding duplicates and large old files",
+            SmartScanLiveCounters(
+                spaceBytesFound: deepCleanBytes + junkFiles.totalSize + hiddenBytes + downloadsSplit.recent.size + downloadsSplit.old.size,
+                performanceFlaggedCount: 0,
+                appsScannedCount: 0
+            )
+        )
+        let clutter = await clutterTask
         let userLogGroup = buildLogGroup(
             name: "User Log Files",
             description: "Application log files",
@@ -303,6 +318,8 @@ final class SmartCareEngine: @unchecked Sendable {
             hiddenBytes +
             downloadsSplit.recent.size +
             downloadsSplit.old.size +
+            clutter.totalLargeOldSize +
+            clutter.duplicateReclaimableSize +
             userLogGroup.size +
             systemLogGroup.size
         update(
@@ -318,6 +335,8 @@ final class SmartCareEngine: @unchecked Sendable {
         let trashGroupId = UUID()
         let developerGroupId = UUID()
         let hiddenGroupId = UUID()
+        let duplicatesGroupId = UUID()
+        let largeOldGroupId = UUID()
 
         let systemItems: [SmartCareItem?] = [
             makeDeepCleanItem(domain: .cleanup, groupId: systemGroupId, result: results[.userCache], overrideTitle: "User Cache Files"),
@@ -367,7 +386,8 @@ final class SmartCareEngine: @unchecked Sendable {
                 subtitle: downloadsSplit.recent.description,
                 group: downloadsSplit.recent,
                 safeToRun: true,
-                smartlySelected: downloadsSplit.recent.size > 0
+                smartlySelected: downloadsSplit.recent.size > 0,
+                dataClass: .personal
             ),
             makeFileGroupItem(
                 domain: .cleanup,
@@ -376,7 +396,8 @@ final class SmartCareEngine: @unchecked Sendable {
                 subtitle: downloadsSplit.old.description,
                 group: downloadsSplit.old,
                 safeToRun: true,
-                smartlySelected: downloadsSplit.old.size > 0
+                smartlySelected: downloadsSplit.old.size > 0,
+                dataClass: .personal
             )
         ]
 
@@ -403,6 +424,8 @@ final class SmartCareEngine: @unchecked Sendable {
         let trashItemsDeduped = dedupeItems(trashItems.compactMap { $0 }, ledger: &ledger)
         let developerItemsDeduped = dedupeItems(developerItems.compactMap { $0 }, ledger: &ledger)
         let hiddenItemsDeduped = dedupeItems(buildHiddenSpaceItems(domain: .cleanup, groupId: hiddenGroupId, result: hiddenResult), ledger: &ledger)
+        let largeOldItemsDeduped = dedupeItems(buildLargeOldFileItems(groupId: largeOldGroupId, files: clutter.largeOldFiles), ledger: &ledger)
+        let duplicateItems = buildDuplicateFileItems(groupId: duplicatesGroupId, groups: clutter.duplicateFiles)
 
         let groups = [
             SmartCareGroup(
@@ -446,6 +469,28 @@ final class SmartCareEngine: @unchecked Sendable {
                 title: "Hidden Space",
                 description: "Artifacts hidden inside projects and caches",
                 items: hiddenItemsDeduped
+            ),
+            SmartCareGroup(
+                id: duplicatesGroupId,
+                domain: .cleanup,
+                title: "Duplicates",
+                description: clutterDescription(
+                    base: "Files with matching content. Keep at least one copy in every group.",
+                    result: clutter
+                ),
+                items: duplicateItems,
+                emptyState: clutterEmptyState(for: clutter)
+            ),
+            SmartCareGroup(
+                id: largeOldGroupId,
+                domain: .cleanup,
+                title: "Large & Old Files",
+                description: clutterDescription(
+                    base: "Large files not modified recently. Nothing is selected automatically.",
+                    result: clutter
+                ),
+                items: largeOldItemsDeduped,
+                emptyState: clutterEmptyState(for: clutter)
             )
         ]
 
@@ -559,7 +604,8 @@ final class SmartCareEngine: @unchecked Sendable {
         subtitle: String,
         group: FileGroup,
         safeToRun: Bool,
-        smartlySelected: Bool
+        smartlySelected: Bool,
+        dataClass: SmartCareDataClass = .systemJunk
     ) -> SmartCareItem {
         makeItem(
             domain: domain,
@@ -571,7 +617,8 @@ final class SmartCareEngine: @unchecked Sendable {
             safeToRun: safeToRun,
             paths: group.paths,
             smartlySelected: smartlySelected,
-            action: safeToRun ? .delete(paths: group.paths) : .none
+            action: safeToRun ? .delete(paths: group.paths) : .none,
+            dataClass: dataClass
         )
     }
 
@@ -918,13 +965,83 @@ final class SmartCareEngine: @unchecked Sendable {
             safeToRun: true,
             paths: orphaned.map { $0.path },
             smartlySelected: totalSize > 0,
-            action: .delete(paths: orphaned.map { $0.path })
+            action: .delete(paths: orphaned.map { $0.path }),
+            dataClass: .personal
         )
     }
 
     // MARK: - Clutter
 
     // merged into scanCleanupAndClutter
+
+    private func buildLargeOldFileItems(groupId: UUID, files: [LargeOldFileEntry]) -> [SmartCareItem] {
+        files.prefix(100).map { file in
+            let name = URL(fileURLWithPath: file.path).lastPathComponent
+            let modifiedText = file.modificationDate.map { "Last modified \(Self.shortDateFormatter.string(from: $0))" } ?? "Modification date unavailable"
+            return makeItem(
+                domain: .cleanup,
+                groupId: groupId,
+                title: name.isEmpty ? file.path : name,
+                subtitle: "\(modifiedText) · Review before removing",
+                size: file.size,
+                count: 1,
+                safeToRun: true,
+                paths: [file.path],
+                smartlySelected: false,
+                action: .delete(paths: [file.path]),
+                dataClass: .personal
+            )
+        }
+    }
+
+    private func buildDuplicateFileItems(groupId: UUID, groups: [DuplicateFileGroup]) -> [SmartCareItem] {
+        groups.prefix(80).enumerated().map { index, group in
+            let displayName = commonDuplicateDisplayName(paths: group.paths)
+            let reclaimable = ByteCountFormatter.string(fromByteCount: group.reclaimableEstimate, countStyle: .file)
+            return makeItem(
+                domain: .cleanup,
+                groupId: groupId,
+                title: displayName.isEmpty ? "Duplicate Group \(index + 1)" : displayName,
+                subtitle: "\(group.paths.count) matching files · Keep at least one copy · \(reclaimable) reclaimable",
+                size: group.reclaimableEstimate,
+                count: group.paths.count,
+                safeToRun: true,
+                paths: group.paths,
+                smartlySelected: false,
+                action: .delete(paths: group.paths),
+                selectionPolicy: .keepOneCopy,
+                dataClass: .personal
+            )
+        }
+    }
+
+    private func commonDuplicateDisplayName(paths: [String]) -> String {
+        let names = paths.map { URL(fileURLWithPath: $0).lastPathComponent }.filter { !$0.isEmpty }
+        guard let first = names.first else { return "" }
+        if names.allSatisfy({ $0 == first }) {
+            return first
+        }
+        return "Duplicate Files"
+    }
+
+    private func clutterEmptyState(for result: ClutterScanResult) -> SmartCareEmptyState {
+        if result.needsAdditionalAccess { return .needsAccess }
+        if result.hasPartialResults { return .partial }
+        return .nothingFound
+    }
+
+    private func clutterDescription(base: String, result: ClutterScanResult) -> String {
+        if result.needsAdditionalAccess {
+            return "\(base) Grant access to scan Downloads, Desktop, Documents, and other personal folders."
+        }
+        if result.hasPartialResults {
+            return "\(base) Results may be partial because the scan was capped or cancelled."
+        }
+        if !result.inaccessibleRoots.isEmpty {
+            return "\(base) Some folders need additional access before Tonic can scan them."
+        }
+        return base
+    }
 
     private func buildHiddenSpaceItems(
         domain: SmartCareDomain,
@@ -1252,7 +1369,9 @@ final class SmartCareEngine: @unchecked Sendable {
         safeToRun: Bool,
         paths: [String],
         smartlySelected: Bool,
-        action: SmartCareAction
+        action: SmartCareAction,
+        selectionPolicy: SmartCareSelectionPolicy = .standard,
+        dataClass: SmartCareDataClass = .systemJunk
     ) -> SmartCareItem {
         let access = scopedFS.accessState(forPaths: paths, requiresWrite: true)
         let runnable = safeToRun && access.coveredPaths.count == paths.count
@@ -1270,7 +1389,9 @@ final class SmartCareEngine: @unchecked Sendable {
             paths: paths,
             scoreImpact: impact,
             accessState: access.state,
-            blockedReason: access.blockedPaths.values.first
+            blockedReason: access.blockedPaths.values.first,
+            selectionPolicy: selectionPolicy,
+            dataClass: dataClass
         )
     }
 
@@ -1280,6 +1401,13 @@ final class SmartCareEngine: @unchecked Sendable {
         let raw = Int(round(gb * 4))
         return max(1, min(12, raw))
     }
+
+    private static let shortDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 
     private func fetchTrashContents() -> [String] {
         let fileManager = FileManager.default

@@ -30,6 +30,8 @@ final class SmartCareSessionStore: ObservableObject {
     @Published var quickActionSummary: SmartScanRunSummary?
     @Published var quickActionIsRunning = false
     @Published var currentScanItem: String?
+    /// Set when a clean involves personal files and needs review before running.
+    @Published var pendingReview: SmartCleanReviewState?
 
     private let engine = SmartCareEngine()
     private let activityLog = ActivityLogStore.shared
@@ -277,6 +279,30 @@ final class SmartCareSessionStore: ObservableObject {
             return
         }
 
+        // Personal files (downloads, duplicates, large/old, leftovers) are deleted
+        // to the Trash but still warrant a review-before-removing step. Pure system
+        // junk runs immediately.
+        if items.contains(where: { $0.dataClass == .personal }) {
+            pendingReview = SmartCleanReviewState(items: items)
+            return
+        }
+
+        executeRun(items: items)
+    }
+
+    /// Confirm the pending review sheet and run the cleanup.
+    func confirmPendingReview() {
+        guard let review = pendingReview else { return }
+        pendingReview = nil
+        executeRun(items: review.items)
+    }
+
+    /// Dismiss the pending review sheet without running.
+    func cancelPendingReview() {
+        pendingReview = nil
+    }
+
+    private func executeRun(items: [SmartCareItem]) {
         runTask?.cancel()
         destination = .smartScan
         hubMode = .running
@@ -390,11 +416,13 @@ final class SmartCareSessionStore: ObservableObject {
 
     private func performRun(
         items: [SmartCareItem],
+        title: String = "Smart Clean",
         progressUpdate: @MainActor @escaping (Double) -> Void
     ) async -> SmartScanRunSummary {
         var bytesFreed: Int64 = 0
         var errors = 0
         var blockedBySandbox = 0
+        var historyEntries: [CleanupHistoryEntry] = []
 
         for (index, item) in items.enumerated() {
             if Task.isCancelled {
@@ -404,9 +432,37 @@ final class SmartCareSessionStore: ObservableObject {
             switch item.action {
             case .delete(let paths):
                 let uniquePaths = Array(Set(paths))
-                let result = await FileOperations.shared.deleteFiles(atPaths: uniquePaths)
-                bytesFreed += result.bytesFreed
-                errors += result.errors.count
+                // Snapshot per-path sizes before deletion for the recovery ledger.
+                let sizeByPath = fileSizes(for: uniquePaths)
+
+                if item.dataClass.isRecoverable {
+                    // Personal files → macOS Trash (recoverable).
+                    let result = await FileOperations.shared.moveFilesToTrash(atPaths: uniquePaths)
+                    bytesFreed += result.bytesFreed
+                    errors += result.errors.count
+                    for (original, trashPath) in result.trashMap {
+                        historyEntries.append(CleanupHistoryEntry(
+                            originalPath: original,
+                            size: sizeByPath[original] ?? 0,
+                            category: item.title,
+                            recovery: .trashed(trashPath: trashPath)
+                        ))
+                    }
+                } else {
+                    // System junk → permanent removal (space reclaimed immediately).
+                    let result = await FileOperations.shared.deleteFiles(atPaths: uniquePaths)
+                    bytesFreed += result.bytesFreed
+                    errors += result.errors.count
+                    let failedPaths = Set(result.errors.map { $0.path })
+                    for path in uniquePaths where !failedPaths.contains(path) {
+                        historyEntries.append(CleanupHistoryEntry(
+                            originalPath: path,
+                            size: sizeByPath[path] ?? 0,
+                            category: item.title,
+                            recovery: .permanent
+                        ))
+                    }
+                }
             case .runOptimization(let action):
                 do {
                     let result = try await SystemOptimization.shared.performAction(action)
@@ -426,6 +482,9 @@ final class SmartCareSessionStore: ObservableObject {
             }
         }
 
+        let batch = CleanupHistoryStore.shared.record(title: title, entries: historyEntries)
+        let recoverableCount = batch?.recoverableEntries.count ?? 0
+
         let scoreGain = items.reduce(0) { $0 + $1.scoreImpact }
         let message: String?
         if BuildCapabilities.current.requiresScopeAccess, blockedBySandbox > 0 {
@@ -439,8 +498,23 @@ final class SmartCareSessionStore: ObservableObject {
             spaceFreed: bytesFreed,
             errors: errors,
             scoreImprovement: scoreGain,
-            message: message
+            message: message,
+            recoveryBatchID: recoverableCount > 0 ? batch?.id : nil,
+            recoverableCount: recoverableCount
         )
+    }
+
+    /// Best-effort per-path byte sizes captured before deletion (for history display).
+    private func fileSizes(for paths: [String]) -> [String: Int64] {
+        let fm = FileManager.default
+        var result: [String: Int64] = [:]
+        for path in paths {
+            if let attrs = try? fm.attributesOfItem(atPath: path),
+               let size = attrs[.size] as? Int64 {
+                result[path] = size
+            }
+        }
+        return result
     }
 
     // MARK: - Activity Logging
@@ -464,6 +538,31 @@ final class SmartCareSessionStore: ObservableObject {
             impact: .none
         )
         activityLog.record(event)
+    }
+
+    /// Undo a just-completed cleanup by restoring its recoverable (trashed) items.
+    /// Clears the recovery affordance from the active summaries on success.
+    func undoCleanup(batchID: UUID) {
+        Task { @MainActor in
+            let result = await CleanupHistoryStore.shared.restoreBatch(batchID)
+            if result.restored > 0 {
+                let event = ActivityEvent(
+                    category: .clean,
+                    title: "Cleanup undone",
+                    detail: "Restored \(result.restored) item(s) · \(ByteCountFormatter.string(fromByteCount: result.restoredBytes, countStyle: .file))",
+                    impact: .none
+                )
+                activityLog.record(event)
+            }
+            if runSummary?.recoveryBatchID == batchID {
+                runSummary?.recoveryBatchID = nil
+                runSummary?.recoverableCount = 0
+            }
+            if quickActionSummary?.recoveryBatchID == batchID {
+                quickActionSummary?.recoveryBatchID = nil
+                quickActionSummary?.recoverableCount = 0
+            }
+        }
     }
 
     private func logSmartCleanCompleted(summary: SmartScanRunSummary?) {
@@ -504,12 +603,39 @@ final class SmartCareSessionStore: ObservableObject {
     }
 }
 
+/// Review payload shown before a cleanup that includes personal (recoverable) files.
+struct SmartCleanReviewState: Identifiable {
+    let id = UUID()
+    let items: [SmartCareItem]
+
+    var personalItems: [SmartCareItem] { items.filter { $0.dataClass == .personal } }
+    var junkItems: [SmartCareItem] { items.filter { $0.dataClass == .systemJunk } }
+
+    var personalCount: Int { personalItems.reduce(0) { $0 + $1.effectiveCount } }
+    var totalSize: Int64 { items.reduce(0) { $0 + $1.size } }
+    var personalSize: Int64 { personalItems.reduce(0) { $0 + $1.size } }
+
+    var formattedTotalSize: String {
+        ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
+    }
+    var formattedPersonalSize: String {
+        ByteCountFormatter.string(fromByteCount: personalSize, countStyle: .file)
+    }
+}
+
 struct SmartScanRunSummary {
     let tasksRun: Int
     let spaceFreed: Int64
     let errors: Int
     let scoreImprovement: Int
     var message: String? = nil
+    /// Cleanup-history batch produced by this run, if any recoverable items were
+    /// moved to the Trash. Drives the Undo snackbar.
+    var recoveryBatchID: UUID? = nil
+    /// Number of items in this run that can be restored from the Trash.
+    var recoverableCount: Int = 0
+
+    var hasRecoverable: Bool { recoveryBatchID != nil && recoverableCount > 0 }
 
     var formattedSummary: String {
         if let message {

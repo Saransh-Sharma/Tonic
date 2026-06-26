@@ -8,6 +8,42 @@
 import SwiftUI
 import Foundation
 
+enum TonicUserDefaultsKey {
+    static let powerUserModeEnabled = "tonic.powerUserMode.enabled"
+    /// Clutter scan depth preference: "quick" (default) or "deep".
+    static let clutterScanDepth = "tonic.clutterScanDepth"
+}
+
+enum TonicUserMode: String, CaseIterable, Identifiable {
+    case standard
+    case powerUser
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard: return "Standard"
+        case .powerUser: return "Power User"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .standard:
+            return "A calm command center with safe defaults and review-first cleanup."
+        case .powerUser:
+            return "Reveals developer caches, path-level detail, and advanced scan context."
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .standard: return "checkmark.shield.fill"
+        case .powerUser: return "slider.horizontal.3"
+        }
+    }
+}
+
 enum WIPFeature: String, CaseIterable {
     case activity
     case storageHub
@@ -79,6 +115,7 @@ enum NavigationDestination: String, CaseIterable {
     case systemCleanup = "System Cleanup"
     case appManager = "App Manager"
     case diskAnalysis = "Storage Hub"
+    case recentlyCleaned = "Recently Cleaned"
     case liveMonitoring = "Live Monitoring"
     case menuBarWidgets = "Menu Bar Widgets"
     case developerTools = "Developer Tools"
@@ -91,6 +128,7 @@ enum NavigationDestination: String, CaseIterable {
         case .systemCleanup: return "shield.lefthalf.filled.badge.checkmark"
         case .appManager: return "app.badge"
         case .diskAnalysis: return "externaldrive.fill"
+        case .recentlyCleaned: return "clock.arrow.circlepath"
         case .liveMonitoring: return "gauge"
         case .menuBarWidgets: return "square.grid.2x2"
         case .developerTools: return "hammer.fill"

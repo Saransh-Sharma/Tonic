@@ -61,30 +61,36 @@ struct DiskAnalysisView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            headerBar
-
-            Divider()
-
-            if isCheckingPermissions {
-                ProgressView("Checking permissions…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if !hasFullDiskAccess && !BuildCapabilities.current.requiresScopeAccess {
-                permissionRequiredView
-            } else {
-                tabBar
-
-                Divider()
+        TonicThemeProvider(world: .cleanupGreen) {
+            ZStack {
+                WorldCanvasBackground()
 
                 VStack(spacing: 0) {
-                    if isScanning {
-                        scanProgressPanel
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                        Divider()
-                    }
+                    headerBar
 
-                    contentView
+                    Divider()
+
+                    if isCheckingPermissions {
+                        ProgressView("Checking permissions…")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if !hasFullDiskAccess && !BuildCapabilities.current.requiresScopeAccess {
+                        permissionRequiredView
+                    } else {
+                        tabBar
+
+                        Divider()
+
+                        VStack(spacing: 0) {
+                            if isScanning {
+                                scanProgressPanel
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 10)
+                                Divider()
+                            }
+
+                            contentView
+                        }
+                    }
                 }
             }
         }
@@ -198,7 +204,9 @@ struct DiskAnalysisView: View {
             .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .atelierSurface(radius: AtelierLayout.radiusMd)
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
     }
 
     private var scanProgressPanel: some View {
@@ -388,8 +396,7 @@ struct DiskAnalysisView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .atelierSurface(radius: AtelierLayout.radiusMd)
 
                 HStack(spacing: 12) {
                     summaryCard(

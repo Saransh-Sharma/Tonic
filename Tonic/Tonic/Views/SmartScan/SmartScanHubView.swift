@@ -69,6 +69,11 @@ struct SmartScanHubView: View {
                             .transition(.opacity)
                         }
 
+                        if mode == .ready {
+                            ClutterDepthPicker()
+                                .transition(.opacity)
+                        }
+
                         // Scroll offset tracker (invisible)
                         if mode == .results {
                             GeometryReader { geo in
@@ -538,7 +543,6 @@ struct SmartScanHubView: View {
 
     private var appsSection: SmartScanPillarSectionModel {
         let allApps = applicationsItems
-        let updatesItems: [SmartCareItem] = []
         let unusedItems = allApps.filter { $0.title.lowercased().contains("unused") }
         let leftoversItems = allApps.filter { $0.title.lowercased().contains("orphaned") }
         let installationItems = allApps.filter {
@@ -549,7 +553,7 @@ struct SmartScanHubView: View {
         return SmartScanPillarSectionModel(
             pillar: .apps,
             title: "Apps",
-            subtitle: "Uninstall + Updates + Leftovers",
+            subtitle: "Uninstall + Leftovers + Labs",
             summary: "\(appsResultMetric) found",
             sectionActionTitle: "Manage My Applications",
             sectionReviewTarget: .section(.apps),
@@ -558,14 +562,14 @@ struct SmartScanHubView: View {
                 SmartScanBentoTileModel(
                     id: .appsUpdates,
                     size: .large,
-                    metricTitle: "\(updatesItems.count) Updates",
-                    title: "Application Updates Available",
-                    subtitle: "Update software to stay current with features and compatibility fixes.",
+                    metricTitle: "Labs",
+                    title: "App Updates Coming Soon",
+                    subtitle: "Update checks need a reliability pass before Tonic recommends changes to installed apps.",
                     iconSymbols: ["square.and.arrow.down.fill", "arrow.triangle.2.circlepath"],
                     reviewTarget: .tile(.appsUpdates),
                     actions: [
-                        .init(title: "Review", kind: .review),
-                        .init(title: "Update", kind: .update, enabled: hasRunnable(updatesItems) && executionActionsEnabled)
+                        .init(title: "Labs Preview", kind: .review, enabled: false),
+                        .init(title: "Update", kind: .update, enabled: false)
                     ]
                 ),
                 SmartScanBentoTileModel(
@@ -719,5 +723,45 @@ private struct ScrollOffsetPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+// MARK: - Clutter Depth Picker
+
+/// Quick vs Deep clutter-scan selector shown before a scan. Quick stays within the
+/// time budget; Deep raises the caps for more complete duplicate / large-file results.
+struct ClutterDepthPicker: View {
+    @AppStorage(TonicUserDefaultsKey.clutterScanDepth) private var depthRaw = "quick"
+
+    var body: some View {
+        HStack(spacing: TonicSpaceToken.two) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(TonicTextToken.secondary)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Scan depth")
+                    .font(TonicTypeToken.micro.weight(.semibold))
+                    .foregroundStyle(TonicTextToken.primary)
+                Text(depthRaw == "deep"
+                     ? "Deep · more complete, slower"
+                     : "Quick · biggest items first, within budget")
+                    .font(TonicTypeToken.micro)
+                    .foregroundStyle(TonicTextToken.tertiary)
+            }
+
+            Spacer()
+
+            Picker("Scan depth", selection: $depthRaw) {
+                Text("Quick").tag("quick")
+                Text("Deep").tag("deep")
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 160)
+        }
+        .padding(.horizontal, TonicSpaceToken.three)
+        .padding(.vertical, TonicSpaceToken.two)
+        .glassSurface(radius: TonicRadiusToken.m)
     }
 }
