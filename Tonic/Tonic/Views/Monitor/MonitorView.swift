@@ -172,25 +172,27 @@ struct MonitorView: View {
                 MonoLabel("Memory detail", color: TonicDS.Colors.onDarkMuted)
                 consoleRow("Usage", pct(mem) + "%", TonicDS.status(forFraction: mem))
 
-                // Used breakdown: app footprint · compressed · other, over total.
+                // Composition over total, using only fields the collector actually populates:
+                // used (app+wired) minus compressed · compressed · free.
                 let total = max(1, Double(data.memoryData.totalBytes))
-                let active = Double(data.memoryData.activeBytes ?? 0)
                 let compressed = Double(data.memoryData.compressedBytes)
                 let used = Double(data.memoryData.usedBytes)
-                let other = max(0, used - active - compressed)
+                let usedNonCompressed = max(0, used - compressed)
+                let free = Double(data.memoryData.freeBytes ?? UInt64(max(0, total - used)))
                 ConsoleBreakdownBar(segments: [
-                    .init(fraction: active / total, color: TonicDS.Colors.seriesAppMem),
-                    .init(fraction: other / total, color: TonicDS.Colors.seriesWired),
-                    .init(fraction: compressed / total, color: TonicDS.Colors.seriesCompressed)
+                    .init(fraction: usedNonCompressed / total, color: TonicDS.Colors.seriesAppMem),
+                    .init(fraction: compressed / total, color: TonicDS.Colors.seriesCompressed),
+                    .init(fraction: free / total, color: TonicDS.Colors.onDarkMuted)
                 ])
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Memory: \(bytes(UInt64(usedNonCompressed))) used, \(bytes(data.memoryData.compressedBytes)) compressed, \(bytes(UInt64(free))) free")
                 ConsoleLegend(items: [
-                    .init(label: "App", color: TonicDS.Colors.seriesAppMem),
-                    .init(label: "Wired", color: TonicDS.Colors.seriesWired),
-                    .init(label: "Compressed", color: TonicDS.Colors.seriesCompressed)
+                    .init(label: "Used", value: bytes(UInt64(usedNonCompressed)), color: TonicDS.Colors.seriesAppMem),
+                    .init(label: "Compressed", value: bytes(data.memoryData.compressedBytes), color: TonicDS.Colors.seriesCompressed),
+                    .init(label: "Free", value: bytes(UInt64(free)), color: TonicDS.Colors.onDarkMuted)
                 ])
 
-                consoleRow("Used", "\(bytes(data.memoryData.usedBytes)) / \(bytes(data.memoryData.totalBytes))", TonicDS.Colors.onDark)
-                consoleRow("Compressed", bytes(data.memoryData.compressedBytes), TonicDS.Colors.onDark)
+                consoleRow("Total", bytes(data.memoryData.totalBytes), TonicDS.Colors.onDark)
                 let swapTotal = data.memoryData.swapTotalBytes ?? 0
                 let swapFraction = swapTotal > 0 ? Double(data.memoryData.swapBytes) / Double(swapTotal) : 0
                 consoleRow("Swap", bytes(data.memoryData.swapBytes), TonicDS.status(forFraction: swapFraction))
@@ -355,11 +357,14 @@ struct MonitorView: View {
         return HStack(alignment: .center, spacing: TonicDS.Space.sm) {
             Text(label).tonicType(.body).foregroundStyle(TonicDS.Colors.onDarkMuted)
             ConsoleCoreBars(values: values, color: color)
+                .frame(maxWidth: 180)
             Spacer(minLength: TonicDS.Space.xs)
             Text("\(Int(avg))%").tonicType(.monoLabel).monospacedDigit()
                 .foregroundStyle(TonicDS.Colors.onDark)
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), average \(Int(avg)) percent, \(values.count) cores")
     }
 
     private func consoleSparkline(_ history: [Double], color: Color) -> some View {
@@ -417,16 +422,25 @@ private struct ConsoleCoreBars: View {
     let values: [Double] // 0...100
     let color: Color
     private let maxHeight: CGFloat = 24
+    private let spacing: CGFloat = 3
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            ForEach(Array(values.enumerated()), id: \.offset) { _, v in
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(color)
-                    .frame(width: 5, height: max(2, CGFloat(min(100, max(0, v)) / 100) * maxHeight))
+        // Width-aware: derive bar width from available space so a 16-core cluster never
+        // clips or wraps in a narrow console column.
+        GeometryReader { geo in
+            let n = max(1, values.count)
+            let raw = (geo.size.width - spacing * CGFloat(n - 1)) / CGFloat(n)
+            let barWidth = min(6, max(2, raw))
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(color)
+                        .frame(width: barWidth, height: max(2, CGFloat(min(100, max(0, v)) / 100) * maxHeight))
+                }
             }
+            .frame(width: geo.size.width, height: maxHeight, alignment: .bottomLeading)
         }
-        .frame(height: maxHeight, alignment: .bottom)
+        .frame(height: maxHeight)
         .accessibilityHidden(true)
     }
 }
@@ -456,12 +470,19 @@ private struct ConsoleBreakdownBar: View {
     }
 }
 
-/// Small legend for a breakdown bar — mono labels with a colored dot.
+/// Small legend for a breakdown bar — mono labels with a colored dot and optional value.
 private struct ConsoleLegend: View {
     struct Item: Identifiable {
         let id = UUID()
         let label: String
+        var value: String?
         let color: Color
+
+        init(label: String, value: String? = nil, color: Color) {
+            self.label = label
+            self.value = value
+            self.color = color
+        }
     }
     let items: [Item]
 
@@ -473,6 +494,11 @@ private struct ConsoleLegend: View {
                     Text(item.label.uppercased())
                         .tonicType(.monoLabel)
                         .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                    if let value = item.value {
+                        Text(value)
+                            .tonicType(.monoLabel).monospacedDigit()
+                            .foregroundStyle(TonicDS.Colors.onDark)
+                    }
                 }
             }
             Spacer(minLength: 0)
