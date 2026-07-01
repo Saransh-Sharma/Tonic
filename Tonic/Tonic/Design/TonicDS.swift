@@ -237,6 +237,12 @@ enum TonicDS {
         static let efficiencyCore = Colors.seriesEcore
         static let performanceCore = Colors.seriesPcore
         static let neutral = Colors.textMuted
+
+        // -- Chart area-fill opacity (data layer only) -------------------------
+        /// Top stop of a sparkline/area gradient.
+        static let areaOpacity: Double = 0.18
+        /// Bottom stop of a sparkline/area gradient (near-transparent).
+        static let areaSoftOpacity: Double = 0.04
     }
 
     // MARK: Bands

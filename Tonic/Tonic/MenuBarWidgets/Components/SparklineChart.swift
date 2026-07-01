@@ -40,13 +40,13 @@ public struct NetworkSparklineChart: View, Equatable {
 
     public init(
         data: [Double],
-        color: Color = .blue,
+        color: Color? = nil,
         height: CGFloat = 32,
         showArea: Bool = true,
         lineWidth: CGFloat = 1.5
     ) {
         self.data = data
-        self.color = color
+        self.color = color ?? TonicDS.Colors.statusInfo
         self.height = height
         self.showArea = showArea
         self.lineWidth = lineWidth
@@ -99,7 +99,8 @@ public struct NetworkSparklineChart: View, Equatable {
                 areaPath(from: pathPoints, height: effectiveHeight)
                     .fill(
                         LinearGradient(
-                            colors: [color.opacity(0.15), color.opacity(0.02)],
+                            colors: [color.opacity(TonicDS.Chart.areaOpacity),
+                                     color.opacity(TonicDS.Chart.areaSoftOpacity)],
                             startPoint: .top,
                             endPoint: .bottom
                         )

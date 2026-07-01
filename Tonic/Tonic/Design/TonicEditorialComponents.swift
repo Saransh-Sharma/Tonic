@@ -300,20 +300,30 @@ struct FilterPill: View {
     }
 }
 
-/// Oversized taxonomy chip — THE one place brand coral appears on an interactive
-/// control. Active inverts to coral fill; inactive is a coral outline on pale fill.
+/// Taxonomy chip — THE one place brand coral appears on an interactive control.
+/// Active inverts to coral fill; inactive is a coral outline on pale fill.
+///
+/// `.hero` is the oversized scan-taxonomy control; `.compact` fits a dense horizontal
+/// category row (e.g. the Apps manager) without a 28pt face dominating the list.
 struct CategoryFilterChip: View {
+    enum Size { case hero, compact }
+
     let title: String
     let isActive: Bool
+    var size: Size = .hero
     let action: () -> Void
+
+    private var role: TonicDS.TypeRole { size == .hero ? .cardHeading : .featureHeading }
+    private var hPad: CGFloat { size == .hero ? 14 : TonicDS.Space.sm }
+    private var vPad: CGFloat { size == .hero ? 8 : TonicDS.Space.xs }
 
     var body: some View {
         Button(action: action) {
             Text(title)
-                .tonicType(.cardHeading)
+                .tonicType(role)
                 .foregroundStyle(isActive ? TonicDS.Colors.onLight : TonicDS.Colors.accentCoral)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.horizontal, hPad)
+                .padding(.vertical, vPad)
                 .background {
                     let shape = RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
                     if isActive {
