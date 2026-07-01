@@ -67,15 +67,23 @@ struct CleanView: View {
         // canvas below it, so every tab reads as content within Clean (band → canvas → band).
         // featureHeading here, not sectionDisplay — the oversized voice belongs to the tab body.
         VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-            ModuleBand(band: .green) {
+            ModuleBand(band: .green, contentPadding: TonicDS.Space.lg) {
                 VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
                     MonoLabel("Clean", color: TonicDS.Colors.onDarkMuted)
-                    Text("Review before cleaning · Runs locally · Restore supported")
+                    Text(headerSubtitle)
                         .tonicType(.featureHeading)
                         .foregroundStyle(TonicDS.Colors.onDark)
                 }
             }
             TonicTabBar(tabs: CleanTab.allCases, selection: $tab) { $0.rawValue }
+        }
+    }
+
+    private var headerSubtitle: String {
+        switch tab {
+        case .smartScan: return "Review before cleaning · Runs locally · Restore supported"
+        case .storage: return "Explore recoverable storage by size"
+        case .history: return "Restore items from past cleanups"
         }
     }
 
@@ -391,7 +399,7 @@ struct CleanView: View {
                         Text("\(batch.recoverableEntries.count) recoverable")
                             .tonicType(.caption).foregroundStyle(TonicDS.Colors.textMuted)
                         Spacer()
-                        TextAction("Restore", color: TonicDS.Colors.linkBlue) { restore(batch) }
+                        TextAction("Restore", color: TonicDS.Colors.textPrimary) { restore(batch) }
                     }
                 }
             }

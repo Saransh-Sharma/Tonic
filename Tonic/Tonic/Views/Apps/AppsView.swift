@@ -74,7 +74,8 @@ struct AppsView: View {
                 ForEach(inventory.availableQuickFilters) { cat in
                     CategoryFilterChip(title: cat.rawValue,
                                        isActive: inventory.quickFilterCategory == cat,
-                                       size: .compact) {
+                                       size: .compact,
+                                       neutralWhenInactive: true) {
                         inventory.quickFilterCategory = cat
                         uninstallMessage = nil
                         uninstallNotice = nil
