@@ -311,23 +311,33 @@ struct CategoryFilterChip: View {
     let title: String
     let isActive: Bool
     var size: Size = .hero
+    /// When true, inactive chips render neutral (ink outline) so only the active chip
+    /// carries coral — keeps a dense filter row from becoming a full coral bar.
+    var neutralWhenInactive: Bool = false
     let action: () -> Void
 
     private var role: TonicDS.TypeRole { size == .hero ? .cardHeading : .featureHeading }
     private var hPad: CGFloat { size == .hero ? 14 : TonicDS.Space.sm }
     private var vPad: CGFloat { size == .hero ? 8 : TonicDS.Space.xs }
 
+    private var inactiveText: Color {
+        neutralWhenInactive ? TonicDS.Colors.textMuted : TonicDS.Colors.accentCoral
+    }
+
     var body: some View {
         Button(action: action) {
             Text(title)
                 .tonicType(role)
-                .foregroundStyle(isActive ? TonicDS.Colors.onLight : TonicDS.Colors.accentCoral)
+                .foregroundStyle(isActive ? TonicDS.Colors.onLight : inactiveText)
                 .padding(.horizontal, hPad)
                 .padding(.vertical, vPad)
                 .background {
                     let shape = RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
                     if isActive {
                         shape.fill(TonicDS.Colors.accentCoral)
+                    } else if neutralWhenInactive {
+                        shape.fill(Color.clear)
+                            .overlay(shape.strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
                     } else {
                         shape.fill(TonicDS.Colors.accentCoral.opacity(0.06))
                             .overlay(shape.strokeBorder(TonicDS.Colors.accentCoralSoft, lineWidth: 1))
@@ -516,11 +526,13 @@ struct MonitoringConsole<Content: View>: View {
 /// Full-bleed deep-green / navy section band — the hero surface for modules.
 struct ModuleBand<Content: View>: View {
     var band: TonicDS.Band = .green
+    /// Overrides the adaptive 24/48 hero padding — use for slimmer identity/utility bands.
+    var contentPadding: CGFloat? = nil
     @ViewBuilder var content: () -> Content
     @Environment(\.tonicLayoutWidth) private var layoutWidth
     var body: some View {
         content()
-            .padding(TonicDS.Layout.isCompact(layoutWidth) ? TonicDS.Space.lg : TonicDS.Space.xxxl)
+            .padding(contentPadding ?? (TonicDS.Layout.isCompact(layoutWidth) ? TonicDS.Space.lg : TonicDS.Space.xxxl))
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TonicDS.bandFill(band),
                         in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
