@@ -29,10 +29,8 @@ struct HomeView: View {
                     .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
                 identity
                     .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
-                actionBand
-                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
                 needsAttention
-                    .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
                 liveBento
             }
             .frame(maxWidth: TonicDS.Layout.maxContentWidth)
@@ -52,70 +50,51 @@ struct HomeView: View {
 
     // MARK: - Hero
 
+    // Per spec §Layout the dashboard is hero → identity → bento on canvas; the hero
+    // carries the single primary action (no module band on the dashboard).
     private var hero: some View {
-        VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
-            Text(heroTitle)
-                .tonicType(.heroDisplay)
-                .foregroundStyle(TonicDS.Colors.textPrimary)
-                // Numeric roll only when the headline is a measured value; plain
-                // phrase changes ("All clear." ↔ "Ready when you are") just cross-fade.
-                .contentTransition(hasRecoverable ? .numericText() : .opacity)
-                .animation(reduceMotion ? nil : TonicDS.Motion.present, value: heroTitle)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(heroSubtitle)
-                .tonicType(.bodyLarge)
-                .foregroundStyle(TonicDS.Colors.textMuted)
-            if let scanned = lastScannedText {
-                MonoLabel(scanned)
-            }
-        }
-    }
-
-    // MARK: - Action band
-    //
-    // The single deep-green module moment on Home: the hero declares state on canvas,
-    // this band owns the decision. Alternating canvas ↔ band gives the page its rhythm.
-
-    private var actionBand: some View {
-        ModuleBand(band: .green) {
-            VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
-                VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
-                    MonoLabel("Smart Scan", color: TonicDS.Colors.onDarkMuted)
-                    Text(bandPrompt)
-                        .tonicType(.featureHeading)
-                        .foregroundStyle(TonicDS.Colors.onDark)
-                }
-
-                bandActions
-
-                if scanManager.isScanning {
-                    TonicProgressBar(fraction: scanManager.scanProgress, color: TonicDS.Colors.onDark)
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+                Text(heroTitle)
+                    .tonicType(.heroDisplay)
+                    .foregroundStyle(TonicDS.Colors.textPrimary)
+                    // Numeric roll only when the headline is a measured value; plain
+                    // phrase changes ("All clear." ↔ "Ready when you are") just cross-fade.
+                    .contentTransition(hasRecoverable ? .numericText() : .opacity)
+                    .animation(reduceMotion ? nil : TonicDS.Motion.present, value: heroTitle)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(heroSubtitle)
+                    .tonicType(.bodyLarge)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
+                if let scanned = lastScannedText {
+                    MonoLabel(scanned)
                 }
             }
-        }
-    }
 
-    private var bandPrompt: String {
-        if scanManager.isScanning { return "Scanning your system…" }
-        if hasRecoverable { return "Recover space flagged by your last scan." }
-        return "Check space, performance, and apps in one pass."
+            heroActions
+
+            if scanManager.isScanning {
+                TonicProgressBar(fraction: scanManager.scanProgress, color: TonicDS.Colors.ink)
+                    .frame(maxWidth: 320)
+            }
+        }
     }
 
     @ViewBuilder
-    private var bandActions: some View {
+    private var heroActions: some View {
         HStack(spacing: TonicDS.Space.md) {
             if scanManager.isScanning {
-                PrimaryPill("Stop", systemImage: "stop.fill", onDark: true) { scanManager.stopSmartScan() }
+                PrimaryPill("Stop", systemImage: "stop.fill") { scanManager.stopSmartScan() }
             } else if hasRecoverable {
                 // Decision surface: lead with recovery, scan becomes the companion.
                 PrimaryPill("Review \(Self.formatBytes(scanManager.lastReclaimableBytes ?? 0))",
-                            systemImage: "arrow.up.bin", onDark: true) {
+                            systemImage: "arrow.up.bin") {
                     selectedDestination = .systemCleanup
                 }
-                TextAction("Rescan", color: TonicDS.Colors.onDark) { scanManager.startSmartScan() }
+                TextAction("Rescan") { scanManager.startSmartScan() }
             } else {
-                PrimaryPill("Run Smart Scan", systemImage: "sparkles", onDark: true) { scanManager.startSmartScan() }
-                TextAction("What gets scanned?", color: TonicDS.Colors.onDark) { selectedDestination = .systemCleanup }
+                PrimaryPill("Run Smart Scan", systemImage: "sparkles") { scanManager.startSmartScan() }
+                TextAction("What gets scanned?") { selectedDestination = .systemCleanup }
             }
         }
     }
@@ -251,11 +230,11 @@ struct HomeView: View {
     private var liveBento: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.md) {
             MonoLabel("Live")
-                .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
 
             if data.cpuHistory.isEmpty && data.memoryHistory.isEmpty && data.diskHistory.isEmpty {
                 liveSkeleton
-                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
             } else {
                 TonicBentoGrid(minTileWidth: 220) {
                     GaugeCard(
@@ -263,20 +242,20 @@ struct HomeView: View {
                         metricMode: .percent, history: data.cpuHistory,
                         onTap: { selectedDestination = .liveMonitoring }
                     )
-                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
                     GaugeCard(
                         label: "Memory", fraction: memFraction, displayValue: "",
                         metricMode: .percent, history: data.memoryHistory,
                         onTap: { selectedDestination = .liveMonitoring }
                     )
-                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
                     GaugeCard(
                         label: "Disk used", fraction: diskFraction, displayValue: "",
                         metricMode: .percent, supportingText: "\(diskFreeString) free",
                         history: data.diskHistory,
                         onTap: { selectedDestination = .liveMonitoring }
                     )
-                    .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
                 }
             }
         }
