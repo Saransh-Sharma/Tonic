@@ -771,12 +771,7 @@ public final class WidgetDataManager {
 
     // MARK: - History Constants
 
-    // Performance optimization: Disable debug logging in release builds
-    #if DEBUG
-    private let isDebugLoggingEnabled = true
-    #else
-    private let isDebugLoggingEnabled = false
-    #endif
+    private let isDebugLoggingEnabled = UserDefaults.standard.bool(forKey: "WidgetDataManagerDebugLogging")
 
     private func logToFile(_ message: String) {
         guard isDebugLoggingEnabled else { return }
@@ -909,6 +904,9 @@ public final class WidgetDataManager {
     // MARK: - Monitoring State
 
     public private(set) var isMonitoring = false
+    public private(set) var hasLiveMetricSample = false
+    public private(set) var lastLiveSampleAt: Date?
+    public private(set) var lastMonitoringStartAt: Date?
 
     // MARK: - Private Properties
 
@@ -925,6 +923,7 @@ public final class WidgetDataManager {
     }
 
     private var readerTimers: [String: DispatchSourceTimer] = [:]
+    private let requiredLiveReaderIDs: Set<String> = ["CPU.load", "RAM.load", "Disk.load", "Net.load"]
     private var popupVisibleModules: Set<WidgetType> = []
     private var lastNetworkStats: (upload: UInt64, download: UInt64, timestamp: Date)?
     private var lastDiskReadBytes: UInt64 = 0
@@ -935,10 +934,22 @@ public final class WidgetDataManager {
     private let diskStatsLock = NSLock()
 
     // CPU tracking for delta calculation
-    private var previousCPUInfo: processor_info_array_t?
-    private var previousNumCpuInfo: mach_msg_type_number_t = 0
-    private var previousNumCPUs: UInt32 = 0
+    private var previousCPUSnapshot: CPUCounterSnapshot?
     private let cpuLock = NSLock()
+    private var cachedCPUCoreConfig: (eCoreCount: Int, pCoreCount: Int)?
+    private var lastCPUCoreConfigFetch: Date?
+    private var cachedCPUFrequency: (Double?, Double?, Double?)?
+    private var lastCPUFrequencyFetch: Date?
+    private var cachedCPUTemperature: Double?
+    private var lastCPUTemperatureFetch: Date?
+    private var cachedThermalLimit: Bool?
+    private var cachedCPUSpeedLimits: (schedulerLimit: Double?, speedLimit: Double?)?
+    private var lastCPUThermalFetch: Date?
+    private var cachedAverageLoad: [Double]?
+    private var cachedUptime: TimeInterval = 0
+    private var lastCPULoadFetch: Date?
+
+    private var preferredModuleIntervals: [WidgetType: TimeInterval] = [:]
 
     // Process list caching (to avoid frequent process spawning)
     private var cachedTopProcesses: [AppResourceUsage]?
@@ -955,6 +966,8 @@ public final class WidgetDataManager {
     private let publicIPCacheInterval: TimeInterval = 300  // 5 minutes
     private let connectivityCheckInterval: TimeInterval = 30  // 30 seconds
     private var cachedConnectivity: ConnectivityInfo?
+    private let connectivityQueue = DispatchQueue(label: "com.tonic.widgetdata.connectivity", qos: .utility)
+    private var connectivityRefreshInFlight = false
     private var cachedDNSServers: [String] = []
     private var lastDNSFetch: Date?
     private let dnsCacheInterval: TimeInterval = 60  // 1 minute
@@ -984,12 +997,22 @@ public final class WidgetDataManager {
             name: .resetTotalNetworkUsage,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWidgetConfigurationDidUpdate),
+            name: .widgetConfigurationDidUpdate,
+            object: nil
+        )
         startNetworkPathMonitor()
     }
 
     /// Handle reset total network usage notification
     @objc private func handleResetTotalNetworkUsage() {
         resetTotalNetworkUsage()
+    }
+
+    @objc private func handleWidgetConfigurationDidUpdate() {
+        applyWidgetSamplingPreferences()
     }
 
     deinit {
@@ -1003,12 +1026,15 @@ public final class WidgetDataManager {
 
     /// Start monitoring system data
     public func startMonitoring() {
-        guard !isMonitoring else {
-            logger.warning("Already monitoring, skipping startMonitoring")
-            logToFile("Already monitoring, skipping startMonitoring")
+        if isMonitoring {
+            logger.warning("Already monitoring, validating live reader health")
+            logToFile("Already monitoring, validating live reader health")
+            ensureLiveMonitoring(reason: "startMonitoring existing session")
             return
         }
         isMonitoring = true
+        lastMonitoringStartAt = Date()
+        applyWidgetSamplingPreferences(restartIfNeeded: false)
         logger.info("🔵 Starting parity reader monitoring")
         logToFile("🔵 STARTING PARITY READER MONITORING")
         restartReaderTimers()
@@ -1023,9 +1049,50 @@ public final class WidgetDataManager {
         popupVisibleModules.removeAll()
     }
 
+    /// Ensure the live monitor has active required readers and recent samples.
+    public func ensureLiveMonitoring(reason: String = "unspecified") {
+        guard isMonitoring else {
+            logger.info("Ensuring live monitoring by starting stopped monitor: \(reason)")
+            logToFile("Ensuring live monitoring by starting stopped monitor: \(reason)")
+            startMonitoring()
+            return
+        }
+
+        applyWidgetSamplingPreferences(restartIfNeeded: false)
+
+        let activeReaderIDs = Set(readerTimers.keys)
+        let missingRequiredReaders = !requiredLiveReaderIDs.isSubset(of: activeReaderIDs)
+        let staleSample = isLiveSampleStale()
+        let hasNoSample = !hasLiveMetricSample
+
+        guard missingRequiredReaders || staleSample || hasNoSample else { return }
+
+        logger.warning("Repairing live monitoring, reason: \(reason), missingRequiredReaders: \(missingRequiredReaders), staleSample: \(staleSample), hasNoSample: \(hasNoSample)")
+        logToFile("Repairing live monitoring: \(reason), missingRequiredReaders=\(missingRequiredReaders), staleSample=\(staleSample), hasNoSample=\(hasNoSample)")
+
+        if missingRequiredReaders || staleSample {
+            restartReaderTimers()
+        }
+        triggerImmediateReaderPass()
+    }
+
     /// Update the monitoring interval based on preferences
     public func updateInterval() {
         if isMonitoring {
+            restartReaderTimers()
+        }
+    }
+
+    public func applyWidgetSamplingPreferences(restartIfNeeded: Bool = true) {
+        var intervals: [WidgetType: TimeInterval] = [:]
+        for type in WidgetType.allCases {
+            if let interval = WidgetPreferences.shared.config(for: type)?.refreshInterval.timeInterval {
+                intervals[type] = interval
+            }
+        }
+        preferredModuleIntervals = intervals
+
+        if restartIfNeeded, isMonitoring {
             restartReaderTimers()
         }
     }
@@ -1066,10 +1133,10 @@ public final class WidgetDataManager {
 
             MonitoringReader(id: "Disk.load", module: .disk, intervalKey: "Disk_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateDiskData() },
             MonitoringReader(id: "Net.load", module: .network, intervalKey: "Net_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateNetworkData() },
-            MonitoringReader(id: "GPU.load", module: .gpu, intervalKey: "GPU_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateGPUData() },
-            MonitoringReader(id: "Battery.load", module: .battery, intervalKey: "Battery_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateBatteryData() },
-            MonitoringReader(id: "Sensors.load", module: .sensors, intervalKey: "Sensors_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateSensorsData() },
-            MonitoringReader(id: "Bluetooth.load", module: .bluetooth, intervalKey: "Bluetooth_updateInterval", defaultInterval: bluetoothUpdateInterval, popupOnly: false) { $0.updateBluetoothData() }
+            MonitoringReader(id: "GPU.load", module: .gpu, intervalKey: "GPU_updateInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateGPUData() },
+            MonitoringReader(id: "Battery.load", module: .battery, intervalKey: "Battery_updateInterval", defaultInterval: 2.0, popupOnly: true) { $0.updateBatteryData() },
+            MonitoringReader(id: "Sensors.load", module: .sensors, intervalKey: "Sensors_updateInterval", defaultInterval: 2.0, popupOnly: true) { $0.updateSensorsData() },
+            MonitoringReader(id: "Bluetooth.load", module: .bluetooth, intervalKey: "Bluetooth_updateInterval", defaultInterval: bluetoothUpdateInterval, popupOnly: true) { $0.updateBluetoothData() }
         ]
     }
 
@@ -1107,6 +1174,10 @@ public final class WidgetDataManager {
     }
 
     private func moduleInterval(reader: MonitoringReader) -> TimeInterval {
+        if let preferred = preferredModuleIntervals[reader.module], preferred >= 0.5 {
+            return preferred
+        }
+
         let stored = UserDefaults.standard.double(forKey: reader.intervalKey)
         if stored >= 0.5 {
             return stored
@@ -1133,33 +1204,48 @@ public final class WidgetDataManager {
         .milliseconds(max(250, Int(seconds * 1000)))
     }
 
+    private func isLiveSampleStale(now: Date = Date()) -> Bool {
+        let threshold = maxRequiredLiveReaderInterval() * 2
+        if let lastLiveSampleAt {
+            return now.timeIntervalSince(lastLiveSampleAt) > threshold
+        }
+        if let lastMonitoringStartAt {
+            return now.timeIntervalSince(lastMonitoringStartAt) > threshold
+        }
+        return true
+    }
+
+    private func maxRequiredLiveReaderInterval() -> TimeInterval {
+        let requiredReaders = monitoringReaders.filter { requiredLiveReaderIDs.contains($0.id) }
+        let maxInterval = requiredReaders
+            .map { moduleInterval(reader: $0) }
+            .max() ?? 1.0
+        return max(1.0, maxInterval)
+    }
+
+    private func markLiveMetricSampleReceived(at date: Date = Date()) {
+        hasLiveMetricSample = true
+        lastLiveSampleAt = date
+    }
+
     // MARK: - CPU Monitoring
 
     private func updateCPUData() {
-        // Fetch data on background thread
-        let usage = getCPUUsage()
-        let perCore = getPerCoreCPUUsage()
+        let usageSnapshot = getCPUUsageSnapshot()
+        let perCore = usageSnapshot.perCoreUsage
 
         // Get E/P core usage distribution (Apple Silicon only)
         let (eCores, pCores) = getEPCores(from: perCore)
 
-        // Get enhanced CPU data
-        let (frequency, eCoreFreq, pCoreFreq) = getCPUFrequency()
-        let temperature = getCPUTemperature()
-        let thermalLimit = getThermalLimit()
-        let averageLoad = getAverageLoad()
-
-        // Get System/User/Idle split
-        let (systemUsage, userUsage, idleUsage) = getCPUUsageSplit()
-
-        // Get system uptime
-        let uptime = getSystemUptime()
-
-        // Get CPU speed limits from pmset
-        let (schedulerLimit, speedLimit) = getCPUSpeedLimits()
+        let (frequency, eCoreFreq, pCoreFreq) = getCachedCPUFrequency()
+        let temperature = getCachedCPUTemperature()
+        let thermalLimit = cachedThermalLimit
+        let averageLoad = getCachedAverageLoad()
+        let uptime = getCachedSystemUptime()
+        let (schedulerLimit, speedLimit) = cachedCPUSpeedLimits ?? (nil, nil)
 
         let newCPUData = CPUData(
-            totalUsage: usage,
+            totalUsage: usageSnapshot.totalUsage,
             perCoreUsage: perCore,
             eCoreUsage: eCores,
             pCoreUsage: pCores,
@@ -1169,9 +1255,9 @@ public final class WidgetDataManager {
             temperature: temperature,
             thermalLimit: thermalLimit,
             averageLoad: averageLoad,
-            systemUsage: systemUsage,
-            userUsage: userUsage,
-            idleUsage: idleUsage,
+            systemUsage: usageSnapshot.systemUsage,
+            userUsage: usageSnapshot.userUsage,
+            idleUsage: usageSnapshot.idleUsage,
             uptime: uptime,
             schedulerLimit: schedulerLimit,
             speedLimit: speedLimit
@@ -1182,81 +1268,35 @@ public final class WidgetDataManager {
             guard let self = self else { return }
             self.cpuData = newCPUData
             // Performance optimization: Use circular buffer for O(1) history add
-            self.cpuCircularBuffer.add(usage)
+            self.cpuCircularBuffer.add(usageSnapshot.totalUsage)
             self.cpuHistory = self.cpuCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Check notification thresholds
-            NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usage)
+            NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usageSnapshot.totalUsage)
         }
 
         if isDebugLoggingEnabled {
-            logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
-            logToFile("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
+            logger.debug("🔵 CPU updated: \(Int(usageSnapshot.totalUsage))% (\(perCore.count) cores)")
+            logToFile("🔵 CPU updated: \(Int(usageSnapshot.totalUsage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
         }
     }
 
-    private func getCPUUsage() -> Double {
-        var _: UInt32 = 0
-        var numCpuInfo: mach_msg_type_number_t = 0
-        var cpuInfo: processor_info_array_t?
-        var numTotalCpu: UInt32 = 0
-
-        let result = host_processor_info(
-            mach_host_self(),
-            PROCESSOR_CPU_LOAD_INFO,
-            &numTotalCpu,
-            &cpuInfo,
-            &numCpuInfo
-        )
-
-        guard result == KERN_SUCCESS else { return 0 }
+    private func getCPUUsageSnapshot() -> CPUUsageSnapshot {
+        guard let current = readCPUCounterSnapshot() else {
+            return .zero(coreCount: previousCPUSnapshot?.cores.count ?? 0)
+        }
 
         cpuLock.lock()
         defer { cpuLock.unlock() }
 
-        var usage = 0.0
-
-        if let prevInfo = previousCPUInfo, previousNumCPUs > 0 {
-            let prevUser = prevInfo[Int(CPU_STATE_USER)]
-            let prevSystem = prevInfo[Int(CPU_STATE_SYSTEM)]
-            let prevIdle = prevInfo[Int(CPU_STATE_IDLE)]
-            let prevNice = prevInfo[Int(CPU_STATE_NICE)]
-
-            let currentUser = cpuInfo?[Int(CPU_STATE_USER)] ?? 0
-            let currentSystem = cpuInfo?[Int(CPU_STATE_SYSTEM)] ?? 0
-            let currentIdle = cpuInfo?[Int(CPU_STATE_IDLE)] ?? 0
-            let currentNice = cpuInfo?[Int(CPU_STATE_NICE)] ?? 0
-
-            let prevTotal = prevUser + prevSystem + prevIdle + prevNice
-            let currentTotal = currentUser + currentSystem + currentIdle + currentNice
-
-            let diffTotal = currentTotal - prevTotal
-            let diffIdle = currentIdle - prevIdle
-
-            if diffTotal > 0 {
-                usage = (1.0 - Double(diffIdle) / Double(diffTotal)) * 100.0
-            }
-        }
-
-        // Store current for next iteration
-        if let prevInfo = previousCPUInfo {
-            vm_deallocate(
-                mach_task_self_,
-                vm_address_t(UInt(bitPattern: prevInfo)),
-                vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<integer_t>.size)
-            )
-        }
-
-        previousCPUInfo = cpuInfo
-        previousNumCpuInfo = numCpuInfo
-        previousNumCPUs = numTotalCpu
-
-        return max(0, min(100, usage))
+        let usage = ResourceMetricCalculators.cpuUsage(previous: previousCPUSnapshot, current: current)
+        previousCPUSnapshot = current
+        return usage
     }
 
-    private func getPerCoreCPUUsage() -> [Double] {
-        var coreUsages: [Double] = []
-        var _: UInt32 = 0
+    private func readCPUCounterSnapshot() -> CPUCounterSnapshot? {
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -1270,24 +1310,30 @@ public final class WidgetDataManager {
         )
 
         guard result == KERN_SUCCESS, let info = cpuInfo else {
-            return []
+            return nil
+        }
+        defer {
+            vm_deallocate(
+                mach_task_self_,
+                vm_address_t(UInt(bitPattern: info)),
+                vm_size_t(Int(numCpuInfo) * MemoryLayout<integer_t>.size)
+            )
         }
 
-        let CPU_STATE_MAX = 4
+        let cpuStateCount = 4
+        var cores: [CPUCounterSnapshot.Core] = []
+        cores.reserveCapacity(Int(numTotalCpu))
         for i in 0..<Int(numTotalCpu) {
-            let base = i * Int(CPU_STATE_MAX)
-
-            let user = UInt32(info[base + Int(CPU_STATE_USER)])
-            let system = UInt32(info[base + Int(CPU_STATE_SYSTEM)])
-            let idle = UInt32(info[base + Int(CPU_STATE_IDLE)])
-            let nice = UInt32(info[base + Int(CPU_STATE_NICE)])
-
-            let total = user + system + idle + nice
-            let usage = total > 0 ? Double(user + system) / Double(total) * 100.0 : 0.0
-            coreUsages.append(max(0, min(100, usage)))
+            let base = i * cpuStateCount
+            cores.append(CPUCounterSnapshot.Core(
+                user: UInt64(info[base + Int(CPU_STATE_USER)]),
+                system: UInt64(info[base + Int(CPU_STATE_SYSTEM)]),
+                idle: UInt64(info[base + Int(CPU_STATE_IDLE)]),
+                nice: UInt64(info[base + Int(CPU_STATE_NICE)])
+            ))
         }
 
-        return coreUsages
+        return CPUCounterSnapshot(cores: cores)
     }
 
     // MARK: - Enhanced CPU Readers
@@ -1334,7 +1380,7 @@ public final class WidgetDataManager {
     /// Split per-core usage into E and P core arrays
     private func getEPCores(from perCoreUsage: [Double]) -> (eCores: [Double]?, pCores: [Double]?) {
         #if arch(arm64)
-        guard let config = getCPUCoreConfig() else {
+        guard let config = getCachedCPUCoreConfig() else {
             return (nil, nil)
         }
 
@@ -1351,6 +1397,83 @@ public final class WidgetDataManager {
         #else
         return (nil, nil)
         #endif
+    }
+
+    private func getCachedCPUCoreConfig() -> (eCoreCount: Int, pCoreCount: Int)? {
+        if let lastFetch = lastCPUCoreConfigFetch,
+           Date().timeIntervalSince(lastFetch) < 30 {
+            return cachedCPUCoreConfig
+        }
+
+        cachedCPUCoreConfig = getCPUCoreConfig()
+        lastCPUCoreConfigFetch = Date()
+        return cachedCPUCoreConfig
+    }
+
+    private func getCachedCPUFrequency() -> (Double?, Double?, Double?) {
+        if let lastFetch = lastCPUFrequencyFetch,
+           Date().timeIntervalSince(lastFetch) < 30,
+           let cached = cachedCPUFrequency {
+            return cached
+        }
+
+        let value = getCPUFrequency()
+        cachedCPUFrequency = value
+        lastCPUFrequencyFetch = Date()
+        return value
+    }
+
+    private func getCachedCPUTemperature() -> Double? {
+        if let lastFetch = lastCPUTemperatureFetch,
+           Date().timeIntervalSince(lastFetch) < 2 {
+            return cachedCPUTemperature
+        }
+
+        cachedCPUTemperature = getThermalStateTemperature()
+        lastCPUTemperatureFetch = Date()
+        return cachedCPUTemperature
+    }
+
+    private func getCachedThermalLimit() -> Bool? {
+        refreshCPUThermalCacheIfNeeded()
+        return cachedThermalLimit
+    }
+
+    private func getCachedCPUSpeedLimits() -> (schedulerLimit: Double?, speedLimit: Double?) {
+        refreshCPUThermalCacheIfNeeded()
+        return cachedCPUSpeedLimits ?? (nil, nil)
+    }
+
+    private func refreshCPUThermalCacheIfNeeded() {
+        if let lastFetch = lastCPUThermalFetch,
+           Date().timeIntervalSince(lastFetch) < 10 {
+            return
+        }
+
+        cachedThermalLimit = getThermalLimit()
+        cachedCPUSpeedLimits = getCPUSpeedLimits()
+        lastCPUThermalFetch = Date()
+    }
+
+    private func getCachedAverageLoad() -> [Double]? {
+        refreshCPULoadCacheIfNeeded()
+        return cachedAverageLoad
+    }
+
+    private func getCachedSystemUptime() -> TimeInterval {
+        refreshCPULoadCacheIfNeeded()
+        return cachedUptime
+    }
+
+    private func refreshCPULoadCacheIfNeeded() {
+        if let lastFetch = lastCPULoadFetch,
+           Date().timeIntervalSince(lastFetch) < 5 {
+            return
+        }
+
+        cachedAverageLoad = getAverageLoad()
+        cachedUptime = getSystemUptime()
+        lastCPULoadFetch = Date()
     }
 
     /// Get current CPU frequency in GHz
@@ -1554,87 +1677,10 @@ public final class WidgetDataManager {
 
     /// Get average load (1, 5, 15 minute averages)
     private func getAverageLoad() -> [Double]? {
-        let task = Process()
-        task.launchPath = "/usr/bin/uptime"
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8),
-                  let line = output.split(separator: "\n").first else {
-                return nil
-            }
-
-            // Parse load averages from uptime output
-            // Format: "load averages: 0.5 0.3 0.1" or "load average: 0.50, 0.30, 0.10"
-            if let range = line.range(of: "load average")?.upperBound ?? line.range(of: "load averages")?.upperBound {
-                let loadString = String(line[range...])
-                let components = loadString.components(separatedBy: CharacterSet(charactersIn: " ,"))
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-                    .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
-
-                if components.count >= 3 {
-                    return Array(components.prefix(3))
-                }
-            }
-        } catch {
-            logger.warning("Failed to get average load: \(error.localizedDescription)")
-        }
-
-        return nil
-    }
-
-    /// Get CPU usage split (System, User, Idle percentages)
-    private func getCPUUsageSplit() -> (system: Double, user: Double, idle: Double) {
-        // Use host_processor_info to get CPU load info
-        var numCpuInfo: mach_msg_type_number_t = 0
-        var cpuInfo: processor_info_array_t?
-        var numTotalCpu: UInt32 = 0
-
-        let result = host_processor_info(
-            mach_host_self(),
-            PROCESSOR_CPU_LOAD_INFO,
-            &numTotalCpu,
-            &cpuInfo,
-            &numCpuInfo
-        )
-
-        guard result == KERN_SUCCESS, let info = cpuInfo else {
-            return (0, 0, 100)
-        }
-
-        // Sum up all the ticks from all cores
-        var totalUserTicks: UInt64 = 0
-        var totalSystemTicks: UInt64 = 0
-        var totalIdleTicks: UInt64 = 0
-        var totalNiceTicks: UInt64 = 0
-
-        let CPU_STATE_MAX = 4
-        for i in 0..<Int(numTotalCpu) {
-            let base = i * Int(CPU_STATE_MAX)
-            totalUserTicks += UInt64(info[base + Int(CPU_STATE_USER)])
-            totalSystemTicks += UInt64(info[base + Int(CPU_STATE_SYSTEM)])
-            totalIdleTicks += UInt64(info[base + Int(CPU_STATE_IDLE)])
-            totalNiceTicks += UInt64(info[base + Int(CPU_STATE_NICE)])
-        }
-
-        let totalTicks = totalUserTicks + totalSystemTicks + totalIdleTicks + totalNiceTicks
-
-        guard totalTicks > 0 else {
-            return (0, 0, 100)
-        }
-
-        let user = (Double(totalUserTicks + totalNiceTicks) / Double(totalTicks)) * 100.0
-        let system = (Double(totalSystemTicks) / Double(totalTicks)) * 100.0
-        let idle = (Double(totalIdleTicks) / Double(totalTicks)) * 100.0
-
-        return (system, user, idle)
+        var loads = [Double](repeating: 0, count: 3)
+        let count = getloadavg(&loads, Int32(loads.count))
+        guard count == Int32(loads.count) else { return nil }
+        return loads
     }
 
     /// Get system uptime in seconds (time since boot)
@@ -1706,8 +1752,8 @@ public final class WidgetDataManager {
         // Calculate pressure value on 0-100 scale using kernel level
         let pressureValue = getMemoryPressureValue(level: pressureLevel, freePercentage: freePercentage)
 
-        // Get top memory processes (async - we'll use cached value)
-        let topProcesses = getTopMemoryProcesses()
+        // Keep live memory sampling cheap; process lists are popup/detail data.
+        let topProcesses = cachedTopProcesses
 
         let swapBytes = swapUsed ?? 0
 
@@ -1731,6 +1777,8 @@ public final class WidgetDataManager {
             // Performance optimization: Use circular buffer for O(1) history add
             self.memoryCircularBuffer.add(newMemoryData.usagePercentage)
             self.memoryHistory = self.memoryCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Check notification thresholds
             NotificationManager.shared.checkThreshold(widgetType: .memory, value: newMemoryData.usagePercentage)
@@ -2062,11 +2110,9 @@ public final class WidgetDataManager {
         // Get enhanced disk stats (IOPS, activity rates)
         let (readIOPS, writeIOPS, readBps, writeBps, readTime, writeTime) = getDiskIORates()
 
-        // Get SMART data for the boot volume (typically NVMe on modern Macs)
-        let bootVolumeSMART = getNVMeSMARTData()
-
-        // Get top disk I/O processes
-        let topDiskProcesses = getTopDiskProcesses()
+        // Keep live disk sampling cheap; SMART and per-process I/O are popup/detail data.
+        let bootVolumeSMART: NVMeSMARTData? = nil
+        let topDiskProcesses: [ProcessUsage]? = nil
 
         if let volumesURLs = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys) {
             for url in volumesURLs {
@@ -2126,14 +2172,13 @@ public final class WidgetDataManager {
                 self.diskCircularBuffer.add(primaryVolume.usagePercentage)
                 self.diskHistory = self.diskCircularBuffer.toArray()
 
-                // Track read/write rate history for PerDiskContainer charts
-                // Use MB/s for history tracking (normalized values)
-                let readMBps = (primaryVolume.readBytesPerSecond ?? 0) / (1024 * 1024)
-                let writeMBps = (primaryVolume.writeBytesPerSecond ?? 0) / (1024 * 1024)
-                self.diskReadCircularBuffer.add(readMBps)
-                self.diskWriteCircularBuffer.add(writeMBps)
+                // Track read/write rate history in bytes/sec; formatting belongs at the UI boundary.
+                self.diskReadCircularBuffer.add(primaryVolume.readBytesPerSecond ?? 0)
+                self.diskWriteCircularBuffer.add(primaryVolume.writeBytesPerSecond ?? 0)
                 self.diskReadHistory = self.diskReadCircularBuffer.toArray()
                 self.diskWriteHistory = self.diskWriteCircularBuffer.toArray()
+                self.markLiveMetricSampleReceived()
+                self.recordResourceHistorySample()
 
                 NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
             }
@@ -2578,20 +2623,21 @@ public final class WidgetDataManager {
 
         lastNetworkStats = (upload: stats.bytesOut, download: stats.bytesIn, timestamp: now)
 
-        // Get connection info
-        let connectionType = getConnectionType()
-        let ssid = getWiFiSSID()
-        let ipAddress = getLocalIPAddress()
+        let previousNetworkData = networkData
 
-        // Get enhanced network data (cached/throttled)
-        let wifiDetails = getWiFiDetails()
-        let publicIP = getPublicIP()
+        // Keep live network sampling to cheap byte counters. Wi-Fi metadata uses
+        // synchronous CoreWLAN XPC calls, so preserve cached values on this path.
+        let connectionType: ConnectionType = isConnected ? previousNetworkData.connectionType : .disconnected
+        let ssid = previousNetworkData.ssid
+        let ipAddress = previousNetworkData.ipAddress ?? getLocalIPAddress()
+        let wifiDetails = previousNetworkData.wifiDetails
+        let publicIP = previousNetworkData.publicIP
         let connectivity = getConnectivityInfo()
-        let topProcesses = getTopNetworkProcesses()
-        let interfaceName = getPrimaryInterfaceName()
-        let macAddress = interfaceName.flatMap { getMACAddress(for: $0) }
-        let linkSpeed = getLinkSpeedMbps(interfaceName: interfaceName)
-        let dnsServers = getDNSServers()
+        let topProcesses = cachedNetworkProcesses
+        let interfaceName = previousNetworkData.interfaceName
+        let macAddress = previousNetworkData.macAddress
+        let linkSpeed = previousNetworkData.linkSpeedMbps
+        let dnsServers = previousNetworkData.dnsServers
 
         let newNetworkData = NetworkData(
             uploadBytesPerSecond: max(0, uploadRate),
@@ -2616,10 +2662,12 @@ public final class WidgetDataManager {
             self.networkData = newNetworkData
 
             // Performance optimization: Use circular buffers for O(1) history add
-            self.networkUploadCircularBuffer.add(uploadRate / 1024) // KB/s
-            self.networkDownloadCircularBuffer.add(downloadRate / 1024)
+            self.networkUploadCircularBuffer.add(uploadRate)
+            self.networkDownloadCircularBuffer.add(downloadRate)
             self.networkUploadHistory = self.networkUploadCircularBuffer.toArray()
             self.networkDownloadHistory = self.networkDownloadCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Update cumulative totals (for Details section)
             self.totalUploadBytes += Int64(uploadDeltaBytes)
@@ -2638,8 +2686,11 @@ public final class WidgetDataManager {
     }
 
     private func getNetworkStats() -> NetworkStats {
-        var totalBytesIn: UInt64 = 0
-        var totalBytesOut: UInt64 = 0
+        var activeBytesIn: UInt64 = 0
+        var activeBytesOut: UInt64 = 0
+        var fallbackBytesIn: UInt64 = 0
+        var fallbackBytesOut: UInt64 = 0
+        let interfaceNames = interfaceNamesByIndex()
 
         // mib array: CTL_NET, PF_ROUTE, 0 (protocol), 0 (address family - all), NET_RT_IFLIST2, 0 (interface index - all)
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
@@ -2670,15 +2721,62 @@ public final class WidgetDataManager {
 
                 if Int32(ifm.ifm_type) == RTM_IFINFO2 {
                     // The if_data64 is embedded in if_msghdr2 as ifm_data
-                    totalBytesIn += ifm.ifm_data.ifi_ibytes
-                    totalBytesOut += ifm.ifm_data.ifi_obytes
+                    let name = interfaceNames[UInt32(ifm.ifm_index)]
+                    let isLoopback = (Int32(ifm.ifm_flags) & IFF_LOOPBACK) != 0
+                    let isUp = (Int32(ifm.ifm_flags) & IFF_UP) != 0
+                    let isVirtual = name.map(isVirtualNetworkInterface) ?? false
+
+                    if !isLoopback {
+                        fallbackBytesIn += ifm.ifm_data.ifi_ibytes
+                        fallbackBytesOut += ifm.ifm_data.ifi_obytes
+                    }
+
+                    if isUp && !isLoopback && !isVirtual {
+                        activeBytesIn += ifm.ifm_data.ifi_ibytes
+                        activeBytesOut += ifm.ifm_data.ifi_obytes
+                    }
                 }
 
                 offset += Int(ifm.ifm_msglen)
             }
         }
 
-        return NetworkStats(bytesIn: totalBytesIn, bytesOut: totalBytesOut)
+        if activeBytesIn > 0 || activeBytesOut > 0 {
+            return NetworkStats(bytesIn: activeBytesIn, bytesOut: activeBytesOut)
+        }
+        return NetworkStats(bytesIn: fallbackBytesIn, bytesOut: fallbackBytesOut)
+    }
+
+    private func interfaceNamesByIndex() -> [UInt32: String] {
+        var names: [UInt32: String] = [:]
+        var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrPtr) == 0, let firstAddr = ifaddrPtr else {
+            return names
+        }
+        defer { freeifaddrs(ifaddrPtr) }
+
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
+        while let current = ptr {
+            if let ifaName = current.pointee.ifa_name,
+               let addr = current.pointee.ifa_addr,
+               addr.pointee.sa_family == UInt8(AF_LINK) {
+                let name = String(cString: ifaName)
+                let sdl = UnsafeRawPointer(addr).assumingMemoryBound(to: sockaddr_dl.self).pointee
+                if sdl.sdl_index > 0 {
+                    names[UInt32(sdl.sdl_index)] = name
+                }
+            }
+            ptr = current.pointee.ifa_next
+        }
+        return names
+    }
+
+    private func isVirtualNetworkInterface(_ name: String) -> Bool {
+        let virtualPrefixes = [
+            "lo", "utun", "awdl", "llw", "bridge", "gif", "stf",
+            "p2p", "vmenet", "vmnet", "ipsec", "ap"
+        ]
+        return virtualPrefixes.contains { name.hasPrefix($0) }
     }
 
     private func getConnectionType() -> ConnectionType {
@@ -2902,6 +3000,8 @@ public final class WidgetDataManager {
             return "802.11ac"
         case .mode11ax:
             return "802.11ax"
+        case .mode11be:
+            return "802.11be"
         case .modeNone:
             return "Unknown"
         @unknown default:
@@ -3070,33 +3170,49 @@ public final class WidgetDataManager {
     private func getConnectivityInfo() -> ConnectivityInfo? {
         let now = Date()
 
-        // Only check connectivity every 30 seconds to avoid excessive pings
         if let lastCheck = lastConnectivityCheck,
            now.timeIntervalSince(lastCheck) < connectivityCheckInterval {
             return cachedConnectivity
         }
 
-        lastConnectivityCheck = now
-
-        // Perform ping test to 8.8.8.8 (Google DNS)
-        let pingResults = performPingTest(host: "8.8.8.8", count: 5)
-
-        guard let avgLatency = pingResults.average, !pingResults.latencies.isEmpty else {
-            let info = ConnectivityInfo(latency: 0, jitter: 0, isReachable: false)
-            cachedConnectivity = info
-            return info
-        }
-
-        // Calculate jitter (standard deviation of latencies)
-        let jitter = calculateJitter(latencies: pingResults.latencies)
-
-        let info = ConnectivityInfo(
-            latency: avgLatency,
-            jitter: jitter,
-            isReachable: pingResults.isReachable
+        scheduleConnectivityRefreshIfNeeded(startedAt: now)
+        return cachedConnectivity ?? ConnectivityInfo(
+            latency: 0,
+            jitter: 0,
+            isReachable: networkReachable ?? true,
+            timestamp: now
         )
-        cachedConnectivity = info
-        return info
+    }
+
+    private func scheduleConnectivityRefreshIfNeeded(startedAt now: Date) {
+        guard !connectivityRefreshInFlight else { return }
+        connectivityRefreshInFlight = true
+        lastConnectivityCheck = now
+        let fallbackReachable = networkReachable ?? false
+
+        connectivityQueue.async { [weak self] in
+            guard let self = self else { return }
+            let pingResults = Self.performPingTest(host: "8.8.8.8", count: 2)
+            let info: ConnectivityInfo
+            if let avgLatency = pingResults.average, !pingResults.latencies.isEmpty {
+                info = ConnectivityInfo(
+                    latency: avgLatency,
+                    jitter: Self.calculateJitter(latencies: pingResults.latencies),
+                    isReachable: pingResults.isReachable
+                )
+            } else {
+                info = ConnectivityInfo(
+                    latency: 0,
+                    jitter: 0,
+                    isReachable: fallbackReachable
+                )
+            }
+
+            Task { @MainActor [weak self] in
+                self?.cachedConnectivity = info
+                self?.connectivityRefreshInFlight = false
+            }
+        }
     }
 
     /// Get DNS server list using SystemConfiguration (cached)
@@ -3183,7 +3299,7 @@ public final class WidgetDataManager {
     }
 
     /// Perform ICMP ping test to a host
-    private func performPingTest(host: String, count: Int) -> PingResult {
+    nonisolated private static func performPingTest(host: String, count: Int) -> PingResult {
         var latencies: [Double] = []
 
         // Use ping command with timeout
@@ -3199,10 +3315,18 @@ public final class WidgetDataManager {
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = Pipe()
+        let completion = DispatchSemaphore(value: 0)
+        task.terminationHandler = { _ in
+            completion.signal()
+        }
 
         do {
             try task.run()
-            task.waitUntilExit()
+            let timeout: DispatchTime = .now() + .seconds(3)
+            if completion.wait(timeout: timeout) == .timedOut {
+                task.terminate()
+                return PingResult(latencies: [], isReachable: false, average: nil)
+            }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8) else {
@@ -3230,13 +3354,12 @@ public final class WidgetDataManager {
             return PingResult(latencies: latencies, isReachable: isReachable, average: average)
 
         } catch {
-            logger.warning("Ping test failed: \(error.localizedDescription)")
             return PingResult(latencies: [], isReachable: false, average: nil)
         }
     }
 
     /// Calculate jitter (standard deviation of latencies)
-    private func calculateJitter(latencies: [Double]) -> Double {
+    nonisolated private static func calculateJitter(latencies: [Double]) -> Double {
         guard latencies.count > 1 else { return 0 }
 
         let avg = latencies.reduce(0, +) / Double(latencies.count)
@@ -4422,6 +4545,43 @@ public final class WidgetDataManager {
         batteryHistory = batteryCircularBuffer.toArray()
         sensorsHistory = sensorsCircularBuffer.toArray()
         bluetoothHistory = bluetoothCircularBuffer.toArray()
+    }
+
+    #if DEBUG
+    var activeReaderIDsForTesting: Set<String> {
+        Set(readerTimers.keys)
+    }
+
+    func cancelReaderTimersForTesting(keepMonitoring: Bool = true) {
+        readerTimers.values.forEach { $0.cancel() }
+        readerTimers.removeAll()
+        isMonitoring = keepMonitoring
+    }
+
+    func setLastLiveSampleAtForTesting(_ date: Date?) {
+        lastLiveSampleAt = date
+        hasLiveMetricSample = date != nil
+    }
+
+    func markLiveMetricSampleReceivedForTesting(at date: Date = Date()) {
+        markLiveMetricSampleReceived(at: date)
+    }
+    #endif
+
+    private func recordResourceHistorySample() {
+        let primaryDisk = diskVolumes.first(where: { $0.isBootVolume }) ?? diskVolumes.first
+        let sample = ResourceMetricSample(
+            cpuPercent: cpuData.totalUsage,
+            memoryPercent: memoryData.usagePercentage,
+            memoryUsedBytes: memoryData.usedBytes,
+            memoryTotalBytes: memoryData.totalBytes,
+            networkUploadBytesPerSecond: networkData.uploadBytesPerSecond,
+            networkDownloadBytesPerSecond: networkData.downloadBytesPerSecond,
+            diskUsedPercent: primaryDisk?.usagePercentage ?? 0,
+            diskReadBytesPerSecond: primaryDisk?.readBytesPerSecond ?? 0,
+            diskWriteBytesPerSecond: primaryDisk?.writeBytesPerSecond ?? 0
+        )
+        WidgetHistoryStore.shared.record(sample)
     }
 
     /// Update top apps by CPU usage
