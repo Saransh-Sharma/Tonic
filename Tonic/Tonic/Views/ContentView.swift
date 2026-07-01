@@ -19,6 +19,8 @@ struct ContentView: View {
     @Binding var showCommandPalette: Bool
 
     @State private var permissionManager = PermissionManager.shared
+    @State private var appUpdater = AppUpdater.shared
+    @State private var dismissedBanners: Set<String> = []
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
     @StateObject private var smartCareSession = SmartCareSessionStore()
     @StateObject private var dashboardScanSession = SmartScanManager()
@@ -26,6 +28,42 @@ struct ContentView: View {
     var hasSeenOnboarding: Bool {
         get { hasSeenOnboardingValue }
         set { hasSeenOnboardingValue = newValue }
+    }
+
+    // MARK: - Global alert banner (spec §alert-banner)
+
+    private struct GlobalBanner {
+        let id: String
+        let message: String
+        let actionTitle: String
+        let action: () -> Void
+    }
+
+    /// Highest-priority global system state, or nil. Dismissible per session.
+    private var activeBanner: GlobalBanner? {
+        if !BuildCapabilities.current.requiresScopeAccess,
+           !permissionManager.hasFullDiskAccess,
+           !dismissedBanners.contains("fda") {
+            return GlobalBanner(
+                id: "fda",
+                message: "Full Disk Access required to scan and manage apps.",
+                actionTitle: "Grant"
+            ) {
+                missingPermissionFor = nil
+                showPermissionPrompt = true
+            }
+        }
+        if appUpdater.updateCount > 0, !dismissedBanners.contains("updates") {
+            let n = appUpdater.updateCount
+            return GlobalBanner(
+                id: "updates",
+                message: "\(n) app update\(n == 1 ? "" : "s") available.",
+                actionTitle: "Review"
+            ) {
+                selectedDestination = .appManager
+            }
+        }
+        return nil
     }
 
     var body: some View {
@@ -38,15 +76,28 @@ struct ContentView: View {
                 SidebarView(selectedDestination: $selectedDestination)
                     .id(featureFlagsRefreshID)
             } detail: {
-                DetailView(
-                    selectedDestination: $selectedDestination,
-                    onPermissionNeeded: { feature in
-                        missingPermissionFor = feature
-                        showPermissionPrompt = true
-                    },
-                    smartCareSession: smartCareSession,
-                    dashboardScanSession: dashboardScanSession
-                )
+                VStack(spacing: 0) {
+                    // Spec §alert-banner: thin near-black strip for global system states.
+                    if let banner = activeBanner {
+                        AlertBanner(
+                            message: banner.message,
+                            actionTitle: banner.actionTitle,
+                            onAction: banner.action,
+                            onDismiss: { dismissedBanners.insert(banner.id) }
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    DetailView(
+                        selectedDestination: $selectedDestination,
+                        onPermissionNeeded: { feature in
+                            missingPermissionFor = feature
+                            showPermissionPrompt = true
+                        },
+                        smartCareSession: smartCareSession,
+                        dashboardScanSession: dashboardScanSession
+                    )
+                }
+                .animation(TonicDS.Motion.present, value: activeBanner?.id)
             }
             .navigationTitle("Tonic")
             .frame(minWidth: 800, minHeight: 500)
