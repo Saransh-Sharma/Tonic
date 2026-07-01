@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct TabbedSettingsView: View {
     @State private var selection: Tab = .widgets
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum Tab: String, CaseIterable, Identifiable {
         case widgets = "Widgets"
@@ -25,14 +26,19 @@ public struct TabbedSettingsView: View {
             .padding(TonicDS.Space.md)
             TonicHairline()
 
-            switch selection {
-            case .widgets:
-                WidgetsPanelView()
-            case .modules:
-                ModulesSettingsContent()
-            case .popovers:
-                PopupSettingsView()
+            Group {
+                switch selection {
+                case .widgets:
+                    WidgetsPanelView()
+                case .modules:
+                    ModulesSettingsContent()
+                case .popovers:
+                    PopupSettingsView()
+                }
             }
+            .id(selection)
+            .transition(.opacity)
+            .animation(reduceMotion ? nil : TonicDS.Motion.present, value: selection)
         }
         .background(TonicDS.Colors.canvas)
     }

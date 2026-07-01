@@ -67,27 +67,21 @@ struct AppsView: View {
     // MARK: - Category chips
 
     private var categoryChips: some View {
-        ZStack(alignment: .trailing) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TonicDS.Space.xs) {
-                    ForEach(inventory.availableQuickFilters) { cat in
-                        FilterPill(title: cat.rawValue, isActive: inventory.quickFilterCategory == cat) {
-                            inventory.quickFilterCategory = cat
-                            uninstallMessage = nil
-                            uninstallNotice = nil
-                        }
-                        .accessibilityHint("Filter installed apps")
+        // The one sanctioned place brand coral rides an interactive control: the app
+        // taxonomy. Compact size keeps the 28pt hero face from dominating a dense row.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TonicDS.Space.sm) {
+                ForEach(inventory.availableQuickFilters) { cat in
+                    CategoryFilterChip(title: cat.rawValue,
+                                       isActive: inventory.quickFilterCategory == cat,
+                                       size: .compact) {
+                        inventory.quickFilterCategory = cat
+                        uninstallMessage = nil
+                        uninstallNotice = nil
                     }
+                    .accessibilityHint("Filter installed apps")
                 }
-                .padding(.trailing, TonicDS.Space.xl)
             }
-            LinearGradient(
-                colors: [TonicDS.Colors.canvas.opacity(0), TonicDS.Colors.canvas],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 28)
-            .allowsHitTesting(false)
         }
     }
 
@@ -151,14 +145,33 @@ struct AppsView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: TonicDS.Space.md) {
-            ProgressView(value: inventory.progress)
-                .progressViewStyle(.linear)
-                .tint(TonicDS.Colors.ink)
-                .frame(width: 240)
-            Text("Scanning applications…").tonicType(.caption).foregroundStyle(TonicDS.Colors.textMuted)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(0..<8, id: \.self) { _ in
+                    appRowSkeleton
+                    TonicHairline()
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel("Scanning applications")
+    }
+
+    private var appRowSkeleton: some View {
+        HStack(spacing: TonicDS.Space.md) {
+            RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
+                .fill(TonicDS.Colors.hairline).frame(width: 28, height: 28).skeleton()
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                    .fill(TonicDS.Colors.hairline).frame(width: 168, height: 12).skeleton()
+                RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                    .fill(TonicDS.Colors.hairline).frame(width: 104, height: 10).skeleton()
+            }
+            Spacer()
+            RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                .fill(TonicDS.Colors.hairline).frame(width: 52, height: 12).skeleton()
+        }
+        .padding(.horizontal, TonicDS.Space.md)
+        .frame(minHeight: TonicDS.Layout.minRowHeight)
     }
 
     private func appRow(_ app: AppMetadata) -> some View {

@@ -63,14 +63,17 @@ struct CleanView: View {
     // MARK: - Header
 
     private var header: some View {
+        // A compact deep-green identity band frames the whole module; the tab bar sits on
+        // canvas below it, so every tab reads as content within Clean (band → canvas → band).
+        // featureHeading here, not sectionDisplay — the oversized voice belongs to the tab body.
         VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-            VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
-                Text("Clean")
-                    .tonicType(.featureHeading)
-                    .foregroundStyle(TonicDS.Colors.textPrimary)
-                Text("Runs locally · Review before cleaning · Restore supported")
-                    .tonicType(.caption)
-                    .foregroundStyle(TonicDS.Colors.textMuted)
+            ModuleBand(band: .green) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+                    MonoLabel("Clean", color: TonicDS.Colors.onDarkMuted)
+                    Text("Review before cleaning · Runs locally · Restore supported")
+                        .tonicType(.featureHeading)
+                        .foregroundStyle(TonicDS.Colors.onDark)
+                }
             }
             TonicTabBar(tabs: CleanTab.allCases, selection: $tab) { $0.rawValue }
         }
@@ -237,9 +240,10 @@ struct CleanView: View {
 
     private var resultsCards: some View {
         TonicBentoGrid(minTileWidth: 260) {
-            ForEach(SmartCareDomain.allCases) { domain in
+            ForEach(Array(SmartCareDomain.allCases.enumerated()), id: \.element) { index, domain in
                 if let result = session.scanResult?.domainResults[domain], !result.items.isEmpty {
                     domainCard(domain, result)
+                        .tonicAppear(appeared, index: index, reduceMotion: reduceMotion)
                 }
             }
         }
@@ -288,6 +292,17 @@ struct CleanView: View {
                     }
                 }
             }
+        } else if session.hubMode == .scanning || session.hubMode == .running {
+            // A scan is populating findings — honest skeleton rows, never invented data.
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ForEach(0..<10, id: \.self) { _ in
+                        storageRowSkeleton
+                        TonicHairline()
+                    }
+                }
+            }
+            .accessibilityLabel("Scanning storage")
         } else {
             TonicEmptyState(
                 systemImage: "externaldrive",
@@ -316,6 +331,24 @@ struct CleanView: View {
                     .monospacedDigit()
             }
         )
+    }
+
+    private var storageRowSkeleton: some View {
+        HStack(spacing: TonicDS.Space.md) {
+            RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                .fill(TonicDS.Colors.hairline).frame(width: 20, height: 20).skeleton()
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                    .fill(TonicDS.Colors.hairline).frame(width: 200, height: 12).skeleton()
+                RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                    .fill(TonicDS.Colors.hairline).frame(width: 120, height: 10).skeleton()
+            }
+            Spacer()
+            RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous)
+                .fill(TonicDS.Colors.hairline).frame(width: 56, height: 12).skeleton()
+        }
+        .padding(.horizontal, TonicDS.Space.md)
+        .frame(minHeight: TonicDS.Layout.minRowHeight)
     }
 
     // MARK: - History tab
