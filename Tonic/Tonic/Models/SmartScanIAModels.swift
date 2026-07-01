@@ -92,7 +92,6 @@ struct SmartScanPillarSectionModel: Identifiable, Hashable, Sendable {
     let summary: String
     let sectionActionTitle: String
     let sectionReviewTarget: SmartScanReviewTarget
-    let world: TonicWorld
     let tiles: [SmartScanBentoTileModel]
 
     var id: String { pillar.rawValue }

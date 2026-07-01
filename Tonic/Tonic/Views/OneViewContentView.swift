@@ -38,6 +38,18 @@ struct OneViewContentView: View {
     }
 }
 
+struct OneViewWidgetCell: View {
+    let config: WidgetConfiguration
+
+    var body: some View {
+        Image(systemName: config.type.icon)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(TonicDS.Colors.textPrimary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel(config.type.displayName)
+    }
+}
+
 // MARK: - One View Grid Layout
 
 /// Grid layout alternative using LazyHGrid for more flexible widget arrangement
@@ -61,8 +73,8 @@ struct OneViewGridLayout: View {
                 OneViewWidgetCell(config: config)
                     .frame(width: 32, height: 24)
                     .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(DesignTokens.Colors.backgroundSecondary)
+                        RoundedRectangle(cornerRadius: TonicDS.Radius.xs)
+                            .fill(TonicDS.Colors.canvasSoft)
                     )
             }
         }

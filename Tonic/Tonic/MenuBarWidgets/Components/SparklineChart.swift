@@ -23,6 +23,10 @@ public struct NetworkSparklineChart: View, Equatable {
     let showArea: Bool
     let lineWidth: CGFloat
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// One-shot path draw-in on first appear; live data updates after stay instant.
+    @State private var drawProgress: CGFloat = 0
+
     // Performance: Equatable conformance for SwiftUI optimization
     public static func == (lhs: NetworkSparklineChart, rhs: NetworkSparklineChart) -> Bool {
         return lhs.data == rhs.data &&
@@ -85,11 +89,12 @@ public struct NetworkSparklineChart: View, Equatable {
             // Generate or retrieve cached path
             let pathPoints = generatePoints(for: effectiveWidth, height: effectiveHeight)
 
-            // Line path
+            // Line path — trims in on first appear ("the data draws itself")
             linePath(from: pathPoints)
+                .trim(from: 0, to: drawProgress)
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
 
-            // Optional area fill
+            // Optional area fill (fades in with the draw)
             if showArea {
                 areaPath(from: pathPoints, height: effectiveHeight)
                     .fill(
@@ -99,6 +104,16 @@ public struct NetworkSparklineChart: View, Equatable {
                             endPoint: .bottom
                         )
                     )
+                    .opacity(Double(drawProgress))
+            }
+        }
+        .onAppear {
+            guard drawProgress == 0 else { return }
+            // Popovers live outside the main window tree, so also honor the app toggle.
+            if reduceMotion || AppearancePreferences.shared.reduceMotion {
+                drawProgress = 1
+            } else {
+                withAnimation(TonicDS.Motion.appear) { drawProgress = 1 }
             }
         }
     }

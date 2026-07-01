@@ -124,9 +124,9 @@ public struct SmartScanResult: Sendable {
 
     var healthScoreColor: Color {
         switch systemHealthScore {
-        case 80...100: return TonicColors.success
-        case 60..<80: return TonicColors.warning
-        default: return TonicColors.error
+        case 80...100: return TonicDS.Colors.statusSuccess
+        case 60..<80: return TonicDS.Colors.statusWarning
+        default: return TonicDS.Colors.statusCritical
         }
     }
 }

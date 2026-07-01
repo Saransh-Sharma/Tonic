@@ -35,64 +35,7 @@ public final class WidgetFactory {
             )
         }
 
-        switch visualization {
-        case .mini:
-            return createMiniWidget(type: type, configuration: configuration)
-
-        case .lineChart:
-            return LineChartStatusItem(widgetType: type, configuration: configuration)
-
-        case .barChart:
-            return BarChartStatusItem(widgetType: type, configuration: configuration)
-
-        case .pieChart:
-            return PieChartStatusItem(widgetType: type, configuration: configuration)
-
-        case .tachometer:
-            return TachometerStatusItem(widgetType: type, configuration: configuration)
-
-        case .stack:
-            return StackStatusItem(widgetType: type, configuration: configuration)
-
-        case .speed:
-            return SpeedStatusItem(widgetType: type, configuration: configuration)
-
-        case .networkChart:
-            return NetworkChartStatusItem(widgetType: type, configuration: configuration)
-
-        case .batteryDetails:
-            return BatteryDetailsStatusItem(widgetType: type, configuration: configuration)
-
-        case .label, .state, .text:
-            return LabelStatusItem(widgetType: type, configuration: configuration)
-
-        case .memory:
-            return MemoryVisualizationStatusItem(widgetType: type, configuration: configuration)
-
-        case .battery:
-            return BatteryVisualizationStatusItem(widgetType: type, configuration: configuration)
-        }
-    }
-
-    /// Creates a mini widget (the original widget type)
-    /// This preserves backward compatibility with the existing widget system
-    private static func createMiniWidget(
-        type: WidgetType,
-        configuration: WidgetConfiguration
-    ) -> WidgetStatusItem {
-        // Use the base WidgetStatusItem for all widget types
-        // The base class handles different types through its widgetType property
-        // Special handling for sensors, bluetooth, and clock which have custom views
-        switch type {
-        case .sensors:
-            return SensorsStatusItem(widgetType: type, configuration: configuration)
-        case .bluetooth:
-            return BluetoothStatusItem(widgetType: type, configuration: configuration)
-        case .clock:
-            return ClockStatusItem(widgetType: type, configuration: configuration)
-        default:
-            return WidgetStatusItem(widgetType: type, configuration: configuration)
-        }
+        return WidgetStatusItem(widgetType: type, configuration: configuration)
     }
 
     /// Get the estimated width for a widget with the given visualization

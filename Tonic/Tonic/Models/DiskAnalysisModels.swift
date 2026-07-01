@@ -415,10 +415,10 @@ struct CleanupCandidate: Identifiable, Codable, Sendable, Hashable {
         safeReason = try container.decode(String.self, forKey: .safeReason)
         selected = try container.decode(Bool.self, forKey: .selected)
 
-        if let typed = try container.decodeIfPresent(ScopeBlockedReason.self, forKey: .blockedReason) {
-            blockedReason = typed
-        } else if let legacy = try container.decodeIfPresent(String.self, forKey: .blockedReason) {
+        if let legacy = try container.decodeIfPresent(String.self, forKey: .blockedReason) {
             blockedReason = Self.mapLegacyBlockedReason(legacy)
+        } else if let typed = try container.decodeIfPresent(ScopeBlockedReason.self, forKey: .blockedReason) {
+            blockedReason = typed
         } else {
             blockedReason = nil
         }

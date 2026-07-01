@@ -122,11 +122,11 @@ public struct TemperatureConverter {
         let value = display(celsius, unit: unit)
         switch value {
         case 0..<unit.warningThreshold:
-            return TonicColors.success
+            return TonicDS.Colors.statusSuccess
         case unit.warningThreshold..<unit.criticalThreshold:
-            return TonicColors.warning
+            return TonicDS.Colors.statusWarning
         default:
-            return TonicColors.error
+            return TonicDS.Colors.statusCritical
         }
     }
 }

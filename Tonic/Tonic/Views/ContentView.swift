@@ -30,9 +30,9 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            AtelierAmbientCanvas(world: selectedDestination.ambientWorld)
-                .opacity(0.45)
-                .animation(AtelierMotion.standard, value: selectedDestination)
+            // Editorial: a flat canvas / obsidian field. No ambient world canvas.
+            TonicDS.Colors.canvas
+                .ignoresSafeArea()
 
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 SidebarView(selectedDestination: $selectedDestination)
@@ -50,7 +50,7 @@ struct ContentView: View {
             }
             .navigationTitle("Tonic")
             .frame(minWidth: 800, minHeight: 500)
-            .animation(AtelierMotion.springPanel, value: selectedDestination)
+            .animation(TonicDS.Motion.present, value: selectedDestination)
             .sheet(isPresented: $showOnboarding) {
                 UnifiedOnboardingView(isPresented: $showOnboarding)
             }
@@ -161,6 +161,7 @@ struct DetailView: View {
         Group {
             if !checkedPermissions {
                 ProgressView("Checking permissions...")
+                    .tint(TonicDS.Colors.ink)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.clear)
                     .task {
@@ -190,19 +191,19 @@ struct DetailView: View {
                     .zIndex(dest == selectedDestination ? 1 : 0)
             }
         }
-        .animation(AtelierMotion.standard, value: selectedDestination)
+        .animation(TonicDS.Motion.present, value: selectedDestination)
     }
 
     @ViewBuilder
     private func destinationView(_ destination: NavigationDestination) -> some View {
         switch destination {
         case .dashboard:
-            DashboardHomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
+            HomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
         case .systemCleanup:
-            MaintenanceView(smartCareSession: smartCareSession)
+            CleanView(session: smartCareSession)
         case .appManager:
             if BuildCapabilities.current.requiresScopeAccess || permissionManager.hasFullDiskAccess {
-                AppManagerView()
+                AppsView()
             } else {
                 PermissionRequiredView(
                     icon: "externaldrive.fill",
@@ -214,30 +215,19 @@ struct DetailView: View {
                 )
             }
         case .diskAnalysis:
-            if BuildCapabilities.current.requiresScopeAccess || permissionManager.hasFullDiskAccess {
-                DiskAnalysisView()
-            } else {
-                PermissionRequiredView(
-                    icon: "externaldrive.fill",
-                    title: "Full Disk Access Required",
-                    description: "Storage Intelligence Hub needs Full Disk Access to scan all directories on your Mac.",
-                    onGrantPermission: {
-                        onPermissionNeeded(.diskScan)
-                    }
-                )
-            }
+            CleanView(session: smartCareSession, initialTab: .storage)
         case .recentlyCleaned:
-            RecentlyCleanedView()
+            CleanView(session: smartCareSession, initialTab: .history)
         case .liveMonitoring:
-            SystemStatusDashboard(isActive: destination == selectedDestination)
+            MonitorView(isActive: destination == selectedDestination)
         case .menuBarWidgets:
-            WidgetCustomizationView()
+            SettingsView(initialSection: .modules)
         case .developerTools:
             DeveloperToolsView()
         case .designSandbox:
-            DesignSandboxView()
+            DesignGalleryView()
         case .settings:
-            PreferencesView()
+            SettingsView()
         }
     }
 }
@@ -256,14 +246,15 @@ struct PermissionPromptView: View {
 
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 48))
-                .foregroundColor(TonicColors.warning)
+                .foregroundStyle(TonicDS.Colors.statusWarning)
 
             Text("Permission Required")
-                .font(.title)
-                .fontWeight(.semibold)
+                .tonicType(.cardHeading)
+                .foregroundStyle(TonicDS.Colors.textPrimary)
 
             Text(messageText)
-                .foregroundColor(.secondary)
+                .tonicType(.body)
+                .foregroundStyle(TonicDS.Colors.textMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
@@ -272,26 +263,32 @@ struct PermissionPromptView: View {
                 permissionRow(TonicPermission.accessibility)
             }
             .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(12)
+            .background(TonicDS.Colors.surface,
+                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
+                    .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
+            )
 
             HStack(spacing: 12) {
                 Button("Cancel") {
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
+                .tint(TonicDS.Colors.ink)
 
                 Button(BuildCapabilities.current.requiresScopeAccess ? "Add Scope" : "Open System Settings") {
                     grantPermission()
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(TonicDS.Colors.ink)
             }
 
             Spacer()
         }
         .padding(24)
         .frame(width: 500, height: 400)
-        .atelierSurface(radius: AtelierLayout.radiusLg)
+        .background(TonicDS.Colors.surface, in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)).overlay(RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous).strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
     }
 
     private var messageText: String {
@@ -308,18 +305,22 @@ struct PermissionPromptView: View {
 
     private func permissionRow(_ permission: TonicPermission) -> some View {
         let status = permissionManager.permissionStatuses[permission] ?? .notDetermined
+        let title = BuildCapabilities.current.requiresScopeAccess && permission == .fullDiskAccess
+            ? "Authorized Locations"
+            : permission.rawValue
 
         return HStack {
             Image(systemName: permission.icon)
-                .foregroundColor(status == .authorized ? .green : TonicColors.accent)
+                .foregroundStyle(status == .authorized ? TonicDS.Colors.statusSuccess : TonicDS.Colors.textMuted)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(permission.rawValue)
-                    .font(.subheadline)
-                Text(permission.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Text(title)
+                    .tonicType(.body)
+                    .foregroundStyle(TonicDS.Colors.textPrimary)
+                Text(permissionDescription(permission))
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
             }
 
             Spacer()
@@ -327,19 +328,26 @@ struct PermissionPromptView: View {
             HStack(spacing: 6) {
                 if status == .authorized {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundStyle(TonicDS.Colors.statusSuccess)
                     Text("Granted")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                        .tonicType(.caption)
+                        .foregroundStyle(TonicDS.Colors.statusSuccess)
                 } else {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.orange)
+                        .foregroundStyle(TonicDS.Colors.statusWarning)
                     Text("Required")
-                        .font(.caption)
-                        .foregroundColor(.orange)
+                        .tonicType(.caption)
+                        .foregroundStyle(TonicDS.Colors.statusWarning)
                 }
             }
         }
+    }
+
+    private func permissionDescription(_ permission: TonicPermission) -> String {
+        if BuildCapabilities.current.requiresScopeAccess && permission == .fullDiskAccess {
+            return "Choose the folders or volumes Tonic may analyze."
+        }
+        return permission.description
     }
 
     private func grantPermission() {
@@ -388,14 +396,15 @@ struct PermissionRequiredView: View {
 
             Image(systemName: icon)
                 .font(.system(size: 48))
-                .foregroundColor(TonicColors.warning)
+                .foregroundStyle(TonicDS.Colors.statusWarning)
 
             Text(title)
-                .font(.title)
-                .fontWeight(.semibold)
+                .tonicType(.cardHeading)
+                .foregroundStyle(TonicDS.Colors.textPrimary)
 
             Text(description)
-                .foregroundColor(.secondary)
+                .tonicType(.body)
+                .foregroundStyle(TonicDS.Colors.textMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
@@ -404,14 +413,15 @@ struct PermissionRequiredView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .tint(TonicDS.Colors.ink)
 
             Text(
                 BuildCapabilities.current.requiresScopeAccess
                 ? "You can also manage authorized locations later in Settings > Permissions."
                 : "You can also grant this permission later in System Settings > Privacy & Security > Full Disk Access."
             )
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.textMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 350)
 
@@ -427,52 +437,60 @@ struct PermissionRequiredView: View {
 
 // AppManagerView is defined in Views/AppManager/AppManagerView.swift
 
-struct MonitoringView: View {
-    var body: some View {
-        SystemStatusDashboard()
-    }
-}
-
 struct DeveloperToolsView: View {
+    @State private var flagRefresh = UUID()
+
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Developer Tools")
-                .font(.title2)
-                .fontWeight(.semibold)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+                TonicPageHeader("Developer Tools", subtitle: "Internal diagnostics and feature flags")
 
-            Text("Clean up development artifacts and project files.")
-                .foregroundColor(.secondary)
+                SettingsPanel(title: "Feature flags") {
+                    let features = Array(WIPFeature.allCases.enumerated())
+                    ForEach(features, id: \.element) { idx, feature in
+                        TonicToggleRow(
+                            title: feature.displayName,
+                            showsDivider: idx < features.count - 1,
+                            isOn: Binding(
+                                get: { FeatureFlags.isEnabled(feature) },
+                                set: { FeatureFlags.set(feature, enabled: $0); flagRefresh = UUID()
+                                       NotificationCenter.default.post(name: .featureFlagsDidChange, object: nil) }
+                            )
+                        )
+                    }
+                }
+                .id(flagRefresh)
 
-            // Add project artifact cleanup options
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Supported Tools")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-
-                toolRow("Node.js", icon: "shippingbox.fill")
-                toolRow("Python", icon: "python")
-                toolRow("Docker", icon: "shippingbox.fill")
-                toolRow("Xcode", icon: "xcodes")
+                SettingsPanel(title: "Maintenance") {
+                    actionRow("Reveal logs in Finder", "doc.text.magnifyingglass") { revealLogs() }
+                    actionRow("Reset onboarding", "arrow.counterclockwise", showsDivider: false) {
+                        UserDefaults.standard.set(false, forKey: "hasSeenOnboarding")
+                        NotificationCenter.default.post(name: NSNotification.Name("TonicDidCompleteReset"), object: nil)
+                    }
+                }
             }
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(12)
+            .frame(maxWidth: 640, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tonicScreenHPadding()
+            .padding(.vertical, TonicDS.Space.xxl)
         }
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TonicDS.Colors.canvas)
     }
 
-    private func toolRow(_ name: String, icon: String) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(.blue)
-                .frame(width: 24)
-
-            Text(name)
-                .font(.body)
-
-            Spacer()
+    private func actionRow(_ title: String, _ icon: String, showsDivider: Bool = true, action: @escaping () -> Void) -> some View {
+        TonicPreferenceRow(title: title, showsDivider: showsDivider) {
+            Button(action: action) {
+                Image(systemName: icon).foregroundStyle(TonicDS.Colors.linkBlue)
+            }
+            .buttonStyle(.plain).tonicPointerCursor()
         }
-        .padding(.vertical, 4)
+    }
+
+    private func revealLogs() {
+        let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Logs/com.tonic.Tonic")
+        if let dir { NSWorkspace.shared.open(dir) }
     }
 }
 
@@ -559,12 +577,12 @@ struct CommandPaletteView: View {
             // Command palette card
             VStack(spacing: 0) {
                 // Search input
-                HStack(spacing: DesignTokens.Spacing.xxs) {
+                HStack(spacing: TonicDS.Space.xs) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(TonicTextToken.secondary)
+                        .foregroundStyle(TonicDS.Colors.textMuted)
 
-                    TextField("Search screens...", text: $searchText)
-                        .font(AtelierTypography.body)
+                    TextField("Search screens…", text: $searchText)
+                        .tonicType(.bodyLarge)
                         .textFieldStyle(.plain)
                         .focused($isSearchFocused)
                         .onSubmit {
@@ -577,73 +595,40 @@ struct CommandPaletteView: View {
                             selectedIndex = 0
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(TonicTextToken.secondary)
+                                .foregroundStyle(TonicDS.Colors.textMuted)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Clear search")
-                        .accessibilityHint("Clears the search field")
                     }
                 }
-                .padding(DesignTokens.Spacing.sm)
-                .background(TonicNeutralToken.adaptiveOverlay(0.06))
+                .padding(TonicDS.Space.md)
 
-                Divider()
+                TonicHairline()
 
-                // Results list
+                // Results list (custom rows — quiet selection, no OS accent)
                 ScrollViewReader { scrollProxy in
-                    List(selection: $selectedIndex) {
-                        ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
-                            HStack(spacing: DesignTokens.Spacing.sm) {
-                                Image(systemName: destination.systemImage)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 20)
-                                    .foregroundColor(TonicTextToken.secondary)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(destination.displayName)
-                                        .font(AtelierTypography.body)
-                                        .foregroundColor(TonicTextToken.primary)
-
-                                    Text(destination.rawValue)
-                                        .font(AtelierTypography.caption)
-                                        .foregroundColor(TonicTextToken.tertiary)
-                                }
-
-                                #if DEBUG
-                                if destination.wipFeature != nil {
-                                    Badge(text: "WIP", color: DesignTokens.Colors.warning, size: .small)
-                                }
-                                #endif
-
-                                Spacer()
-
-                                if index == selectedIndex {
-                                    Text("↵")
-                                        .font(.caption)
-                                        .foregroundColor(TonicTextToken.tertiary)
-                                }
-                            }
-                            .tag(index)
-                            .contentShape(Rectangle())
-                            .accessibilityLabel("\(destination.displayName), \(destination.rawValue)")
-                            .accessibilityHint(index == selectedIndex ? "Currently selected. Press enter to navigate" : "Press enter to navigate")
-                            .onTapGesture {
-                                selectedIndex = index
-                                navigateToSelected()
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 2) {
+                            ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
+                                paletteRow(index: index, destination: destination)
+                                    .id(index)
                             }
                         }
+                        .padding(TonicDS.Space.xs)
                     }
-                    .listStyle(.plain)
-                    .onChange(of: selectedIndex) { oldValue, newValue in
-                        guard filteredDestinations.indices.contains(newValue) else {
-                            return
-                        }
+                    .onChange(of: selectedIndex) { _, newValue in
+                        guard filteredDestinations.indices.contains(newValue) else { return }
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
             }
             .frame(width: 500, height: 450)
-            .atelierSurface(radius: AtelierLayout.radiusLg)
+            .background(TonicDS.Colors.surface,
+                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)
+                    .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
+            )
             .onAppear {
                 isSearchFocused = true
                 selectedIndex = 0
@@ -659,6 +644,40 @@ struct CommandPaletteView: View {
     }
 
 
+    @ViewBuilder
+    private func paletteRow(index: Int, destination: NavigationDestination) -> some View {
+        let isSelected = index == selectedIndex
+        HStack(spacing: TonicDS.Space.sm) {
+            Image(systemName: destination.systemImage)
+                .font(.system(size: 14, weight: .regular))
+                .frame(width: 20)
+                .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+
+            Text(destination.sidebarDisplayName)
+                .tonicType(.body)
+                .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+
+            Spacer()
+
+            if isSelected {
+                Text("↵").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.textMuted)
+            }
+        }
+        .padding(.horizontal, TonicDS.Space.sm)
+        .frame(height: 36)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
+                    .fill(TonicDS.Colors.rowHover(0.06))
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedIndex = index
+            navigateToSelected()
+        }
+    }
+
     private func navigateToSelected() {
         guard !filteredDestinations.isEmpty && selectedIndex < filteredDestinations.count else {
             return
@@ -672,25 +691,6 @@ struct CommandPaletteView: View {
         searchText = ""
         selectedIndex = 0
         isPresented = false
-    }
-}
-
-extension NavigationDestination {
-    /// World color used for the app-wide ambient canvas, so the background matches
-    /// the active screen's theme instead of always reading Smart Scan purple.
-    var ambientWorld: TonicWorld {
-        switch self {
-        case .dashboard, .systemCleanup, .menuBarWidgets, .developerTools, .designSandbox:
-            return .smartScanPurple
-        case .appManager:
-            return .applicationsBlue
-        case .diskAnalysis, .recentlyCleaned:
-            return .cleanupGreen
-        case .liveMonitoring:
-            return .performanceOrange
-        case .settings:
-            return .protectionMagenta
-        }
     }
 }
 

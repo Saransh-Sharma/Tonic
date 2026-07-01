@@ -153,6 +153,9 @@ public final class PermissionManager: @unchecked Sendable {
     // MARK: - Notifications
 
     private func checkNotificationPermission() async -> PermissionStatus {
+        guard Bundle.main.bundleIdentifier != nil else {
+            return .notDetermined
+        }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional:

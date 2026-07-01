@@ -14,9 +14,10 @@ struct ColorAccessibilityHelper {
     /// - Parameter color: NSColor to calculate luminance for
     /// - Returns: Luminance value between 0 and 1
     static func relativeLuminance(of color: NSColor) -> Double {
-        let red = linearize(color.redComponent)
-        let green = linearize(color.greenComponent)
-        let blue = linearize(color.blueComponent)
+        let rgb = color.usingColorSpace(.sRGB) ?? color.usingColorSpace(.deviceRGB) ?? color
+        let red = linearize(rgb.redComponent)
+        let green = linearize(rgb.greenComponent)
+        let blue = linearize(rgb.blueComponent)
         return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 

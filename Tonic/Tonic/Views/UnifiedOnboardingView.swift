@@ -2,964 +2,139 @@
 //  UnifiedOnboardingView.swift
 //  Tonic
 //
-//  Redesigned onboarding — 7 benefit-first screens with polished animations
+//  Editorial 3-page onboarding: Welcome · Permissions · Ready. Separates value from
+//  required setup. Preserves the isPresented contract and completion flags.
 //
 
 import SwiftUI
-import UserNotifications
-
-// MARK: - Main Orchestrator
 
 struct UnifiedOnboardingView: View {
     @Binding var isPresented: Bool
-    @Environment(\.dismiss) private var dismiss
 
-    @State private var currentPage = 0
-    @State private var direction: SlideDirection = .forward
-    @State private var animateContent = false
+    @State private var page = 0
+    @State private var permissions = PermissionManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var permissionManager = PermissionManager.shared
-    @State private var accessBroker = AccessBroker.shared
-    @State private var notificationsEnabled = false
-    @State private var notificationStatus: PermissionStatus = .notDetermined
-    @State private var isScopeDropTargeted = false
-    @AppStorage(TonicUserDefaultsKey.powerUserModeEnabled) private var powerUserModeEnabled = false
-
-    private let totalPages = 7
-
-    enum SlideDirection {
-        case forward, backward
-    }
+    private let pageCount = 3
 
     var body: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                // Progress bar
-                OnboardingProgressBar(currentPage: currentPage, totalPages: totalPages)
-                    .padding(.top, 20)
-                    .padding(.horizontal, 24)
-
-                // Page content
-                ZStack {
-                    pageContent
-                        .id(currentPage)
-                        .transition(pageTransition)
+        VStack(spacing: 0) {
+            progress
+            Group {
+                switch page {
+                case 0: welcome
+                case 1: permissionsPage
+                default: ready
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .trailing)))
+        }
+        .frame(width: 720, height: 560)
+        .background(TonicDS.Colors.canvas)
+    }
 
-                // Navigation
-                navigationButtons
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 20)
+    // MARK: - Progress
+
+    private var progress: some View {
+        HStack(spacing: TonicDS.Space.xs) {
+            ForEach(0..<pageCount, id: \.self) { i in
+                Capsule()
+                    .fill(i == page ? TonicDS.Colors.ink : TonicDS.Colors.hairline)
+                    .frame(width: i == page ? 24 : 8, height: 4)
             }
         }
-        .frame(width: 580, height: 640)
-        .onAppear {
-            triggerEntrance()
-        }
+        .padding(.top, TonicDS.Space.xl)
     }
 
-    // MARK: - Page Routing
+    // MARK: - Pages
 
-    @ViewBuilder
-    private var pageContent: some View {
-        switch currentPage {
-        case 0: welcomePage
-        case 1: smartScanPage
-        case 2: diskLensPage
-        case 3: appManagerPage
-        case 4: menuBarWidgetsPage
-        case 5: setupPage
-        default: readyPage
-        }
-    }
-
-    private var pageTransition: AnyTransition {
-        switch direction {
-        case .forward:
-            return .asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal: .move(edge: .leading).combined(with: .opacity)
-            )
-        case .backward:
-            return .asymmetric(
-                insertion: .move(edge: .leading).combined(with: .opacity),
-                removal: .move(edge: .trailing).combined(with: .opacity)
-            )
-        }
-    }
-
-    // MARK: - Screen 1: Welcome
-
-    private var welcomePage: some View {
-        VStack(spacing: 24) {
+    private var welcome: some View {
+        VStack(spacing: TonicDS.Space.lg) {
             Spacer()
-
-            TonicBrandAssets.appImage()
-                .resizable()
-                .scaledToFit()
-                .frame(width: 80, height: 80)
-                .scaleEffect(animateContent ? 1.0 : 0.3)
-                .rotationEffect(.degrees(animateContent ? 0 : -10))
-                .animation(.spring(response: 0.6, dampingFraction: 0.6), value: animateContent)
-
-            VStack(spacing: 8) {
-                Text("Welcome to Tonic")
-                    .font(.title).bold()
-                    .offset(y: animateContent ? 0 : 25)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.4).delay(0.08), value: animateContent)
-
-                Text("Keep your Mac healthy, fast, and clutter-free.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .offset(y: animateContent ? 0 : 20)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.35).delay(0.16), value: animateContent)
+            Text("Tonic").tonicType(.heroDisplay).foregroundStyle(TonicDS.Colors.textPrimary)
+            Text("A calm command center for your Mac's health.")
+                .tonicType(.bodyLarge).foregroundStyle(TonicDS.Colors.textMuted)
+            HStack(spacing: TonicDS.Space.sm) {
+                capability("sparkles", "Clean")
+                capability("gauge.with.dots.needle.50percent", "Monitor")
+                capability("checkmark.shield", "Protect")
             }
-
-            HStack(spacing: 12) {
-                welcomePill("Clean", icon: "sparkle", delay: 0.3)
-                welcomePill("Monitor", icon: "gauge.medium", delay: 0.4)
-                welcomePill("Protect", icon: "shield.fill", delay: 0.5)
-            }
-
+            .padding(.top, TonicDS.Space.sm)
             Spacer()
+            PrimaryPill("Get started") { advance() }
+            Spacer().frame(height: TonicDS.Space.xxl)
         }
-        .padding(.horizontal, 40)
+        .padding(TonicDS.Space.xxxl)
     }
 
-    private func welcomePill(_ text: String, icon: String, delay: Double) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption)
-            Text(text)
-                .font(.subheadline).bold()
+    private func capability(_ icon: String, _ label: String) -> some View {
+        HStack(spacing: TonicDS.Space.xs) {
+            Image(systemName: icon).font(.system(size: 13, weight: .regular))
+            Text(label).tonicType(.button)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(TonicColors.accent.opacity(0.12))
-        .foregroundColor(TonicColors.accent)
-        .cornerRadius(20)
-        .offset(y: animateContent ? 0 : 15)
-        .opacity(animateContent ? 1 : 0)
-        .animation(.easeOut(duration: 0.3).delay(delay), value: animateContent)
+        .foregroundStyle(TonicDS.Colors.textPrimary)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .overlay(Capsule().strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
     }
 
-    // MARK: - Screen 2: Smart Scan
+    private var permissionsPage: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            Spacer()
+            Text(BuildCapabilities.current.requiresScopeAccess ? "Authorize locations" : "Grant access")
+                .tonicType(.sectionDisplay).foregroundStyle(TonicDS.Colors.textPrimary)
+            Text(BuildCapabilities.current.requiresScopeAccess
+                 ? "Tonic analyzes only the locations you authorize. You can add or remove them anytime in Settings."
+                 : "Tonic needs Full Disk Access to scan files and manage apps. Everything runs locally on your Mac.")
+                .tonicType(.bodyLarge).foregroundStyle(TonicDS.Colors.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
 
-    private var smartScanPage: some View {
-        featurePage(
-            icon: "bolt.shield.fill",
-            title: "Your Mac's Check-Up",
-            subtitle: "Caches pile up. Logs grow silently. Temp files linger. Smart Scan finds it all in seconds and tells you exactly how much space you'll get back.",
-            cards: [
-                ("gauge.with.dots.needle.67percent", "Instant Diagnosis", "Scans caches, logs, temp files, and app leftovers in under a minute"),
-                ("arrow.counterclockwise", "Safe by Default", "Every file is reviewed before deletion — nothing gets removed without your say"),
-                ("sparkles", "Reclaim Gigabytes", "Most Macs have 5-20 GB of hidden junk. Smart Scan finds it all"),
-            ]
-        )
-    }
-
-    // MARK: - Screen 3: Disk Space Lens
-
-    private var diskLensPage: some View {
-        featurePage(
-            icon: "chart.pie.fill",
-            title: "X-Ray Your Storage",
-            subtitle: "Where did all your disk space go? Disk Space Lens gives you a visual map of every gigabyte — so you can spot the biggest offenders in seconds.",
-            cards: [
-                ("rectangle.split.2x2", "Visual Treemap", "See your entire disk as colored blocks — bigger block, bigger folder"),
-                ("arrow.down.forward.and.arrow.up.backward", "Drill Into Anything", "Click any block to zoom in and explore what's inside"),
-                ("flame.fill", "Find Space Hogs", "Instantly surfaces the largest files and folders eating your storage"),
-            ]
-        )
-    }
-
-    // MARK: - Screen 4: App Manager
-
-    private var appManagerPage: some View {
-        featurePage(
-            icon: "app.badge.checkmark",
-            title: "The Uninstaller macOS Should Have",
-            subtitle: "Dragging an app to Trash leaves behind caches, preferences, and support files scattered across your system. App Manager removes everything.",
-            cards: [
-                ("trash.slash.fill", "True Uninstall", "Removes the app, its caches, preferences, containers, and login items"),
-                ("magnifyingglass.circle.fill", "Find Hidden Leftovers", "Detects orphaned files from apps you've already deleted"),
-                ("clock.fill", "Know What You Have", "See when you last opened each app and how much space it uses"),
-            ]
-        )
-    }
-
-    // MARK: - Screen 5: Menu Bar Widgets
-
-    private var menuBarWidgetsPage: some View {
-        featurePage(
-            icon: "menubar.rectangle",
-            title: "Your System, Always Visible",
-            subtitle: "Tiny, beautiful widgets live in your menu bar — showing CPU, memory, disk, network, battery, and more. Glance up. Know everything.",
-            cards: [
-                ("waveform.path.ecg", "Live Metrics", "CPU, memory, disk, network, GPU, battery — updating every second"),
-                ("paintbrush.fill", "Your Style", "14+ visualization types — sparklines, gauges, bar charts, pie charts"),
-                ("bell.badge.fill", "Smart Alerts", "Set thresholds and get notified when CPU spikes or disk runs low"),
-            ]
-        )
-    }
-
-    // MARK: - Feature Page Template
-
-    private func featurePage(
-        icon: String,
-        title: String,
-        subtitle: String,
-        cards: [(String, String, String)]
-    ) -> some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                Spacer().frame(height: 16)
-
-                // Hero icon
-                Image(systemName: icon)
-                    .font(.system(size: 56))
-                    .foregroundStyle(.linearGradient(
-                        colors: [TonicColors.accent, TonicColors.pro],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .scaleEffect(animateContent ? 1.0 : 0.5)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: animateContent)
-
-                // Title
-                Text(title)
-                    .font(.title).bold()
-                    .multilineTextAlignment(.center)
-                    .offset(y: animateContent ? 0 : 25)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.4).delay(0.08), value: animateContent)
-
-                // Subtitle
-                Text(subtitle)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .offset(y: animateContent ? 0 : 20)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.35).delay(0.16), value: animateContent)
-
-                // Value cards
-                VStack(spacing: 8) {
-                    ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
-                        OnboardingValueCard(icon: card.0, title: card.1, description: card.2)
-                            .offset(y: animateContent ? 0 : 15)
-                            .opacity(animateContent ? 1 : 0)
-                            .animation(.easeOut(duration: 0.3).delay(0.24 + 0.08 * Double(index)), value: animateContent)
-                    }
+            HStack(spacing: TonicDS.Space.md) {
+                PrimaryPill(permissions.hasFullDiskAccess ? "Granted" : "Grant access") {
+                    if !permissions.hasFullDiskAccess { _ = permissions.requestFullDiskAccess() }
+                    Task { await permissions.checkAllPermissions() }
                 }
-
-                Spacer().frame(height: 8)
+                TextAction("Skip for now") { advance() }
             }
-            .padding(.horizontal, 32)
-        }
-    }
-
-    // MARK: - Screen 6: Setup
-
-    private var setupPage: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                Spacer().frame(height: 16)
-
-                // Title
-                Text("Let's Get You Set Up")
-                    .font(.title).bold()
-                    .offset(y: animateContent ? 0 : 25)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.4).delay(0.08), value: animateContent)
-
-                Text("A few quick steps so Tonic can do its best work.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .offset(y: animateContent ? 0 : 20)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.35).delay(0.16), value: animateContent)
-
-                // Setup cards
-                VStack(spacing: 12) {
-                    // Access setup (Store) or Full Disk Access (Direct)
-                    permissionSetupCard
-                        .offset(y: animateContent ? 0 : 15)
-                        .opacity(animateContent ? 1 : 0)
-                        .animation(.easeOut(duration: 0.3).delay(0.24), value: animateContent)
-
-                    modeChoiceCard
-                        .offset(y: animateContent ? 0 : 15)
-                        .opacity(animateContent ? 1 : 0)
-                        .animation(.easeOut(duration: 0.3).delay(0.28), value: animateContent)
-
-                    // Notifications — conditional UI based on status
-                    notificationSetupCard
-                        .offset(y: animateContent ? 0 : 15)
-                        .opacity(animateContent ? 1 : 0)
-                        .animation(.easeOut(duration: 0.3).delay(0.36), value: animateContent)
-
-                }
-
-                Text("You can always change these in Settings.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 4)
-                    .offset(y: animateContent ? 0 : 10)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3).delay(0.5), value: animateContent)
-
-                Spacer().frame(height: 8)
-            }
-            .padding(.horizontal, 32)
-        }
-        .task {
-            await refreshPermissionsAndScopes()
-            await refreshNotificationStatus()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task {
-                await refreshPermissionsAndScopes()
-                await refreshNotificationStatus()
-            }
-        }
-    }
-
-    // MARK: - Access Setup Card
-
-    private var permissionSetupCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: BuildCapabilities.current.requiresScopeAccess ? "scope" : "lock.open.fill")
-                    .font(.title3)
-                    .foregroundColor(permissionManager.hasFullDiskAccess ? .green : TonicColors.accent)
-                    .frame(width: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(BuildCapabilities.current.requiresScopeAccess ? "Authorized Locations" : "Full Disk Access")
-                        .font(.headline)
-                    Text(
-                        BuildCapabilities.current.requiresScopeAccess
-                        ? "Grant Home, Applications, and optionally your startup disk for full coverage."
-                        : "Lets Tonic scan your entire disk — not just the parts macOS allows by default."
-                    )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-
+            Spacer()
+            HStack {
+                TextAction("Back") { withAnimation(TonicDS.Motion.present) { page = max(0, page - 1) } }
                 Spacer()
-
-                if permissionManager.hasFullDiskAccess {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.green)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    Text(BuildCapabilities.current.requiresScopeAccess ? "Recommended" : "Required")
-                        .font(.caption2).bold()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundColor(.orange)
-                        .cornerRadius(4)
-                }
-            }
-
-            if !permissionManager.hasFullDiskAccess {
-                if BuildCapabilities.current.requiresScopeAccess {
-                    VStack(alignment: .leading, spacing: 6) {
-                        stepRow(number: 1, text: "Click **Add Scope**")
-                        stepRow(number: 2, text: "Select Home or Applications (recommended)")
-                        stepRow(number: 3, text: "Optional: select startup disk for Full coverage")
-                    }
-                    .padding(.leading, 38)
-                    .padding(.top, 2)
-
-                    HStack(spacing: 8) {
-                        Button("Add Scope") {
-                            _ = accessBroker.addScopeUsingOpenPanel()
-                            Task { await refreshPermissionsAndScopes() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-
-                        Button("Enable Full Mac Scan") {
-                            _ = accessBroker.addStartupDiskScope()
-                            Task { await refreshPermissionsAndScopes() }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    .padding(.leading, 38)
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        stepRow(number: 1, text: "Click below to open System Settings")
-                        stepRow(number: 2, text: "Find **Tonic** in the list and flip the switch on")
-                        stepRow(number: 3, text: "Come back here — we'll detect it automatically")
-                    }
-                    .padding(.leading, 38)
-                    .padding(.top, 2)
-
-                    Button {
-                        _ = permissionManager.requestFullDiskAccess()
-                    } label: {
-                        Text("Open System Settings")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .padding(.leading, 38)
-                }
+                PrimaryPill("Continue") { advance() }
             }
         }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(
-                    BuildCapabilities.current.requiresScopeAccess && isScopeDropTargeted
-                        ? TonicColors.accent.opacity(0.9)
-                        : Color.clear,
-                    style: StrokeStyle(lineWidth: 2, dash: [8, 4])
-                )
-        )
-        .dropDestination(for: URL.self) { urls, _ in
-            handleDroppedScopeURLs(urls)
-        } isTargeted: { targeted in
-            isScopeDropTargeted = targeted
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: permissionManager.hasFullDiskAccess)
-        .animation(.easeInOut(duration: 0.2), value: isScopeDropTargeted)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(TonicDS.Space.xxxl)
     }
 
-    private func stepRow(number: Int, text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\(number).")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(TonicColors.accent)
-                .frame(width: 16, alignment: .trailing)
-
-            Text(.init(text)) // .init enables markdown bold
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    @MainActor
-    private func handleDroppedScopeURLs(_ urls: [URL]) -> Bool {
-        guard BuildCapabilities.current.requiresScopeAccess else { return false }
-        var added = false
-        for url in urls {
-            do {
-                _ = try accessBroker.addScope(from: url)
-                added = true
-            } catch {
-                continue
-            }
-        }
-        if added {
-            Task { await refreshPermissionsAndScopes() }
-        }
-        return added
-    }
-
-    // MARK: - Notification Setup Card (Conditional)
-
-    private var modeChoiceCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.title3)
-                    .foregroundColor(TonicColors.accent)
-                    .frame(width: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Experience")
-                        .font(.headline)
-                    Text("Choose how much detail Tonic shows. You can change this anytime.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-            }
-
-            HStack(spacing: 8) {
-                onboardingModeButton(.standard)
-                onboardingModeButton(.powerUser)
-            }
-            .padding(.leading, 38)
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
-    }
-
-    private func onboardingModeButton(_ mode: TonicUserMode) -> some View {
-        let isSelected = (mode == .powerUser) == powerUserModeEnabled
-
-        return Button {
-            powerUserModeEnabled = mode == .powerUser
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: mode.icon)
-                    Text(mode.title)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                Text(mode.subtitle)
-                    .font(.caption2)
-                    .foregroundColor(isSelected ? .primary.opacity(0.78) : .secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(10)
-            .background(isSelected ? TonicColors.accent.opacity(0.14) : Color.secondary.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? TonicColors.accent.opacity(0.8) : Color.secondary.opacity(0.18), lineWidth: 1)
-            )
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(mode.title) mode")
-        .accessibilityHint(mode.subtitle)
-    }
-
-    private var notificationSetupCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "bell.fill")
-                    .font(.title3)
-                    .foregroundColor(notificationsEnabled ? .green : TonicColors.accent)
-                    .frame(width: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Notifications")
-                        .font(.headline)
-                    Text("Get alerts when CPU spikes, memory runs low, or disk space drops.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                if notificationsEnabled {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.green)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    Text("Optional")
-                        .font(.caption2).bold()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.gray.opacity(0.15))
-                        .foregroundColor(.gray)
-                        .cornerRadius(4)
-                }
-            }
-
-            if !notificationsEnabled {
-                if notificationStatus == .denied {
-                    // Previously denied — show deep link to System Settings
-                    Text("Previously denied — enable in System Settings")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.leading, 38)
-
-                    Button {
-                        NotificationManager.shared.openNotificationSettings()
-                    } label: {
-                        Text("Open Notification Settings")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .padding(.leading, 38)
-                } else {
-                    // Not determined — show request button
-                    Button {
-                        requestNotifications()
-                    } label: {
-                        Text("Enable Notifications")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .padding(.leading, 38)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: notificationsEnabled)
-    }
-
-    // MARK: - Screen 7: Ready
-
-    private var readyPage: some View {
-        VStack(spacing: 24) {
+    private var ready: some View {
+        VStack(spacing: TonicDS.Space.lg) {
             Spacer()
-
-            // Animated checkmark
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(animateContent ? 0.12 : 0))
-                    .frame(width: 120, height: 120)
-                    .animation(.easeInOut(duration: 0.8).delay(0.3), value: animateContent)
-
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(.green)
-                    .scaleEffect(animateContent ? 1.0 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.6), value: animateContent)
-                    .shadow(color: .green.opacity(animateContent ? 0.3 : 0), radius: 25)
-                    .animation(.easeInOut(duration: 0.6).delay(0.4), value: animateContent)
-            }
-
-            VStack(spacing: 8) {
-                Text("You're All Set!")
-                    .font(.title).bold()
-                    .offset(y: animateContent ? 0 : 25)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.4).delay(0.15), value: animateContent)
-
-                Text("Tonic is ready to help you keep your Mac running at its best.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .offset(y: animateContent ? 0 : 20)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.35).delay(0.25), value: animateContent)
-            }
-
-            // Status summary
-            VStack(spacing: 8) {
-                readyStatusRow(
-                    icon: BuildCapabilities.current.requiresScopeAccess ? "scope" : "lock.open.fill",
-                    title: BuildCapabilities.current.requiresScopeAccess ? "Authorized Locations" : "Full Disk Access",
-                    isGranted: permissionManager.hasFullDiskAccess,
-                    delay: 0.35
-                )
-                readyStatusRow(
-                    icon: "bell.fill",
-                    title: "Notifications",
-                    isGranted: notificationsEnabled,
-                    delay: 0.45
-                )
-                readyStatusRow(
-                    icon: powerUserModeEnabled ? TonicUserMode.powerUser.icon : TonicUserMode.standard.icon,
-                    title: powerUserModeEnabled ? "Power User Mode" : "Standard Mode",
-                    isGranted: true,
-                    delay: 0.55
-                )
-            }
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(10)
-            .padding(.horizontal, 40)
-
-            if !permissionManager.hasFullDiskAccess {
-                Text(
-                    BuildCapabilities.current.requiresScopeAccess
-                    ? "Tip: Add your startup disk to unlock Full coverage."
-                    : "Tip: Grant Full Disk Access for the complete experience."
-                )
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .opacity(animateContent ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3).delay(0.6), value: animateContent)
-            }
-
+            Image(systemName: "checkmark.seal").font(.system(size: 44, weight: .thin))
+                .foregroundStyle(TonicDS.Colors.statusSuccess)
+            Text("You're set.").tonicType(.heroDisplay).foregroundStyle(TonicDS.Colors.textPrimary)
+            Text("Run a Smart Scan whenever you want to tidy up.")
+                .tonicType(.bodyLarge).foregroundStyle(TonicDS.Colors.textMuted)
             Spacer()
+            PrimaryPill("Open Tonic") { finish() }
+            Spacer().frame(height: TonicDS.Space.xxl)
         }
-        .padding(.horizontal, 32)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task {
-                await refreshPermissionsAndScopes()
-                await refreshNotificationStatus()
-            }
-        }
+        .padding(TonicDS.Space.xxxl)
     }
 
-    private func readyStatusRow(icon: String, title: String, isGranted: Bool, delay: Double) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(isGranted ? .green : .secondary)
-                .frame(width: 24)
+    // MARK: - Flow
 
-            Text(title)
-                .font(.subheadline)
-
-            Spacer()
-
-            if isGranted {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            } else {
-                Text("Grant later in Settings")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .offset(y: animateContent ? 0 : 10)
-        .opacity(animateContent ? 1 : 0)
-        .animation(.easeOut(duration: 0.3).delay(delay), value: animateContent)
+    private func advance() {
+        withAnimation(TonicDS.Motion.present) { page = min(pageCount - 1, page + 1) }
     }
 
-    // MARK: - Navigation
-
-    private var navigationButtons: some View {
-        HStack(spacing: 12) {
-            if currentPage > 0 {
-                Button("Back") {
-                    goBack()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            }
-
-            Spacer()
-
-            if currentPage < totalPages - 1 {
-                Button("Next") {
-                    goForward()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            } else {
-                Button("Start Using Tonic") {
-                    completeOnboarding()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .opacity(animateContent ? 1 : 0)
-                .animation(.easeOut(duration: 0.3).delay(0.5), value: animateContent)
-            }
-        }
-    }
-
-    // MARK: - Actions
-
-    private func goForward() {
-        animateContent = false
-        direction = .forward
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
-            currentPage += 1
-        }
-        triggerEntrance()
-    }
-
-    private func goBack() {
-        animateContent = false
-        direction = .backward
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
-            currentPage -= 1
-        }
-        triggerEntrance()
-    }
-
-    private func triggerEntrance() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            animateContent = true
-        }
-    }
-
-    private func requestNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-            Task { @MainActor in
-                notificationsEnabled = granted
-                notificationStatus = granted ? .authorized : .denied
-            }
-        }
-    }
-
-    private func refreshNotificationStatus() async {
-        let granted = await NotificationManager.shared.checkPermissionStatus()
-        notificationsEnabled = granted
-        let status = await PermissionManager.shared.checkPermission(.notifications)
-        notificationStatus = status
-    }
-
-    private func refreshPermissionsAndScopes() async {
-        await permissionManager.checkAllPermissions()
-        accessBroker.refreshStatuses()
-    }
-
-    private func completeOnboarding() {
+    private func finish() {
         UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
         UserDefaults.standard.set(true, forKey: "hasCompletedWidgetOnboarding")
         UserDefaults.standard.set(true, forKey: "hasSeenFeatureTour")
-        WidgetPreferences.shared.setHasCompletedOnboarding(true)
+        UserDefaults.standard.set(true, forKey: "tonic.widget.hasCompletedOnboarding")
         WidgetCoordinator.shared.start()
         isPresented = false
-        dismiss()
     }
-}
-
-// MARK: - Progress Bar
-
-struct OnboardingProgressBar: View {
-    let currentPage: Int
-    let totalPages: Int
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<totalPages, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(index <= currentPage ? TonicColors.accent : Color.gray.opacity(0.3))
-                    .frame(width: index == currentPage ? 28 : 8, height: 4)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentPage)
-            }
-        }
-    }
-}
-
-// MARK: - Value Card
-
-struct OnboardingValueCard: View {
-    let icon: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(TonicColors.accent)
-                .frame(width: 32, height: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline).bold()
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer()
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
-    }
-}
-
-// MARK: - Setup Card
-
-struct OnboardingSetupCard: View {
-    let icon: String
-    let title: String
-    let description: String
-    let badgeText: String
-    let badgeColor: Color
-    let isGranted: Bool
-
-    var action: (() -> Void)?
-    var actionLabel: String = ""
-    var secondaryAction: (() -> Void)?
-    var secondaryLabel: String = ""
-    var isLoading: Bool = false
-    var toggleAction: ((Bool) -> Void)?
-
-    @State private var toggleState = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundColor(isGranted ? .green : TonicColors.accent)
-                    .frame(width: 28)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-                    Text(description)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                if isGranted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.green)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    Text(badgeText)
-                        .font(.caption2).bold()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(badgeColor.opacity(0.15))
-                        .foregroundColor(badgeColor)
-                        .cornerRadius(4)
-                }
-            }
-
-            if !isGranted {
-                if let toggleAction {
-                    Toggle("Enable", isOn: $toggleState)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .onChange(of: toggleState) { _, newValue in
-                            toggleAction(newValue)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                } else if let action {
-                    HStack(spacing: 12) {
-                        Button(action: action) {
-                            if isLoading {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .frame(height: 14)
-                            } else {
-                                Text(actionLabel)
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .disabled(isLoading)
-
-                        if !secondaryLabel.isEmpty, let secondaryAction {
-                            Button(action: secondaryAction) {
-                                Text(secondaryLabel)
-                                    .font(.caption)
-                                    .underline()
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(10)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isGranted)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    UnifiedOnboardingView(isPresented: .constant(true))
 }

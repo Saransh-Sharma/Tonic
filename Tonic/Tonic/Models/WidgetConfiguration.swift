@@ -127,7 +127,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
 }
 
 extension WidgetType {
-    /// Shared module inventory used for stats-master parity mode.
+    /// Shared module inventory used by the menu-bar widget runtime.
     public static var parityCases: [WidgetType] {
         [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock]
     }
@@ -191,276 +191,6 @@ public enum WidgetValueFormat: String, Sendable, CaseIterable, Identifiable, Cod
     }
 }
 
-// MARK: - Widget Accent Color
-
-/// Color options for widgets (30+ options matching Stats Master PRD)
-/// Categories: automatic, system, primary, secondary, grays, special
-public enum WidgetAccentColor: String, CaseIterable, Identifiable, Codable, Sendable {
-    // MARK: Automatic Colors (Calculated)
-    case system = "system"              // Auto - default color per widget type
-    case utilization = "utilization"    // Based on utilization (green->yellow->orange->red)
-    case pressure = "pressure"          // Based on memory pressure
-    case cluster = "cluster"            // Based on CPU cluster (E/P cores)
-
-    // MARK: System Colors
-    case systemAccent = "systemAccent"  // macOS accent color
-    case monochrome = "monochrome"      // Adapts to light/dark mode
-
-    // MARK: Primary Colors
-    case red = "red"
-    case green = "green"
-    case blue = "blue"
-    case yellow = "yellow"
-    case orange = "orange"
-    case purple = "purple"
-    case brown = "brown"
-    case cyan = "cyan"
-    case magenta = "magenta"
-    case pink = "pink"
-    case teal = "teal"
-    case indigo = "indigo"
-
-    // MARK: Secondary Colors (System variants)
-    case secondRed = "secondRed"
-    case secondGreen = "secondGreen"
-    case secondBlue = "secondBlue"
-    case secondYellow = "secondYellow"
-    case secondOrange = "secondOrange"
-    case secondPurple = "secondPurple"
-    case secondBrown = "secondBrown"
-
-    // MARK: Gray Colors
-    case gray = "gray"
-    case secondGray = "secondGray"
-    case darkGray = "darkGray"
-    case lightGray = "lightGray"
-
-    // MARK: Special Colors
-    case white = "white"
-    case black = "black"
-    case clear = "clear"
-
-    public var id: String { rawValue }
-
-    /// Display name for the color
-    public var displayName: String {
-        switch self {
-        // Automatic
-        case .system: return "Auto"
-        case .utilization: return "Based on utilization"
-        case .pressure: return "Based on pressure"
-        case .cluster: return "Based on cluster"
-        // System
-        case .systemAccent: return "System accent"
-        case .monochrome: return "Monochrome"
-        // Primary
-        case .red: return "Red"
-        case .green: return "Green"
-        case .blue: return "Blue"
-        case .yellow: return "Yellow"
-        case .orange: return "Orange"
-        case .purple: return "Purple"
-        case .brown: return "Brown"
-        case .cyan: return "Cyan"
-        case .magenta: return "Magenta"
-        case .pink: return "Pink"
-        case .teal: return "Teal"
-        case .indigo: return "Indigo"
-        // Secondary
-        case .secondRed: return "Second red"
-        case .secondGreen: return "Second green"
-        case .secondBlue: return "Second blue"
-        case .secondYellow: return "Second yellow"
-        case .secondOrange: return "Second orange"
-        case .secondPurple: return "Second purple"
-        case .secondBrown: return "Second brown"
-        // Grays
-        case .gray: return "Gray"
-        case .secondGray: return "Second gray"
-        case .darkGray: return "Dark gray"
-        case .lightGray: return "Light gray"
-        // Special
-        case .white: return "White"
-        case .black: return "Black"
-        case .clear: return "Clear"
-        }
-    }
-
-    /// Whether this color is automatic (calculated from values)
-    public var isAutomatic: Bool {
-        switch self {
-        case .system, .utilization, .pressure, .cluster:
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// The NSColor value for this color option (for fixed colors)
-    public var nsColor: NSColor? {
-        switch self {
-        // Automatic colors return nil (need value to calculate)
-        case .system, .utilization, .pressure, .cluster:
-            return nil
-        // System
-        case .systemAccent: return .controlAccentColor
-        case .monochrome: return .textColor
-        // Primary
-        case .red: return .red
-        case .green: return .green
-        case .blue: return .blue
-        case .yellow: return .yellow
-        case .orange: return .orange
-        case .purple: return .purple
-        case .brown: return .brown
-        case .cyan: return .cyan
-        case .magenta: return .magenta
-        case .pink: return .systemPink
-        case .teal: return .systemTeal
-        case .indigo: return .systemIndigo
-        // Secondary
-        case .secondRed: return .systemRed
-        case .secondGreen: return .systemGreen
-        case .secondBlue: return .systemBlue
-        case .secondYellow: return .systemYellow
-        case .secondOrange: return .systemOrange
-        case .secondPurple: return .systemPurple
-        case .secondBrown: return .systemBrown
-        // Grays
-        case .gray: return .gray
-        case .secondGray: return .systemGray
-        case .darkGray: return .darkGray
-        case .lightGray: return .lightGray
-        // Special
-        case .white: return .white
-        case .black: return .black
-        case .clear: return .clear
-        }
-    }
-
-    /// The actual Color value (for fixed colors, uses system default for automatic)
-    public func colorValue(for widgetType: WidgetType) -> Color {
-        switch self {
-        case .system:
-            // Return default color for each widget type when in Auto mode
-            return defaultColor(for: widgetType)
-        case .utilization, .pressure, .cluster:
-            // These need a value to calculate - return system accent as fallback
-            return Color(nsColor: .controlAccentColor)
-        default:
-            if let nsColor = nsColor {
-                return Color(nsColor: nsColor)
-            }
-            return defaultColor(for: widgetType)
-        }
-    }
-
-    /// Calculate color based on a utilization value (0-100%)
-    /// For .utilization color mode
-    public func colorValue(forUtilization percentage: Double) -> Color {
-        switch self {
-        case .utilization:
-            return UtilizationColorHelper.color(forPercentage: percentage)
-        default:
-            if let nsColor = nsColor {
-                return Color(nsColor: nsColor)
-            }
-            return Color(nsColor: .controlAccentColor)
-        }
-    }
-
-    /// Calculate NSColor based on a utilization value (0-100%)
-    public func nsColorValue(forUtilization percentage: Double) -> NSColor {
-        switch self {
-        case .utilization:
-            return UtilizationColorHelper.nsColor(forPercentage: percentage)
-        default:
-            return nsColor ?? .controlAccentColor
-        }
-    }
-
-    /// Calculate color based on memory pressure
-    public func colorValue(forPressure pressure: MemoryPressureLevel) -> Color {
-        switch self {
-        case .pressure:
-            return WidgetColorPalette.pressureColor(for: pressure)
-        default:
-            if let nsColor = nsColor {
-                return Color(nsColor: nsColor)
-            }
-            return Color(nsColor: .controlAccentColor)
-        }
-    }
-
-    /// Calculate color for CPU cluster (E-core vs P-core)
-    public func colorValue(isEfficiencyCore: Bool) -> Color {
-        switch self {
-        case .cluster:
-            return isEfficiencyCore
-                ? WidgetColorPalette.ClusterColor.eCores
-                : WidgetColorPalette.ClusterColor.pCores
-        default:
-            if let nsColor = nsColor {
-                return Color(nsColor: nsColor)
-            }
-            return Color(nsColor: .controlAccentColor)
-        }
-    }
-
-    /// Default color for each widget type when in Auto mode
-    private func defaultColor(for widgetType: WidgetType) -> Color {
-        switch widgetType {
-        case .cpu: return Color(nsColor: .systemBlue)
-        case .memory: return Color(nsColor: .systemGreen)
-        case .disk: return Color(nsColor: .systemOrange)
-        case .network: return Color(nsColor: .systemCyan)
-        case .gpu: return Color(nsColor: .systemPurple)
-        case .battery: return Color(nsColor: .systemGreen)
-        case .weather: return Color(nsColor: .systemYellow)
-        case .sensors: return Color(nsColor: .systemOrange)
-        case .bluetooth: return Color(nsColor: .systemBlue)
-        case .clock: return Color(nsColor: .systemPurple)
-        }
-    }
-
-    // MARK: - Color Categories for Picker
-
-    /// All fixed colors (excluding automatic ones)
-    public static var fixedColors: [WidgetAccentColor] {
-        allCases.filter { !$0.isAutomatic }
-    }
-
-    /// Automatic color options
-    public static var automaticColors: [WidgetAccentColor] {
-        [.system, .utilization, .pressure, .cluster]
-    }
-
-    /// System colors
-    public static var systemColors: [WidgetAccentColor] {
-        [.systemAccent, .monochrome]
-    }
-
-    /// Primary colors
-    public static var primaryColors: [WidgetAccentColor] {
-        [.red, .green, .blue, .yellow, .orange, .purple, .brown, .cyan, .magenta, .pink, .teal, .indigo]
-    }
-
-    /// Secondary colors
-    public static var secondaryColors: [WidgetAccentColor] {
-        [.secondRed, .secondGreen, .secondBlue, .secondYellow, .secondOrange, .secondPurple, .secondBrown]
-    }
-
-    /// Gray colors
-    public static var grayColors: [WidgetAccentColor] {
-        [.gray, .secondGray, .darkGray, .lightGray]
-    }
-
-    /// Special colors
-    public static var specialColors: [WidgetAccentColor] {
-        [.white, .black, .clear]
-    }
-}
-
 // MARK: - Module Settings
 
 /// Protocol for module-specific settings configuration
@@ -471,7 +201,6 @@ public protocol ModuleSettingsConfig {
 }
 
 /// Per-module settings for widget-specific configuration options
-/// Based on Stats Master's module settings pattern
 public struct ModuleSettings: Codable, Sendable, Equatable {
     public var cpu: CPUModuleSettings
     public var disk: DiskModuleSettings
@@ -892,10 +621,7 @@ public struct PopupSettings: Codable, Sendable, Equatable {
     public var chartHistoryDuration: Int  // seconds (60-300)
     public var scalingMode: ScalingMode
     public var fixedScaleValue: Double
-    public var useAutoColors: Bool
-    public var primaryColor: String  // hex color
     public var popoverWidth: Double
-    public var metricColors: [String: String]  // metric name -> hex color
 
     /// Default popup settings
     public static let `default` = PopupSettings()
@@ -905,22 +631,16 @@ public struct PopupSettings: Codable, Sendable, Equatable {
         chartHistoryDuration: Int = 180,
         scalingMode: ScalingMode = .auto,
         fixedScaleValue: Double = 100,
-        useAutoColors: Bool = true,
-        primaryColor: String = "#007AFF",
-        popoverWidth: Double = 280,
-        metricColors: [String: String] = [:]
+        popoverWidth: Double = 280
     ) {
         self.keyboardShortcut = keyboardShortcut
         self.chartHistoryDuration = max(60, min(300, chartHistoryDuration))
         self.scalingMode = scalingMode
         self.fixedScaleValue = max(10, min(200, fixedScaleValue))
-        self.useAutoColors = useAutoColors
-        self.primaryColor = primaryColor
         self.popoverWidth = max(240, min(400, popoverWidth))
-        self.metricColors = metricColors
     }
 
-    // Custom decoding to clamp values
+    // Custom decoding clamps values and accepts deleted chroma keys for compatibility.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.keyboardShortcut = try container.decodeIfPresent(String.self, forKey: .keyboardShortcut)
@@ -929,11 +649,20 @@ public struct PopupSettings: Codable, Sendable, Equatable {
         self.scalingMode = try container.decodeIfPresent(ScalingMode.self, forKey: .scalingMode) ?? .auto
         let fixedScaleValue = try container.decodeIfPresent(Double.self, forKey: .fixedScaleValue) ?? 100
         self.fixedScaleValue = max(10, min(200, fixedScaleValue))
-        self.useAutoColors = try container.decodeIfPresent(Bool.self, forKey: .useAutoColors) ?? true
-        self.primaryColor = try container.decodeIfPresent(String.self, forKey: .primaryColor) ?? "#007AFF"
+        _ = try container.decodeIfPresent(Bool.self, forKey: .useAutoColors)
+        _ = try container.decodeIfPresent(String.self, forKey: .primaryColor)
         let popoverWidth = try container.decodeIfPresent(Double.self, forKey: .popoverWidth) ?? 280
         self.popoverWidth = max(240, min(400, popoverWidth))
-        self.metricColors = try container.decodeIfPresent([String: String].self, forKey: .metricColors) ?? [:]
+        _ = try container.decodeIfPresent([String: String].self, forKey: .metricColors)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(keyboardShortcut, forKey: .keyboardShortcut)
+        try container.encode(chartHistoryDuration, forKey: .chartHistoryDuration)
+        try container.encode(scalingMode, forKey: .scalingMode)
+        try container.encode(fixedScaleValue, forKey: .fixedScaleValue)
+        try container.encode(popoverWidth, forKey: .popoverWidth)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -979,7 +708,6 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
     public var showLabel: Bool
     public var valueFormat: WidgetValueFormat
     public var refreshInterval: WidgetUpdateInterval
-    public var accentColor: WidgetAccentColor
     public var chartConfig: ChartConfiguration?
     public var moduleSettings: ModuleSettings
 
@@ -993,7 +721,6 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
         showLabel: Bool = false,
         valueFormat: WidgetValueFormat = .percentage,
         refreshInterval: WidgetUpdateInterval = .balanced,
-        accentColor: WidgetAccentColor = .system,
         chartConfig: ChartConfiguration? = nil,
         moduleSettings: ModuleSettings = ModuleSettings.default
     ) {
@@ -1006,9 +733,44 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
         self.showLabel = showLabel
         self.valueFormat = valueFormat
         self.refreshInterval = refreshInterval
-        self.accentColor = accentColor
         self.chartConfig = chartConfig
         self.moduleSettings = moduleSettings
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        self.type = try container.decode(WidgetType.self, forKey: .type)
+        self.visualizationType = try container.decodeIfPresent(VisualizationType.self, forKey: .visualizationType) ?? type.defaultVisualization
+        self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? type.isDefaultEnabled
+        self.position = try container.decodeIfPresent(Int.self, forKey: .position) ?? 0
+        self.displayMode = try container.decodeIfPresent(WidgetDisplayMode.self, forKey: .displayMode) ?? .compact
+        self.showLabel = try container.decodeIfPresent(Bool.self, forKey: .showLabel) ?? false
+        self.valueFormat = try container.decodeIfPresent(WidgetValueFormat.self, forKey: .valueFormat) ?? type.defaultValueFormat
+        self.refreshInterval = try container.decodeIfPresent(WidgetUpdateInterval.self, forKey: .refreshInterval) ?? .balanced
+        _ = try container.decodeIfPresent(String.self, forKey: .accentColor)
+        self.chartConfig = try container.decodeIfPresent(ChartConfiguration.self, forKey: .chartConfig)
+        self.moduleSettings = try container.decodeIfPresent(ModuleSettings.self, forKey: .moduleSettings) ?? ModuleSettings.default
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(type, forKey: .type)
+        try container.encode(visualizationType, forKey: .visualizationType)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(position, forKey: .position)
+        try container.encode(displayMode, forKey: .displayMode)
+        try container.encode(showLabel, forKey: .showLabel)
+        try container.encode(valueFormat, forKey: .valueFormat)
+        try container.encode(refreshInterval, forKey: .refreshInterval)
+        try container.encodeIfPresent(chartConfig, forKey: .chartConfig)
+        try container.encode(moduleSettings, forKey: .moduleSettings)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, visualizationType, isEnabled, position, displayMode, showLabel
+        case valueFormat, refreshInterval, accentColor, chartConfig, moduleSettings
     }
 
     /// Default configuration for a given widget type
@@ -1022,7 +784,6 @@ public struct WidgetConfiguration: Codable, Identifiable, Sendable {
             showLabel: false,
             valueFormat: type.defaultValueFormat,
             refreshInterval: .balanced,
-            accentColor: .system,
             chartConfig: nil as ChartConfiguration?,
             moduleSettings: ModuleSettings.default
         )
@@ -1092,7 +853,7 @@ public final class WidgetPreferences: Sendable {
     // MARK: - Migration Version
 
     /// Current migration version - increment when config structure changes
-    private static let currentMigrationVersion = 4
+    private static let currentMigrationVersion = 5
 
     // MARK: - Properties
 
@@ -1259,7 +1020,8 @@ public final class WidgetPreferences: Sendable {
         // Version 0 -> 1: Migrate from legacy format (iconOnly/iconWithValue/iconWithValueAndSparkline)
         // Version 1 -> 2: Add visualizationType field
         // Version 2 -> 3: Add moduleSettings field
-        // Version 3 -> 4: Enforce strict parity inventory
+        // Version 3 -> 4: Enforce strict widget inventory
+        // Version 4 -> 5: Drop persisted arbitrary widget color fields
         if version == 0 {
             return try migrateFromLegacyFormat(data: data)
         } else if version == 1 {
@@ -1268,6 +1030,8 @@ public final class WidgetPreferences: Sendable {
             return try migrateToVersion3(data: data)
         } else if version == 3 {
             return try migrateToVersion4(data: data)
+        } else if version == 4 {
+            return try migrateToVersion5(data: data)
         }
 
         return nil
@@ -1314,7 +1078,6 @@ public final class WidgetPreferences: Sendable {
                 showLabel: legacy.showLabel,
                 valueFormat: legacy.valueFormat,
                 refreshInterval: legacy.refreshInterval,
-                accentColor: .system,
                 chartConfig: nil as ChartConfiguration?
             )
         }
@@ -1332,7 +1095,7 @@ public final class WidgetPreferences: Sendable {
             var showLabel: Bool
             var valueFormat: WidgetValueFormat
             var refreshInterval: WidgetUpdateInterval
-            var accentColor: WidgetAccentColor
+            var accentColor: String?
         }
 
         let preVizConfigs = try JSONDecoder().decode([PreVisualizationConfig].self, from: data)
@@ -1349,7 +1112,6 @@ public final class WidgetPreferences: Sendable {
                 showLabel: config.showLabel,
                 valueFormat: config.valueFormat,
                 refreshInterval: config.refreshInterval,
-                accentColor: config.accentColor,
                 chartConfig: nil as ChartConfiguration?
             )
         }
@@ -1367,7 +1129,7 @@ public final class WidgetPreferences: Sendable {
             var showLabel: Bool
             var valueFormat: WidgetValueFormat
             var refreshInterval: WidgetUpdateInterval
-            var accentColor: WidgetAccentColor
+            var accentColor: String?
             var visualizationType: VisualizationType
             var chartConfig: ChartConfiguration?
         }
@@ -1386,7 +1148,6 @@ public final class WidgetPreferences: Sendable {
                 showLabel: config.showLabel,
                 valueFormat: config.valueFormat,
                 refreshInterval: config.refreshInterval,
-                accentColor: config.accentColor,
                 chartConfig: config.chartConfig,
                 moduleSettings: ModuleSettings.default
             )
@@ -1397,6 +1158,12 @@ public final class WidgetPreferences: Sendable {
     private static func migrateToVersion4(data: Data) throws -> [WidgetConfiguration] {
         let v3Configs = try JSONDecoder().decode([WidgetConfiguration].self, from: data)
         return sanitizeForParity(v3Configs)
+    }
+
+    /// Migrate from version 4 to version 5 (remove arbitrary chroma from saved configs)
+    private static func migrateToVersion5(data: Data) throws -> [WidgetConfiguration] {
+        let v4Configs = try JSONDecoder().decode([WidgetConfiguration].self, from: data)
+        return sanitizeForParity(v4Configs)
     }
 
     /// Create backup of existing configs before migration
@@ -1533,7 +1300,7 @@ public final class WidgetPreferences: Sendable {
             return configs
         }
 
-        // Second, try to decode without visualizationType (pre-Stats Master parity)
+        // Second, try to decode without visualizationType.
         struct PreVisualizationConfig: Codable {
             let id: UUID
             var type: WidgetType
@@ -1543,7 +1310,7 @@ public final class WidgetPreferences: Sendable {
             var showLabel: Bool
             var valueFormat: WidgetValueFormat
             var refreshInterval: WidgetUpdateInterval
-            var accentColor: WidgetAccentColor
+            var accentColor: String?
         }
 
         if let preVizConfigs = try? JSONDecoder().decode([PreVisualizationConfig].self, from: data) {
@@ -1559,7 +1326,6 @@ public final class WidgetPreferences: Sendable {
                     showLabel: config.showLabel,
                     valueFormat: config.valueFormat,
                     refreshInterval: config.refreshInterval,
-                    accentColor: config.accentColor,
                     chartConfig: nil as ChartConfiguration?
                 )
             }
@@ -1603,7 +1369,6 @@ public final class WidgetPreferences: Sendable {
                     showLabel: legacy.showLabel,
                     valueFormat: legacy.valueFormat,
                     refreshInterval: legacy.refreshInterval,
-                    accentColor: .system,
                     chartConfig: nil as ChartConfiguration?
                 )
             }
@@ -1673,12 +1438,6 @@ public final class WidgetPreferences: Sendable {
     public func setWidgetRefreshInterval(type: WidgetType, interval: WidgetUpdateInterval) {
         updateConfig(for: type) { config in
             config.refreshInterval = interval
-        }
-    }
-
-    public func setWidgetColor(type: WidgetType, color: WidgetAccentColor) {
-        updateConfig(for: type) { config in
-            config.accentColor = color
         }
     }
 

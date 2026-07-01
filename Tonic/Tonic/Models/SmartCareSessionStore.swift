@@ -49,27 +49,6 @@ final class SmartCareSessionStore: ObservableObject {
         runSummary?.formattedSummary
     }
 
-    var activeWorld: TonicWorld {
-        switch destination {
-        case .smartScan:
-            return .smartScanPurple
-        case .manager(let route):
-            switch route {
-            case .space(let focus):
-                switch focus {
-                case .clutter:
-                    return .clutterTeal
-                case .spaceRoot, .cleanup:
-                    return .cleanupGreen
-                }
-            case .performance:
-                return .performanceOrange
-            case .apps:
-                return .applicationsBlue
-            }
-        }
-    }
-
     func reviewCustomize() {
         guard scanResult != nil else { return }
         destination = .manager(.space(.spaceRoot))

@@ -228,10 +228,10 @@ final class Phase1TrustRegressionTests: XCTestCase {
             .deletingLastPathComponent()
 
         let checkedFiles = [
-            "Tonic/Tonic/Views/SmartScan/SpaceManagerView.swift",
-            "Tonic/Tonic/Views/SmartScan/AppsManagerView.swift",
-            "Tonic/Tonic/Views/SmartScan/SmartScanHubView.swift",
-            "Tonic/Tonic/Views/DashboardHomeView.swift"
+            "Tonic/Tonic/Views/Home/HomeView.swift",
+            "Tonic/Tonic/Views/Clean/CleanView.swift",
+            "Tonic/Tonic/Views/Apps/AppsView.swift",
+            "Tonic/Tonic/Views/Monitor/MonitorView.swift"
         ]
 
         for relativePath in checkedFiles {
@@ -248,13 +248,10 @@ final class Phase1TrustRegressionTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: projectRoot.appendingPathComponent("Tonic/Tonic/Views/DashboardHomeView.swift"),
-            encoding: .utf8
-        )
+        let source = try String(contentsOf: projectRoot.appendingPathComponent("Tonic/Tonic/Views/Home/HomeView.swift"), encoding: .utf8)
 
         XCTAssertFalse(source.contains("Run reviewed items"))
-        XCTAssertTrue(source.contains("Review Smart Clean"))
+        XCTAssertTrue(source.contains("Run Smart Scan"))
     }
 
     func testUpdaterLabsIsHiddenFromStandardModeNavigation() throws {
@@ -264,13 +261,9 @@ final class Phase1TrustRegressionTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: projectRoot.appendingPathComponent("Tonic/Tonic/Views/SmartScan/AppsManagerView.swift"),
-            encoding: .utf8
-        )
+        let source = try String(contentsOf: projectRoot.appendingPathComponent("Tonic/Tonic/Views/Apps/AppsView.swift"), encoding: .utf8)
 
-        XCTAssertTrue(source.contains("if powerUserModeEnabled"))
-        XCTAssertTrue(source.contains("Updater Labs"))
+        XCTAssertFalse(source.contains("Updater Labs"))
     }
 
     func testWIPFeatureFlagsAreClosedInReleaseBuilds() {

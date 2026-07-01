@@ -36,20 +36,10 @@ enum ActivityCategory: String, Codable, CaseIterable {
         }
     }
 
+    /// Activity category is taxonomy — the icon uses a neutral ink tint. Urgency/state color
+    /// lives on `ActivityImpact` (the data). Brand coral never rides a log row.
     var color: Color {
-        switch self {
-        case .install: return DesignTokens.Colors.success
-        case .update: return DesignTokens.Colors.accent
-        case .scan: return DesignTokens.Colors.accent
-        case .clean: return DesignTokens.Colors.success
-        case .optimize: return DesignTokens.Colors.info
-        case .app: return DesignTokens.Colors.accent
-        case .disk: return DesignTokens.Colors.warning
-        case .notification: return DesignTokens.Colors.warning
-        case .preference: return DesignTokens.Colors.textSecondary
-        case .alert: return DesignTokens.Colors.error
-        case .info: return DesignTokens.Colors.textSecondary
-        }
+        TonicDS.Colors.textPrimary
     }
 }
 
@@ -61,10 +51,10 @@ enum ActivityImpact: String, Codable {
 
     var color: Color {
         switch self {
-        case .high: return DesignTokens.Colors.error
-        case .medium: return DesignTokens.Colors.warning
-        case .low: return DesignTokens.Colors.success
-        case .none: return DesignTokens.Colors.textSecondary
+        case .high: return TonicDS.Colors.statusCritical
+        case .medium: return TonicDS.Colors.statusWarning
+        case .low: return TonicDS.Colors.statusSuccess
+        case .none: return TonicDS.Colors.textMuted
         }
     }
 }

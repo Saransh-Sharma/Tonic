@@ -141,37 +141,66 @@ User Defaults wrapper:
 @AppStorage("launchAtLogin") private var launchAtLogin = false
 ```
 
-## Design System
+## Design System — TonicDS (Editorial "Command Center")
+
+The UI uses the editorial design language defined in `TonicDesign.md` (white/obsidian
+canvases, deep-green/navy module bands, near-black `#17171c` monitoring consoles, flat depth,
+display/body/mono type split). **The data is the media**: status colors (green→yellow→orange→red)
+are data-only; brand coral is brand-only.
 
 Located in `Tonic/Tonic/Design/`:
 
-- **DesignTokens.swift**: Colors, spacing, typography, animations
-- **DesignComponents.swift**: Reusable UI components (Card, PrimaryButton, StatusLevel)
-- **DesignAnimations.swift**: View modifiers (shimmer, fadeIn, scaleIn, skeleton)
+- **TonicDS.swift** — the source of truth: `TonicDS.Colors` (canvas, surface, ink, console,
+  deepGreen, darkNavy, softStone, status scale, accentCoral, linkBlue), `TonicDS.TypeRole` +
+  `.tonicType(_:)` (carved tracking/line-height), `TonicDS.Space/Radius/Layout/Motion/Elevation`,
+  and `TonicDS.status(forFraction:/forTempC:/forBattery:)`.
+- **TonicEditorialComponents.swift** — `PrimaryPill`, `TextAction`, `FilterPill`,
+  `CategoryFilterChip`, `StatusChip`, `AlertBanner`, `DataCard`, `MonitoringConsole`, `ModuleBand`,
+  `ScanCategoryCard`, `SettingsPanel`, `SystemListRow`, `TonicPageHeader`, `TonicEmptyState`,
+  `TonicSearchField`, `MonoLabel`, `Metric`, press/hover/focus/hairline helpers.
+- **TonicEditorialChrome.swift** — `TonicTabBar`, `TonicBentoGrid`, `GaugeCard`/`ChartCard`
+  (wrap the kept `MenuBarWidgets/Components/*` renderers with status colors), `ToastData`/`tonicToast`,
+  `SheetChrome`.
+- Still present: `DesignTokens.swift` (low-level base), `ColorZones`, `WidgetColors`,
+  `DesignAnimations`, `ActionTable`, `OutlineView`, `ErrorView`, `InputValidation`, `DesignComponents`
+  (menu-bar settings rows), `TonicThemeTokens` (retains `TonicWorld`/status used by Models).
+  The legacy glass/world visual files (TonicVisualPrimitives, TonicThemeProvider, Tonic*Components,
+  Atelier UI) were removed in the redesign.
 
 ### Key Tokens
 
 ```swift
-DesignTokens.Colors.accent      // Primary accent color
-DesignTokens.Colors.surface     // Background for cards
-DesignTokens.Spacing.md         // 16pt standard spacing
-DesignTokens.CornerRadius.large // 12pt rounded corners
+TonicDS.Colors.canvas / .console / .deepGreen / .statusSuccess
+TonicDS.Space.md / .section          // 16pt / 64pt
+TonicDS.Radius.card / .pill          // 22pt / 32pt
+Text("CPU").tonicType(.monoLabel)    // carved/tracked type roles
+TonicDS.status(forFraction: 0.92)    // data status color
 ```
 
-## Navigation Structure
+## Navigation Structure (reimagined IA — 5 primary + Advanced)
+
+The sidebar shows **Home · Clean · Apps · Monitor · Settings** (+ flagged Advanced). The
+`NavigationDestination` enum keeps its original case names for routing stability; several map to the
+consolidated screens:
 
 ```swift
-enum NavigationDestination: String, CaseIterable {
-    case dashboard          // DashboardView.swift
-    case systemCleanup      // SmartScanView.swift
-    case appManager         // AppInventoryView.swift
-    case diskAnalysis       // DiskAnalysisView.swift
-    case liveMonitoring     // SystemStatusDashboard.swift
-    case menuBarWidgets     // WidgetsPanelView.swift
-    case developerTools     // DeveloperToolsView.swift
-    case settings           // PreferencesView.swift
+enum NavigationDestination {
+    case dashboard       // Home — Views/Home/HomeView.swift
+    case systemCleanup   // Clean — Views/Clean/CleanView.swift (Smart Scan/Storage/History tabs)
+    case appManager      // Apps — Views/Apps/AppsView.swift
+    case diskAnalysis    // → CleanView(initialTab: .storage)
+    case recentlyCleaned // → CleanView(initialTab: .history)
+    case liveMonitoring  // Monitor — Views/Monitor/MonitorView.swift
+    case menuBarWidgets  // → SettingsView(initialSection: .modules)
+    case settings        // Settings — Views/Settings/SettingsView.swift (consolidated)
+    case developerTools  // Advanced — DeveloperToolsView (in ContentView.swift)
+    case designSandbox   // Advanced — Views/Advanced/DesignGalleryView.swift
 }
 ```
+
+Clean is driven by `SmartCareSessionStore`; Home/triage by `SmartScanManager` (Services/) +
+`Recommendation` (Models/); appearance by `AppearancePreferences` (Models/); Settings window by
+`PreferencesWindowController` (Services/).
 
 ## Core Features
 

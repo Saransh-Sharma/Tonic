@@ -297,9 +297,9 @@ public enum QualityColor: Sendable {
 
     public var swiftUIColor: SwiftUI.Color {
         switch self {
-        case .green: return TonicColors.success
-        case .yellow: return TonicColors.warning
-        case .red: return TonicColors.error
+        case .green: return TonicDS.Colors.statusSuccess
+        case .yellow: return TonicDS.Colors.statusWarning
+        case .red: return TonicDS.Colors.statusCritical
         case .gray: return SwiftUI.Color.secondary
         }
     }

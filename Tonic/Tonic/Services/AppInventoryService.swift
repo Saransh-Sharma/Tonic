@@ -8,10 +8,6 @@
 import Foundation
 import SwiftUI
 
-// MARK: - ActionTableItem Conformance
-
-extension AppMetadata: ActionTableItem {}
-
 // MARK: - App Inventory Service
 
 @MainActor

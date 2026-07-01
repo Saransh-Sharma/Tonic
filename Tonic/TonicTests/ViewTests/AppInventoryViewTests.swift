@@ -126,7 +126,7 @@ final class AppInventoryViewTests: XCTestCase {
         let searchTerm = "M"
 
         let filtered = apps.filter { $0.starts(with: searchTerm) }
-        XCTAssertEqual(filtered.count, 2)  // Mail, Maps, Music
+        XCTAssertEqual(filtered.count, 3)  // Mail, Maps, Music
     }
 
     func testFilterByCategorySystem() {

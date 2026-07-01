@@ -188,13 +188,12 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
 
     /// Update the configuration and refresh the view
     public func updateConfiguration(_ newConfig: WidgetConfiguration) {
-        let oldColor = configuration.accentColor.rawValue
         let oldFormat = configuration.valueFormat.rawValue
         let oldMode = configuration.displayMode.rawValue
 
         configuration = newConfig
 
-        logger.info("🔧 updateConfiguration for \(self.widgetType.rawValue): color \(oldColor)→\(newConfig.accentColor.rawValue), format \(oldFormat)→\(newConfig.valueFormat.rawValue), mode \(oldMode)→\(newConfig.displayMode.rawValue)")
+        logger.info("🔧 updateConfiguration for \(self.widgetType.rawValue): format \(oldFormat)→\(newConfig.valueFormat.rawValue), mode \(oldMode)→\(newConfig.displayMode.rawValue)")
 
         if newConfig.isEnabled && !isVisible {
             // Widget was re-enabled
@@ -239,7 +238,7 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
                 self.logger.debug("🔄 Forced NSView redraw for \(self.widgetType.rawValue)")
             }
 
-            logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), color=\(newConfig.accentColor.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
+            logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
         }
     }
 
@@ -274,29 +273,7 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
 
     /// Create the detail view for this widget (to be overridden by subclasses)
     open func createDetailView() -> AnyView {
-        // Return the appropriate Stats Master-style popover for each widget type
-        switch widgetType {
-        case .cpu:
-            return AnyView(CPUPopoverView())
-        case .gpu:
-            return AnyView(GPUPopoverView())
-        case .memory:
-            return AnyView(MemoryPopoverView())
-        case .disk:
-            return AnyView(DiskPopoverView())
-        case .network:
-            return AnyView(NetworkPopoverView())
-        case .battery:
-            return AnyView(BatteryPopoverView())
-        case .sensors:
-            return AnyView(SensorsPopoverView())
-        case .bluetooth:
-            return AnyView(BluetoothPopoverView())
-        case .clock:
-            return AnyView(ClockPopoverView())
-        case .weather:
-            return AnyView(WeatherDetailView())
-        }
+        AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
     }
 
     // MARK: - Actions
@@ -375,47 +352,48 @@ struct WidgetCompactView: View {
     let configuration: WidgetConfiguration
     @State private var dataManager = WidgetDataManager.shared
 
-    private var accentColor: Color {
-        configuration.accentColor.colorValue(for: widgetType)
+    private var snapshot: WidgetMetricSnapshot {
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            // Icon
+        HStack(spacing: TonicDS.Space.xxs) {
             Image(systemName: widgetType.icon)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(accentColor)
+                .foregroundStyle(snapshot.iconColor)
 
-            // Value - always shown in both compact and detailed modes
-            Text(widgetValue)
+            Text(snapshot.value)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(.primary)
+                .monospacedDigit()
+                .foregroundStyle(snapshot.color)
+                .contentTransition(.numericText())
 
-            // Label (if enabled)
             if configuration.showLabel {
                 Text(widgetType.displayName)
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
             }
 
-            // Sparkline for detailed mode
-            if configuration.displayMode == .detailed {
-                miniSparkline
+            if configuration.displayMode == .detailed, !snapshot.history.isEmpty {
+                CompactSparkline(data: snapshot.history, color: snapshot.color)
                     .frame(width: 36, height: 14)
             }
         }
         .padding(.horizontal, 4)
-        .frame(height: 22)
+        .frame(height: TonicDS.Layout.MenuBar.compactHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(widgetType.displayName), \(snapshot.value)")
     }
+}
 
-    // MARK: - Sparkline
+private struct CompactSparkline: View {
+    let data: [Double]
+    let color: Color
 
-    private var miniSparkline: some View {
-        let data = sparklineData
-        return GeometryReader { geometry in
+    var body: some View {
+        GeometryReader { geometry in
             Path { path in
                 guard data.count > 1 else { return }
-
                 let stepX = geometry.size.width / CGFloat(data.count - 1)
                 let maxY = data.max() ?? 1
                 let minY = data.min() ?? 0
@@ -423,170 +401,309 @@ struct WidgetCompactView: View {
 
                 for (index, value) in data.enumerated() {
                     let x = CGFloat(index) * stepX
-                    let normalizedY = (value - minY) / range
-                    let y = geometry.size.height * (1 - normalizedY)
-
-                    if index == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
+                    let y = geometry.size.height * (1 - ((value - minY) / range))
+                    index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
                 }
             }
-            .stroke(
-                LinearGradient(
-                    colors: [accentColor, accentColor.opacity(0.4)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                lineWidth: 1.5
-            )
-        }
-    }
-
-    private var sparklineData: [Double] {
-        switch widgetType {
-        case .cpu:
-            let history = dataManager.cpuHistory.suffix(10)
-            return history.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : Array(history)
-        case .memory:
-            let history = dataManager.memoryHistory.suffix(10)
-            return history.isEmpty ? [60, 62, 58, 65, 63, 67, 64, 68, 66, 65] : Array(history)
-        default:
-            return [30, 35, 32, 38, 36, 34, 37, 35, 33, 36]
-        }
-    }
-
-    private var widgetValue: String {
-        let usePercent = configuration.valueFormat == .percentage
-
-        switch widgetType {
-        case .cpu:
-            if usePercent {
-                return "\(Int(dataManager.cpuData.totalUsage))%"
-            } else {
-                // Show GHz equivalent roughly
-                let baseFreq = 3.0 // Base frequency assumption
-                let currentFreq = baseFreq * (dataManager.cpuData.totalUsage / 100.0)
-                return String(format: "%.1fGHz", currentFreq)
-            }
-
-        case .memory:
-            if usePercent {
-                return "\(Int(dataManager.memoryData.usagePercentage))%"
-            } else {
-                let usedGB = Double(dataManager.memoryData.usedBytes) / (1024 * 1024 * 1024)
-                return String(format: "%.1fGB", usedGB)
-            }
-
-        case .disk:
-            if let primary = dataManager.diskVolumes.first {
-                if usePercent {
-                    return "\(Int(primary.usagePercentage))%"
-                } else {
-                    let freeGB = primary.freeBytes / (1024 * 1024 * 1024)
-                    return "\(freeGB)GB"
-                }
-            }
-            return "--"
-
-        case .network:
-            return dataManager.networkData.downloadString
-
-        case .gpu:
-            if let usage = dataManager.gpuData.usagePercentage {
-                if usePercent {
-                    return "\(Int(usage))%"
-                } else {
-                    // Rough frequency estimate
-                    let baseFreq = 1.0
-                    let currentFreq = baseFreq + (usage / 100.0)
-                    return String(format: "%.1fGHz", currentFreq)
-                }
-            }
-            return "--"
-
-        case .weather:
-            return "--°" // Will be filled by WeatherWidgetView
-
-        case .battery:
-            if dataManager.batteryData.isPresent {
-                if usePercent {
-                    return "\(Int(dataManager.batteryData.chargePercentage))%"
-                } else {
-                    if let minutes = dataManager.batteryData.estimatedMinutesRemaining {
-                        let hours = minutes / 60
-                        let mins = minutes % 60
-                        if hours > 0 {
-                            return "\(hours)h\(mins)m"
-                        } else {
-                            return "\(mins)m"
-                        }
-                    } else {
-                        return "--"
-                    }
-                }
-            }
-            return "--"
-            
-        case .sensors:
-            if let hottest = dataManager.sensorsData.temperatures.map(\.value).max() {
-                if usePercent {
-                    return "\(Int(min(100, hottest)))%"
-                }
-                return "\(Int(hottest))°"
-            }
-            if let fastestFan = dataManager.sensorsData.fans.map(\.rpm).max() {
-                return "\(fastestFan)RPM"
-            }
-            return "--"
-
-        case .bluetooth:
-            if dataManager.bluetoothData.isBluetoothEnabled {
-                let connectedCount = dataManager.bluetoothData.connectedDevices.count
-                if let device = dataManager.bluetoothData.devicesWithBattery.first,
-                   let battery = device.primaryBatteryLevel {
-                    return "\(battery)%"
-                }
-                return "\(connectedCount)"
-            }
-            return "Off"
-
-        case .clock:
-            // Clock is handled by ClockStatusItem, not WidgetCompactView
-            return "--:--"
+            .stroke(color, style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
         }
     }
 }
 
-// MARK: - Placeholder Detail View
+private struct EditorialWidgetPopoverView: View {
+    let widgetType: WidgetType
+    let configuration: WidgetConfiguration
+    @State private var dataManager = WidgetDataManager.shared
 
-/// Placeholder detail view until specific widget detail views are implemented
-struct WidgetDetailViewPlaceholder: View {
+    private var snapshot: WidgetMetricSnapshot {
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: TonicDS.Space.xs) {
+                Image(systemName: widgetType.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                MonoLabel(widgetType.displayName, color: TonicDS.Colors.onDarkMuted)
+                Spacer()
+                Metric(snapshot.value, color: snapshot.color)
+                    .scaleEffect(0.72, anchor: .trailing)
+                Button {
+                    SettingsDeepLinkNavigator.openModuleSettings(widgetType)
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open \(widgetType.displayName) settings")
+                .tonicPointerCursor()
+            }
+            .padding(.horizontal, TonicDS.Space.md)
+            .frame(height: 44)
+
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if !snapshot.history.isEmpty {
+                        NetworkSparklineChart(
+                            data: snapshot.history,
+                            color: snapshot.color,
+                            height: TonicDS.Layout.MenuBar.chartHeight,
+                            showArea: true,
+                            lineWidth: 1.5
+                        )
+                        .padding(TonicDS.Space.md)
+                        TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    } else {
+                        popoverEmptyHistory
+                        TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    }
+
+                    ForEach(snapshot.rows) { row in
+                        PopoverMetricRow(row: row)
+                        TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    }
+                }
+            }
+        }
+        .frame(width: TonicDS.Layout.MenuBar.width)
+        .frame(maxHeight: TonicDS.Layout.MenuBar.maxHeight)
+        .background(TonicDS.Colors.console)
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var popoverEmptyHistory: some View {
+        HStack(spacing: TonicDS.Space.sm) {
+            TonicSkeleton(height: 34, width: 48, radius: TonicDS.Radius.xs)
+            VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+                MonoLabel("HISTORY", color: TonicDS.Colors.onDarkMuted)
+                Text("Waiting for live samples")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            }
+            Spacer()
+        }
+        .padding(TonicDS.Space.md)
+    }
+}
+
+private struct PopoverMetricRow: View {
+    let row: WidgetPopoverRow
+
+    var body: some View {
+        HStack(spacing: TonicDS.Space.sm) {
+            if let color = row.statusColor {
+                Circle().fill(color).frame(width: 6, height: 6)
+            }
+            Text(row.label)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            Spacer(minLength: TonicDS.Space.sm)
+            Text(row.value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(row.statusColor ?? TonicDS.Colors.onDark)
+        }
+        .frame(height: TonicDS.Layout.MenuBar.rowHeight)
+        .padding(.horizontal, TonicDS.Space.md)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct WidgetPopoverRow: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: String
+    var statusColor: Color?
+}
+
+private struct WidgetMetricSnapshot {
+    let value: String
+    let color: Color
+    let iconColor: Color
+    let history: [Double]
+    let rows: [WidgetPopoverRow]
+
+    @MainActor
+    init(widgetType: WidgetType, configuration: WidgetConfiguration, dataManager: WidgetDataManager) {
+        let usePercent = configuration.valueFormat == .percentage
+        self.iconColor = TonicDS.Colors.textMuted
+
+        switch widgetType {
+        case .cpu:
+            let usage = dataManager.cpuData.totalUsage
+            value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 3.0 * usage / 100)
+            color = TonicDS.Chart.utilization(usage)
+            history = Array(dataManager.cpuHistory.suffix(30))
+            rows = [
+                WidgetPopoverRow(label: "Total", value: "\(Int(usage))%", statusColor: color),
+                WidgetPopoverRow(label: "User", value: "\(Int(dataManager.cpuData.userUsage))%", statusColor: TonicDS.Chart.cpuUser),
+                WidgetPopoverRow(label: "System", value: "\(Int(dataManager.cpuData.systemUsage))%", statusColor: TonicDS.Chart.cpuSystem),
+                WidgetPopoverRow(label: "Idle", value: "\(Int(max(0, 100 - usage)))%", statusColor: TonicDS.Chart.cpuIdle)
+            ]
+        case .memory:
+            let usage = dataManager.memoryData.usagePercentage
+            let usedGB = Double(dataManager.memoryData.usedBytes) / 1_073_741_824
+            let totalGB = Double(dataManager.memoryData.totalBytes) / 1_073_741_824
+            value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGB", usedGB)
+            color = TonicDS.Chart.utilization(usage)
+            history = Array(dataManager.memoryHistory.suffix(30))
+            rows = [
+                WidgetPopoverRow(label: "Used", value: String(format: "%.1f GB", usedGB), statusColor: color),
+                WidgetPopoverRow(label: "Total", value: String(format: "%.0f GB", totalGB)),
+                WidgetPopoverRow(label: "Pressure", value: "\(Int(usage))%", statusColor: color)
+            ]
+        case .disk:
+            if let primary = dataManager.diskVolumes.first {
+                let freeGB = primary.freeBytes / 1_073_741_824
+                let usage = primary.usagePercentage
+                value = usePercent ? "\(Int(usage))%" : "\(freeGB)GB"
+                color = TonicDS.Chart.utilization(usage)
+                history = []
+                rows = [
+                    WidgetPopoverRow(label: primary.name, value: "\(Int(usage))%", statusColor: color),
+                    WidgetPopoverRow(label: "Free", value: "\(freeGB) GB"),
+                    WidgetPopoverRow(label: "Read", value: primary.readThroughputString ?? "--", statusColor: TonicDS.Chart.read),
+                    WidgetPopoverRow(label: "Write", value: primary.writeThroughputString ?? "--", statusColor: TonicDS.Chart.write)
+                ]
+            } else {
+                value = "--"; color = TonicDS.Colors.textMuted; history = []
+                rows = [WidgetPopoverRow(label: "Disk", value: "No data")]
+            }
+        case .network:
+            value = dataManager.networkData.downloadString
+            color = dataManager.networkData.isConnected ? TonicDS.Chart.download : TonicDS.Colors.statusWarning
+            history = Array(dataManager.networkDownloadHistory.suffix(30))
+            rows = [
+                WidgetPopoverRow(label: "Download", value: dataManager.networkData.downloadString, statusColor: TonicDS.Chart.download),
+                WidgetPopoverRow(label: "Upload", value: dataManager.networkData.uploadString, statusColor: TonicDS.Chart.upload),
+                WidgetPopoverRow(label: "State", value: dataManager.networkData.isConnected ? "Connected" : "Offline", statusColor: color)
+            ]
+        case .gpu:
+            if let usage = dataManager.gpuData.usagePercentage {
+                value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 1.0 + usage / 100)
+                color = TonicDS.Chart.utilization(usage)
+                history = Array(dataManager.gpuHistory.suffix(30))
+                rows = [
+                    WidgetPopoverRow(label: "Utilization", value: "\(Int(usage))%", statusColor: color),
+                    WidgetPopoverRow(label: "Temperature", value: Self.temperatureValue(dataManager.gpuData.temperature), statusColor: dataManager.gpuData.temperature.map(TonicDS.Chart.temperature))
+                ]
+            } else {
+                value = "--"; color = TonicDS.Colors.textMuted; history = []
+                rows = [WidgetPopoverRow(label: "GPU", value: "No live sample")]
+            }
+        case .weather:
+            value = "--"; color = TonicDS.Colors.textMuted; history = []
+            rows = [WidgetPopoverRow(label: "Weather", value: "Not configured")]
+        case .battery:
+            let battery = dataManager.batteryData
+            if battery.isPresent {
+                value = usePercent ? "\(Int(battery.chargePercentage))%" : Self.remainingTime(minutes: battery.estimatedMinutesRemaining)
+                color = TonicDS.Chart.battery(level: battery.chargePercentage, isCharging: battery.isCharging)
+                history = Array(dataManager.batteryHistory.suffix(30))
+                rows = [
+                    WidgetPopoverRow(label: "Charge", value: "\(Int(battery.chargePercentage))%", statusColor: color),
+                    WidgetPopoverRow(label: "Power", value: battery.isCharging ? "Charging" : "Battery", statusColor: color),
+                    WidgetPopoverRow(label: "Remaining", value: Self.remainingTime(minutes: battery.estimatedMinutesRemaining))
+                ]
+            } else {
+                value = "--"; color = TonicDS.Colors.textMuted; history = []
+                rows = [WidgetPopoverRow(label: "Battery", value: "Not present")]
+            }
+        case .sensors:
+            if let hottest = dataManager.sensorsData.temperatures.map(\.value).max() {
+                value = "\(Int(hottest))°"
+                color = TonicDS.Chart.temperature(hottest)
+            } else if let fan = dataManager.sensorsData.fans.map(\.rpm).max() {
+                value = "\(fan)RPM"
+                color = TonicDS.Colors.statusInfo
+            } else {
+                value = "--"
+                color = TonicDS.Colors.textMuted
+            }
+            history = Array(dataManager.sensorsHistory.suffix(30))
+            rows = [
+                WidgetPopoverRow(label: "Temperature Sensors", value: "\(dataManager.sensorsData.temperatures.count)"),
+                WidgetPopoverRow(label: "Fans", value: "\(dataManager.sensorsData.fans.count)"),
+                WidgetPopoverRow(label: "Peak", value: value, statusColor: color)
+            ]
+        case .bluetooth:
+            if dataManager.bluetoothData.isBluetoothEnabled {
+                let count = dataManager.bluetoothData.connectedDevices.count
+                if let device = dataManager.bluetoothData.devicesWithBattery.first,
+                   let battery = device.primaryBatteryLevel {
+                    value = "\(battery)%"
+                    color = TonicDS.Chart.battery(level: Double(battery))
+                } else {
+                    value = "\(count)"
+                    color = count > 0 ? TonicDS.Colors.statusInfo : TonicDS.Colors.textMuted
+                }
+                rows = [
+                    WidgetPopoverRow(label: "Connected", value: "\(count)", statusColor: color),
+                    WidgetPopoverRow(label: "Battery Devices", value: "\(dataManager.bluetoothData.devicesWithBattery.count)")
+                ]
+            } else {
+                value = "Off"; color = TonicDS.Colors.statusWarning
+                rows = [WidgetPopoverRow(label: "Bluetooth", value: "Off", statusColor: color)]
+            }
+            history = []
+        case .clock:
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            value = formatter.string(from: Date())
+            color = TonicDS.Colors.onDark
+            history = []
+            rows = ClockPreferences.shared.enabledEntries.map {
+                WidgetPopoverRow(label: $0.name, value: Self.timeString(for: $0.timezone))
+            }
+        }
+    }
+
+    private static func remainingTime(minutes: Int?) -> String {
+        guard let minutes else { return "--" }
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+    }
+
+    private static func timeString(for timeZone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: Date())
+    }
+
+    private static func temperatureValue(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return "\(Int(value))°C"
+    }
+}
+
+// MARK: - Detail Placeholder
+
+/// Base console placeholder shown until a widget subclass supplies its own detail view.
+private struct WidgetDetailViewPlaceholder: View {
     let widgetType: WidgetType
 
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
+        VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+            MonoLabel(widgetType.displayName, color: TonicDS.Colors.onDarkMuted)
+            HStack(spacing: TonicDS.Space.sm) {
                 Image(systemName: widgetType.icon)
-                    .font(.title2)
-                    .foregroundColor(TonicColors.accent)
-
-                Text("\(widgetType.displayName) Details")
-                    .font(.headline)
-
-                Spacer()
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                Text("Waiting for live samples")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
             }
-            .padding()
-
-            Text("Detailed view for \(widgetType.displayName) widget coming soon.")
-                .foregroundColor(.secondary)
-                .padding()
-
-            Spacer()
         }
-        .frame(width: 300, height: 200)
-        .padding()
+        .padding(TonicDS.Space.md)
+        .frame(width: TonicDS.Layout.MenuBar.width, alignment: .leading)
+        .background(TonicDS.Colors.console)
+        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -757,7 +874,7 @@ public final class WidgetCoordinator: ObservableObject {
         // Add or update enabled widgets
         for config in enabledConfigs {
             if let existing = activeWidgets[config.type] {
-                logger.info("🔄 Updating existing widget: \(config.type.rawValue) with color=\(config.accentColor.rawValue)")
+                logger.info("🔄 Updating existing widget: \(config.type.rawValue)")
                 existing.updateConfiguration(config)
             } else {
                 logger.info("➕ Creating new widget: \(config.type.rawValue)")
