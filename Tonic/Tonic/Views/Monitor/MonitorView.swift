@@ -11,11 +11,19 @@
 import SwiftUI
 
 struct MonitorView: View {
+    private static let initialResourceHistoryRange: ResourceHistoryRange = .live
+    #if DEBUG
+    static var initialResourceHistoryRangeForTesting: ResourceHistoryRange { initialResourceHistoryRange }
+    #endif
+
     var isActive: Bool = true
 
     @State private var data = WidgetDataManager.shared
+    @State private var history = WidgetHistoryStore.shared
+    @State private var selectedRange: ResourceHistoryRange = Self.initialResourceHistoryRange
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
+    @State private var liveStartupDate = Date()
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -23,19 +31,32 @@ struct MonitorView: View {
                 TonicPageHeader("Monitor", subtitle: "Live system readout")
                     .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
 
-                metricsGrid
+                rangePicker
                     .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
 
-                if !data.networkDownloadHistory.isEmpty {
+                metricsGrid
+                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+
+                if selectedRange == .live && !hasMonitorSamples {
+                    liveStartupCard
+                        .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+                }
+
+                if hasMonitorSamples {
                     ChartCard(label: "Network ↓",
-                              displayValue: lastRate(data.networkDownloadHistory),
-                              history: data.networkDownloadHistory)
-                        .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                              displayValue: rate(networkDownloadValue),
+                              history: networkDownloadSeries)
+                        .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                }
+
+                if selectedRange != .live, hasMonitorSamples {
+                    rangeSummary
+                        .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
                 }
 
                 MonoLabel("Detail")
                     .padding(.top, TonicDS.Space.sm)
-                    .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
 
                 detailConsoles
             }
@@ -47,22 +68,44 @@ struct MonitorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TonicDS.Colors.canvas)
         .onAppear {
-            if !data.isMonitoring { data.startMonitoring() }
+            ensureLiveMonitoring("MonitorView.onAppear")
             appeared = true
         }
+        .onChange(of: isActive) { _, active in
+            if active {
+                ensureLiveMonitoring("MonitorView active")
+            }
+        }
+        .onChange(of: selectedRange) { _, range in
+            if range == .live {
+                ensureLiveMonitoring("MonitorView live selected")
+            }
+        }
+    }
+
+    private var rangePicker: some View {
+        Picker("Range", selection: $selectedRange) {
+            ForEach(ResourceHistoryRange.allCases) { range in
+                Text(range.displayName).tag(range)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 220)
+        .accessibilityLabel("Monitor history range")
     }
 
     // MARK: - Gauge bento
 
     @ViewBuilder
     private var metricsGrid: some View {
-        if data.cpuHistory.isEmpty && data.memoryHistory.isEmpty && data.diskHistory.isEmpty {
+        if !hasMonitorSamples {
             monitorSkeleton
         } else {
             TonicBentoGrid(minTileWidth: 240) {
-                GaugeCard(label: "CPU", fraction: cpu, displayValue: "", metricMode: .percent, history: data.cpuHistory)
-                GaugeCard(label: "Memory", fraction: mem, displayValue: "", metricMode: .percent, history: data.memoryHistory)
-                GaugeCard(label: "Disk used", fraction: disk, displayValue: "", metricMode: .percent, supportingText: "\(diskFree) free", history: data.diskHistory)
+                GaugeCard(label: "CPU", fraction: cpu, displayValue: "", metricMode: .percent, history: cpuSeries)
+                GaugeCard(label: "Memory", fraction: mem, displayValue: "", metricMode: .percent, history: memorySeries)
+                GaugeCard(label: "Disk used", fraction: disk, displayValue: "", metricMode: .percent, supportingText: "\(diskFree) free", history: diskSeries)
                 if !data.gpuHistory.isEmpty {
                     GaugeCard(label: "GPU", fraction: gpu, displayValue: "", metricMode: .percent, history: data.gpuHistory)
                 }
@@ -85,6 +128,33 @@ struct MonitorView: View {
             }
         }
         .accessibilityLabel("Loading monitor metrics")
+    }
+
+    private var liveStartupCard: some View {
+        DataCard {
+            HStack(alignment: .center, spacing: TonicDS.Space.md) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                    MonoLabel(liveStartupTitle)
+                    Text("CPU, memory, disk, and network are being sampled.")
+                        .tonicType(.caption)
+                        .foregroundStyle(TonicDS.Colors.textMuted)
+                }
+                Spacer(minLength: TonicDS.Space.md)
+                Button("Retry") {
+                    ensureLiveMonitoring("MonitorView retry")
+                }
+                .buttonStyle(.bordered)
+                .tint(TonicDS.Colors.ink)
+            }
+        }
+    }
+
+    private var rangeSummary: some View {
+        TonicBentoGrid(minTileWidth: 240) {
+            HistoricSummaryCard(label: "CPU", latest: pctValue(cpuPercentValue), average: pctValue(summary(.cpuPercent).average), peak: pctValue(summary(.cpuPercent).peak))
+            HistoricSummaryCard(label: "Memory", latest: pctValue(memoryPercentValue), average: pctValue(summary(.memoryPercent).average), peak: pctValue(summary(.memoryPercent).peak))
+            HistoricSummaryCard(label: "Network ↓", latest: rate(networkDownloadValue), average: rate(summary(.networkDownloadBytesPerSecond).average), peak: rate(summary(.networkDownloadBytesPerSecond).peak))
+        }
     }
 
     // MARK: - Detail console wall
@@ -375,30 +445,86 @@ struct MonitorView: View {
     // MARK: - Derived
 
     private var hasAnyDetail: Bool {
-        !data.cpuHistory.isEmpty || !data.memoryHistory.isEmpty || data.batteryData.isPresent
+        hasMonitorSamples || data.batteryData.isPresent
     }
 
-    private var cpu: Double { min(1, max(0, data.cpuData.totalUsage / 100)) }
-    private var mem: Double { min(1, max(0, data.memoryData.usagePercentage / 100)) }
+    private var hasMonitorSamples: Bool {
+        if selectedRange == .live {
+            return data.hasLiveMetricSample
+        }
+        return !history.samples(for: selectedRange).isEmpty
+    }
+
+    private var liveStartupTitle: String {
+        if Date().timeIntervalSince(liveStartupDate) > 2 {
+            return "Live data paused"
+        }
+        return "Live data starting"
+    }
+
+    private func ensureLiveMonitoring(_ reason: String) {
+        liveStartupDate = Date()
+        data.ensureLiveMonitoring(reason: reason)
+    }
+
+    private var cpuSeries: [Double] {
+        selectedRange == .live ? data.cpuHistory : history.chartSeries(for: .cpuPercent, range: selectedRange)
+    }
+
+    private var memorySeries: [Double] {
+        selectedRange == .live ? data.memoryHistory : history.chartSeries(for: .memoryPercent, range: selectedRange)
+    }
+
+    private var diskSeries: [Double] {
+        selectedRange == .live ? data.diskHistory : history.chartSeries(for: .diskUsedPercent, range: selectedRange)
+    }
+
+    private var networkDownloadSeries: [Double] {
+        selectedRange == .live
+            ? data.networkDownloadHistory
+            : history.chartSeries(for: .networkDownloadBytesPerSecond, range: selectedRange)
+    }
+
+    private var cpuPercentValue: Double {
+        selectedRange == .live ? data.cpuData.totalUsage : summary(.cpuPercent).latest
+    }
+
+    private var memoryPercentValue: Double {
+        selectedRange == .live ? data.memoryData.usagePercentage : summary(.memoryPercent).latest
+    }
+
+    private var diskPercentValue: Double {
+        selectedRange == .live ? (boot?.usagePercentage ?? 0) : summary(.diskUsedPercent).latest
+    }
+
+    private var networkDownloadValue: Double {
+        selectedRange == .live ? data.networkData.downloadBytesPerSecond : summary(.networkDownloadBytesPerSecond).latest
+    }
+
+    private var cpu: Double { min(1, max(0, cpuPercentValue / 100)) }
+    private var mem: Double { min(1, max(0, memoryPercentValue / 100)) }
     private var boot: DiskVolumeData? { data.diskVolumes.first(where: { $0.isBootVolume }) ?? data.diskVolumes.first }
-    private var disk: Double { min(1, max(0, (boot?.usagePercentage ?? 0) / 100)) }
+    private var disk: Double { min(1, max(0, diskPercentValue / 100)) }
     private var gpu: Double { min(1, max(0, (data.gpuHistory.last ?? 0) / 100)) }
     private var diskFree: String {
         guard let v = boot else { return "—" }
-        return ByteCountFormatter.string(fromByteCount: Int64(v.freeBytes), countStyle: .file)
+        return Self.fileByteFormatter.string(fromByteCount: Int64(v.freeBytes))
     }
 
     private func pct(_ f: Double) -> String { "\(Int((f * 100).rounded()))" }
 
-    private func lastRate(_ history: [Double]) -> String { rate(history.last ?? 0) }
+    private func pctValue(_ value: Double) -> String { "\(Int(value.rounded()))%" }
 
     private func rate(_ bytesPerSecond: Double) -> String {
-        let f = ByteCountFormatter(); f.allowedUnits = [.useMB, .useKB]; f.countStyle = .memory
-        return f.string(fromByteCount: Int64(max(0, bytesPerSecond))) + "/s"
+        Self.rateByteFormatter.string(fromByteCount: Int64(max(0, bytesPerSecond))) + "/s"
     }
 
     private func bytes(_ value: UInt64) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .memory)
+        Self.memoryByteFormatter.string(fromByteCount: Int64(value))
+    }
+
+    private func summary(_ metric: ResourceMetricKind) -> ResourceMetricSummary {
+        history.summary(for: metric, range: selectedRange)
     }
 
     private static func uptime(_ seconds: TimeInterval) -> String {
@@ -412,9 +538,62 @@ struct MonitorView: View {
         let h = minutes / 60, m = minutes % 60
         return h > 0 ? "\(h)h \(m)m" : "\(m)m"
     }
+
+    private static let rateByteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useGB, .useMB, .useKB, .useBytes]
+        formatter.countStyle = .memory
+        return formatter
+    }()
+
+    private static let memoryByteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .memory
+        return formatter
+    }()
+
+    private static let fileByteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter
+    }()
 }
 
 // MARK: - Console primitives
+
+private struct HistoricSummaryCard: View {
+    let label: String
+    let latest: String
+    let average: String
+    let peak: String
+
+    var body: some View {
+        DataCard {
+            VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                MonoLabel(label)
+                HStack(spacing: TonicDS.Space.lg) {
+                    stat("Now", latest)
+                    stat("Avg", average)
+                    stat("Peak", peak)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func stat(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+            Text(title)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.textMuted)
+            Text(value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(TonicDS.Colors.textPrimary)
+        }
+    }
+}
 
 /// A row of vertical mini-bars for a core cluster. Category-colored (E vs P), never
 /// a status hue — the cluster identity is the datum, not utilization.
