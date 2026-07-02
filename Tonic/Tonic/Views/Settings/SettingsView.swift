@@ -77,7 +77,7 @@ struct SettingsView: View {
                 Spacer()
             }
             .padding(.horizontal, TonicDS.Space.sm)
-            .frame(height: 34)
+            .frame(height: TonicDS.Layout.minControlTarget)
             .background {
                 if isSel {
                     RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
@@ -163,17 +163,23 @@ struct SettingsView: View {
     private func permissionRow(_ perm: TonicPermission, showsDivider: Bool) -> some View {
         let status = permissions.permissionStatuses[perm] ?? .notDetermined
         let granted = status == .authorized
+        // Symmetric rows: every permission states its status; only ungranted ones
+        // add the action. No row looks like it still needs attention once granted.
         return TonicPreferenceRow(title: perm.rawValue, description: perm.description, showsDivider: showsDivider) {
-            if granted {
-                StatusChip("Granted", color: TonicDS.Colors.statusSuccess)
-            } else {
-                Button {
-                    if perm == .fullDiskAccess { _ = permissions.requestFullDiskAccess() }
-                    Task { await permissions.checkAllPermissions() }
-                } label: {
-                    Text("Grant").tonicType(.button).foregroundStyle(TonicDS.Colors.linkBlue)
+            HStack(spacing: TonicDS.Space.sm) {
+                if granted {
+                    StatusChip("Granted", level: .success)
+                } else {
+                    StatusChip("Required", level: .warning)
+                    Button {
+                        if perm == .fullDiskAccess { _ = permissions.requestFullDiskAccess() }
+                        Task { await permissions.checkAllPermissions() }
+                    } label: {
+                        Text("Grant").tonicType(.button).foregroundStyle(TonicDS.Colors.linkBlue)
+                    }
+                    .buttonStyle(.plain).tonicPointerCursor()
+                    .accessibilityLabel("Grant \(perm.rawValue)")
                 }
-                .buttonStyle(.plain).tonicPointerCursor()
             }
         }
     }
@@ -190,7 +196,7 @@ struct SettingsView: View {
                     StatusChip("App Store", color: TonicDS.Colors.statusInfo)
                 }
                 #else
-                TonicPreferenceRow(title: "Check for updates", description: "Download and install the latest version.", showsDivider: false) {
+                TonicPreferenceRow(title: "Check for updates", description: "Direct build — updates download in-app via Sparkle.", showsDivider: false) {
                     PrimaryPill("Check Now") { SparkleUpdater.shared.checkForUpdates() }
                 }
                 #endif
@@ -208,7 +214,21 @@ struct SettingsView: View {
                     description: "Scans, cleanup previews, and live metrics stay on this Mac.",
                     showsDivider: true
                 ) { EmptyView() }
-                TonicPreferenceRow(title: "Built with", description: "SwiftUI · Native macOS", showsDivider: false) { EmptyView() }
+                TonicPreferenceRow(title: "Built with", description: "SwiftUI · Native macOS", showsDivider: true) { EmptyView() }
+                TonicPreferenceRow(title: "Links", description: "Documentation and issue tracker.", showsDivider: false) {
+                    HStack(spacing: TonicDS.Space.md) {
+                        TextAction("Website", color: TonicDS.Colors.linkBlue) {
+                            if let url = URL(string: "https://github.com/Saransh-Sharma/PreTonic") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        TextAction("Report an issue", color: TonicDS.Colors.linkBlue) {
+                            if let url = URL(string: "https://github.com/Saransh-Sharma/PreTonic/issues") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

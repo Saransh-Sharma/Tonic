@@ -914,6 +914,9 @@ struct TonicProgressBar: View {
     let fraction: Double
     var color: Color?
     var height: CGFloat = 6
+    /// Optional 0...1 reference tick (e.g. 0.75, the caution boundary) so "how
+    /// close to trouble" is legible at a glance. Data-colored and subtle.
+    var thresholdTick: Double?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var didDraw = false
 
@@ -927,6 +930,13 @@ struct TonicProgressBar: View {
                 Capsule(style: .continuous)
                     .fill(fillColor)
                     .frame(width: geo.size.width * (reduceMotion || didDraw ? normalized : 0))
+                if let tick = thresholdTick, (0...1).contains(tick) {
+                    Rectangle()
+                        .fill(TonicDS.Colors.statusCaution.opacity(0.55))
+                        .frame(width: 1, height: height + 2)
+                        .offset(x: geo.size.width * tick, y: -1)
+                        .accessibilityHidden(true)
+                }
             }
         }
         .frame(height: height)

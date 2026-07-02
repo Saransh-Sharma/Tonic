@@ -80,33 +80,6 @@ enum GaugeCardMetricFormatter {
     }
 }
 
-private struct TonicStatusBar: View {
-    let fraction: Double
-    let color: Color
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var didDraw = false
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(TonicDS.Colors.hairline)
-                Capsule(style: .continuous)
-                    .fill(color)
-                    .frame(width: geo.size.width * max(0, min(1, reduceMotion ? fraction : (didDraw ? fraction : 0))))
-            }
-        }
-        .frame(height: 4)
-        .onAppear {
-            if reduceMotion {
-                didDraw = true
-            } else {
-                withAnimation(TonicDS.Motion.appear) { didDraw = true }
-            }
-        }
-    }
-}
-
 /// A compact data card whose body is a single mono readout + optional sparkline +
 /// thin status bar. `fraction` (0...1) drives the status color; data carries color.
 struct GaugeCard: View {
@@ -165,7 +138,8 @@ struct GaugeCard: View {
                     NetworkSparklineChart(data: history, color: status, height: 42, showArea: true, lineWidth: 1.5)
                         .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
                 }
-                TonicProgressBar(fraction: normalizedFraction, color: status, height: 4)
+                TonicProgressBar(fraction: normalizedFraction, color: status, height: 4,
+                                 thresholdTick: 0.75)
             }
         }
     }
@@ -391,7 +365,7 @@ struct ConsoleLegend: View {
         HStack(spacing: TonicDS.Space.md) {
             ForEach(items) { item in
                 HStack(spacing: TonicDS.Space.xxs) {
-                    Circle().fill(item.color).frame(width: 6, height: 6)
+                    StatusDot(item.color)
                     Text(item.label.uppercased())
                         .tonicType(.monoLabel)
                         .foregroundStyle(TonicDS.Colors.onDarkMuted)

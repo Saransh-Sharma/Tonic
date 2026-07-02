@@ -190,11 +190,15 @@ struct AppsView: View {
     }
 
     private var loadingState: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(0..<8, id: \.self) { _ in
-                    appRowSkeleton
-                    TonicHairline()
+        VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+            MonoLabel("Scanning applications…")
+                .padding(.horizontal, TonicDS.Space.md)
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(0..<8, id: \.self) { _ in
+                        appRowSkeleton
+                        TonicHairline()
+                    }
                 }
             }
         }
