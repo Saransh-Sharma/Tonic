@@ -25,6 +25,8 @@ struct CleanView: View {
     @State private var toast: ToastData?
     @State private var historyBatches: [CleanupHistoryBatch] = []
     @State private var appeared = false
+    @State private var revealedRecoverableBytes: Int64 = 0
+    @State private var showAllStorage = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
@@ -50,7 +52,8 @@ struct CleanView: View {
         .tonicScreenHPadding()
         .padding(.vertical, TonicDS.Space.xxl)
         .background(TonicDS.Colors.canvas)
-        .tonicToast($toast)
+        // Undo toasts hold longer than informational ones — the undo window is a promise.
+        .tonicToast($toast, autoDismiss: 10)
         .onAppear {
             if !didSetInitial { tab = initialTab; didSetInitial = true }
             refreshHistory()
@@ -148,15 +151,16 @@ struct CleanView: View {
     }
 
     private func checkCard(_ title: String, _ icon: String, _ desc: String) -> some View {
+        // Mono labels, not feature headings — the ready band's sectionDisplay is the
+        // one oversized voice on this surface; the preview cards stay quiet.
         ScanCategoryCard {
             VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
                 Image(systemName: icon).font(.system(size: 18, weight: .thin))
                     .foregroundStyle(TonicDS.Colors.textMuted)
-                Text(title).tonicType(.featureHeading).foregroundStyle(TonicDS.Colors.textPrimary)
+                MonoLabel(title, color: TonicDS.Colors.textPrimary)
                 Text(desc).tonicType(.caption).foregroundStyle(TonicDS.Colors.textMuted)
             }
         }
-        .tonicHoverLift()
     }
 
     private var progressBand: some View {
@@ -174,15 +178,21 @@ struct CleanView: View {
                     .buttonStyle(TonicPressStyle()).tonicPointerCursor()
                 }
 
-                // Stage row
+                // Stage annunciator row
                 HStack(spacing: TonicDS.Space.lg) {
                     ForEach(SmartScanStage.allCases) { stage in
                         HStack(spacing: TonicDS.Space.xs) {
-                            Circle().fill(stageColor(stage)).frame(width: 6, height: 6)
+                            StatusDot(stageColor(stage))
                             Text(stage.rawValue.uppercased()).tonicType(.monoLabel)
                                 .foregroundStyle(stage == session.currentStage ? TonicDS.Colors.onDark : TonicDS.Colors.onDarkMuted)
                         }
                     }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(stageAccessibilityText)
+                .onChange(of: session.currentStage) { _, stage in
+                    guard session.hubMode == .scanning else { return }
+                    AccessibilityNotification.Announcement("Scanning \(stage.rawValue)").post()
                 }
 
                 // Live counters
@@ -198,6 +208,7 @@ struct CleanView: View {
                 if let item = session.currentScanItem {
                     Text(item).tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.onDarkMuted)
                         .lineLimit(1).truncationMode(.middle)
+                        .help(item)
                 }
             }
         }
@@ -228,13 +239,25 @@ struct CleanView: View {
         return TonicDS.Colors.onDarkMuted
     }
 
+    private var stageAccessibilityText: String {
+        let done = SmartScanStage.allCases.filter { session.completedStages.contains($0) }
+        var parts = ["Currently scanning \(session.currentStage.rawValue)"]
+        if !done.isEmpty { parts.append("completed: \(done.map(\.rawValue).joined(separator: ", "))") }
+        return parts.joined(separator: ". ")
+    }
+
     private var resultsSummary: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.md) {
             ModuleBand(band: .green) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
                         Text("Scan complete").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.onDarkMuted)
-                        Metric(Self.bytes(session.scanResult?.totalReclaimableSize ?? 0), unit: "recoverable", color: TonicDS.Colors.onDark)
+                        // The proof moment: the recovered total rolls up from zero once —
+                        // the one piece of earned drama in the scan story.
+                        Metric(Self.bytes(revealedRecoverableBytes), unit: "recoverable", color: TonicDS.Colors.onDark)
+                        if let detail = resultsDetailLine {
+                            Text(detail).tonicType(.caption).foregroundStyle(TonicDS.Colors.onDarkMuted)
+                        }
                     }
                     Spacer()
                     PrimaryPill("Run Smart Clean", systemImage: "sparkles", onDark: true) { session.runSmartClean() }
@@ -244,6 +267,27 @@ struct CleanView: View {
                 Text(summary.formattedSummary).tonicType(.body).foregroundStyle(TonicDS.Colors.textMuted)
             }
         }
+        .onAppear { revealRecoverableTotal() }
+        .onChange(of: session.scanResult?.totalReclaimableSize) { _, _ in revealRecoverableTotal() }
+    }
+
+    private var resultsDetailLine: String? {
+        guard let result = session.scanResult else { return nil }
+        let itemCount = result.domainResults.values.reduce(0) { $0 + $1.items.count }
+        guard itemCount > 0 else { return nil }
+        let domainCount = result.domainResults.values.filter { !$0.items.isEmpty }.count
+        return "\(itemCount) item\(itemCount == 1 ? "" : "s") across \(domainCount) categor\(domainCount == 1 ? "y" : "ies") · review before cleaning"
+    }
+
+    private func revealRecoverableTotal() {
+        let total = session.scanResult?.totalReclaimableSize ?? 0
+        guard revealedRecoverableBytes != total else { return }
+        if reduceMotion {
+            revealedRecoverableBytes = total
+            return
+        }
+        revealedRecoverableBytes = 0
+        withAnimation(.easeOut(duration: 0.6)) { revealedRecoverableBytes = total }
     }
 
     private var resultsCards: some View {
@@ -292,11 +336,22 @@ struct CleanView: View {
     private var storageTab: some View {
         if let result = session.scanResult {
             let items = result.domainResults.values.flatMap { $0.items }.sorted { $0.size > $1.size }
+            let visible = showAllStorage ? items : Array(items.prefix(60))
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ForEach(items.prefix(60)) { item in
+                VStack(alignment: .leading, spacing: 0) {
+                    MonoLabel("\(items.count) items · sorted by size, largest first")
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.bottom, TonicDS.Space.sm)
+                    ForEach(visible) { item in
                         storageRow(item)
                         TonicHairline()
+                    }
+                    if !showAllStorage && items.count > 60 {
+                        TextAction("Show all \(items.count) items", color: TonicDS.Colors.linkBlue) {
+                            showAllStorage = true
+                        }
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.vertical, TonicDS.Space.sm)
                     }
                 }
             }
@@ -367,7 +422,7 @@ struct CleanView: View {
             TonicEmptyState(
                 systemImage: "clock.arrow.circlepath",
                 title: "No cleanup history",
-                message: "Items you clean will appear here, ready to restore."
+                message: "Every clean is staged here first — you can restore items until you empty the batch."
             )
         } else {
             ScrollView(showsIndicators: false) {
@@ -393,12 +448,13 @@ struct CleanView: View {
                     Spacer()
                     Metric(batch.formattedTotalSize, color: TonicDS.Colors.textPrimary)
                 }
-                if batch.hasRecoverable {
-                    TonicHairline()
-                    HStack {
-                        Text("\(batch.recoverableEntries.count) recoverable")
-                            .tonicType(.caption).foregroundStyle(TonicDS.Colors.textMuted)
-                        Spacer()
+                TonicHairline()
+                HStack {
+                    // Batch state at a glance: total items and how many can still come back.
+                    Text("\(batch.entries.count) item\(batch.entries.count == 1 ? "" : "s") · \(batch.recoverableEntries.count) recoverable")
+                        .tonicType(.caption).foregroundStyle(TonicDS.Colors.textMuted)
+                    Spacer()
+                    if batch.hasRecoverable {
                         TextAction("Restore", color: TonicDS.Colors.textPrimary) { restore(batch) }
                     }
                 }
