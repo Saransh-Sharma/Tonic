@@ -24,6 +24,7 @@ struct MonitorView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var liveStartupDate = Date()
+    @State private var liveStartupStalled = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -34,8 +35,13 @@ struct MonitorView: View {
                 rangePicker
                     .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
 
-                metricsGrid
-                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                if selectedRange != .live && !hasMonitorSamples {
+                    historyEmptyNotice
+                        .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                } else {
+                    metricsGrid
+                        .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                }
 
                 if selectedRange == .live && !hasMonitorSamples {
                     liveStartupCard
@@ -69,9 +75,14 @@ struct MonitorView: View {
         .background(TonicDS.Colors.canvas)
         .onAppear {
             ensureLiveMonitoring("MonitorView.onAppear")
+            setMonitorPopupVisibility(true)
             appeared = true
         }
+        .onDisappear {
+            setMonitorPopupVisibility(false)
+        }
         .onChange(of: isActive) { _, active in
+            setMonitorPopupVisibility(active)
             if active {
                 ensureLiveMonitoring("MonitorView active")
             }
@@ -83,15 +94,28 @@ struct MonitorView: View {
         }
     }
 
+    /// GPU/Battery/Sensors readers are `popupOnly` in WidgetDataManager (they only sample while a
+    /// menu-bar popover for that module is open). MonitorView renders live consoles for those
+    /// modules too, so it must opt itself in/out of that visibility set. Bluetooth is excluded —
+    /// MonitorView has no Bluetooth console.
+    private func setMonitorPopupVisibility(_ visible: Bool) {
+        for type: WidgetType in [.gpu, .battery, .sensors] {
+            data.setPopupVisible(for: type, isVisible: visible)
+        }
+    }
+
+    // Editorial range scope: FilterPills instead of the AppKit segmented control,
+    // per spec §filter-pill ("monitoring scopes … time ranges").
     private var rangePicker: some View {
-        Picker("Range", selection: $selectedRange) {
+        HStack(spacing: TonicDS.Space.xs) {
             ForEach(ResourceHistoryRange.allCases) { range in
-                Text(range.displayName).tag(range)
+                FilterPill(title: range.displayName,
+                           isActive: selectedRange == range) {
+                    selectedRange = range
+                }
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 220)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Monitor history range")
     }
 
@@ -134,17 +158,39 @@ struct MonitorView: View {
         DataCard {
             HStack(alignment: .center, spacing: TonicDS.Space.md) {
                 VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
-                    MonoLabel(liveStartupTitle)
-                    Text("CPU, memory, disk, and network are being sampled.")
+                    MonoLabel(liveStartupStalled ? "Live data paused" : "Live data starting")
+                    Text(liveStartupStalled
+                         ? "Sampling hasn't produced data yet. Retry, or check module settings."
+                         : "First CPU, memory, disk, and network samples arrive within a few seconds.")
                         .tonicType(.caption)
                         .foregroundStyle(TonicDS.Colors.textMuted)
                 }
                 Spacer(minLength: TonicDS.Space.md)
-                Button("Retry") {
-                    ensureLiveMonitoring("MonitorView retry")
+                if liveStartupStalled {
+                    TextAction("Retry", color: TonicDS.Colors.linkBlue) {
+                        ensureLiveMonitoring("MonitorView retry")
+                    }
+                } else {
+                    ProgressView().controlSize(.small)
                 }
-                .buttonStyle(.bordered)
-                .tint(TonicDS.Colors.ink)
+            }
+        }
+        // Flip to the stalled state reactively; resets whenever a retry restamps
+        // liveStartupDate.
+        .task(id: liveStartupDate) {
+            liveStartupStalled = false
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if !Task.isCancelled { liveStartupStalled = true }
+        }
+    }
+
+    private var historyEmptyNotice: some View {
+        DataCard {
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                MonoLabel("No recorded history")
+                Text("Nothing recorded for \(selectedRange.displayName) yet. History accrues while Tonic is running.")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
             }
         }
     }
@@ -163,18 +209,24 @@ struct MonitorView: View {
     private var detailConsoles: some View {
         if !hasAnyDetail {
             consoleSkeleton
-                .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
         } else {
+            // CPU/memory/network consoles need live samples; battery stands alone,
+            // so a battery-only startup shows just the battery console (no zeroed rows).
             TonicBentoGrid(minTileWidth: 320) {
-                cpuConsole
-                memoryConsole
+                if hasMonitorSamples {
+                    cpuConsole
+                    memoryConsole
+                }
                 if gpuConsoleVisible { gpuConsole }
                 if sensorsConsoleVisible { sensorsConsole }
                 if batteryConsoleVisible { batteryConsole }
                 if diskConsoleVisible { diskConsole }
-                networkConsole
+                if hasMonitorSamples {
+                    networkConsole
+                }
             }
-            .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+            .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
         }
     }
 
@@ -200,7 +252,7 @@ struct MonitorView: View {
     private var cpuConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("CPU detail", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("CPU detail")
                 consoleRow("Usage", pct(cpu) + "%", TonicDS.status(forFraction: cpu))
                 consoleRow("User", "\(Int(data.cpuData.userUsage))%", TonicDS.Chart.cpuUser)
                 consoleRow("System", "\(Int(data.cpuData.systemUsage))%", TonicDS.Chart.cpuSystem)
@@ -221,7 +273,9 @@ struct MonitorView: View {
                     consoleRow("Temperature", String(format: "%.0f°C", t), TonicDS.status(forTempC: t))
                 }
                 if data.cpuData.thermalLimit == true {
-                    consoleRow("Thermal", "THROTTLED", TonicDS.Colors.statusCaution)
+                    // "CPU limit", not "Thermal" — sits right under the Temperature row
+                    // and names the consequence, not the cause.
+                    consoleRow("CPU limit", "Throttled", TonicDS.Colors.statusCaution)
                 }
                 if let f = data.cpuData.frequency {
                     consoleRow("Frequency", String(format: "%.2f GHz", f), TonicDS.Colors.onDark)
@@ -239,7 +293,7 @@ struct MonitorView: View {
     private var memoryConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("Memory detail", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("Memory detail")
                 consoleRow("Usage", pct(mem) + "%", TonicDS.status(forFraction: mem))
 
                 // Composition over total, using only fields the collector actually populates:
@@ -277,7 +331,7 @@ struct MonitorView: View {
     private var gpuConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("GPU detail", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("GPU detail")
                 let util = data.gpuData.usagePercentage ?? 0
                 consoleRow("Utilization", "\(Int(util))%", TonicDS.Chart.utilization(util))
                 if !data.gpuHistory.isEmpty {
@@ -311,7 +365,7 @@ struct MonitorView: View {
     private var sensorsConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("Sensors & fans", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("Sensors & fans")
                 ForEach(topTemperatures) { reading in
                     consoleRow(reading.name, String(format: "%.0f°C", reading.value),
                                TonicDS.status(forTempC: reading.value))
@@ -339,7 +393,7 @@ struct MonitorView: View {
     private var batteryConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("Battery detail", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("Battery detail")
                 let b = data.batteryData
                 let level = b.chargePercentage / 100
                 consoleRow("Charge", "\(Int(b.chargePercentage))%",
@@ -375,7 +429,7 @@ struct MonitorView: View {
     private var diskConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("Disk I/O", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("Disk I/O")
                 consoleRow("Read", rate(boot?.readBytesPerSecond ?? 0), TonicDS.Colors.seriesRead)
                 if !data.diskReadHistory.isEmpty {
                     consoleSparkline(data.diskReadHistory, color: TonicDS.Colors.seriesRead)
@@ -397,7 +451,7 @@ struct MonitorView: View {
     private var networkConsole: some View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
-                MonoLabel("Network detail", color: TonicDS.Colors.onDarkMuted)
+                consoleHeader("Network detail")
                 consoleRow("Download", rate(data.networkData.downloadBytesPerSecond), TonicDS.Colors.seriesRead)
                 consoleRow("Upload", rate(data.networkData.uploadBytesPerSecond), TonicDS.Colors.seriesWrite)
                 if let link = data.networkData.linkSpeedMbps, link > 0 {
@@ -411,6 +465,17 @@ struct MonitorView: View {
     }
 
     // MARK: - Console building blocks
+
+    /// Console annunciator header: mono label over an on-dark hairline — the same
+    /// header grammar as the menu-bar popover consoles, so the two console families
+    /// read as one surface and the header level stays distinct from the page's
+    /// section label.
+    private func consoleHeader(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+            MonoLabel(title, color: TonicDS.Colors.onDarkMuted)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+        }
+    }
 
     private func consoleRow(_ label: String, _ value: String, _ color: Color) -> some View {
         HStack {
@@ -453,13 +518,6 @@ struct MonitorView: View {
             return data.hasLiveMetricSample
         }
         return !history.samples(for: selectedRange).isEmpty
-    }
-
-    private var liveStartupTitle: String {
-        if Date().timeIntervalSince(liveStartupDate) > 2 {
-            return "Live data paused"
-        }
-        return "Live data starting"
     }
 
     private func ensureLiveMonitoring(_ reason: String) {

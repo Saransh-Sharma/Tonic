@@ -375,38 +375,14 @@ struct WidgetCompactView: View {
             }
 
             if configuration.displayMode == .detailed, !snapshot.history.isEmpty {
-                CompactSparkline(data: snapshot.history, color: snapshot.color)
-                    .frame(width: 36, height: 14)
+                NetworkSparklineChart(data: snapshot.history, color: snapshot.color, height: 14, showArea: false, lineWidth: 1.25)
+                    .frame(width: 36)
             }
         }
         .padding(.horizontal, 4)
         .frame(height: TonicDS.Layout.MenuBar.compactHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(widgetType.displayName), \(snapshot.value)")
-    }
-}
-
-private struct CompactSparkline: View {
-    let data: [Double]
-    let color: Color
-
-    var body: some View {
-        GeometryReader { geometry in
-            Path { path in
-                guard data.count > 1 else { return }
-                let stepX = geometry.size.width / CGFloat(data.count - 1)
-                let maxY = data.max() ?? 1
-                let minY = data.min() ?? 0
-                let range = max(maxY - minY, 0.1)
-
-                for (index, value) in data.enumerated() {
-                    let x = CGFloat(index) * stepX
-                    let y = geometry.size.height * (1 - ((value - minY) / range))
-                    index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
-                }
-            }
-            .stroke(color, style: StrokeStyle(lineWidth: 1.25, lineCap: .round, lineJoin: .round))
-        }
     }
 }
 

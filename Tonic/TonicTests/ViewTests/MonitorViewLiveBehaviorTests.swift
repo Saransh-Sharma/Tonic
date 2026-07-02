@@ -18,6 +18,17 @@ final class MonitorViewLiveBehaviorTests: XCTestCase {
         XCTAssertTrue(source.contains("ensureLiveMonitoring(\"MonitorView retry\")"))
     }
 
+    /// GPU/Battery/Sensors readers are `popupOnly` in WidgetDataManager; without MonitorView
+    /// opting itself into `popupVisibleModules`, those consoles freeze after the first sample.
+    func testMonitorViewKeepsPopupOnlyReadersLiveWhileVisible() throws {
+        let source = try monitorViewSource()
+
+        XCTAssertTrue(source.contains(".onDisappear"))
+        XCTAssertTrue(source.contains("setMonitorPopupVisibility"))
+        XCTAssertTrue(source.contains("data.setPopupVisible(for: type, isVisible: visible)"))
+        XCTAssertTrue(source.contains("[.gpu, .battery, .sensors]"))
+    }
+
     func testMonitorLiveRenderingUsesExplicitLiveSampleHealth() throws {
         let source = try monitorViewSource()
 

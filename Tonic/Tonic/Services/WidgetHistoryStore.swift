@@ -30,7 +30,6 @@ public final class WidgetHistoryStore {
     public private(set) var liveSamples: [ResourceMetricSample] = []
     public private(set) var historicalSamples: [ResourceMetricSample] = []
 
-    private var bucketCounts: [Date: Int] = [:]
     private var lastSaveDate: Date?
 
     // MARK: - Compatibility History Accessors
@@ -137,7 +136,6 @@ public final class WidgetHistoryStore {
     public func clearHistory() {
         liveSamples = []
         historicalSamples = []
-        bucketCounts = [:]
         lastSaveDate = nil
         try? fileManager.removeItem(at: storageURL)
     }
@@ -162,37 +160,28 @@ public final class WidgetHistoryStore {
 
     // MARK: - Private Methods
 
+    /// Historical samples are always appended/updated in non-decreasing timestamp order (they
+    /// come from a serially-dispatched live monitoring tick), so a fresh append is already in the
+    /// right place and an in-place update to the last bucket never changes ordering — no sort
+    /// needed on this hot path.
     private func upsertHistoricalSample(_ sample: ResourceMetricSample) {
         let bucketTimestamp = ResourceMetricCalculators.minuteBucketTimestamp(for: sample.timestamp)
         let bucketed = sample.withTimestamp(bucketTimestamp)
 
         if let index = historicalSamples.firstIndex(where: { $0.timestamp == bucketTimestamp }) {
-            let existingCount = bucketCounts[bucketTimestamp, default: 1]
-            historicalSamples[index] = historicalSamples[index].averaged(with: bucketed, existingCount: existingCount)
-            bucketCounts[bucketTimestamp] = existingCount + 1
+            historicalSamples[index] = historicalSamples[index].averaged(with: bucketed)
         } else {
             historicalSamples.append(bucketed)
-            bucketCounts[bucketTimestamp] = 1
         }
 
-        historicalSamples.sort { $0.timestamp < $1.timestamp }
         if historicalSamples.count > historicalCapacity {
-            let overflow = historicalSamples.count - historicalCapacity
-            let removed = historicalSamples.prefix(overflow).map(\.timestamp)
-            historicalSamples.removeFirst(overflow)
-            for timestamp in removed {
-                bucketCounts.removeValue(forKey: timestamp)
-            }
+            historicalSamples.removeFirst(historicalSamples.count - historicalCapacity)
         }
     }
 
     private func pruneOldHistory() {
         let cutoff = Date().addingTimeInterval(-persistenceDuration)
-        let removed = historicalSamples.filter { $0.timestamp < cutoff }.map(\.timestamp)
         historicalSamples.removeAll { $0.timestamp < cutoff }
-        for timestamp in removed {
-            bucketCounts.removeValue(forKey: timestamp)
-        }
     }
 
     private func saveHistoryIfNeeded() {
@@ -209,7 +198,6 @@ public final class WidgetHistoryStore {
         }
 
         historicalSamples = decoded.sorted { $0.timestamp < $1.timestamp }
-        bucketCounts = Dictionary(uniqueKeysWithValues: historicalSamples.map { ($0.timestamp, 1) })
     }
 
     private func setupAppLifecycleObservers() {
@@ -276,12 +264,13 @@ private extension ResourceMetricSample {
             networkDownloadBytesPerSecond: networkDownloadBytesPerSecond,
             diskUsedPercent: diskUsedPercent,
             diskReadBytesPerSecond: diskReadBytesPerSecond,
-            diskWriteBytesPerSecond: diskWriteBytesPerSecond
+            diskWriteBytesPerSecond: diskWriteBytesPerSecond,
+            sampleCount: sampleCount
         )
     }
 
-    func averaged(with next: ResourceMetricSample, existingCount: Int) -> ResourceMetricSample {
-        let count = Double(max(1, existingCount))
+    func averaged(with next: ResourceMetricSample) -> ResourceMetricSample {
+        let count = Double(sampleCount)
         let divisor = count + 1
 
         func average(_ old: Double, _ new: Double) -> Double {
@@ -302,7 +291,8 @@ private extension ResourceMetricSample {
             networkDownloadBytesPerSecond: average(networkDownloadBytesPerSecond, next.networkDownloadBytesPerSecond),
             diskUsedPercent: average(diskUsedPercent, next.diskUsedPercent),
             diskReadBytesPerSecond: average(diskReadBytesPerSecond, next.diskReadBytesPerSecond),
-            diskWriteBytesPerSecond: average(diskWriteBytesPerSecond, next.diskWriteBytesPerSecond)
+            diskWriteBytesPerSecond: average(diskWriteBytesPerSecond, next.diskWriteBytesPerSecond),
+            sampleCount: sampleCount + next.sampleCount
         )
     }
 }

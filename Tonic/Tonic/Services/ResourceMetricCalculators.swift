@@ -110,6 +110,9 @@ public struct ResourceMetricSample: Codable, Sendable, Equatable, Identifiable {
     public let diskUsedPercent: Double
     public let diskReadBytesPerSecond: Double
     public let diskWriteBytesPerSecond: Double
+    /// Number of raw readings averaged into this sample. Used to weight future updates to the
+    /// same per-minute bucket correctly instead of treating every update as a 50/50 blend.
+    public let sampleCount: Int
 
     public init(
         timestamp: Date = Date(),
@@ -121,7 +124,8 @@ public struct ResourceMetricSample: Codable, Sendable, Equatable, Identifiable {
         networkDownloadBytesPerSecond: Double,
         diskUsedPercent: Double,
         diskReadBytesPerSecond: Double,
-        diskWriteBytesPerSecond: Double
+        diskWriteBytesPerSecond: Double,
+        sampleCount: Int = 1
     ) {
         self.timestamp = timestamp
         self.cpuPercent = ResourceMetricCalculators.clampedPercent(cpuPercent)
@@ -133,6 +137,29 @@ public struct ResourceMetricSample: Codable, Sendable, Equatable, Identifiable {
         self.diskUsedPercent = ResourceMetricCalculators.clampedPercent(diskUsedPercent)
         self.diskReadBytesPerSecond = max(0, diskReadBytesPerSecond)
         self.diskWriteBytesPerSecond = max(0, diskWriteBytesPerSecond)
+        self.sampleCount = max(1, sampleCount)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case timestamp, cpuPercent, memoryPercent, memoryUsedBytes, memoryTotalBytes,
+             networkUploadBytesPerSecond, networkDownloadBytesPerSecond, diskUsedPercent,
+             diskReadBytesPerSecond, diskWriteBytesPerSecond, sampleCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        cpuPercent = try container.decode(Double.self, forKey: .cpuPercent)
+        memoryPercent = try container.decode(Double.self, forKey: .memoryPercent)
+        memoryUsedBytes = try container.decode(UInt64.self, forKey: .memoryUsedBytes)
+        memoryTotalBytes = try container.decode(UInt64.self, forKey: .memoryTotalBytes)
+        networkUploadBytesPerSecond = try container.decode(Double.self, forKey: .networkUploadBytesPerSecond)
+        networkDownloadBytesPerSecond = try container.decode(Double.self, forKey: .networkDownloadBytesPerSecond)
+        diskUsedPercent = try container.decode(Double.self, forKey: .diskUsedPercent)
+        diskReadBytesPerSecond = try container.decode(Double.self, forKey: .diskReadBytesPerSecond)
+        diskWriteBytesPerSecond = try container.decode(Double.self, forKey: .diskWriteBytesPerSecond)
+        // Pre-existing persisted history predates sampleCount; treat those buckets as single readings.
+        sampleCount = try container.decodeIfPresent(Int.self, forKey: .sampleCount) ?? 1
     }
 
     public func value(for metric: ResourceMetricKind) -> Double {

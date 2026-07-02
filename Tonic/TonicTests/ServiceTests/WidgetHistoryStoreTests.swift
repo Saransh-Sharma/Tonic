@@ -67,6 +67,27 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(historical.first?.networkDownloadBytesPerSecond, 4_096)
     }
 
+    func testRestartWeightsNewSampleBySavedBucketCountNotFiftyFifty() {
+        let url = tempRoot.appendingPathComponent("history.json")
+        let base = ResourceMetricCalculators.minuteBucketTimestamp(for: Date()).addingTimeInterval(5)
+
+        let first = makeStore(storageURL: url)
+        first.record(makeSample(date: base, cpu: 20, memory: 20))
+        first.record(makeSample(date: base.addingTimeInterval(10), cpu: 40, memory: 40))
+        first.saveHistory()
+        // The bucket now holds an average of 30 backed by 2 samples.
+
+        let second = makeStore(storageURL: url)
+        second.record(makeSample(date: base.addingTimeInterval(20), cpu: 90, memory: 90))
+
+        let historical = second.samples(for: .twentyFourHours)
+        XCTAssertEqual(historical.count, 1)
+        // Correct weighting: (30*2 + 90) / 3 = 50. A naive restart-resets-to-1 bug would give
+        // (30*1 + 90) / 2 = 60 instead.
+        XCTAssertEqual(historical.first?.cpuPercent ?? 0, 50, accuracy: 0.001)
+        XCTAssertEqual(historical.first?.memoryPercent ?? 0, 50, accuracy: 0.001)
+    }
+
     func testSummaryReturnsLatestAverageAndPeak() {
         let store = makeStore()
         let now = Date()
