@@ -333,24 +333,20 @@ struct PermissionPromptView: View {
                     .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
             )
 
-            HStack(spacing: 12) {
-                Button("Cancel") {
+            HStack(spacing: TonicDS.Space.md) {
+                TextAction("Cancel") {
                     isPresented = false
                 }
-                .buttonStyle(.bordered)
-                .tint(TonicDS.Colors.ink)
-
-                Button(BuildCapabilities.current.requiresScopeAccess ? "Add Scope" : "Open System Settings") {
+                PrimaryPill(BuildCapabilities.current.requiresScopeAccess ? "Add Scope" : "Open System Settings") {
                     grantPermission()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(TonicDS.Colors.ink)
             }
 
             Spacer()
         }
-        .padding(24)
-        .frame(width: 500, height: 400)
+        .padding(TonicDS.Space.lg)
+        .frame(minWidth: 420, idealWidth: 500, maxWidth: 560,
+               minHeight: 340, idealHeight: 400, maxHeight: 460)
         .background(TonicDS.Colors.surface, in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)).overlay(RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous).strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
     }
 
@@ -572,6 +568,7 @@ struct CommandPaletteView: View {
     @State private var searchText = ""
     @State private var selectedIndex: Int = 0
     @FocusState private var isSearchFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var allDestinations: [NavigationDestination] {
         NavigationDestination.allCases.filter(FeatureFlags.isEnabled)
@@ -605,8 +602,8 @@ struct CommandPaletteView: View {
 
     var body: some View {
         ZStack {
-            // Dimmed background
-            Color.black.opacity(0.3)
+            // Dimmed background — the one sanctioned scrim token.
+            TonicDS.Colors.overlayDim
                 .ignoresSafeArea()
                 .onTapGesture {
                     dismiss()
@@ -617,9 +614,9 @@ struct CommandPaletteView: View {
                         dismiss()
                         return .handled
                     }
-                    // Handle arrow keys for navigation
+                    // Handle arrow keys for navigation (no movement under Reduce Motion)
                     if press.key == .downArrow {
-                        withAnimation(.easeOut(duration: 0.1)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.1)) {
                             if selectedIndex < filteredDestinations.count - 1 {
                                 selectedIndex += 1
                             }
@@ -627,7 +624,7 @@ struct CommandPaletteView: View {
                         return .handled
                     }
                     if press.key == .upArrow {
-                        withAnimation(.easeOut(duration: 0.1)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.1)) {
                             if selectedIndex > 0 {
                                 selectedIndex -= 1
                             }
@@ -672,9 +669,17 @@ struct CommandPaletteView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 2) {
-                            ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
-                                paletteRow(index: index, destination: destination)
-                                    .id(index)
+                            if filteredDestinations.isEmpty {
+                                Text("No screens match \u{201C}\(searchText)\u{201D}")
+                                    .tonicType(.caption)
+                                    .foregroundStyle(TonicDS.Colors.textMuted)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, TonicDS.Space.lg)
+                            } else {
+                                ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
+                                    paletteRow(index: index, destination: destination)
+                                        .id(index)
+                                }
                             }
                         }
                         .padding(TonicDS.Space.xs)
@@ -684,8 +689,18 @@ struct CommandPaletteView: View {
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
+
+                TonicHairline()
+                HStack {
+                    MonoLabel("\(filteredDestinations.count) result\(filteredDestinations.count == 1 ? "" : "s")")
+                    Spacer()
+                    MonoLabel("↑↓ Navigate · ↵ Open · Esc Close")
+                }
+                .padding(.horizontal, TonicDS.Space.md)
+                .padding(.vertical, TonicDS.Space.xs)
             }
-            .frame(width: 500, height: 450)
+            .frame(minWidth: 420, idealWidth: 500, maxWidth: 560,
+                   minHeight: 320, idealHeight: 450, maxHeight: 500)
             .background(TonicDS.Colors.surface,
                         in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
             .overlay(
@@ -710,35 +725,39 @@ struct CommandPaletteView: View {
     @ViewBuilder
     private func paletteRow(index: Int, destination: NavigationDestination) -> some View {
         let isSelected = index == selectedIndex
-        HStack(spacing: TonicDS.Space.sm) {
-            Image(systemName: destination.systemImage)
-                .font(.system(size: 14, weight: .regular))
-                .frame(width: 20)
-                .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
-
-            Text(destination.sidebarDisplayName)
-                .tonicType(.body)
-                .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
-
-            Spacer()
-
-            if isSelected {
-                Text("↵").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.textMuted)
-            }
-        }
-        .padding(.horizontal, TonicDS.Space.sm)
-        .frame(height: 36)
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
-                    .fill(TonicDS.Colors.rowHover(0.06))
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             selectedIndex = index
             navigateToSelected()
+        } label: {
+            HStack(spacing: TonicDS.Space.sm) {
+                Image(systemName: destination.systemImage)
+                    .font(.system(size: 14, weight: .regular))
+                    .frame(width: 20)
+                    .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+
+                Text(destination.sidebarDisplayName)
+                    .tonicType(.body)
+                    .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+
+                Spacer()
+
+                if isSelected {
+                    Text("↵").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.textMuted)
+                }
+            }
+            .padding(.horizontal, TonicDS.Space.sm)
+            .frame(height: TonicDS.Layout.minControlTarget)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
+                        .fill(TonicDS.Colors.rowHover(0.06))
+                }
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .tonicPointerCursor()
     }
 
     private func navigateToSelected() {

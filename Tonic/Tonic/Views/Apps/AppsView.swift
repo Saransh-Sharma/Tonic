@@ -26,7 +26,7 @@ struct AppsView: View {
             TonicPageHeader(title: "Apps", subtitle: "Installed apps, updates, and reclaimable space") {
                 TonicSearchField(placeholder: "Search apps", text: $inventory.searchText,
                                  externalFocus: $searchFocused)
-                    .frame(width: 240)
+                    .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
             }
             .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
 

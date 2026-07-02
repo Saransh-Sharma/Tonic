@@ -134,7 +134,7 @@ private struct SidebarRow: View {
                 #endif
             }
             .padding(.horizontal, TonicDS.Space.sm)
-            .frame(height: 34)
+            .frame(height: TonicDS.Layout.minControlTarget)
             .background(rowBackground)
             .contentShape(Rectangle())
         }
