@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var data = WidgetDataManager.shared
     @State private var snapshot: SystemSnapshot?
     @State private var appeared = false
+    @State private var liveSkeletonTimedOut = false
 
     private var openRecommendations: [Recommendation] {
         scanManager.recommendations.filter { !$0.isCompleted }
@@ -59,8 +60,8 @@ struct HomeView: View {
                     .tonicType(.heroDisplay)
                     .foregroundStyle(TonicDS.Colors.textPrimary)
                     // Numeric roll only when the headline is a measured value; plain
-                    // phrase changes ("All clear." ↔ "Ready when you are") just cross-fade.
-                    .contentTransition(hasRecoverable ? .numericText() : .opacity)
+                    // phrase changes ("All clear." ↔ "Running hot") just cross-fade.
+                    .contentTransition(heroState.isMeasured ? .numericText() : .opacity)
                     .animation(reduceMotion ? nil : TonicDS.Motion.present, value: heroTitle)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(heroSubtitle)
@@ -96,6 +97,13 @@ struct HomeView: View {
                 PrimaryPill("Run Smart Scan", systemImage: "sparkles") { scanManager.startSmartScan() }
                 TextAction("What gets scanned?") { selectedDestination = .systemCleanup }
             }
+
+            // Live-health declarations point at the instrument, not the cleaner.
+            if heroState.leadsToMonitor && !scanManager.isScanning {
+                TextAction("Open Monitor", color: TonicDS.Colors.linkBlue) {
+                    selectedDestination = .liveMonitoring
+                }
+            }
         }
     }
 
@@ -104,31 +112,34 @@ struct HomeView: View {
     }
 
     private var lastScannedText: String? {
-        guard !scanManager.isScanning, scanManager.hasScanResult, let date = scanManager.lastScanDate else { return nil }
+        // The timestamp stays visible during a scan — the last known state doesn't
+        // vanish just because a new reading is in progress.
+        guard scanManager.hasScanResult, let date = scanManager.lastScanDate else { return nil }
         let fmt = RelativeDateTimeFormatter()
         fmt.unitsStyle = .full
         return "Last scanned · \(fmt.localizedString(for: date, relativeTo: Date()))"
     }
 
-    private var heroTitle: String {
-        if scanManager.isScanning { return "Scanning…" }
-        guard scanManager.hasScanResult else { return "Ready when you are" }
-        let bytes = scanManager.lastReclaimableBytes ?? 0
-        if bytes > 0 { return "\(Self.formatBytes(bytes)) to recover" }
-        return "All clear."
+    /// The arbitrated declaration: live machine health outranks scan bookkeeping.
+    private var heroState: SystemStatusArbiter.Declaration {
+        SystemStatusArbiter.declare(
+            .init(
+                isScanning: scanManager.isScanning,
+                scanPhase: scanManager.currentPhase.rawValue,
+                scanProgress: scanManager.scanProgress,
+                hasScanResult: scanManager.hasScanResult,
+                reclaimableBytes: scanManager.lastReclaimableBytes ?? 0,
+                recommendationCount: openRecommendations.count,
+                memoryPressureCritical: data.hasLiveMetricSample && data.memoryData.pressure == .critical,
+                diskFreeFraction: bootVolume.map { 1 - $0.usagePercentage / 100 },
+                thermalThrottled: data.hasLiveMetricSample && data.cpuData.thermalLimit == true
+            ),
+            formatBytes: Self.formatBytes
+        )
     }
 
-    private var heroSubtitle: String {
-        if scanManager.isScanning {
-            return "\(scanManager.currentPhase.rawValue) · \(Int(scanManager.scanProgress * 100))%"
-        }
-        guard scanManager.hasScanResult else {
-            return "Run a Smart Scan to check space, performance, and apps."
-        }
-        let n = openRecommendations.count
-        if n > 0 { return "\(n) recommendation\(n == 1 ? "" : "s") from your last scan." }
-        return "Nothing to recover right now — your Mac is in good shape."
-    }
+    private var heroTitle: String { heroState.title }
+    private var heroSubtitle: String { heroState.subtitle }
 
     // MARK: - Identity
 
@@ -171,9 +182,10 @@ struct HomeView: View {
 
     private var emptyTriage: some View {
         HStack(spacing: TonicDS.Space.sm) {
+            // Neutral glyph — status green stays on data readouts, never on chrome.
             Image(systemName: "checkmark.seal")
                 .font(.system(size: 18, weight: .thin))
-                .foregroundStyle(TonicDS.Colors.statusSuccess)
+                .foregroundStyle(TonicDS.Colors.textMuted)
             Text("All clear — nothing needs your attention.")
                 .tonicType(.body)
                 .foregroundStyle(TonicDS.Colors.textMuted)
@@ -202,7 +214,10 @@ struct HomeView: View {
             },
             trailing: {
                 HStack(spacing: TonicDS.Space.sm) {
-                    StatusChip(rec.category.rawValue, color: triageColor(rec.priority))
+                    // The chip states the *priority* — its color and its word agree.
+                    // Category is already carried by the leading glyph and title.
+                    StatusChip(triagePriorityWord(rec.priority),
+                               level: triageLevel(rec.priority))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(TonicDS.Colors.textMuted)
@@ -212,12 +227,21 @@ struct HomeView: View {
         )
     }
 
-    private func triageColor(_ priority: Recommendation.Priority) -> Color {
+    private func triageLevel(_ priority: Recommendation.Priority) -> TonicDS.StatusLevel {
         switch priority {
-        case .critical: return TonicDS.Colors.statusCritical
-        case .high: return TonicDS.Colors.statusCaution
-        case .medium: return TonicDS.Colors.statusWarning
-        case .low: return TonicDS.Colors.statusInfo
+        case .critical: return .critical
+        case .high: return .caution
+        case .medium: return .warning
+        case .low: return .info
+        }
+    }
+
+    private func triagePriorityWord(_ priority: Recommendation.Priority) -> String {
+        switch priority {
+        case .critical: return "Critical"
+        case .high: return "High"
+        case .medium: return "Medium"
+        case .low: return "Low"
         }
     }
 
@@ -227,14 +251,27 @@ struct HomeView: View {
 
     // MARK: - Live bento
 
+    private var hasLiveHistory: Bool {
+        !(data.cpuHistory.isEmpty && data.memoryHistory.isEmpty && data.diskHistory.isEmpty)
+    }
+
     private var liveBento: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.md) {
             MonoLabel("Live")
                 .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
 
-            if data.cpuHistory.isEmpty && data.memoryHistory.isEmpty && data.diskHistory.isEmpty {
-                liveSkeleton
-                    .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+            if !hasLiveHistory {
+                if liveSkeletonTimedOut {
+                    liveUnavailableNotice
+                        .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                } else {
+                    liveSkeleton
+                        .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                        .task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            if !Task.isCancelled && !hasLiveHistory { liveSkeletonTimedOut = true }
+                        }
+                }
             } else {
                 TonicBentoGrid(minTileWidth: 220) {
                     GaugeCard(
@@ -257,6 +294,50 @@ struct HomeView: View {
                     )
                     .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
                 }
+
+                // The signature console surface, teased on Home: a wide near-black
+                // strip of live mono readouts that opens the instrument wall.
+                consoleTeaser
+                    .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
+            }
+        }
+    }
+
+    private var consoleTeaser: some View {
+        MonitoringConsole {
+            HStack(spacing: TonicDS.Space.lg) {
+                teaserReadout("CPU", "\(Int(data.cpuData.totalUsage))%",
+                              TonicDS.Chart.utilization(data.cpuData.totalUsage))
+                teaserReadout("MEM", "\(Int(data.memoryData.usagePercentage))%",
+                              TonicDS.Chart.utilization(data.memoryData.usagePercentage))
+                teaserReadout("NET ↓", data.networkData.downloadString, TonicDS.Chart.download)
+                Spacer(minLength: TonicDS.Space.md)
+                TextAction("Open Monitor", systemImage: "arrow.up.right",
+                           color: TonicDS.Colors.onDarkMuted) {
+                    selectedDestination = .liveMonitoring
+                }
+            }
+        }
+    }
+
+    private func teaserReadout(_ label: String, _ value: String, _ color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TonicDS.Space.xs) {
+            MonoLabel(label, color: TonicDS.Colors.onDarkMuted)
+            Text(value)
+                .tonicType(.monoLabel).monospacedDigit()
+                .foregroundStyle(color)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var liveUnavailableNotice: some View {
+        DataCard {
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                MonoLabel("Live metrics unavailable")
+                Text("No samples have arrived yet. Monitoring starts automatically — if this persists, check module settings.")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
             }
         }
     }
@@ -303,5 +384,92 @@ struct HomeView: View {
         f.allowedUnits = [.useGB, .useMB]
         f.countStyle = .file
         return f.string(fromByteCount: bytes)
+    }
+}
+
+// MARK: - Status arbitration
+
+/// Resolves the one hero declaration from everything the app knows: live machine
+/// health outranks scan results, which outrank the invitation to scan. Pure and
+/// value-typed so the priority ladder is unit-testable.
+enum SystemStatusArbiter {
+    struct Inputs {
+        var isScanning: Bool
+        var scanPhase: String
+        var scanProgress: Double
+        var hasScanResult: Bool
+        var reclaimableBytes: Int64
+        var recommendationCount: Int
+        var memoryPressureCritical: Bool
+        /// 0...1 free fraction of the boot volume; nil when unknown.
+        var diskFreeFraction: Double?
+        var thermalThrottled: Bool
+    }
+
+    struct Declaration: Equatable {
+        let title: String
+        let subtitle: String
+        /// Measured values roll numerically; phrases cross-fade.
+        let isMeasured: Bool
+        /// Live-health declarations offer Monitor as the companion destination.
+        let leadsToMonitor: Bool
+    }
+
+    static func declare(_ inputs: Inputs, formatBytes: (Int64) -> String) -> Declaration {
+        if inputs.isScanning {
+            return Declaration(
+                title: "Scanning…",
+                subtitle: "\(inputs.scanPhase) · \(Int(inputs.scanProgress * 100))%",
+                isMeasured: true, leadsToMonitor: false
+            )
+        }
+
+        // Live health first — the machine's present state outranks scan bookkeeping.
+        if inputs.thermalThrottled {
+            return Declaration(
+                title: "Running hot",
+                subtitle: "The CPU is being thermally throttled. Check what's working so hard.",
+                isMeasured: false, leadsToMonitor: true
+            )
+        }
+        if inputs.memoryPressureCritical {
+            return Declaration(
+                title: "Memory under pressure",
+                subtitle: "macOS is compressing and swapping aggressively. Closing something helps.",
+                isMeasured: false, leadsToMonitor: true
+            )
+        }
+        if let free = inputs.diskFreeFraction, free < 0.05 {
+            return Declaration(
+                title: "Disk almost full",
+                subtitle: "Under 5% free on the boot volume. A Smart Scan can recover space.",
+                isMeasured: false, leadsToMonitor: false
+            )
+        }
+
+        if inputs.hasScanResult, inputs.reclaimableBytes > 0 {
+            let n = inputs.recommendationCount
+            return Declaration(
+                title: "\(formatBytes(inputs.reclaimableBytes)) to recover",
+                subtitle: n > 0
+                    ? "\(n) recommendation\(n == 1 ? "" : "s") from your last scan."
+                    : "Recoverable space found in your last scan.",
+                isMeasured: true, leadsToMonitor: false
+            )
+        }
+
+        guard inputs.hasScanResult else {
+            return Declaration(
+                title: "Ready when you are",
+                subtitle: "Run a Smart Scan to check space, performance, and apps.",
+                isMeasured: false, leadsToMonitor: false
+            )
+        }
+
+        return Declaration(
+            title: "All clear.",
+            subtitle: "Nothing to recover right now — your Mac is in good shape.",
+            isMeasured: false, leadsToMonitor: false
+        )
     }
 }
