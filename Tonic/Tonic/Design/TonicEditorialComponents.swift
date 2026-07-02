@@ -13,12 +13,14 @@ import AppKit
 // MARK: - Interaction helpers
 
 /// Press feedback: subtle scale, fast timing. Used by pills, chips, rows.
+/// Collapses to no movement under Reduce Motion.
 struct TonicPressStyle: ButtonStyle {
     var pressedScale: CGFloat = 0.97
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? pressedScale : 1)
-            .animation(TonicDS.Motion.press, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? pressedScale : 1)
+            .animation(reduceMotion ? nil : TonicDS.Motion.press, value: configuration.isPressed)
             .contentShape(Rectangle())
     }
 }
@@ -36,9 +38,11 @@ private struct TonicFocusableControlModifier: ViewModifier {
 }
 
 extension View {
-    /// Pointing-hand cursor on hover (Mac pointer affordance).
-    func tonicPointerCursor() -> some View {
+    /// Pointing-hand cursor on hover (Mac pointer affordance). Pass `enabled: false`
+    /// for disabled controls so the cursor stays an arrow.
+    func tonicPointerCursor(enabled: Bool = true) -> some View {
         self.onHover { inside in
+            guard enabled else { return }
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
     }
@@ -180,7 +184,7 @@ struct Metric: View {
             if let unit {
                 Text(unit)
                     .tonicType(.monoLabel)
-                    .foregroundStyle(color.opacity(0.7))
+                    .foregroundStyle(color.opacity(TonicDS.Emphasis.unit))
             }
         }
     }
@@ -195,19 +199,22 @@ struct PrimaryPill: View {
     var systemImage: String?
     var onDark: Bool = false
     var isLoading: Bool = false
+    var isDisabled: Bool = false
     let action: () -> Void
 
     init(_ title: String, systemImage: String? = nil, onDark: Bool = false,
-         isLoading: Bool = false, action: @escaping () -> Void) {
+         isLoading: Bool = false, isDisabled: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.onDark = onDark
         self.isLoading = isLoading
+        self.isDisabled = isDisabled
         self.action = action
     }
 
     private var fill: Color { onDark ? TonicDS.Colors.onDark : TonicDS.Colors.ink }
     private var fg: Color { onDark ? TonicDS.Colors.onLight : TonicDS.Colors.onDark }
+    private var inactive: Bool { isLoading || isDisabled }
 
     var body: some View {
         Button(action: action) {
@@ -224,13 +231,14 @@ struct PrimaryPill: View {
             .padding(.horizontal, 22)
             .padding(.vertical, 10)
             .frame(minHeight: TonicDS.Layout.minControlTarget)
-            .background(fill, in: Capsule(style: .continuous))
+            .background(fill.opacity(isDisabled ? TonicDS.Emphasis.disabled : 1),
+                        in: Capsule(style: .continuous))
         }
         .buttonStyle(TonicPressStyle())
-        .disabled(isLoading)
+        .disabled(inactive)
         .tonicFocusableControl(radius: TonicDS.Radius.pill)
         .accessibilityLabel(title)
-        .tonicPointerCursor()
+        .tonicPointerCursor(enabled: !inactive)
     }
 }
 
@@ -352,22 +360,51 @@ struct CategoryFilterChip: View {
     }
 }
 
+/// The 6pt status dot — the atomic machine-state marker. Status scale only.
+struct StatusDot: View {
+    let color: Color
+    var size: CGFloat = TonicDS.Layout.statusDotSize
+    init(_ color: Color, size: CGFloat = TonicDS.Layout.statusDotSize) {
+        self.color = color
+        self.size = size
+    }
+    var body: some View {
+        Circle().fill(color)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true) // meaning is voiced by the accompanying label
+    }
+}
+
 /// Small machine-state marker: status-colored dot + mono label. Status scale only.
+/// Pass a `level` so VoiceOver hears the state word, not just the raw value —
+/// color is never the only carrier of meaning.
 struct StatusChip: View {
     let label: String
     let color: Color
-    init(_ label: String, color: Color) {
+    var level: TonicDS.StatusLevel?
+
+    init(_ label: String, color: Color, level: TonicDS.StatusLevel? = nil) {
         self.label = label
         self.color = color
+        self.level = level
     }
+
+    init(_ label: String, level: TonicDS.StatusLevel) {
+        self.label = label
+        self.color = level.color
+        self.level = level
+    }
+
     var body: some View {
         HStack(spacing: TonicDS.Space.xxs) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            StatusDot(color)
             Text(label.uppercased()).tonicType(.monoLabel).foregroundStyle(color)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .overlay(Capsule().strokeBorder(color.opacity(0.35), lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(level.map { "\($0.word): \(label)" } ?? label)
     }
 }
 
@@ -447,6 +484,7 @@ struct AlertBanner: View {
                         .foregroundStyle(TonicDS.Colors.onDarkMuted)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
                 .tonicPointerCursor()
             }
         }
@@ -541,7 +579,9 @@ struct ModuleBand<Content: View>: View {
 }
 
 /// Warm soft-stone card summarizing a cleanup category or scan result.
+/// Set `hoverLift` when the card is tappable so it carries a pointer affordance.
 struct ScanCategoryCard<Content: View>: View {
+    var hoverLift: Bool = false
     @ViewBuilder var content: () -> Content
     var body: some View {
         content()
@@ -549,6 +589,7 @@ struct ScanCategoryCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(TonicDS.Colors.softStone,
                         in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous))
+            .tonicHoverLift(enabled: hoverLift, radius: TonicDS.Radius.sm)
     }
 }
 
@@ -590,6 +631,8 @@ struct SystemListRow<Leading: View, Center: View, Trailing: View>: View {
     var isSelected: Bool = false
     /// When true the trailing (metadata) column stacks below the title on compact panes.
     var reflowWhenCompact: Bool = false
+    /// Dims the row and suspends hover/tap — for items that are present but unavailable.
+    var isDisabled: Bool = false
     var onTap: (() -> Void)?
     @State private var hovering = false
     @FocusState private var focused: Bool
@@ -608,11 +651,13 @@ struct SystemListRow<Leading: View, Center: View, Trailing: View>: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("Open details")
-                .tonicPointerCursor()
+                .disabled(isDisabled)
+                .tonicPointerCursor(enabled: !isDisabled)
             } else {
                 rowContent
             }
         }
+        .opacity(isDisabled ? TonicDS.Emphasis.disabled : 1)
     }
 
     @ViewBuilder
@@ -641,13 +686,14 @@ struct SystemListRow<Leading: View, Center: View, Trailing: View>: View {
         .frame(minHeight: TonicDS.Layout.minRowHeight)
         .background(rowFill)
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .focusable(onTap != nil)
+        .onHover { if !isDisabled { hovering = $0 } }
+        .focusable(onTap != nil && !isDisabled)
         .focused($focused)
         .tonicFocusRing(focused, radius: TonicDS.Radius.sm)
     }
 
     private var rowFill: Color {
+        if isDisabled { return .clear }
         if isSelected { return TonicDS.Colors.rowHover(0.08) }
         return hovering ? TonicDS.Colors.rowHover(0.05) : .clear
     }
@@ -715,6 +761,7 @@ struct TonicEmptyState: View {
 struct TonicSearchField: View {
     var placeholder: String = "Search"
     @Binding var text: String
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: TonicDS.Space.xs) {
@@ -725,6 +772,7 @@ struct TonicSearchField: View {
                 .textFieldStyle(.plain)
                 .tonicType(.body)
                 .foregroundStyle(TonicDS.Colors.textPrimary)
+                .focused($focused)
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -737,13 +785,14 @@ struct TonicSearchField: View {
             }
         }
         .padding(.horizontal, TonicDS.Space.sm)
-        .frame(height: 32)
+        .frame(height: TonicDS.Layout.inputHeight)
         .background(TonicDS.Colors.surface,
                     in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
                 .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
         )
+        .tonicFocusRing(focused, radius: TonicDS.Radius.sm)
     }
 }
 

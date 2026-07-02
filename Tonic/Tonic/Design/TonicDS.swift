@@ -167,6 +167,18 @@ enum TonicDS {
         static func rowHover(_ opacity: Double = 0.05) -> Color {
             Color.tonic("000000", dark: "ffffff", lightAlpha: opacity, darkAlpha: opacity)
         }
+
+        /// Scrim behind palettes / modal overlays. The one sanctioned dimming fill.
+        static let overlayDim = Color.tonicConstant("000000", alpha: 0.30)
+    }
+
+    // MARK: Emphasis (opacity scale for de-emphasized ink)
+
+    enum Emphasis {
+        /// Baseline-aligned unit next to a metric value.
+        static let unit: Double = 0.70
+        /// Disabled control fill / content.
+        static let disabled: Double = 0.35
     }
 
     // MARK: Status resolution (single threshold authority)
@@ -174,35 +186,78 @@ enum TonicDS {
     // Mirrors ColorZoneConfiguration.standardUtilization thresholds (0.50 / 0.75 / 0.90)
     // so gauges, charts, and chips all resolve color the same way.
 
+    /// A machine-state level: the status color plus the word that voices it.
+    /// The word is what VoiceOver reads and what status chips can print — color
+    /// alone is never the only carrier of meaning.
+    enum StatusLevel {
+        case success, warning, caution, critical, info
+
+        var color: Color {
+            switch self {
+            case .success: return Colors.statusSuccess
+            case .warning: return Colors.statusWarning
+            case .caution: return Colors.statusCaution
+            case .critical: return Colors.statusCritical
+            case .info: return Colors.statusInfo
+            }
+        }
+
+        /// Human word for the level ("Healthy", "Elevated", …).
+        var word: String {
+            switch self {
+            case .success: return "Healthy"
+            case .warning: return "Elevated"
+            case .caution: return "High"
+            case .critical: return "Critical"
+            case .info: return "Info"
+            }
+        }
+    }
+
+    /// Status level for a 0...1 utilization fraction.
+    static func statusLevel(forFraction value: Double) -> StatusLevel {
+        switch value {
+        case ..<0.50: return .success
+        case ..<0.75: return .warning
+        case ..<0.90: return .caution
+        default:       return .critical
+        }
+    }
+
+    /// Status level for a temperature in °C (typical SoC/ambient envelope).
+    static func statusLevel(forTempC celsius: Double) -> StatusLevel {
+        switch celsius {
+        case ..<60:  return .success
+        case ..<75:  return .warning
+        case ..<90:  return .caution
+        default:      return .critical
+        }
+    }
+
+    /// Status level for a battery level 0...1 (charging is neutral/info).
+    static func statusLevel(forBattery level: Double, isCharging: Bool) -> StatusLevel {
+        if isCharging { return .info }
+        switch level {
+        case ..<0.10: return .critical
+        case ..<0.20: return .caution
+        case ..<0.40: return .warning
+        default:       return .success
+        }
+    }
+
     /// Status color for a 0...1 utilization fraction.
     static func status(forFraction value: Double) -> Color {
-        switch value {
-        case ..<0.50: return Colors.statusSuccess
-        case ..<0.75: return Colors.statusWarning
-        case ..<0.90: return Colors.statusCaution
-        default:       return Colors.statusCritical
-        }
+        statusLevel(forFraction: value).color
     }
 
     /// Status color for a temperature in °C (typical SoC/ambient envelope).
     static func status(forTempC celsius: Double) -> Color {
-        switch celsius {
-        case ..<60:  return Colors.statusSuccess
-        case ..<75:  return Colors.statusWarning
-        case ..<90:  return Colors.statusCaution
-        default:      return Colors.statusCritical
-        }
+        statusLevel(forTempC: celsius).color
     }
 
     /// Status color for a battery level 0...1 (charging is neutral/info).
     static func status(forBattery level: Double, isCharging: Bool) -> Color {
-        if isCharging { return Colors.statusInfo }
-        switch level {
-        case ..<0.10: return Colors.statusCritical
-        case ..<0.20: return Colors.statusCaution
-        case ..<0.40: return Colors.statusWarning
-        default:       return Colors.statusSuccess
-        }
+        statusLevel(forBattery: level, isCharging: isCharging).color
     }
 
     // MARK: Chart / data color
@@ -287,6 +342,10 @@ enum TonicDS {
         static let sidebarWidth: CGFloat = 220
         static let minControlTarget: CGFloat = 36
         static let minRowHeight: CGFloat = 44
+        /// Text inputs (search fields, small form fields).
+        static let inputHeight: CGFloat = 32
+        /// The 6pt status dot used by chips and console rows.
+        static let statusDotSize: CGFloat = 6
 
         enum MenuBar {
             static let width: CGFloat = 280

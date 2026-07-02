@@ -32,7 +32,8 @@ struct TonicTabBar<Tab: Hashable>: View {
 // MARK: - Bento grid
 
 /// Adaptive editorial grid: 1 / 2 / 3 columns by available width. Tiles size
-/// themselves (typically `DataCard`s). Children appear with a staggered reveal.
+/// themselves (typically `DataCard`s). For the staggered reveal, apply
+/// `.tonicAppear(_:index:reduceMotion:)` to each tile with ascending indices.
 struct TonicBentoGrid<Content: View>: View {
     var minTileWidth: CGFloat = 260
     var spacing: CGFloat = TonicDS.Space.md
@@ -282,6 +283,8 @@ struct SheetChrome<Content: View, Footer: View>: View {
                             .foregroundStyle(TonicDS.Colors.textMuted)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    .keyboardShortcut(.cancelAction)
                     .tonicPointerCursor()
                 }
             }
