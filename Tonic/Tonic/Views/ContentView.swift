@@ -125,6 +125,9 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openAppManagerFromStorageHub)) { _ in
                 selectedDestination = .appManager
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openLiveMonitor)) { _ in
+                selectedDestination = .liveMonitoring
+            }
             .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
                 guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
                       let _ = WidgetType(rawValue: rawModule) else {

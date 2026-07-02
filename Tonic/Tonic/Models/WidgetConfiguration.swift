@@ -36,6 +36,29 @@ enum SettingsDeepLinkUserInfoKey {
     static let module = "module"
 }
 
+extension Notification.Name {
+    /// Ask the main window to navigate to the live Monitor screen.
+    static let openLiveMonitor = Notification.Name("tonic.openLiveMonitor")
+}
+
+/// Brings the main window forward and routes it to a destination — used by the
+/// menu-bar popover footers for popover → instrument-wall cross-navigation.
+@MainActor
+enum MainWindowNavigator {
+    static func openLiveMonitor() {
+        // Close popovers without animation first (see SettingsDeepLinkNavigator).
+        WidgetCoordinator.shared.closeAllPopovers()
+        NSApp.activate(ignoringOtherApps: true)
+        // Match the dock-reopen behavior: surface the first app window.
+        if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .openLiveMonitor, object: nil)
+        }
+    }
+}
+
 @MainActor
 enum SettingsDeepLinkNavigator {
     static func openModuleSettings(_ module: WidgetType) {

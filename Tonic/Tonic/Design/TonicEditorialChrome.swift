@@ -311,3 +311,98 @@ extension SheetChrome where Footer == EmptyView {
         self.init(title: title, onClose: onClose, content: content, footer: { EmptyView() })
     }
 }
+
+// MARK: - Console visualization atoms
+//
+// Shared building blocks for the near-black console surfaces (Monitor detail wall
+// and the menu-bar popover consoles) so both families speak one chart grammar.
+
+/// A row of vertical mini-bars for a core cluster. Category-colored (E vs P), never
+/// a status hue — the cluster identity is the datum, not utilization.
+struct ConsoleCoreBars: View {
+    let values: [Double] // 0...100
+    let color: Color
+    private let maxHeight: CGFloat = 24
+    private let spacing: CGFloat = 3
+
+    var body: some View {
+        // Width-aware: derive bar width from available space so a 16-core cluster never
+        // clips or wraps in a narrow console column.
+        GeometryReader { geo in
+            let n = max(1, values.count)
+            let raw = (geo.size.width - spacing * CGFloat(n - 1)) / CGFloat(n)
+            let barWidth = min(6, max(2, raw))
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(color)
+                        .frame(width: barWidth, height: max(2, CGFloat(min(100, max(0, v)) / 100) * maxHeight))
+                }
+            }
+            .frame(width: geo.size.width, height: maxHeight, alignment: .bottomLeading)
+        }
+        .frame(height: maxHeight)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A thin stacked breakdown bar (memory composition, etc.). Segments are data-series colors.
+struct ConsoleBreakdownBar: View {
+    struct Segment: Identifiable {
+        let id = UUID()
+        let fraction: Double
+        let color: Color
+    }
+    let segments: [Segment]
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 1) {
+                ForEach(segments) { seg in
+                    Rectangle().fill(seg.color)
+                        .frame(width: max(0, geo.size.width * min(1, max(0, seg.fraction))))
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(height: 6)
+        .clipShape(Capsule())
+        .accessibilityHidden(true)
+    }
+}
+
+/// Small legend for a breakdown bar — mono labels with a colored dot and optional value.
+struct ConsoleLegend: View {
+    struct Item: Identifiable {
+        let id = UUID()
+        let label: String
+        var value: String?
+        let color: Color
+
+        init(label: String, value: String? = nil, color: Color) {
+            self.label = label
+            self.value = value
+            self.color = color
+        }
+    }
+    let items: [Item]
+
+    var body: some View {
+        HStack(spacing: TonicDS.Space.md) {
+            ForEach(items) { item in
+                HStack(spacing: TonicDS.Space.xxs) {
+                    Circle().fill(item.color).frame(width: 6, height: 6)
+                    Text(item.label.uppercased())
+                        .tonicType(.monoLabel)
+                        .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                    if let value = item.value {
+                        Text(value)
+                            .tonicType(.monoLabel).monospacedDigit()
+                            .foregroundStyle(TonicDS.Colors.onDark)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
