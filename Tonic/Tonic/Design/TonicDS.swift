@@ -426,7 +426,7 @@ extension TonicDS {
     enum TypeRole {
         case heroDisplay, sectionDisplay, cardHeading, featureHeading
         case bodyLarge, body, button, caption
-        case monoLabel, metric, micro
+        case monoLabel, metric, metricSmall, micro
 
         var size: CGFloat {
             switch self {
@@ -440,6 +440,7 @@ extension TonicDS {
             case .caption: return 12
             case .monoLabel: return 11
             case .metric: return 28
+            case .metricSmall: return 20   // compact console/popover header readout
             case .micro: return 11
             }
         }
@@ -448,14 +449,14 @@ extension TonicDS {
             switch self {
             case .heroDisplay, .sectionDisplay, .cardHeading: return .medium   // 500
             case .featureHeading, .button: return .semibold                    // 600
-            case .monoLabel, .metric: return .medium                           // 500
+            case .monoLabel, .metric, .metricSmall: return .medium             // 500
             default: return .regular                                           // 400
             }
         }
 
         var design: Font.Design {
             switch self {
-            case .monoLabel, .metric: return .monospaced
+            case .monoLabel, .metric, .metricSmall: return .monospaced
             default: return .default
             }
         }
@@ -479,7 +480,7 @@ extension TonicDS {
             case .button: return 1.20
             case .caption: return 1.40
             case .monoLabel: return 1.30
-            case .metric: return 1.00
+            case .metric, .metricSmall: return 1.00
             case .micro: return 1.35
             }
         }

@@ -165,19 +165,23 @@ struct MonoLabel: View {
 }
 
 /// Large live readout: tabular metric number + baseline-aligned mono unit.
+/// Use `role: .metricSmall` in compact console/popover headers.
 struct Metric: View {
     let value: String
     var unit: String?
     var color: Color = TonicDS.Colors.textPrimary
-    init(_ value: String, unit: String? = nil, color: Color = TonicDS.Colors.textPrimary) {
+    var role: TonicDS.TypeRole = .metric
+    init(_ value: String, unit: String? = nil,
+         color: Color = TonicDS.Colors.textPrimary, role: TonicDS.TypeRole = .metric) {
         self.value = value
         self.unit = unit
         self.color = color
+        self.role = role
     }
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 2) {
             Text(value)
-                .tonicType(.metric)
+                .tonicType(role)
                 .monospacedDigit()
                 .foregroundStyle(color)
                 .contentTransition(.numericText())

@@ -403,21 +403,14 @@ private struct EditorialWidgetPopoverView: View {
                     .foregroundStyle(TonicDS.Colors.onDarkMuted)
                 MonoLabel(widgetType.displayName, color: TonicDS.Colors.onDarkMuted)
                 Spacer()
-                Metric(snapshot.value, color: snapshot.color)
-                    .scaleEffect(0.72, anchor: .trailing)
-                Button {
+                Metric(snapshot.value, color: snapshot.color, role: .metricSmall)
+                PopoverHeaderButton(systemImage: "gearshape",
+                                    accessibilityLabel: "Open \(widgetType.displayName) settings") {
                     SettingsDeepLinkNavigator.openModuleSettings(widgetType)
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(TonicDS.Colors.onDarkMuted)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open \(widgetType.displayName) settings")
-                .tonicPointerCursor()
             }
             .padding(.horizontal, TonicDS.Space.md)
-            .frame(height: 44)
+            .frame(height: TonicDS.Layout.minRowHeight)
 
             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
 
@@ -466,13 +459,38 @@ private struct EditorialWidgetPopoverView: View {
     }
 }
 
+/// Icon-only console header control (settings gear, etc.) with hover feedback.
+private struct PopoverHeaderButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hovering ? TonicDS.Colors.onDark : TonicDS.Colors.onDarkMuted)
+                .frame(width: 22, height: 22)
+                .background(
+                    Circle().fill(TonicDS.Colors.onDark.opacity(hovering ? 0.10 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(TonicDS.Motion.press, value: hovering)
+        .accessibilityLabel(accessibilityLabel)
+        .tonicPointerCursor()
+    }
+}
+
 private struct PopoverMetricRow: View {
     let row: WidgetPopoverRow
 
     var body: some View {
         HStack(spacing: TonicDS.Space.sm) {
             if let color = row.statusColor {
-                Circle().fill(color).frame(width: 6, height: 6)
+                StatusDot(color)
             }
             Text(row.label)
                 .tonicType(.caption)
@@ -482,10 +500,19 @@ private struct PopoverMetricRow: View {
                 .tonicType(.monoLabel)
                 .monospacedDigit()
                 .foregroundStyle(row.statusColor ?? TonicDS.Colors.onDark)
+                .contentTransition(.numericText())
         }
         .frame(height: TonicDS.Layout.MenuBar.rowHeight)
         .padding(.horizontal, TonicDS.Space.md)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        if let level = row.level {
+            return "\(row.label): \(row.value), \(level.word)"
+        }
+        return "\(row.label): \(row.value)"
     }
 }
 
@@ -494,6 +521,9 @@ private struct WidgetPopoverRow: Identifiable {
     let label: String
     let value: String
     var statusColor: Color?
+    /// When the color represents a machine-state level, carry it so VoiceOver
+    /// hears the state word — color is never the only carrier of meaning.
+    var level: TonicDS.StatusLevel?
 }
 
 private struct WidgetMetricSnapshot {
@@ -507,13 +537,16 @@ private struct WidgetMetricSnapshot {
     init(widgetType: WidgetType, configuration: WidgetConfiguration, dataManager: WidgetDataManager) {
         let usePercent = configuration.valueFormat == .percentage
         self.iconColor = TonicDS.Colors.textMuted
+        // Chart history window from the persisted popover settings (~2s sample cadence
+        // while a popover is open), so the Popup settings panel actually drives the chart.
+        let keep = max(15, PopupSettingsStore.shared.settings.chartHistoryDuration / 2)
 
         switch widgetType {
         case .cpu:
             let usage = dataManager.cpuData.totalUsage
             value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 3.0 * usage / 100)
             color = TonicDS.Chart.utilization(usage)
-            history = Array(dataManager.cpuHistory.suffix(30))
+            history = Array(dataManager.cpuHistory.suffix(keep))
             rows = [
                 WidgetPopoverRow(label: "Total", value: "\(Int(usage))%", statusColor: color),
                 WidgetPopoverRow(label: "User", value: "\(Int(dataManager.cpuData.userUsage))%", statusColor: TonicDS.Chart.cpuUser),
@@ -526,7 +559,7 @@ private struct WidgetMetricSnapshot {
             let totalGB = Double(dataManager.memoryData.totalBytes) / 1_073_741_824
             value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGB", usedGB)
             color = TonicDS.Chart.utilization(usage)
-            history = Array(dataManager.memoryHistory.suffix(30))
+            history = Array(dataManager.memoryHistory.suffix(keep))
             rows = [
                 WidgetPopoverRow(label: "Used", value: String(format: "%.1f GB", usedGB), statusColor: color),
                 WidgetPopoverRow(label: "Total", value: String(format: "%.0f GB", totalGB)),
@@ -552,7 +585,7 @@ private struct WidgetMetricSnapshot {
         case .network:
             value = dataManager.networkData.downloadString
             color = dataManager.networkData.isConnected ? TonicDS.Chart.download : TonicDS.Colors.statusWarning
-            history = Array(dataManager.networkDownloadHistory.suffix(30))
+            history = Array(dataManager.networkDownloadHistory.suffix(keep))
             rows = [
                 WidgetPopoverRow(label: "Download", value: dataManager.networkData.downloadString, statusColor: TonicDS.Chart.download),
                 WidgetPopoverRow(label: "Upload", value: dataManager.networkData.uploadString, statusColor: TonicDS.Chart.upload),
@@ -562,7 +595,7 @@ private struct WidgetMetricSnapshot {
             if let usage = dataManager.gpuData.usagePercentage {
                 value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 1.0 + usage / 100)
                 color = TonicDS.Chart.utilization(usage)
-                history = Array(dataManager.gpuHistory.suffix(30))
+                history = Array(dataManager.gpuHistory.suffix(keep))
                 rows = [
                     WidgetPopoverRow(label: "Utilization", value: "\(Int(usage))%", statusColor: color),
                     WidgetPopoverRow(label: "Temperature", value: Self.temperatureValue(dataManager.gpuData.temperature), statusColor: dataManager.gpuData.temperature.map(TonicDS.Chart.temperature))
@@ -579,7 +612,7 @@ private struct WidgetMetricSnapshot {
             if battery.isPresent {
                 value = usePercent ? "\(Int(battery.chargePercentage))%" : Self.remainingTime(minutes: battery.estimatedMinutesRemaining)
                 color = TonicDS.Chart.battery(level: battery.chargePercentage, isCharging: battery.isCharging)
-                history = Array(dataManager.batteryHistory.suffix(30))
+                history = Array(dataManager.batteryHistory.suffix(keep))
                 rows = [
                     WidgetPopoverRow(label: "Charge", value: "\(Int(battery.chargePercentage))%", statusColor: color),
                     WidgetPopoverRow(label: "Power", value: battery.isCharging ? "Charging" : "Battery", statusColor: color),
@@ -600,7 +633,7 @@ private struct WidgetMetricSnapshot {
                 value = "--"
                 color = TonicDS.Colors.textMuted
             }
-            history = Array(dataManager.sensorsHistory.suffix(30))
+            history = Array(dataManager.sensorsHistory.suffix(keep))
             rows = [
                 WidgetPopoverRow(label: "Temperature Sensors", value: "\(dataManager.sensorsData.temperatures.count)"),
                 WidgetPopoverRow(label: "Fans", value: "\(dataManager.sensorsData.fans.count)"),

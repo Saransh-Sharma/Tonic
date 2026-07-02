@@ -695,6 +695,33 @@ public struct PopupSettings: Codable, Sendable, Equatable {
     }
 }
 
+/// Persisted store for the global popover settings. The popover consoles read
+/// `chartHistoryDuration`/`scalingMode` from here; the settings panel writes them.
+@Observable
+public final class PopupSettingsStore: @unchecked Sendable {
+    public static let shared = PopupSettingsStore()
+    private static let defaultsKey = "tonic.popupSettings"
+
+    public var settings: PopupSettings {
+        didSet { persist() }
+    }
+
+    private init() {
+        if let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
+           let decoded = try? JSONDecoder().decode(PopupSettings.self, from: data) {
+            settings = decoded
+        } else {
+            settings = .default
+        }
+    }
+
+    private func persist() {
+        if let data = try? JSONEncoder().encode(settings) {
+            UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+        }
+    }
+}
+
 // MARK: - Widget Configuration
 
 /// Configuration for a single menu bar widget
