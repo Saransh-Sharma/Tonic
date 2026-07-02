@@ -17,8 +17,23 @@ struct TonicApp: App {
             ContentView(showCommandPalette: $showCommandPalette)
         }
         .commands {
-            // Command Palette
+            // Primary navigation lives in the View menu with ⌘1–⌘5, like every
+            // sidebar-driven native Mac app.
+            CommandGroup(after: .sidebar) {
+                Divider()
+                navigationCommand("Home", .dashboard, "1")
+                navigationCommand("Clean", .systemCleanup, "2")
+                navigationCommand("Apps", .appManager, "3")
+                navigationCommand("Monitor", .liveMonitoring, "4")
+                navigationCommand("Settings", .settings, "5")
+            }
+
             CommandMenu("Tools") {
+                Button("Run Smart Scan") {
+                    NotificationCenter.default.post(name: .runSmartScanCommand, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                Divider()
                 Button("Command Palette") {
                     showCommandPalette = true
                 }
@@ -57,6 +72,17 @@ struct TonicApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultPosition(.center)
+    }
+
+    private func navigationCommand(_ title: String, _ destination: NavigationDestination,
+                                   _ key: KeyEquivalent) -> some View {
+        Button(title) {
+            NotificationCenter.default.post(
+                name: .navigateToDestination, object: nil,
+                userInfo: ["destination": destination.rawValue]
+            )
+        }
+        .keyboardShortcut(key, modifiers: .command)
     }
 }
 

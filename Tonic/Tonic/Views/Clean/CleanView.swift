@@ -7,6 +7,7 @@
 //  preserved SmartCareSessionStore + CleanupHistoryStore.
 //
 
+import AppKit
 import SwiftUI
 
 enum CleanTab: String, CaseIterable, Hashable {
@@ -394,6 +395,18 @@ struct CleanView: View {
                     .monospacedDigit()
             }
         )
+        .help(item.paths.first ?? item.subtitle)
+        .contextMenu {
+            if let first = item.paths.first {
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: first)])
+                }
+                Button("Copy Path\(item.paths.count > 1 ? "s" : "")") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(item.paths.joined(separator: "\n"), forType: .string)
+                }
+            }
+        }
     }
 
     private var storageRowSkeleton: some View {

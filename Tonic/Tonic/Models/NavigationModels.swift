@@ -169,4 +169,8 @@ enum NavigationDestination: String, CaseIterable {
 
 extension Notification.Name {
     static let featureFlagsDidChange = Notification.Name("tonic.featureFlagsDidChange")
+    /// Main-menu navigation (⌘1–⌘5). userInfo["destination"] = NavigationDestination.rawValue.
+    static let navigateToDestination = Notification.Name("tonic.navigateToDestination")
+    /// Tools ▸ Run Smart Scan.
+    static let runSmartScanCommand = Notification.Name("tonic.runSmartScanCommand")
 }

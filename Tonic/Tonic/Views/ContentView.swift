@@ -128,6 +128,15 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openLiveMonitor)) { _ in
                 selectedDestination = .liveMonitoring
             }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { note in
+                guard let raw = note.userInfo?["destination"] as? String,
+                      let destination = NavigationDestination(rawValue: raw) else { return }
+                selectedDestination = destination
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .runSmartScanCommand)) { _ in
+                selectedDestination = .systemCleanup
+                smartCareSession.startScan()
+            }
             .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
                 guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
                       let _ = WidgetType(rawValue: rawModule) else {

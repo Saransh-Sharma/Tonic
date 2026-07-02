@@ -765,18 +765,18 @@ struct TonicEmptyState: View {
 struct TonicSearchField: View {
     var placeholder: String = "Search"
     @Binding var text: String
-    @FocusState private var focused: Bool
+    /// Pass a screen-owned FocusState binding to drive focus externally (⌘F).
+    var externalFocus: FocusState<Bool>.Binding?
+    @FocusState private var internalFocus: Bool
+
+    private var focused: Bool { externalFocus?.wrappedValue ?? internalFocus }
 
     var body: some View {
         HStack(spacing: TonicDS.Space.xs) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12))
                 .foregroundStyle(TonicDS.Colors.textMuted)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .tonicType(.body)
-                .foregroundStyle(TonicDS.Colors.textPrimary)
-                .focused($focused)
+            field
             if !text.isEmpty {
                 Button { text = "" } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -797,6 +797,19 @@ struct TonicSearchField: View {
                 .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
         )
         .tonicFocusRing(focused, radius: TonicDS.Radius.sm)
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        let base = TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .tonicType(.body)
+            .foregroundStyle(TonicDS.Colors.textPrimary)
+        if let externalFocus {
+            base.focused(externalFocus)
+        } else {
+            base.focused($internalFocus)
+        }
     }
 }
 

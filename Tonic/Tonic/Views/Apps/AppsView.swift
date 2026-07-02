@@ -17,13 +17,15 @@ struct AppsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tonicLayoutWidth) private var layoutWidth
     @State private var appeared = false
+    @FocusState private var searchFocused: Bool
 
     private var isCompact: Bool { TonicDS.Layout.isCompact(layoutWidth) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
             TonicPageHeader(title: "Apps", subtitle: "Installed apps, updates, and reclaimable space") {
-                TonicSearchField(placeholder: "Search apps", text: $inventory.searchText)
+                TonicSearchField(placeholder: "Search apps", text: $inventory.searchText,
+                                 externalFocus: $searchFocused)
                     .frame(width: 240)
             }
             .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
@@ -42,6 +44,20 @@ struct AppsView: View {
         .tonicScreenHPadding()
         .padding(.vertical, TonicDS.Space.xxl)
         .background(TonicDS.Colors.canvas)
+        // Invisible command targets: ⌘F focuses search; ⌘A selects every visible
+        // app (suppressed while the search field owns the keyboard).
+        .background {
+            Button("") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0).frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+            if !searchFocused {
+                Button("") { selectAllVisible() }
+                    .keyboardShortcut("a", modifiers: .command)
+                    .opacity(0).frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
+        }
         .overlay(alignment: .bottom) { commandDock }
         .animation(reduceMotion ? nil : TonicDS.Motion.present, value: inventory.selectedAppIDs.isEmpty)
         .onAppear {
@@ -60,8 +76,21 @@ struct AppsView: View {
                 }
             }
         } message: {
-            Text("The selected apps and their support files will be moved to the Trash.")
+            Text(uninstallAlertMessage)
         }
+    }
+
+    /// Name what leaves: the apps by name (up to five) and the total size,
+    /// not a generic "selected apps" promise.
+    private var uninstallAlertMessage: String {
+        let selected = inventory.filteredApps.filter { inventory.selectedAppIDs.contains($0.id) }
+        guard !selected.isEmpty else {
+            return "The selected apps and their support files will be moved to the Trash."
+        }
+        let names = selected.prefix(5).map(\.name).joined(separator: ", ")
+        let suffix = selected.count > 5 ? " and \(selected.count - 5) more" : ""
+        let total = Self.bytes(selected.reduce(0) { $0 + $1.totalSize })
+        return "\(names)\(suffix) — about \(total) including support files — will be moved to the Trash."
     }
 
     // MARK: - Category chips
@@ -132,17 +161,32 @@ struct AppsView: View {
                 onAction: inventory.searchText.isEmpty ? { Task { await inventory.scanApps() } } : nil
             )
         } else {
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 0) {
-                    ForEach(inventory.filteredApps) { app in
-                        appRow(app)
-                        TonicHairline()
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                HStack {
+                    MonoLabel("\(inventory.filteredApps.count) apps")
+                    Spacer()
+                    if inventory.selectedAppIDs.count < inventory.filteredApps.count {
+                        TextAction("Select all", color: TonicDS.Colors.linkBlue) { selectAllVisible() }
                     }
                 }
-                .padding(.bottom, 80)
-                .animation(reduceMotion ? nil : TonicDS.Motion.present, value: inventory.filteredApps.count)
+                .padding(.horizontal, TonicDS.Space.md)
+
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(inventory.filteredApps) { app in
+                            appRow(app)
+                            TonicHairline()
+                        }
+                    }
+                    .padding(.bottom, 80)
+                    .animation(reduceMotion ? nil : TonicDS.Motion.present, value: inventory.filteredApps.count)
+                }
             }
         }
+    }
+
+    private func selectAllVisible() {
+        inventory.selectedAppIDs = Set(inventory.filteredApps.map(\.id))
     }
 
     private var loadingState: some View {
@@ -209,6 +253,21 @@ struct AppsView: View {
             reflowWhenCompact: true,
             onTap: { toggle(app) }
         )
+        .help(app.path.path)
+        .contextMenu {
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([app.path])
+            }
+            Button("Copy Bundle ID") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(app.bundleIdentifier, forType: .string)
+            }
+            Divider()
+            Button("Uninstall…", role: .destructive) {
+                inventory.selectedAppIDs.insert(app.id)
+                confirmUninstall = true
+            }
+        }
     }
 
     private func toggle(_ app: AppMetadata) {
