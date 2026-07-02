@@ -36,11 +36,14 @@ colors:
   accent-coral-soft: "#ffad9b"
   link-blue: "#1863dc"
   # Status scale (DATA ONLY — never used as brand or chrome)
+  # -dark variants are WCAG-AA contrast lifts for the near-black console.
   status-success: "#1f9d57"
   status-warning: "#e0a32c"
   status-caution: "#e07b39"
   status-critical: "#d14b4b"
+  status-critical-dark: "#e05252"
   status-info: "#3a78d6"
+  status-info-dark: "#5b93ff"
   # Semantic
   focus: "#4c6ee6"
   on-dark: "#ffffff"
@@ -260,13 +263,20 @@ Tonic carries one disciplined palette that resolves into both light and dark app
 
 These colors describe machine state and appear **exclusively** on gauges, charts, arcs, status chips, and value text. They are never used as brand color, surface fill, or decorative chrome — and the brand accent never substitutes for them.
 
-| Token | Value | Meaning |
-|---|---|---|
-| `status-success` | `#1f9d57` | Healthy / safe / low utilization (0–50%) |
-| `status-warning` | `#e0a32c` | Elevated / attention (50–75%) |
-| `status-caution` | `#e07b39` | High / approaching limit (75–90%) |
-| `status-critical` | `#d14b4b` | Critical / over threshold (90–100%) |
-| `status-info` | `#3a78d6` | Neutral informational state (e.g. charging) |
+| Token | Light | Dark (contrast lift) | Meaning |
+|---|---|---|---|
+| `status-success` | `#1f9d57` | `#1f9d57` | Healthy / safe / low utilization (0–50%) |
+| `status-warning` | `#e0a32c` | `#e0a32c` | Elevated / attention (50–75%) |
+| `status-caution` | `#e07b39` | `#e07b39` | High / approaching limit (75–90%) |
+| `status-critical` | `#d14b4b` | `#e05252` | Critical / over threshold (90–100%) |
+| `status-info` | `#3a78d6` | `#5b93ff` | Neutral informational state (e.g. charging) |
+
+The dark values for `status-critical` and `status-info` are deliberately lifted from the
+light hexes so small mono readouts on the near-black console meet WCAG AA — these are the
+shipped values in `TonicDS.Colors`, verified by `TonicDSPolishTests`. Every status color
+also carries a **status word** (`Healthy / Elevated / High / Critical / Info` via
+`TonicDS.StatusLevel`) so color is never the only carrier of meaning — chips and console
+rows voice the word to VoiceOver.
 
 ### Light ↔ Dark Mapping
 

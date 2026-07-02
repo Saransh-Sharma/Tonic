@@ -144,10 +144,10 @@ struct OneViewMenuBarPreview: View {
             }
             .foregroundColor(.secondary)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(4)
+        .padding(.horizontal, TonicDS.Space.xs)
+        .padding(.vertical, TonicDS.Space.xxs)
+        .background(TonicDS.Colors.canvasSoft,
+                    in: RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
     }
 }
 
