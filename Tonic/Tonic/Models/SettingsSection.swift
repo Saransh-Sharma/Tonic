@@ -12,6 +12,7 @@ import Foundation
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case modules = "Modules"
+    case maintenance = "Maintenance"
     case permissions = "Permissions"
     case updates = "Updates"
     case about = "About"
@@ -22,6 +23,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .modules: return "square.grid.2x2.fill"
+        case .maintenance: return "clock.arrow.2.circlepath"
         case .permissions: return "hand.raised.fill"
         case .updates: return "arrow.down.circle.fill"
         case .about: return "info.circle.fill"
@@ -32,6 +34,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "Appearance"
         case .modules: return "Widget configuration"
+        case .maintenance: return "Scheduled care"
         case .permissions: return BuildCapabilities.current.requiresScopeAccess ? "Access & permissions" : "System access"
         case .updates: return "Software updates"
         case .about: return "App information"

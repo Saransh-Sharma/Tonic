@@ -51,7 +51,7 @@ struct ModulesSettingsContent: View {
                                 .foregroundStyle(TonicDS.Colors.textPrimary)
                         } trailing: {
                             Circle()
-                                .fill((preferences.config(for: module)?.isEnabled ?? false) ? TonicDS.Colors.statusSuccess : TonicDS.Colors.hairline)
+                                .fill((preferences.config(for: module)?.isEnabled ?? false) ? TonicDS.Colors.ink : TonicDS.Colors.hairline)
                                 .frame(width: 6, height: 6)
                         } onTap: {
                             selectedModule = module
@@ -86,7 +86,14 @@ private struct ModuleSettingsDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.xl) {
             TonicPageHeader(title: module.displayName, subtitle: "Menu-bar rendering, cadence, labels, chart history, and notification thresholds.") {
-                StatusChip(config.isEnabled ? "Enabled" : "Off", color: config.isEnabled ? TonicDS.Colors.statusSuccess : TonicDS.Colors.textMuted)
+                HStack(spacing: TonicDS.Space.xxs) {
+                    StatusDot(config.isEnabled ? TonicDS.Colors.ink : TonicDS.Colors.textMuted)
+                    Text(config.isEnabled ? "VISIBLE" : "HIDDEN")
+                        .tonicType(.monoLabel)
+                        .foregroundStyle(config.isEnabled ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(config.isEnabled ? "Visible in menu bar" : "Hidden from menu bar")
             }
 
             SettingsPanel(title: "GENERAL") {

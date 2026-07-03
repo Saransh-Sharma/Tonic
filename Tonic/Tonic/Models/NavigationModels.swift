@@ -67,20 +67,30 @@ enum WIPFeature: String, CaseIterable {
         case .designSandbox: return "paintbrush.fill"
         }
     }
+
+    /// Labs features have passed hardening and ship in Release builds with a
+    /// Settings toggle. The rest stay DEBUG-only.
+    var isLabs: Bool {
+        switch self {
+        case .activity, .storageHub: return true
+        case .developerTools, .designSandbox: return false
+        }
+    }
 }
 
 enum FeatureFlags {
     private static let defaults = UserDefaults.standard
 
     static func isEnabled(_ feature: WIPFeature) -> Bool {
-        #if DEBUG
         let key = key(for: feature)
         if defaults.object(forKey: key) != nil {
             return defaults.bool(forKey: key)
         }
+        #if DEBUG
         return true
         #else
-        return false
+        // Labs features default on in Release; dev-only surfaces never ship.
+        return feature.isLabs
         #endif
     }
 
@@ -91,7 +101,7 @@ enum FeatureFlags {
         return isEnabled(wipFeature)
     }
 
-    #if DEBUG
+    /// Persist a user's Labs toggle (or a DEBUG override).
     static func set(_ feature: WIPFeature, enabled: Bool) {
         defaults.set(enabled, forKey: key(for: feature))
     }
@@ -103,7 +113,6 @@ enum FeatureFlags {
     static func clearAllOverrides() {
         WIPFeature.allCases.forEach(clearOverride)
     }
-    #endif
 
     private static func key(for feature: WIPFeature) -> String {
         "tonic.ff.\(feature.rawValue)"
@@ -173,4 +182,6 @@ extension Notification.Name {
     static let navigateToDestination = Notification.Name("tonic.navigateToDestination")
     /// Tools ▸ Run Smart Scan.
     static let runSmartScanCommand = Notification.Name("tonic.runSmartScanCommand")
+    /// userInfo["path"]: String — folder chosen via File ▸ Scan Folder… or a Dock drop.
+    static let scanFolderCommand = Notification.Name("tonic.scanFolderCommand")
 }

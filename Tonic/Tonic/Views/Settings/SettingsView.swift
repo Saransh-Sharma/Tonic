@@ -16,7 +16,10 @@ struct SettingsView: View {
     @State private var didInit = false
     @State private var appearance = AppearancePreferences.shared
     @State private var permissions = PermissionManager.shared
+    @State private var scheduler = MaintenanceScheduler.shared
     @State private var powerUser = UserDefaults.standard.bool(forKey: TonicUserDefaultsKey.powerUserModeEnabled)
+    /// Bumped when a Labs flag changes so the toggles re-read FeatureFlags.
+    @State private var labsRevision = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -102,11 +105,79 @@ struct SettingsView: View {
         switch section {
         case .general: generalSection
         case .modules: widgetsSection
+        case .maintenance: maintenanceSection
         case .permissions: permissionsSection
         case .updates: updatesSection
         case .about: aboutSection
         }
     }
+
+    private var maintenanceSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Maintenance", "Let Tonic clean safe system junk on a schedule")
+
+            SettingsPanel(title: "Schedule") {
+                TonicPreferenceRow(
+                    title: "Automatic maintenance",
+                    description: "Cleans caches, logs, and temp files that Smart Scan marks safe."
+                ) {
+                    HStack(spacing: TonicDS.Space.xs) {
+                        ForEach(MaintenanceCadence.allCases) { cadence in
+                            FilterPill(title: cadence.displayName,
+                                       isActive: scheduler.cadence == cadence) {
+                                scheduler.cadence = cadence
+                            }
+                        }
+                    }
+                }
+                TonicToggleRow(
+                    title: "Respect quiet hours",
+                    description: "Defers scheduled runs between 22:00 and 08:00.",
+                    isOn: Binding(get: { scheduler.respectQuietHours },
+                                  set: { scheduler.respectQuietHours = $0 })
+                )
+                TonicPreferenceRow(
+                    title: "Personal files",
+                    description: "Downloads, backups, and mail attachments are never cleaned automatically — only through the review sheet.",
+                    showsDivider: false
+                ) {
+                    StatusChip("Never automatic", level: .info)
+                }
+            }
+
+            SettingsPanel(title: "Last run") {
+                TonicPreferenceRow(
+                    title: scheduler.lastRunDate.map { Self.maintenanceDateFormatter.string(from: $0) } ?? "Never run",
+                    description: scheduler.lastRunSummary ?? "Scheduled maintenance hasn't run yet.",
+                    showsDivider: false
+                ) {
+                    if scheduler.isRunning {
+                        HStack(spacing: TonicDS.Space.xs) {
+                            ProgressView().controlSize(.small)
+                            Text("Running…").tonicType(.caption)
+                                .foregroundStyle(TonicDS.Colors.textMuted)
+                        }
+                    } else {
+                        Button {
+                            Task { await scheduler.runNow() }
+                        } label: {
+                            Text("Run Now").tonicType(.button)
+                                .foregroundStyle(TonicDS.Colors.linkBlue)
+                        }
+                        .buttonStyle(.plain)
+                        .tonicPointerCursor()
+                    }
+                }
+            }
+        }
+    }
+
+    private static let maintenanceDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
@@ -138,7 +209,33 @@ struct SettingsView: View {
                                    UserDefaults.standard.set($0, forKey: TonicUserDefaultsKey.powerUserModeEnabled)
                                }))
             }
+
+            SettingsPanel(title: "Labs") {
+                labsToggle(.activity,
+                           description: "Full-window live monitoring with history and a process explorer.",
+                           showsDivider: true)
+                labsToggle(.storageHub,
+                           description: "Deep storage exploration with treemap and guided cleanup.",
+                           showsDivider: false)
+            }
         }
+    }
+
+    /// A Labs feature toggle. Changing it updates the sidebar on next launch
+    /// of the destination list, so we also nudge navigation to refresh.
+    private func labsToggle(_ feature: WIPFeature, description: String, showsDivider: Bool) -> some View {
+        TonicToggleRow(
+            title: feature.displayName,
+            description: description,
+            showsDivider: showsDivider,
+            isOn: Binding(
+                get: { FeatureFlags.isEnabled(feature) },
+                set: { enabled in
+                    FeatureFlags.set(feature, enabled: enabled)
+                    labsRevision += 1
+                }
+            )
+        )
     }
 
     private var widgetsSection: some View {
