@@ -224,14 +224,12 @@ struct CleanView: View {
     }
 
     private func progressBar(_ value: Double) -> some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(TonicDS.Colors.hairlineOnDark).frame(height: 4)
-                Capsule().fill(TonicDS.Colors.onDark)
-                    .frame(width: max(0, min(1, value)) * geo.size.width, height: 4)
-            }
-        }
-        .frame(height: 4)
+        TonicProgressBar(
+            fraction: value,
+            color: TonicDS.Colors.onDark,
+            trackColor: TonicDS.Colors.hairlineOnDark,
+            height: 4
+        )
     }
 
     private func stageColor(_ stage: SmartScanStage) -> Color {
@@ -340,6 +338,17 @@ struct CleanView: View {
             let visible = showAllStorage ? items : Array(items.prefix(60))
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
+                    storageTrendCard
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.bottom, TonicDS.Space.md)
+                    whatGrewCard
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.bottom, TonicDS.Space.md)
+                    if let report = result.hiddenSpaceReport, report.hasDiscrepancy {
+                        hiddenSpaceCard(report)
+                            .padding(.horizontal, TonicDS.Space.md)
+                            .padding(.bottom, TonicDS.Space.md)
+                    }
                     MonoLabel("\(items.count) items · sorted by size, largest first")
                         .padding(.horizontal, TonicDS.Space.md)
                         .padding(.bottom, TonicDS.Space.sm)
@@ -375,6 +384,105 @@ struct CleanView: View {
                 actionTitle: "Run Smart Scan",
                 onAction: { tab = .smartScan; session.startScan() }
             )
+        }
+    }
+
+    /// Disk-usage trend over the trailing 90 days with the conservative
+    /// "full in ~N weeks" forecast. Quiet and honest while history accrues.
+    @ViewBuilder
+    private var storageTrendCard: some View {
+        let store = DiskUsageHistoryStore.shared
+        let samples = store.samples(days: 90)
+        if samples.count >= 2, let latest = samples.last {
+            let total = latest.usedBytes + latest.freeBytes
+            let fraction = total > 0 ? Double(latest.usedBytes) / Double(total) : 0
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                ChartCard(
+                    label: "STORAGE · 90 DAYS",
+                    displayValue: Self.bytes(latest.usedBytes),
+                    unit: "used",
+                    history: samples.map { Double($0.usedBytes) },
+                    fraction: fraction
+                )
+                if let forecast = store.forecast() {
+                    MonoLabel("AT THIS RATE · FULL IN ~\(forecast.weeksUntilFull) WK · +\(Self.bytes(forecast.bytesPerDay))/DAY")
+                        .foregroundStyle(TonicDS.status(forFraction: max(fraction, 0.76)))
+                        .padding(.horizontal, TonicDS.Space.xs)
+                } else {
+                    MonoLabel("\(samples.count) DAILY SAMPLES · TREND STEADY OR STILL FORMING")
+                        .padding(.horizontal, TonicDS.Space.xs)
+                }
+            }
+        }
+    }
+
+    /// Where new usage came from: the largest directory growth between the
+    /// last two scan snapshots. Quiet until two snapshots exist.
+    @ViewBuilder
+    private var whatGrewCard: some View {
+        let growth = DirectorySnapshotStore.shared.topGrowth()
+        if !growth.isEmpty {
+            DataCard(lift: false) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+                    MonoLabel("WHAT GREW SINCE LAST SCAN")
+                    ForEach(growth, id: \.path) { entry in
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(entry.displayName).tonicType(.body)
+                                    .foregroundStyle(TonicDS.Colors.textPrimary)
+                                    .lineLimit(1)
+                                Text("now \(Self.bytes(entry.currentSize))").tonicType(.micro)
+                                    .foregroundStyle(TonicDS.Colors.textMuted)
+                            }
+                            Spacer()
+                            Text("+\(Self.bytes(entry.delta))")
+                                .tonicType(.monoLabel).monospacedDigit()
+                                .foregroundStyle(TonicDS.Colors.statusCaution)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Read-only explainer for space Finder reports but files don't account
+    /// for: APFS snapshots, purgeable space, sparse files. Honest reporting —
+    /// no delete actions here until each cause has a safe mechanism.
+    private func hiddenSpaceCard(_ report: DiskDiscrepancyReport) -> some View {
+        DataCard(lift: false) {
+            VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+                MonoLabel("WHERE DID MY SPACE GO?")
+                HStack(spacing: TonicDS.Space.xl) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        MonoLabel("REPORTED USED")
+                        Metric(Self.bytes(report.finderUsedSpace), color: TonicDS.Colors.textPrimary)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        MonoLabel("ON-DISK FILES")
+                        Metric(Self.bytes(report.duUsedSpace), color: TonicDS.Colors.textPrimary)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        MonoLabel("UNACCOUNTED")
+                        Metric(report.formattedDiscrepancy, color: TonicDS.Colors.statusWarning)
+                    }
+                }
+                if !report.possibleCauses.isEmpty {
+                    TonicHairline()
+                    ForEach(Array(report.possibleCauses.enumerated()), id: \.offset) { _, cause in
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(cause.name).tonicType(.body)
+                                    .foregroundStyle(TonicDS.Colors.textPrimary)
+                                Text(cause.description).tonicType(.caption)
+                                    .foregroundStyle(TonicDS.Colors.textMuted)
+                            }
+                            Spacer()
+                            Text(cause.formattedSize).tonicType(.monoLabel).monospacedDigit()
+                                .foregroundStyle(TonicDS.Colors.textPrimary)
+                        }
+                    }
+                }
+            }
         }
     }
 

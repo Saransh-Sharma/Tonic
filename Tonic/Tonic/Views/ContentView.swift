@@ -9,8 +9,15 @@
 import SwiftUI
 import AppKit
 
+/// Folder chosen for a one-shot scan report (File ▸ Scan Folder… / Dock drop).
+private struct FolderScanTarget: Identifiable {
+    let path: String
+    var id: String { path }
+}
+
 struct ContentView: View {
     @State private var selectedDestination: NavigationDestination = .dashboard
+    @State private var folderScanTarget: FolderScanTarget?
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showOnboarding = false
     @State private var showPermissionPrompt = false
@@ -136,6 +143,34 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .runSmartScanCommand)) { _ in
                 selectedDestination = .systemCleanup
                 smartCareSession.startScan()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scanFolderCommand)) { note in
+                if let path = note.userInfo?["path"] as? String {
+                    folderScanTarget = FolderScanTarget(path: path)
+                }
+            }
+            .sheet(item: $folderScanTarget) { target in
+                FolderScanReportView(folderPath: target.path) { folderScanTarget = nil }
+            }
+            // tonic:// deep links (notification actions, Shortcuts, external tools):
+            // tonic://scan · tonic://clean · tonic://apps · tonic://monitor · tonic://settings
+            .onOpenURL { url in
+                guard url.scheme == "tonic" else { return }
+                switch url.host?.lowercased() {
+                case "scan":
+                    selectedDestination = .systemCleanup
+                    smartCareSession.startScan()
+                case "clean":
+                    selectedDestination = .systemCleanup
+                case "apps", "updates":
+                    selectedDestination = .appManager
+                case "monitor":
+                    selectedDestination = .liveMonitoring
+                case "settings":
+                    selectedDestination = .settings
+                default:
+                    break
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .showModuleSettings)) { notification in
                 guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
@@ -345,7 +380,7 @@ struct PermissionPromptView: View {
             Spacer()
         }
         .padding(TonicDS.Space.lg)
-        .frame(minWidth: 420, idealWidth: 500, maxWidth: 560,
+        .frame(minWidth: 360, idealWidth: 500, maxWidth: 560,
                minHeight: 340, idealHeight: 400, maxHeight: 460)
         .background(TonicDS.Colors.surface, in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)).overlay(RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous).strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
     }
@@ -467,12 +502,9 @@ struct PermissionRequiredView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
 
-            Button("Grant Permission") {
+            PrimaryPill("Grant Permission") {
                 onGrantPermission()
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .tint(TonicDS.Colors.ink)
 
             Text(
                 BuildCapabilities.current.requiresScopeAccess
@@ -699,8 +731,8 @@ struct CommandPaletteView: View {
                 .padding(.horizontal, TonicDS.Space.md)
                 .padding(.vertical, TonicDS.Space.xs)
             }
-            .frame(minWidth: 420, idealWidth: 500, maxWidth: 560,
-                   minHeight: 320, idealHeight: 450, maxHeight: 500)
+            .frame(minWidth: 320, idealWidth: 500, maxWidth: 560,
+                   minHeight: 280, idealHeight: 450, maxHeight: 500)
             .background(TonicDS.Colors.surface,
                         in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
             .overlay(

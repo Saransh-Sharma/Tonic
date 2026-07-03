@@ -18,6 +18,10 @@ struct HomeView: View {
     @State private var snapshot: SystemSnapshot?
     @State private var appeared = false
     @State private var liveSkeletonTimedOut = false
+    @State private var toast: ToastData?
+    @State private var quickActionRunning: String?
+    @State private var missingPermissions: [TonicPermission] = []
+    @State private var permissionBannerDismissed = false
 
     private var openRecommendations: [Recommendation] {
         scanManager.recommendations.filter { !$0.isCompleted }
@@ -26,12 +30,19 @@ struct HomeView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: TonicDS.Space.section) {
+                if !permissionBannerDismissed, !missingPermissions.isEmpty {
+                    permissionsBanner
+                }
                 hero
                     .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
                 identity
                     .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
-                needsAttention
+                quickActions
                     .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                needsAttention
+                    .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+                HomeInsightsBand()
+                    .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
                 liveBento
             }
             .frame(maxWidth: TonicDS.Layout.maxContentWidth)
@@ -42,10 +53,105 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TonicDS.Colors.canvas)
+        .tonicToast($toast)
         .onAppear {
             if !data.isMonitoring { data.startMonitoring() }
             appeared = true
             loadSnapshot()
+            refreshPermissionHealth()
+        }
+    }
+
+    // MARK: - Permission health
+
+    private func refreshPermissionHealth() {
+        Task {
+            await PermissionManager.shared.checkAllPermissions()
+            let statuses = PermissionManager.shared.permissionStatuses
+            // Notifications stay optional until the user opts into alerts;
+            // Full Disk Access and Accessibility gate core features.
+            missingPermissions = [.fullDiskAccess, .accessibility].filter {
+                statuses[$0] == .denied || statuses[$0] == .notDetermined
+            }
+        }
+    }
+
+    private var permissionsBanner: some View {
+        AlertBanner(
+            message: "\(missingPermissions.map(\.rawValue).joined(separator: " and ")) not granted — scans see less than they could.",
+            actionTitle: "Fix",
+            onAction: {
+                selectedDestination = .settings
+                NotificationCenter.default.post(
+                    name: .openSettingsSection,
+                    object: nil,
+                    userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.permissions.rawValue]
+                )
+            },
+            onDismiss: { permissionBannerDismissed = true }
+        )
+    }
+
+    // MARK: - Quick actions
+
+    /// One quiet utility row. Text actions only — Home's single pill belongs
+    /// to Smart Scan. Every outcome lands as a toast with honest numbers.
+    private var quickActions: some View {
+        HStack(spacing: TonicDS.Space.lg) {
+            MonoLabel("QUICK")
+            quickAction("Empty Trash", id: "trash") {
+                let result = await FileOperations.shared.emptyTrash()
+                return result.filesProcessed == 0
+                    ? "Trash was already empty."
+                    : "Emptied Trash · \(Self.formatBytes(result.bytesFreed)) freed."
+            }
+            if !BuildCapabilities.current.requiresScopeAccess {
+                quickAction("Free Purgeable Space", id: "purge") {
+                    _ = try await SystemOptimization.shared.performAction(.freePurgeableSpace)
+                    return "Asked macOS to reclaim purgeable space."
+                }
+            }
+            quickAction("Flush DNS", id: "dns") {
+                _ = try await SystemOptimization.shared.performAction(.flushDNS)
+                return "DNS cache flushed."
+            }
+            if let forecast = DiskUsageHistoryStore.shared.forecast() {
+                Spacer()
+                MonoLabel("DISK FULL IN ~\(forecast.weeksUntilFull) WK AT CURRENT RATE")
+                    .foregroundStyle(TonicDS.Colors.statusWarning)
+            }
+        }
+    }
+
+    private func quickAction(
+        _ title: String,
+        id: String,
+        perform: @escaping () async throws -> String
+    ) -> some View {
+        HStack(spacing: TonicDS.Space.xs) {
+            if quickActionRunning == id {
+                ProgressView().controlSize(.mini)
+            }
+            TextAction(title, color: TonicDS.Colors.linkBlue) {
+                guard quickActionRunning == nil else { return }
+                quickActionRunning = id
+                Task {
+                    defer { quickActionRunning = nil }
+                    do {
+                        let message = try await perform()
+                        toast = ToastData(message: message)
+                        ActivityLogStore.shared.record(ActivityEvent(
+                            category: .optimize,
+                            title: title,
+                            detail: message,
+                            impact: .low
+                        ))
+                    } catch {
+                        toast = ToastData(message: "\(title) failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+            .disabled(quickActionRunning != nil)
         }
     }
 
@@ -246,7 +352,20 @@ struct HomeView: View {
     }
 
     private func route(for rec: Recommendation) {
-        selectedDestination = rec.category == .apps ? .appManager : .systemCleanup
+        // Land on the screen that can actually act on the recommendation.
+        switch rec.type {
+        case .update:
+            selectedDestination = .appManager
+        case .security:
+            selectedDestination = .settings
+            NotificationCenter.default.post(
+                name: .openSettingsSection,
+                object: nil,
+                userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.permissions.rawValue]
+            )
+        case .clean, .optimize:
+            selectedDestination = rec.category == .apps ? .appManager : .systemCleanup
+        }
     }
 
     // MARK: - Live bento
