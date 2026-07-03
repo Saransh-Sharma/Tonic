@@ -186,6 +186,239 @@ public struct NetworkSparklineChart: View, Equatable {
 
 }
 
+// MARK: - Bidirectional Network Traffic Chart
+
+public enum NetworkTrafficChartMode: Sendable, Equatable {
+    case compactMenuBar
+    case popover
+    case monitorCard
+
+    var minimumVisibleFraction: Double {
+        switch self {
+        case .compactMenuBar: return 0.16
+        case .popover: return 0.06
+        case .monitorCard: return 0
+        }
+    }
+
+    var centerlineColor: Color {
+        switch self {
+        case .compactMenuBar:
+            return TonicDS.Colors.textMuted.opacity(0.35)
+        case .popover:
+            return TonicDS.Colors.hairlineOnDark
+        case .monitorCard:
+            return TonicDS.Colors.hairline
+        }
+    }
+}
+
+public enum NetworkTrafficChartScale {
+    public static func maxMagnitude(downloadData: [Double], uploadData: [Double]) -> Double {
+        max((downloadData + uploadData).compactMap(sanitizedPositiveValue).max() ?? 0, 1)
+    }
+
+    public static func normalizedMagnitude(
+        _ value: Double,
+        maxMagnitude: Double,
+        minimumVisibleFraction: Double
+    ) -> Double {
+        guard let sanitized = sanitizedPositiveValue(value), maxMagnitude > 0 else { return 0 }
+        let normalized = min(1, sanitized / maxMagnitude)
+        return max(minimumVisibleFraction, normalized)
+    }
+
+    public static func sanitizedPositiveValue(_ value: Double) -> Double? {
+        guard value.isFinite, value > 0 else { return nil }
+        return value
+    }
+}
+
+/// Directional traffic chart: download rises above the centerline, upload falls below it.
+public struct NetworkTrafficChart: View, Equatable {
+    let downloadData: [Double]
+    let uploadData: [Double]
+    let height: CGFloat
+    let mode: NetworkTrafficChartMode
+    let lineWidth: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var drawProgress: CGFloat = 0
+
+    public static func == (lhs: NetworkTrafficChart, rhs: NetworkTrafficChart) -> Bool {
+        lhs.downloadData == rhs.downloadData &&
+        lhs.uploadData == rhs.uploadData &&
+        lhs.height == rhs.height &&
+        lhs.mode == rhs.mode &&
+        lhs.lineWidth == rhs.lineWidth
+    }
+
+    public init(
+        downloadData: [Double],
+        uploadData: [Double],
+        height: CGFloat = 32,
+        mode: NetworkTrafficChartMode = .popover,
+        lineWidth: CGFloat = 1.5
+    ) {
+        self.downloadData = downloadData
+        self.uploadData = uploadData
+        self.height = height
+        self.mode = mode
+        self.lineWidth = lineWidth
+    }
+
+    public var body: some View {
+        Group {
+            if isEmpty {
+                emptyPlaceholder
+            } else {
+                trafficChart
+            }
+        }
+        .frame(height: height)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var isEmpty: Bool {
+        let combined = downloadData + uploadData
+        return combined.isEmpty || combined.allSatisfy { !$0.isFinite || $0 <= 0 }
+    }
+
+    private var accessibilityLabel: String {
+        let latestDownload = downloadData.last ?? 0
+        let latestUpload = uploadData.last ?? 0
+        return "Network traffic chart, down \(Self.rate(latestDownload)), up \(Self.rate(latestUpload))"
+    }
+
+    private var emptyPlaceholder: some View {
+        GeometryReader { geometry in
+            let centerY = geometry.size.height / 2
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: centerY))
+                path.addLine(to: CGPoint(x: geometry.size.width, y: centerY))
+            }
+            .stroke(
+                mode.centerlineColor.opacity(0.5),
+                style: StrokeStyle(lineWidth: lineWidth, dash: [4, 4])
+            )
+        }
+    }
+
+    private var trafficChart: some View {
+        GeometryReader { geometry in
+            let maxMagnitude = NetworkTrafficChartScale.maxMagnitude(
+                downloadData: downloadData,
+                uploadData: uploadData
+            )
+            let centerY = geometry.size.height / 2
+
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: centerY))
+                path.addLine(to: CGPoint(x: geometry.size.width, y: centerY))
+            }
+            .stroke(mode.centerlineColor.opacity(0.55), lineWidth: 1)
+
+            linePath(
+                data: downloadData,
+                size: geometry.size,
+                maxMagnitude: maxMagnitude,
+                direction: .download
+            )
+            .trim(from: 0, to: drawProgress)
+            .stroke(TonicDS.Chart.download, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+
+            linePath(
+                data: uploadData,
+                size: geometry.size,
+                maxMagnitude: maxMagnitude,
+                direction: .upload
+            )
+            .trim(from: 0, to: drawProgress)
+            .stroke(TonicDS.Chart.upload, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        }
+        .onAppear {
+            guard drawProgress == 0 else { return }
+            if reduceMotion || AppearancePreferences.shared.reduceMotion {
+                drawProgress = 1
+            } else {
+                withAnimation(TonicDS.Motion.appear) { drawProgress = 1 }
+            }
+        }
+    }
+
+    private enum Direction {
+        case download
+        case upload
+
+        var sign: CGFloat {
+            switch self {
+            case .download: return -1
+            case .upload: return 1
+            }
+        }
+    }
+
+    private func linePath(
+        data: [Double],
+        size: CGSize,
+        maxMagnitude: Double,
+        direction: Direction
+    ) -> Path {
+        var path = Path()
+        guard !data.isEmpty else { return path }
+
+        let points = points(
+            data: data,
+            size: size,
+            maxMagnitude: maxMagnitude,
+            direction: direction
+        )
+        guard let first = points.first else { return path }
+
+        path.move(to: first)
+        for point in points.dropFirst() {
+            path.addLine(to: point)
+        }
+        return path
+    }
+
+    private func points(
+        data: [Double],
+        size: CGSize,
+        maxMagnitude: Double,
+        direction: Direction
+    ) -> [CGPoint] {
+        let width = max(0, size.width)
+        let centerY = size.height / 2
+        let verticalInset: CGFloat = 2
+        let halfHeight = max(1, (size.height - verticalInset * 2) / 2)
+        let stepX = width / max(1, CGFloat(data.count - 1))
+
+        return data.enumerated().map { index, value in
+            let fraction = NetworkTrafficChartScale.normalizedMagnitude(
+                value,
+                maxMagnitude: maxMagnitude,
+                minimumVisibleFraction: mode.minimumVisibleFraction
+            )
+            let x = CGFloat(index) * stepX
+            let y = centerY + direction.sign * CGFloat(fraction) * halfHeight
+            return CGPoint(x: x, y: min(size.height - verticalInset, max(verticalInset, y)))
+        }
+    }
+
+    private static func rate(_ bytesPerSecond: Double) -> String {
+        rateByteFormatter.string(fromByteCount: Int64(max(0, bytesPerSecond))) + "/s"
+    }
+
+    private static let rateByteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useGB, .useMB, .useKB, .useBytes]
+        formatter.countStyle = .memory
+        return formatter
+    }()
+}
+
 // MARK: - Preview
 
 #Preview("Sparkline Charts") {
