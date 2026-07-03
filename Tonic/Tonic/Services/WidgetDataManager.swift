@@ -1739,8 +1739,9 @@ public final class WidgetDataManager {
         // Calculate pressure value on 0-100 scale using kernel level
         let pressureValue = getMemoryPressureValue(level: pressureLevel, freePercentage: freePercentage)
 
-        // Keep live memory sampling cheap; process lists are popup/detail data.
-        let topProcesses: [AppResourceUsage]? = nil
+        // Real top-memory processes via libproc (~ms per pass). Previously
+        // hardcoded nil, which left every popover's process list empty.
+        let topProcesses: [AppResourceUsage]? = ProcessSampler.shared.topByMemory(limit: 5)
 
         let swapBytes = swapUsed ?? 0
 

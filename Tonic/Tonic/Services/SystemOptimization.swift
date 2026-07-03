@@ -157,7 +157,8 @@ public final class SystemOptimization: @unchecked Sendable {
     }
 
     private func freePurgeableSpace() async throws -> OptimizationResult {
-        try runProcess("/usr/bin/purge", arguments: [])
+        // purge ships in /usr/sbin, not /usr/bin
+        try runProcess("/usr/sbin/purge", arguments: [])
 
         return OptimizationResult(
             action: .freePurgeableSpace,
@@ -229,9 +230,9 @@ public final class SystemOptimization: @unchecked Sendable {
     }
 
     private func clearRAM() async throws -> OptimizationResult {
-        // Use purge command to free inactive memory
+        // Use purge command to free inactive memory (lives in /usr/sbin)
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/purge")
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/purge")
 
         try process.run()
         process.waitUntilExit()

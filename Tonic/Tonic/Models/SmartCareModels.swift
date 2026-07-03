@@ -274,6 +274,9 @@ struct SmartCareResult: Sendable {
     let timestamp: Date
     let duration: TimeInterval
     let domainResults: [SmartCareDomain: SmartCareDomainResult]
+    /// Finder-vs-du analysis from the hidden-space scan: where "missing"
+    /// space actually went (snapshots, purgeable, sparse files).
+    var hiddenSpaceReport: DiskDiscrepancyReport?
 
     var totalScoreImpact: Int {
         domainResults.values.reduce(0) { $0 + $1.scoreImpact }

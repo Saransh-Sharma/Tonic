@@ -38,6 +38,13 @@ class AppInventoryService: ObservableObject {
     @Published var isCheckingUpdates = false
     @Published var availableUpdates: Int = 0
     @Published var appsWithUpdates: Set<String> = []
+    @Published var updateCheckErrors: [UpdateCheckError] = []
+    @Published var lastUpdateCheck: Date?
+    /// Updates with a newer version available that the user hasn't ignored
+    /// or skipped, sorted by app name.
+    @Published var pendingUpdates: [AppUpdate] = []
+    /// Available updates hidden by ignore/skip preferences (shown collapsed).
+    @Published var ignoredUpdates: [AppUpdate] = []
     @Published var errorMessage: String?
     @Published var lastScanDate: Date?
 
@@ -203,6 +210,7 @@ class AppInventoryService: ObservableObject {
                 path: URL(fileURLWithPath: fast.path),
                 version: fast.version,
                 totalSize: 0,
+                lastUsed: fast.lastUsed,
                 installDate: fast.installDate,
                 category: fast.category,
                 itemType: mapItemTypeToString(fast.itemType)
@@ -226,6 +234,7 @@ class AppInventoryService: ObservableObject {
                 path: app.path,
                 version: app.version,
                 totalSize: size,
+                lastUsed: app.lastUsed,
                 installDate: app.installDate,
                 category: app.category,
                 itemType: app.itemType
@@ -290,9 +299,43 @@ class AppInventoryService: ObservableObject {
         isCheckingUpdates = true
         defer { isCheckingUpdates = false }
 
+        #if !TONIC_STORE
+        // Refresh the cask map first so brew-managed apps resolve to Homebrew.
+        await HomebrewService.shared.refreshInventory()
+        #endif
+
         let result = await updater.checkUpdates(for: apps)
-        appsWithUpdates = Set(result.updates.map { $0.bundleIdentifier })
+
+        // Only apps with a genuinely newer version count as having an update,
+        // and user preferences (ignore app / skip version) partition the rest.
+        let available = result.updates.filter { $0.updateAvailable }
+        let preferences = UpdatePreferences.shared
+        pendingUpdates = available.filter { preferences.shouldSurface($0) }
+        ignoredUpdates = available.filter { !preferences.shouldSurface($0) }
+        appsWithUpdates = Set(pendingUpdates.map { $0.bundleIdentifier })
         availableUpdates = appsWithUpdates.count
+        updateCheckErrors = result.errors
+        lastUpdateCheck = Date()
+        preferences.lastCheckDate = lastUpdateCheck
+
+        if preferences.notifyOnUpdates, !pendingUpdates.isEmpty {
+            let names = pendingUpdates.prefix(3).map(\.appName).joined(separator: ", ")
+            let more = pendingUpdates.count > 3 ? " and \(pendingUpdates.count - 3) more" : ""
+            NotificationManager.shared.sendNotification(
+                title: "App updates available",
+                body: "\(names)\(more) can be updated.",
+                thresholdId: "app-updates",
+                category: NotificationDelegate.updatesAvailableCategory
+            )
+        }
+
+        // Surface a message only when the whole check failed; partial failures
+        // are listed per-app in the Updates tab.
+        if result.errors.count == result.appsChecked, result.appsChecked > 0 {
+            errorMessage = "Update check failed for all apps — check your network connection."
+        } else if errorMessage?.hasPrefix("Update check failed") == true {
+            errorMessage = nil
+        }
 
         apps = apps.map { app in
             var updatedApp = app
@@ -304,6 +347,32 @@ class AppInventoryService: ObservableObject {
 
     func hasUpdate(for bundleIdentifier: String) -> Bool {
         appsWithUpdates.contains(bundleIdentifier)
+    }
+
+    /// Run an automatic check only when the user's cadence says one is due.
+    /// Manual "Check Now" calls `checkForUpdates()` directly.
+    func checkForUpdatesIfDue() async {
+        guard UpdatePreferences.shared.isAutoCheckDue() else { return }
+        await checkForUpdates()
+    }
+
+    /// Re-partition already-fetched updates after an ignore/skip change,
+    /// without a fresh network round-trip.
+    func applyUpdatePreferences() {
+        let all = pendingUpdates + ignoredUpdates
+        let preferences = UpdatePreferences.shared
+        pendingUpdates = all.filter { preferences.shouldSurface($0) }
+            .sorted { $0.appName.localizedCompare($1.appName) == .orderedAscending }
+        ignoredUpdates = all.filter { !preferences.shouldSurface($0) }
+            .sorted { $0.appName.localizedCompare($1.appName) == .orderedAscending }
+        appsWithUpdates = Set(pendingUpdates.map { $0.bundleIdentifier })
+        availableUpdates = appsWithUpdates.count
+        apps = apps.map { app in
+            var updated = app
+            updated.hasUpdate = appsWithUpdates.contains(app.bundleIdentifier)
+            return updated
+        }
+        recomputeFilteredApps()
     }
 
     // MARK: - Selection
@@ -369,8 +438,10 @@ class AppInventoryService: ObservableObject {
         case .all:
             return true
         case .leastUsed:
+            // Unknown last-used (Spotlight not indexed, extensions, plists)
+            // must never count as "least used" — only a real stale date does.
+            guard let lastUsed = app.lastUsed else { return false }
             let ninetyDaysAgo = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? Date()
-            let lastUsed = app.lastUsed ?? .distantPast
             return lastUsed < ninetyDaysAgo
         case .development:
             return app.category == .development

@@ -19,9 +19,22 @@ class SmartScanManager: ObservableObject {
     @Published var healthScore: Int = 0
     @Published var hasScanResult: Bool = false
     @Published var recommendations: [Recommendation] = []
-    @Published var lastScanDate: Date?
-    @Published var lastReclaimableBytes: Int64?
+    @Published var lastScanDate: Date? {
+        didSet { UserDefaults.standard.set(lastScanDate, forKey: Self.lastScanDateKey) }
+    }
+    @Published var lastReclaimableBytes: Int64? {
+        didSet {
+            if let bytes = lastReclaimableBytes {
+                UserDefaults.standard.set(bytes, forKey: Self.lastReclaimableBytesKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastReclaimableBytesKey)
+            }
+        }
+    }
     @Published var scanStartDate: Date?
+
+    private static let lastScanDateKey = "tonic.smartScan.lastScanDate"
+    private static let lastReclaimableBytesKey = "tonic.smartScan.lastReclaimableBytes"
     @Published var spaceFoundBytes: Int64?
     @Published var appsScannedCount: Int?
     @Published var flaggedCount: Int?
@@ -51,6 +64,12 @@ class SmartScanManager: ObservableObject {
     }
 
     init() {
+        // Restore the last scan's headline facts so Home doesn't forget
+        // everything on relaunch. Recommendations still require a fresh scan.
+        lastScanDate = UserDefaults.standard.object(forKey: Self.lastScanDateKey) as? Date
+        if UserDefaults.standard.object(forKey: Self.lastReclaimableBytesKey) != nil {
+            lastReclaimableBytes = Int64(UserDefaults.standard.integer(forKey: Self.lastReclaimableBytesKey))
+        }
     }
 
     // MARK: - Smart Scan
@@ -113,6 +132,13 @@ class SmartScanManager: ObservableObject {
         lastScanDate = Date()
         lastReclaimableBytes = result.totalSpaceToReclaim
         updateRecommendations(from: result)
+
+        // Feed the trend stores: score history for the Home sparkline and a
+        // directory snapshot for the "what grew" diff (rate-limited inside).
+        HealthScoreHistoryStore.shared.record(score: result.systemHealthScore)
+        Task.detached(priority: .utility) {
+            DirectorySnapshotStore.shared.captureIfDue()
+        }
 
         spaceFoundBytes = result.totalSpaceToReclaim
         flaggedCount = recommendations.filter { !$0.isCompleted }.count

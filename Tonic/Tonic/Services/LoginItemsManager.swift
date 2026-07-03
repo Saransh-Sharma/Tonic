@@ -32,15 +32,7 @@ final class LoginItemsManager: @unchecked Sendable {
 
         var items: [LoginItem] = []
 
-        // Try modern ServiceManagement API first (macOS 13+)
-        if #available(macOS 13.0, *) {
-            items = await fetchModernLoginItems()
-        }
-
-        // Fall back to legacy method if needed
-        if items.isEmpty {
-            items = await fetchLegacyLoginItems()
-        }
+        items = await fetchModernLoginItems()
 
         await MainActor.run {
             self.loginItems = items
@@ -50,94 +42,41 @@ final class LoginItemsManager: @unchecked Sendable {
 
     // MARK: - Modern Login Items (macOS 13+)
 
-    @available(macOS 13.0, *)
+    /// There is no public API to enumerate *other* apps' login items on
+    /// modern macOS (the BTM database needs root). What CAN be enumerated
+    /// honestly: apps that embed an `SMLoginItemSetEnabled` helper at
+    /// `Contents/Library/LoginItems` — the standard mechanism apps use to
+    /// run at login.
     private func fetchModernLoginItems() async -> [LoginItem] {
-        let _: [LoginItem] = []
-
-        // SMAppService is the modern way to get login items
-        // However, we need to use a different approach since SMAppService.loginItemIdentifier
-        // requires the app to be registered as a login item
-
-        // Instead, we'll read from the shared file list
-        if URL(string: "file:///Library/Managed Preferences/com.apple.loginitems.plist") != nil {
-            // This may not exist for all users
-        }
-
-        // Use LSSharedFileList approach as fallback
-        return await fetchLegacyLoginItems()
-    }
-
-    // MARK: - Legacy Login Items
-
-    private func fetchLegacyLoginItems() async -> [LoginItem] {
         var items: [LoginItem] = []
-
-        // Use LSSharedFileList to read login items
-        // This requires accessing the LoginItems list via Carbon/CoreServices
-
-        // For now, read from the plist file directly as a fallback
-        let loginItemsPath = NSHomeDirectory() + "/Library/Preferences/com.apple.loginitems.plist"
-
-        if let plistData = FileManager.default.contents(atPath: loginItemsPath),
-           let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any] {
-
-            // The structure can vary, but typically contains:
-            // - "AutoLaunchedApplicationDictionary" - array of login items
-            if let loginItemsArray = plist["AutoLaunchedApplicationDictionary"] as? [[String: Any]] {
-                for item in loginItemsArray {
-                    if let path = item["Path"] as? String,
-                       let hidden = item["Hide"] as? Bool {
-                        let url = URL(fileURLWithPath: path)
-                        let name = url.lastPathComponent
-                        let bundleID = getBundleIdentifier(for: url) ?? name
-
-                        items.append(LoginItem(
-                            name: name,
-                            path: url,
-                            bundleIdentifier: bundleID,
-                            isHidden: hidden,
-                            itemType: path.hasSuffix(".app") ? .application : .file,
-                            isEnabled: true
-                        ))
-                    }
-                }
-            }
-        }
-
-        // Also scan for .app bundles that might have login items configured
-        // This is a fallback for apps that don't appear in the shared file list
         let appDirectories = [
             "/Applications",
-            NSHomeDirectory() + "/Applications"
+            NSHomeDirectory() + "/Applications",
         ]
 
         for directory in appDirectories {
-            if let apps = try? FileManager.default.contentsOfDirectory(atPath: directory) {
-                for app in apps where app.hasSuffix(".app") {
-                    let appPath = (directory as NSString).appendingPathComponent(app)
-                    let appURL = URL(fileURLWithPath: appPath)
+            guard let apps = try? FileManager.default.contentsOfDirectory(atPath: directory) else { continue }
+            for app in apps where app.hasSuffix(".app") {
+                let appURL = URL(fileURLWithPath: (directory as NSString).appendingPathComponent(app))
+                let helpersDir = appURL.appendingPathComponent("Contents/Library/LoginItems")
+                guard let helpers = try? FileManager.default.contentsOfDirectory(atPath: helpersDir.path),
+                      helpers.contains(where: { $0.hasSuffix(".app") })
+                else { continue }
 
-                    // Check if this app has a login item flag set
-                    if hasLoginItemFlag(for: appURL) {
-                        let name = (app as NSString).deletingPathExtension
-                        let bundleID = getBundleIdentifier(for: appURL) ?? name
-
-                        // Avoid duplicates
-                        if !items.contains(where: { $0.bundleIdentifier == bundleID }) {
-                            items.append(LoginItem(
-                                name: name,
-                                path: appURL,
-                                bundleIdentifier: bundleID,
-                                isHidden: false,
-                                itemType: .application,
-                                isEnabled: true
-                            ))
-                        }
-                    }
+                let name = (app as NSString).deletingPathExtension
+                let bundleID = getBundleIdentifier(for: appURL) ?? name
+                if !items.contains(where: { $0.bundleIdentifier == bundleID }) {
+                    items.append(LoginItem(
+                        name: name,
+                        path: appURL,
+                        bundleIdentifier: bundleID,
+                        isHidden: false,
+                        itemType: .application,
+                        isEnabled: true
+                    ))
                 }
             }
         }
-
         return items
     }
 
@@ -150,17 +89,21 @@ final class LoginItemsManager: @unchecked Sendable {
 
         var services: [LaunchService] = []
 
+        // One launchctl invocation for the whole pass; per-plist spawning was
+        // dozens of process launches on the main actor.
+        let loadedLabels = await Self.loadedLaunchdLabels()
+
         // User launch agents
         let userAgentsPath = NSHomeDirectory() + "/Library/LaunchAgents"
-        services.append(contentsOf: await scanLaunchServices(at: userAgentsPath, type: .agent))
+        services.append(contentsOf: await scanLaunchServices(at: userAgentsPath, type: .agent, loadedLabels: loadedLabels))
 
         // Global launch agents
         let globalAgentsPath = "/Library/LaunchAgents"
-        services.append(contentsOf: await scanLaunchServices(at: globalAgentsPath, type: .agent))
+        services.append(contentsOf: await scanLaunchServices(at: globalAgentsPath, type: .agent, loadedLabels: loadedLabels))
 
         // Global launch daemons
         let daemonsPath = "/Library/LaunchDaemons"
-        services.append(contentsOf: await scanLaunchServices(at: daemonsPath, type: .daemon))
+        services.append(contentsOf: await scanLaunchServices(at: daemonsPath, type: .daemon, loadedLabels: loadedLabels))
 
         await MainActor.run {
             self.launchServices = services
@@ -168,7 +111,11 @@ final class LoginItemsManager: @unchecked Sendable {
         }
     }
 
-    private func scanLaunchServices(at path: String, type: LaunchService.LaunchServiceType) async -> [LaunchService] {
+    private func scanLaunchServices(
+        at path: String,
+        type: LaunchService.LaunchServiceType,
+        loadedLabels: Set<String>
+    ) async -> [LaunchService] {
         var services: [LaunchService] = []
 
         guard FileManager.default.fileExists(atPath: path) else { return services }
@@ -181,7 +128,7 @@ final class LoginItemsManager: @unchecked Sendable {
                 // Read the plist to get service info
                 if let plist = readPlist(at: url) {
                     let label = plist["Label"] as? String ?? (item as NSString).deletingPathExtension
-                    let isEnabled = isServiceEnabled(label: label)
+                    let isEnabled = loadedLabels.contains(label)
                     let runAtLoad = plist["RunAtLoad"] as? Bool ?? false
 
                     services.append(LaunchService(
@@ -199,20 +146,45 @@ final class LoginItemsManager: @unchecked Sendable {
         return services
     }
 
+    /// All labels currently loaded into the user's launchd session.
+    private nonisolated static func loadedLaunchdLabels() async -> Set<String> {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+                process.arguments = ["list"]
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = Pipe()
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                } catch {
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let output = String(data: data, encoding: .utf8) else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                // Format: PID\tStatus\tLabel — label is the third column.
+                let labels = output.split(separator: "\n").dropFirst().compactMap { line -> String? in
+                    let columns = line.split(separator: "\t")
+                    return columns.count >= 3 ? String(columns[2]) : nil
+                }
+                continuation.resume(returning: Set(labels))
+            }
+        }
+    }
+
     // MARK: - Helper Methods
 
     private func getBundleIdentifier(for url: URL) -> String? {
         guard let bundle = Bundle(url: url) else { return nil }
         return bundle.bundleIdentifier
-    }
-
-    private func hasLoginItemFlag(for url: URL) -> Bool {
-        // Check if the app is registered as a login item
-        // This is a simplified check - the actual verification requires ServiceManagement APIs
-
-        // For now, return false to avoid false positives
-        // The real implementation would use SMAppService
-        return false
     }
 
     private func readPlist(at url: URL) -> [String: Any]? {
@@ -221,27 +193,6 @@ final class LoginItemsManager: @unchecked Sendable {
             return nil
         }
         return plist
-    }
-
-    private func isServiceEnabled(label: String) -> Bool {
-        // Check if the service is currently loaded using launchctl
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["list", label]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            // If exit code is 0, the service is loaded
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
     }
 
     // MARK: - Management Actions

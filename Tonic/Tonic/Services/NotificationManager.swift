@@ -274,11 +274,29 @@ public final class NotificationManager: Sendable {
     ///   - title: Notification title
     ///   - body: Notification body
     ///   - thresholdId: Unique identifier for this notification
-    public func sendNotification(title: String, body: String, thresholdId: String = UUID().uuidString) {
+    ///   - category: Optional actionable category (see NotificationDelegate)
+    public func sendNotification(
+        title: String,
+        body: String,
+        thresholdId: String = UUID().uuidString,
+        category: String? = nil
+    ) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let category {
+            content.categoryIdentifier = category
+        }
+
+        // Every alert also lands in the activity log so there's a reviewable
+        // history — notifications are transient, the log is not.
+        ActivityLogStore.shared.record(ActivityEvent(
+            category: .notification,
+            title: title,
+            detail: body,
+            impact: .low
+        ))
 
         // Create notification request
         let request = UNNotificationRequest(

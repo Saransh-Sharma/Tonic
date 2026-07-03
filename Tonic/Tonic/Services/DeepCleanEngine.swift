@@ -542,7 +542,16 @@ public final class DeepCleanEngine: @unchecked Sendable {
             home + "/.m2/repository",
             home + "/.ivy2/cache",
             home + "/.sbt",
-            home + "/.cabal"
+            home + "/.cabal",
+            // Package-manager and ML caches; all regenerate on demand.
+            home + "/Library/Caches/pip",
+            home + "/Library/Caches/Homebrew",
+            home + "/Library/Caches/CocoaPods",
+            home + "/Library/pnpm/store",
+            home + "/go/pkg/mod/cache/download",
+            home + "/.cache/uv",
+            home + "/.cache/huggingface",
+            home + "/Library/Caches/huggingface"
         ]
 
         for devPath in authorized(devPaths) {
