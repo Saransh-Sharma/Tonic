@@ -9,8 +9,16 @@
 import SwiftUI
 import AppKit
 
+/// Top-level segments of the Apps screen.
+enum AppsSection: String, CaseIterable {
+    case inventory = "Inventory"
+    case updates = "Updates"
+    case startup = "Startup"
+}
+
 struct AppsView: View {
     @StateObject private var inventory = AppInventoryService.shared
+    @State private var section: AppsSection = .inventory
     @State private var confirmUninstall = false
     @State private var uninstallNotice: TonicInlineNotice.Tone?
     @State private var uninstallMessage: String?
@@ -24,20 +32,41 @@ struct AppsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
             TonicPageHeader(title: "Apps", subtitle: "Installed apps, updates, and reclaimable space") {
-                TonicSearchField(placeholder: "Search apps", text: $inventory.searchText,
-                                 externalFocus: $searchFocused)
-                    .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
+                HStack(spacing: TonicDS.Space.md) {
+                    if !inventory.apps.isEmpty {
+                        TextAction("Export…", systemImage: "square.and.arrow.up",
+                                   color: TonicDS.Colors.linkBlue) {
+                            AppInventoryExporter.exportWithPanel(apps: inventory.apps)
+                        }
+                        .help("Save the app inventory as CSV or JSON")
+                    }
+                    TonicSearchField(placeholder: "Search apps", text: $inventory.searchText,
+                                     externalFocus: $searchFocused)
+                        .frame(minWidth: 160, idealWidth: 240, maxWidth: 280)
+                }
             }
             .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
 
-            categoryChips
+            TonicTabBar(tabs: AppsSection.allCases, selection: $section) { $0.rawValue }
                 .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
-            summaryCards
-                .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
-            notices
-                .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
-            content
-                .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+
+            switch section {
+            case .inventory:
+                categoryChips
+                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+                summaryCards
+                    .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+                notices
+                    .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+                content
+                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+            case .updates:
+                AppUpdatesSection(inventory: inventory)
+                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+            case .startup:
+                StartupItemsView(inventory: inventory)
+                    .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+            }
         }
         .frame(maxWidth: TonicDS.Layout.maxContentWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -62,7 +91,9 @@ struct AppsView: View {
         .animation(reduceMotion ? nil : TonicDS.Motion.present, value: inventory.selectedAppIDs.isEmpty)
         .onAppear {
             if inventory.apps.isEmpty { Task { await inventory.scanApps() } }
-            Task { await inventory.checkForUpdates() }
+            // Automatic checks respect the user's cadence; Check Now in the
+            // Updates tab is the unconditional path.
+            Task { await inventory.checkForUpdatesIfDue() }
             appeared = true
         }
         .alert("Uninstall \(inventory.selectedAppIDs.count) app\(inventory.selectedAppIDs.count == 1 ? "" : "s")?",
@@ -121,16 +152,36 @@ struct AppsView: View {
         TonicBentoGrid(minTileWidth: 200) {
             summaryCard("Apps", "\(inventory.appsInCurrentTab.count)", nil)
             summaryCard("Total size", Self.bytes(inventory.totalAppsSize), nil)
-            summaryCard("Updates", "\(inventory.availableUpdates)", inventory.availableUpdates > 0 ? TonicDS.Colors.statusInfo : nil)
+            summaryCard(
+                "Updates",
+                "\(inventory.availableUpdates)",
+                inventory.availableUpdates > 0 ? TonicDS.Colors.statusInfo : nil
+            ) {
+                section = .updates
+            }
         }
     }
 
-    private func summaryCard(_ label: String, _ value: String, _ color: Color?) -> some View {
-        DataCard(lift: false) {
+    private func summaryCard(_ label: String, _ value: String, _ color: Color?, action: (() -> Void)? = nil) -> some View {
+        let card = DataCard(lift: false, hoverLift: action != nil) {
             VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
                 MonoLabel(label)
                 Metric(value, color: color ?? TonicDS.Colors.textPrimary)
                     .contentTransition(.numericText())
+            }
+        }
+
+        return Group {
+            if let action {
+                Button(action: action) {
+                    card
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(label), \(value)")
+                .accessibilityHint("Show \(label.lowercased())")
+                .tonicPointerCursor()
+            } else {
+                card
             }
         }
     }
@@ -230,7 +281,7 @@ struct AppsView: View {
                 HStack(spacing: TonicDS.Space.sm) {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 14))
-                        .foregroundStyle(isSelected ? TonicDS.Colors.linkBlue : TonicDS.Colors.textMuted)
+                        .foregroundStyle(isSelected ? TonicDS.Colors.ink : TonicDS.Colors.textMuted)
                     Image(nsImage: NSWorkspace.shared.icon(forFile: app.path.path))
                         .resizable().frame(width: 22, height: 22)
                 }
@@ -244,7 +295,13 @@ struct AppsView: View {
             },
             trailing: {
                 HStack(spacing: TonicDS.Space.md) {
-                    if app.hasUpdate { StatusChip("Update", color: TonicDS.Colors.statusInfo) }
+                    if app.hasUpdate {
+                        Button { section = .updates } label: {
+                            StatusChip("Update", color: TonicDS.Colors.statusInfo)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Update available — show updates")
+                    }
                     if let v = app.version {
                         Text("v\(v)").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.textMuted)
                     }
@@ -265,6 +322,31 @@ struct AppsView: View {
             Button("Copy Bundle ID") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(app.bundleIdentifier, forType: .string)
+            }
+            if app.hasUpdate,
+               let update = inventory.pendingUpdates.first(where: { $0.bundleIdentifier == app.bundleIdentifier }) {
+                Divider()
+                Button("Update…") {
+                    section = .updates
+                    Task { await AppUpdateApplier.shared.apply(update) }
+                }
+            }
+            if let feedURL = AppUpdater.shared.sparkleFeedURL(forAppAt: app.path) {
+                Button("Copy Appcast URL") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(feedURL.absoluteString, forType: .string)
+                }
+            }
+            if AppUpdater.shared.hasMASReceipt(appPath: app.path) {
+                Button("View in App Store") {
+                    let update = inventory.pendingUpdates.first { $0.bundleIdentifier == app.bundleIdentifier }
+                    if let trackId = update?.trackId,
+                       let url = URL(string: "macappstore://apps.apple.com/app/id\(trackId)?mt=12") {
+                        NSWorkspace.shared.open(url)
+                    } else if let url = URL(string: "macappstore://showUpdatesPage") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             }
             Divider()
             Button("Uninstall…", role: .destructive) {

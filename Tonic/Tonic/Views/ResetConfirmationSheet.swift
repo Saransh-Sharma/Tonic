@@ -124,9 +124,6 @@ struct ResetConfirmationSheet: View {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 30, weight: .medium))
                     .foregroundStyle(TonicDS.Colors.textPrimary)
-                    .rotationEffect(.degrees(isResetting && !reduceMotion ? 360 : 0))
-                    .animation(reduceMotion ? nil : .linear(duration: 1.5).repeatForever(autoreverses: false),
-                               value: isResetting)
             }
 
             VStack(spacing: TonicDS.Space.xs) {
@@ -238,7 +235,7 @@ struct ResetConfirmationSheet: View {
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             Task { @MainActor in
                 if countdown > 1 {
-                    withAnimation { countdown -= 1 }
+                    withAnimation(reduceMotion ? nil : TonicDS.Motion.numeric) { countdown -= 1 }
                 } else {
                     timer.invalidate()
                     countdownTimer = nil
@@ -265,6 +262,7 @@ private struct DestructiveButton: View {
     let title: String
     let enabled: Bool
     let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -279,7 +277,7 @@ private struct DestructiveButton: View {
         .buttonStyle(.plain)
         .disabled(!enabled)
         .tonicPointerCursor()
-        .animation(.easeInOut(duration: TonicDS.Motion.fast), value: enabled)
+        .animation(reduceMotion ? nil : TonicDS.Motion.press, value: enabled)
     }
 }
 
@@ -310,6 +308,7 @@ private struct ResetStepRow: View {
     let step: AppResetService.ResetStep
     let isCompleted: Bool
     let isCurrent: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: TonicDS.Space.sm) {
@@ -330,7 +329,7 @@ private struct ResetStepRow: View {
                 }
             }
             .frame(width: 22, height: 22)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isCompleted)
+            .animation(reduceMotion ? nil : TonicDS.Motion.press, value: isCompleted)
 
             Image(systemName: step.icon)
                 .font(.system(size: 13, weight: .medium))
@@ -345,8 +344,8 @@ private struct ResetStepRow: View {
         }
         .frame(minHeight: 32)
         .opacity(isCompleted || isCurrent ? 1.0 : 0.5)
-        .animation(.easeInOut(duration: TonicDS.Motion.fast), value: isCurrent)
-        .animation(.easeInOut(duration: TonicDS.Motion.fast), value: isCompleted)
+        .animation(reduceMotion ? nil : TonicDS.Motion.press, value: isCurrent)
+        .animation(reduceMotion ? nil : TonicDS.Motion.press, value: isCompleted)
     }
 
     private var stepColor: Color {

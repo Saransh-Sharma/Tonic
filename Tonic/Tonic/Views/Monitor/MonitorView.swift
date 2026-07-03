@@ -49,20 +49,40 @@ struct MonitorView: View {
                 }
 
                 if hasMonitorSamples {
-                    ChartCard(label: "Network ↓",
-                              displayValue: rate(networkDownloadValue),
-                              history: networkDownloadSeries)
+                    NetworkTrafficCard(
+                        label: "Network",
+                        downRate: rate(networkDownloadValue),
+                        upRate: rate(networkUploadValue),
+                        downloadHistory: networkDownloadSeries,
+                        uploadHistory: networkUploadSeries,
+                        context: networkTrafficCardContext
+                    )
                         .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
                 }
 
                 if selectedRange != .live, hasMonitorSamples {
                     rangeSummary
                         .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+                    TextAction("Export CSV", systemImage: "square.and.arrow.up",
+                               color: TonicDS.Colors.linkBlue) {
+                        MetricsExporter.exportWithPanel(
+                            samples: WidgetHistoryStore.shared.samples(for: selectedRange),
+                            rangeName: String(describing: selectedRange)
+                        )
+                    }
+                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
                 }
+
+                ProcessExplorerView()
+                    .padding(.top, TonicDS.Space.sm)
+                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
+
+                alertHistory
+                    .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
 
                 MonoLabel("Detail")
                     .padding(.top, TonicDS.Space.sm)
-                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
+                    .tonicAppear(appeared, index: 8, reduceMotion: reduceMotion)
 
                 detailConsoles
             }
@@ -195,11 +215,58 @@ struct MonitorView: View {
         }
     }
 
+    /// Recent alerts Tonic has sent — notifications are transient, this list
+    /// is the reviewable record (fed by NotificationManager into the log).
+    @ViewBuilder
+    private var alertHistory: some View {
+        let alerts = ActivityLogStore.shared.entries
+            .filter { $0.category == .notification }
+            .prefix(6)
+        if !alerts.isEmpty {
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                MonoLabel("Recent alerts")
+                VStack(spacing: 0) {
+                    ForEach(Array(alerts)) { event in
+                        SystemListRow(
+                            leading: {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 13))
+                                    .frame(width: 20)
+                                    .foregroundStyle(TonicDS.Colors.textMuted)
+                            },
+                            center: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.title).tonicType(.body)
+                                        .foregroundStyle(TonicDS.Colors.textPrimary).lineLimit(1)
+                                    Text(event.detail).tonicType(.caption)
+                                        .foregroundStyle(TonicDS.Colors.textMuted).lineLimit(1)
+                                }
+                            },
+                            trailing: {
+                                Text(Self.alertTimeFormatter.string(from: event.timestamp))
+                                    .tonicType(.monoLabel)
+                                    .foregroundStyle(TonicDS.Colors.textMuted)
+                            }
+                        )
+                        TonicHairline()
+                    }
+                }
+            }
+        }
+    }
+
+    private static let alertTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d HH:mm"
+        return formatter
+    }()
+
     private var rangeSummary: some View {
         TonicBentoGrid(minTileWidth: 240) {
             HistoricSummaryCard(label: "CPU", latest: pctValue(cpuPercentValue), average: pctValue(summary(.cpuPercent).average), peak: pctValue(summary(.cpuPercent).peak))
             HistoricSummaryCard(label: "Memory", latest: pctValue(memoryPercentValue), average: pctValue(summary(.memoryPercent).average), peak: pctValue(summary(.memoryPercent).peak))
-            HistoricSummaryCard(label: "Network ↓", latest: rate(networkDownloadValue), average: rate(summary(.networkDownloadBytesPerSecond).average), peak: rate(summary(.networkDownloadBytesPerSecond).peak))
+            HistoricSummaryCard(label: "Down", latest: rate(networkDownloadValue), average: rate(summary(.networkDownloadBytesPerSecond).average), peak: rate(summary(.networkDownloadBytesPerSecond).peak))
+            HistoricSummaryCard(label: "Up", latest: rate(networkUploadValue), average: rate(summary(.networkUploadBytesPerSecond).average), peak: rate(summary(.networkUploadBytesPerSecond).peak))
         }
     }
 
@@ -452,8 +519,24 @@ struct MonitorView: View {
         MonitoringConsole {
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
                 consoleHeader("Network detail")
-                consoleRow("Download", rate(data.networkData.downloadBytesPerSecond), TonicDS.Colors.seriesRead)
-                consoleRow("Upload", rate(data.networkData.uploadBytesPerSecond), TonicDS.Colors.seriesWrite)
+                consoleRow("Down", rate(data.networkData.downloadBytesPerSecond), TonicDS.Chart.download)
+                consoleRow("Up", rate(data.networkData.uploadBytesPerSecond), TonicDS.Chart.upload)
+                if !data.networkDownloadHistory.isEmpty || !data.networkUploadHistory.isEmpty {
+                    NetworkTrafficChart(
+                        downloadData: Array(data.networkDownloadHistory.suffix(40)),
+                        uploadData: Array(data.networkUploadHistory.suffix(40)),
+                        height: 42,
+                        mode: .popover,
+                        lineWidth: 1.5
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
+                }
+                Text("Today while open")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                    .padding(.top, TonicDS.Space.xxs)
+                consoleRow("Down total", bytes(data.totalDownloadBytes), TonicDS.Chart.download)
+                consoleRow("Up total", bytes(data.totalUploadBytes), TonicDS.Chart.upload)
                 if let link = data.networkData.linkSpeedMbps, link > 0 {
                     consoleRow("Link", "\(Int(link)) Mbps", TonicDS.Colors.onDark)
                 }
@@ -543,6 +626,24 @@ struct MonitorView: View {
             : history.chartSeries(for: .networkDownloadBytesPerSecond, range: selectedRange)
     }
 
+    private var networkUploadSeries: [Double] {
+        selectedRange == .live
+            ? data.networkUploadHistory
+            : history.chartSeries(for: .networkUploadBytesPerSecond, range: selectedRange)
+    }
+
+    private var networkTrafficCardContext: NetworkTrafficCardContext {
+        switch selectedRange {
+        case .live:
+            return .live(
+                downTotal: bytes(data.totalDownloadBytes),
+                upTotal: bytes(data.totalUploadBytes)
+            )
+        case .oneHour, .twentyFourHours:
+            return .history(range: selectedRange)
+        }
+    }
+
     private var cpuPercentValue: Double {
         selectedRange == .live ? data.cpuData.totalUsage : summary(.cpuPercent).latest
     }
@@ -557,6 +658,10 @@ struct MonitorView: View {
 
     private var networkDownloadValue: Double {
         selectedRange == .live ? data.networkData.downloadBytesPerSecond : summary(.networkDownloadBytesPerSecond).latest
+    }
+
+    private var networkUploadValue: Double {
+        selectedRange == .live ? data.networkData.uploadBytesPerSecond : summary(.networkUploadBytesPerSecond).latest
     }
 
     private var cpu: Double { min(1, max(0, cpuPercentValue / 100)) }
@@ -579,6 +684,10 @@ struct MonitorView: View {
 
     private func bytes(_ value: UInt64) -> String {
         Self.memoryByteFormatter.string(fromByteCount: Int64(value))
+    }
+
+    private func bytes(_ value: Int64) -> String {
+        Self.memoryByteFormatter.string(fromByteCount: max(0, value))
     }
 
     private func summary(_ metric: ResourceMetricKind) -> ResourceMetricSummary {
@@ -650,5 +759,145 @@ private struct HistoricSummaryCard: View {
                 .monospacedDigit()
                 .foregroundStyle(TonicDS.Colors.textPrimary)
         }
+    }
+}
+
+private struct NetworkTrafficCard: View {
+    let label: String
+    let downRate: String
+    let upRate: String
+    let downloadHistory: [Double]
+    let uploadHistory: [Double]
+    let context: NetworkTrafficCardContext
+
+    var body: some View {
+        DataCard {
+            VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                header
+
+                NetworkTrafficChart(
+                    downloadData: downloadHistory,
+                    uploadData: uploadHistory,
+                    height: 64,
+                    mode: .monitorCard,
+                    lineWidth: 1.6
+                )
+                .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
+
+                footer
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var header: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: TonicDS.Space.sm) {
+                MonoLabel(label)
+                Spacer(minLength: TonicDS.Space.xs)
+                trafficMetric("Down", downRate, TonicDS.Chart.download)
+                trafficMetric("Up", upRate, TonicDS.Chart.upload)
+            }
+
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                MonoLabel(label)
+                HStack(spacing: TonicDS.Space.md) {
+                    trafficMetric("Down", downRate, TonicDS.Chart.download)
+                    trafficMetric("Up", upRate, TonicDS.Chart.upload)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        switch context.footer {
+        case .sessionTotals(let downTotal, let upTotal, let label):
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: TonicDS.Space.lg) {
+                    totalMetric("Down total", downTotal, TonicDS.Chart.download)
+                    totalMetric("Up total", upTotal, TonicDS.Chart.upload)
+                    Spacer(minLength: 0)
+                    footerLabel(label)
+                }
+
+                VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                    HStack(spacing: TonicDS.Space.lg) {
+                        totalMetric("Down total", downTotal, TonicDS.Chart.download)
+                        totalMetric("Up total", upTotal, TonicDS.Chart.upload)
+                    }
+                    footerLabel(label)
+                }
+            }
+        case .range(let label):
+            footerLabel(label)
+        }
+    }
+
+    private func trafficMetric(_ label: String, _ value: String, _ color: Color) -> some View {
+        HStack(spacing: TonicDS.Space.xxs) {
+            StatusDot(color)
+            Text(label)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.textMuted)
+            Metric(value, color: color, role: .metricSmall)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+    }
+
+    private func totalMetric(_ label: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+            Text(label)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.textMuted)
+            Text(value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+    }
+
+    private func footerLabel(_ label: String) -> some View {
+        Text(label)
+            .tonicType(.caption)
+            .foregroundStyle(TonicDS.Colors.textMuted)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+    }
+}
+
+struct NetworkTrafficCardContext: Equatable {
+    enum Footer: Equatable {
+        case sessionTotals(downTotal: String, upTotal: String, label: String)
+        case range(String)
+    }
+
+    let footer: Footer
+
+    var includesSessionTotals: Bool {
+        if case .sessionTotals = footer { return true }
+        return false
+    }
+
+    var rangeLabel: String? {
+        if case .range(let label) = footer { return label }
+        return nil
+    }
+
+    static func live(downTotal: String, upTotal: String) -> NetworkTrafficCardContext {
+        NetworkTrafficCardContext(
+            footer: .sessionTotals(
+                downTotal: downTotal,
+                upTotal: upTotal,
+                label: "Today while open"
+            )
+        )
+    }
+
+    static func history(range: ResourceHistoryRange) -> NetworkTrafficCardContext {
+        NetworkTrafficCardContext(footer: .range("History range: \(range.displayName)"))
     }
 }

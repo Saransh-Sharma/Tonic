@@ -266,7 +266,7 @@ private struct AddWidgetSheet: View {
                         } trailing: {
                             if viewModel.selectedDataSource == type {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(TonicDS.Colors.statusSuccess)
+                                    .foregroundStyle(TonicDS.Colors.ink)
                             }
                         } onTap: {
                             viewModel.selectedDataSource = type
@@ -296,7 +296,7 @@ private struct AddWidgetSheet: View {
                         } trailing: {
                             if viewModel.selectedVisualization == visualization {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(TonicDS.Colors.statusSuccess)
+                                    .foregroundStyle(TonicDS.Colors.ink)
                             }
                         } onTap: {
                             viewModel.selectedVisualization = visualization
