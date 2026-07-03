@@ -5,6 +5,7 @@
 //  Smart Care scanning pipeline inspired by CleanMyMac
 //
 
+import AppKit
 import Foundation
 import Darwin
 import OSLog
@@ -17,6 +18,10 @@ final class SmartCareEngine: @unchecked Sendable {
     private let hiddenSpaceScanner = HiddenSpaceScanner()
     private let sizeCache = DirectorySizeCache.shared
     private let scopedFS = ScopedFileSystem.shared
+
+    /// Discrepancy analysis captured by the most recent cleanup scan; attached
+    /// to the SmartCareResult so the Storage tab can explain hidden space.
+    private var latestHiddenSpaceReport: DiskDiscrepancyReport?
 
     private let progressWeights: [SmartCareDomain: Double] = [
         .cleanup: 0.53,
@@ -224,7 +229,12 @@ final class SmartCareEngine: @unchecked Sendable {
         let duration = Date().timeIntervalSince(start)
         logger.info("Smart Care scan finished in \(duration)s")
 
-        return SmartCareResult(timestamp: Date(), duration: duration, domainResults: domainResults)
+        return SmartCareResult(
+            timestamp: Date(),
+            duration: duration,
+            domainResults: domainResults,
+            hiddenSpaceReport: latestHiddenSpaceReport
+        )
     }
 
     // MARK: - Cleanup
@@ -279,6 +289,7 @@ final class SmartCareEngine: @unchecked Sendable {
         let hiddenStart = Date()
         let hiddenResult = await hiddenTask
         logger.info("Hidden space scan finished in \(Date().timeIntervalSince(hiddenStart))s")
+        latestHiddenSpaceReport = hiddenResult?.discrepancyReport
         let hiddenBytes = hiddenResult?.totalHiddenSize ?? 0
         update(
             deepCleanWeight + extraWeight * 0.70,
@@ -337,6 +348,18 @@ final class SmartCareEngine: @unchecked Sendable {
         let hiddenGroupId = UUID()
         let duplicatesGroupId = UUID()
         let largeOldGroupId = UUID()
+        let mailGroupId = UUID()
+        let backupsGroupId = UUID()
+
+        // Integrity + personal-data scanners (all tolerate missing directories).
+        let runningBundleIDs = await MainActor.run {
+            Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        }
+        let brokenPreferences = SystemIntegrityScanner.shared
+            .scanBrokenPreferences(runningBundleIDs: runningBundleIDs)
+        let danglingAgents = SystemIntegrityScanner.shared.scanDanglingLaunchAgents()
+        let deviceBackups = MobileBackupScanner.shared.scanBackups()
+        let mailReport = MailAttachmentScanner.shared.scan()
 
         let systemItems: [SmartCareItem?] = [
             makeDeepCleanItem(domain: .cleanup, groupId: systemGroupId, result: results[.userCache], overrideTitle: "User Cache Files"),
@@ -370,12 +393,8 @@ final class SmartCareEngine: @unchecked Sendable {
                 safeToRun: false,
                 smartlySelected: false
             ),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "Broken Login Items"),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "Universal Binaries"),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "iOS Device Backups"),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "Document Versions"),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "Deleted Users"),
-            placeholderItem(domain: .cleanup, groupId: systemGroupId, title: "Broken Preferences")
+            makeDanglingLoginItemsItem(groupId: systemGroupId, agents: danglingAgents),
+            makeBrokenPreferencesItem(groupId: systemGroupId, entries: brokenPreferences)
         ]
 
         let downloadsItems: [SmartCareItem?] = [
@@ -426,6 +445,8 @@ final class SmartCareEngine: @unchecked Sendable {
         let hiddenItemsDeduped = dedupeItems(buildHiddenSpaceItems(domain: .cleanup, groupId: hiddenGroupId, result: hiddenResult), ledger: &ledger)
         let largeOldItemsDeduped = dedupeItems(buildLargeOldFileItems(groupId: largeOldGroupId, files: clutter.largeOldFiles), ledger: &ledger)
         let duplicateItems = buildDuplicateFileItems(groupId: duplicatesGroupId, groups: clutter.duplicateFiles)
+        let mailItemsDeduped = dedupeItems(buildMailAttachmentItems(groupId: mailGroupId, report: mailReport), ledger: &ledger)
+        let backupItemsDeduped = dedupeItems(buildDeviceBackupItems(groupId: backupsGroupId, backups: deviceBackups), ledger: &ledger)
 
         let groups = [
             SmartCareGroup(
@@ -436,11 +457,18 @@ final class SmartCareEngine: @unchecked Sendable {
                 items: systemItemsDeduped
             ),
             SmartCareGroup(
-                id: UUID(),
+                id: mailGroupId,
                 domain: .cleanup,
                 title: "Mail Attachments",
                 description: "Large attachments stored by Mail",
-                items: []
+                items: mailItemsDeduped
+            ),
+            SmartCareGroup(
+                id: backupsGroupId,
+                domain: .cleanup,
+                title: "Device Backups",
+                description: "iPhone and iPad backups stored on this Mac",
+                items: backupItemsDeduped
             ),
             SmartCareGroup(
                 id: downloadsGroupId,
@@ -1111,19 +1139,23 @@ final class SmartCareEngine: @unchecked Sendable {
 
     private func buildXcodeItems(groupId: UUID) -> [SmartCareItem?] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let entries: [(title: String, subtitle: String, path: String)] = [
-            ("Xcode Simulators Runtime", "Simulators and runtimes", home + "/Library/Developer/CoreSimulator"),
-            ("iOS Device Support", "Device support files", home + "/Library/Developer/Xcode/iOS DeviceSupport"),
-            ("Derived Data", "Build artifacts and indexes", home + "/Library/Developer/Xcode/DerivedData"),
-            ("Archives", "Xcode archives", home + "/Library/Developer/Xcode/Archives"),
-            ("Xcode Caches", "Xcode cache files", home + "/Library/Caches/com.apple.dt.Xcode")
+        // smartSelectable: safe to remove automatically (regenerates on demand).
+        // Simulator *devices* are deliberately opt-in — deleting them wipes
+        // every simulator and its app data, which is never an automatic call.
+        let entries: [(title: String, subtitle: String, path: String, smartSelectable: Bool)] = [
+            ("Simulator Caches", "CoreSimulator cache files", home + "/Library/Developer/CoreSimulator/Caches", true),
+            ("Xcode Simulators", "Simulator devices and their data — removing resets all simulators", home + "/Library/Developer/CoreSimulator/Devices", false),
+            ("iOS Device Support", "Device support files", home + "/Library/Developer/Xcode/iOS DeviceSupport", true),
+            ("Derived Data", "Build artifacts and indexes", home + "/Library/Developer/Xcode/DerivedData", true),
+            ("Archives", "Xcode archives", home + "/Library/Developer/Xcode/Archives", true),
+            ("Xcode Caches", "Xcode cache files", home + "/Library/Caches/com.apple.dt.Xcode", true)
         ]
 
         return entries.map { entry in
             let exists = scopedFS.fileExists(atPath: entry.path)
             let paths = exists ? [entry.path] : []
             let size = exists ? sizeForPath(entry.path) : 0
-            let smart = exists && size > 0
+            let smart = entry.smartSelectable && exists && size > 0
             let action: SmartCareAction = exists ? .delete(paths: paths) : .none
 
             return makeItem(
@@ -1256,6 +1288,127 @@ final class SmartCareEngine: @unchecked Sendable {
         return FileGroup(name: name, description: description, paths: paths, size: totalSize, count: paths.count)
     }
 
+    // MARK: - Integrity & personal-data item builders
+
+    /// Launch agents whose target binary is gone. Junk-class but never
+    /// smart-selected: removing a launch agent is the user's call.
+    private func makeDanglingLoginItemsItem(
+        groupId: UUID,
+        agents: [DanglingLaunchAgentEntry]
+    ) -> SmartCareItem? {
+        guard !agents.isEmpty else { return nil }
+        let paths = agents.map(\.plistPath)
+        let names = agents.prefix(3).map(\.label).joined(separator: ", ")
+        let suffix = agents.count > 3 ? " and \(agents.count - 3) more" : ""
+        return makeItem(
+            domain: .cleanup,
+            groupId: groupId,
+            title: "Broken Login Items",
+            subtitle: "Launch agents pointing at missing apps: \(names)\(suffix)",
+            size: calculateSize(paths),
+            count: agents.count,
+            safeToRun: true,
+            paths: paths,
+            smartlySelected: false,
+            action: .delete(paths: paths)
+        )
+    }
+
+    /// Preference files no parser accepts (corrupt or zero-byte).
+    private func makeBrokenPreferencesItem(
+        groupId: UUID,
+        entries: [BrokenPreferenceEntry]
+    ) -> SmartCareItem? {
+        guard !entries.isEmpty else { return nil }
+        let paths = entries.map(\.path)
+        return makeItem(
+            domain: .cleanup,
+            groupId: groupId,
+            title: "Broken Preferences",
+            subtitle: "\(entries.count) unreadable preference file\(entries.count == 1 ? "" : "s")",
+            size: entries.reduce(0) { $0 + $1.size },
+            count: entries.count,
+            safeToRun: true,
+            paths: paths,
+            smartlySelected: false,
+            action: .delete(paths: paths)
+        )
+    }
+
+    /// One item per device backup. Personal data: never smart-selected,
+    /// always routed to the Trash + review sheet.
+    private func buildDeviceBackupItems(
+        groupId: UUID,
+        backups: [MobileBackupEntry]
+    ) -> [SmartCareItem] {
+        backups.map { backup in
+            var subtitle = "Device backup"
+            if let date = backup.lastBackupDate {
+                subtitle = "Last backed up \(Self.shortDateFormatter.string(from: date))"
+                if backup.isStale { subtitle += " · stale" }
+            }
+            return makeItem(
+                domain: .cleanup,
+                groupId: groupId,
+                title: backup.deviceName,
+                subtitle: subtitle,
+                size: backup.size,
+                count: 1,
+                safeToRun: true,
+                paths: [backup.path],
+                smartlySelected: false,
+                action: .delete(paths: [backup.path]),
+                dataClass: .personal
+            )
+        }
+    }
+
+    /// Large message attachments and Mail Downloads. Personal data: Mail can
+    /// usually re-download attachments, but Tonic can't verify that per-file,
+    /// so nothing here is ever smart-selected.
+    private func buildMailAttachmentItems(
+        groupId: UUID,
+        report: MailAttachmentReport
+    ) -> [SmartCareItem] {
+        var items: [SmartCareItem] = []
+
+        if !report.largeAttachments.isEmpty {
+            let paths = report.largeAttachments.map(\.path)
+            items.append(makeItem(
+                domain: .cleanup,
+                groupId: groupId,
+                title: "Large Mail Attachments",
+                subtitle: "Attachments over 10 MB · usually re-download from your mail server",
+                size: report.largeAttachmentsBytes,
+                count: paths.count,
+                safeToRun: true,
+                paths: paths,
+                smartlySelected: false,
+                action: .delete(paths: paths),
+                dataClass: .personal
+            ))
+        }
+
+        if !report.mailDownloads.isEmpty {
+            let paths = report.mailDownloads.map(\.path)
+            items.append(makeItem(
+                domain: .cleanup,
+                groupId: groupId,
+                title: "Mail Downloads",
+                subtitle: "Files opened from Mail and kept in its downloads folder",
+                size: report.mailDownloadsBytes,
+                count: paths.count,
+                safeToRun: true,
+                paths: paths,
+                smartlySelected: false,
+                action: .delete(paths: paths),
+                dataClass: .personal
+            ))
+        }
+
+        return items
+    }
+
     private func placeholderItem(domain: SmartCareDomain, groupId: UUID, title: String) -> SmartCareItem {
         makeItem(
             domain: domain,
@@ -1271,7 +1424,7 @@ final class SmartCareEngine: @unchecked Sendable {
         )
     }
 
-    private struct PathLedger {
+    struct PathLedger {
         private(set) var roots: [String] = []
 
         mutating func uniquePaths(from paths: [String]) -> [String] {
@@ -1301,7 +1454,10 @@ final class SmartCareEngine: @unchecked Sendable {
         }
     }
 
-    private func dedupeItems(_ items: [SmartCareItem], ledger: inout PathLedger) -> [SmartCareItem] {
+    /// Internal (not private) so tests can prove dataClass/selectionPolicy
+    /// survive the dedupe rebuild — the P0 that once reclassified personal
+    /// items as permanently-deletable junk.
+    func dedupeItems(_ items: [SmartCareItem], ledger: inout PathLedger) -> [SmartCareItem] {
         items.compactMap { item -> SmartCareItem? in
             guard !item.paths.isEmpty else { return item }
             let uniquePaths = ledger.uniquePaths(from: item.paths)
@@ -1315,6 +1471,10 @@ final class SmartCareEngine: @unchecked Sendable {
                 action = item.action
             }
             let scoreImpact = estimateScoreImpact(bytes: size, isSafe: item.safeToRun)
+            // Preserve dataClass and selectionPolicy: dropping them here would
+            // silently reclassify personal items (backups, mail, downloads) as
+            // system junk and route them past the review sheet into permanent
+            // deletion instead of the Trash.
             return SmartCareItem(
                 id: item.id,
                 domain: item.domain,
@@ -1329,7 +1489,9 @@ final class SmartCareEngine: @unchecked Sendable {
                 paths: uniquePaths,
                 scoreImpact: scoreImpact,
                 accessState: item.accessState,
-                blockedReason: item.blockedReason
+                blockedReason: item.blockedReason,
+                selectionPolicy: item.selectionPolicy,
+                dataClass: item.dataClass
             )
         }
     }
