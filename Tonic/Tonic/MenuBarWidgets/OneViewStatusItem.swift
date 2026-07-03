@@ -122,9 +122,49 @@ private struct OneViewDetailView: View {
                     }
                 }
             }
+
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            quickActionsFooter
         }
         .frame(width: TonicDS.Layout.MenuBar.width, height: TonicDS.Layout.MenuBar.maxHeight)
         .background(TonicDS.Colors.console)
         .environment(\.colorScheme, .dark)
+    }
+
+    /// One-tap utilities without opening the main window. Mono, quiet, 36pt
+    /// targets — the console stays an instrument, not a toolbar.
+    private var quickActionsFooter: some View {
+        HStack(spacing: TonicDS.Space.lg) {
+            footerAction("Scan", systemImage: "sparkles") {
+                NSApp.activate(ignoringOtherApps: true)
+                NotificationCenter.default.post(name: .runSmartScanCommand, object: nil)
+            }
+            footerAction("Empty Trash", systemImage: "trash") {
+                Task { _ = await FileOperations.shared.emptyTrash() }
+            }
+            #if !TONIC_STORE
+            if BuildCapabilities.current.allowsPrivilegedFlows {
+                footerAction("Free RAM", systemImage: "memorychip") {
+                    Task { _ = try? await SystemOptimization.shared.performAction(.clearRAM) }
+                }
+            }
+            #endif
+            Spacer()
+        }
+        .padding(.horizontal, TonicDS.Space.md)
+        .frame(height: 36)
+    }
+
+    private func footerAction(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage).font(.system(size: 10, weight: .medium))
+                Text(title).tonicType(.monoLabel)
+            }
+            .foregroundStyle(TonicDS.Colors.onDarkMuted)
+        }
+        .buttonStyle(.plain)
+        .tonicPointerCursor()
+        .accessibilityLabel(title)
     }
 }

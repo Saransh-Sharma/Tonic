@@ -374,9 +374,21 @@ struct WidgetCompactView: View {
                     .foregroundStyle(TonicDS.Colors.textMuted)
             }
 
-            if configuration.displayMode == .detailed, !snapshot.history.isEmpty {
-                NetworkSparklineChart(data: snapshot.history, color: snapshot.color, height: 14, showArea: false, lineWidth: 1.25)
+            if configuration.displayMode == .detailed {
+                if widgetType == .network,
+                   !snapshot.networkDownloadHistory.isEmpty || !snapshot.networkUploadHistory.isEmpty {
+                    NetworkTrafficChart(
+                        downloadData: snapshot.networkDownloadHistory,
+                        uploadData: snapshot.networkUploadHistory,
+                        height: 14,
+                        mode: .compactMenuBar,
+                        lineWidth: 1.2
+                    )
                     .frame(width: 36)
+                } else if !snapshot.history.isEmpty {
+                    NetworkSparklineChart(data: snapshot.history, color: snapshot.color, height: 14, showArea: false, lineWidth: 1.25)
+                        .frame(width: 36)
+                }
             }
         }
         .padding(.horizontal, 4)
@@ -428,16 +440,31 @@ private struct EditorialWidgetPopoverView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if !snapshot.history.isEmpty {
-                        NetworkSparklineChart(
-                            data: snapshot.history,
-                            color: snapshot.color,
-                            height: TonicDS.Layout.MenuBar.chartHeight,
-                            showArea: true,
-                            lineWidth: 1.5
-                        )
-                        .padding(TonicDS.Space.md)
-                        TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    if widgetType == .network {
+                        if !snapshot.networkDownloadHistory.isEmpty || !snapshot.networkUploadHistory.isEmpty {
+                            NetworkTrafficChart(
+                                downloadData: snapshot.networkDownloadHistory,
+                                uploadData: snapshot.networkUploadHistory,
+                                height: TonicDS.Layout.MenuBar.chartHeight,
+                                mode: .popover,
+                                lineWidth: 1.5
+                            )
+                            .padding(TonicDS.Space.md)
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                        } else if widgetType.expectsHistory {
+                            popoverEmptyHistory
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                        }
+                    } else if !snapshot.history.isEmpty {
+                            NetworkSparklineChart(
+                                data: snapshot.history,
+                                color: snapshot.color,
+                                height: TonicDS.Layout.MenuBar.chartHeight,
+                                showArea: true,
+                                lineWidth: 1.5
+                            )
+                            .padding(TonicDS.Space.md)
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
                     } else if widgetType.expectsHistory {
                         popoverEmptyHistory
                         TonicHairline(color: TonicDS.Colors.hairlineOnDark)
@@ -643,6 +670,8 @@ private struct WidgetMetricSnapshot {
     let color: Color
     let iconColor: Color
     let history: [Double]
+    let networkDownloadHistory: [Double]
+    let networkUploadHistory: [Double]
     let blocks: [WidgetPopoverBlock]
 
     @MainActor
@@ -652,6 +681,10 @@ private struct WidgetMetricSnapshot {
         // Chart history window from the persisted popover settings (~2s sample cadence
         // while a popover is open), so the Popup settings panel actually drives the chart.
         let keep = max(15, PopupSettingsStore.shared.settings.chartHistoryDuration / 2)
+        let networkDownloadHistory = Array(dataManager.networkDownloadHistory.suffix(keep))
+        let networkUploadHistory = Array(dataManager.networkUploadHistory.suffix(keep))
+        self.networkDownloadHistory = networkDownloadHistory
+        self.networkUploadHistory = networkUploadHistory
 
         switch widgetType {
         case .cpu:
@@ -782,18 +815,22 @@ private struct WidgetMetricSnapshot {
 
         case .network:
             let network = dataManager.networkData
-            value = network.downloadString
-            color = network.isConnected ? TonicDS.Chart.download : TonicDS.Colors.statusWarning
-            history = Array(dataManager.networkDownloadHistory.suffix(keep))
+            let uploadDominant = network.uploadBytesPerSecond > network.downloadBytesPerSecond
+            value = uploadDominant
+                ? "↑ \(network.uploadString)"
+                : "↓ \(network.downloadString)"
+            color = network.isConnected
+                ? (uploadDominant ? TonicDS.Chart.upload : TonicDS.Chart.download)
+                : TonicDS.Colors.statusWarning
+            history = networkDownloadHistory
 
             var built: [WidgetPopoverBlock] = [
-                .row("Download", network.downloadString, color: TonicDS.Chart.download),
-                .row("Upload", network.uploadString, color: TonicDS.Chart.upload)
+                .row("Down", network.downloadString, color: TonicDS.Chart.download),
+                .row("Up", network.uploadString, color: TonicDS.Chart.upload),
+                .label("Today while open"),
+                .row("Down total", Self.bytes(dataManager.totalDownloadBytes), color: TonicDS.Chart.download),
+                .row("Up total", Self.bytes(dataManager.totalUploadBytes), color: TonicDS.Chart.upload)
             ]
-            let uploadHistory = Array(dataManager.networkUploadHistory.suffix(keep))
-            if !uploadHistory.isEmpty {
-                built.append(.chart(uploadHistory, TonicDS.Chart.upload))
-            }
             built.append(.row("State", network.isConnected ? "Connected" : "Offline",
                               color: network.isConnected ? TonicDS.Colors.statusInfo : TonicDS.Colors.statusWarning,
                               level: network.isConnected ? .info : .warning))
@@ -1033,6 +1070,10 @@ private struct WidgetMetricSnapshot {
 
     private static func bytes(_ value: UInt64) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .memory)
+    }
+
+    private static func bytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: max(0, value), countStyle: .memory)
     }
 
     private static func uptime(_ interval: TimeInterval) -> String {
