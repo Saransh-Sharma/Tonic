@@ -79,6 +79,76 @@ extension View {
     }
 }
 
+/// Standard editorial detail pane scaffold: canvas background, centered content,
+/// adaptive horizontal gutters, and optional scrolling. Use this for screens whose
+/// content should follow the TonicDesign.md 1200pt command-center column.
+struct TonicScreenScaffold<Content: View>: View {
+    var scrolls: Bool = true
+    var maxWidth: CGFloat = TonicDS.Layout.maxContentWidth
+    var topPadding: CGFloat = TonicDS.Space.xxl
+    var bottomPadding: CGFloat = TonicDS.Space.section
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Group {
+            if scrolls {
+                ScrollView(showsIndicators: false) {
+                    contentColumn
+                }
+            } else {
+                contentColumn
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TonicDS.Colors.canvas)
+    }
+
+    private var contentColumn: some View {
+        content()
+            .frame(maxWidth: maxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .tonicScreenHPadding()
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+    }
+}
+
+/// Mono-labeled section wrapper for gallery, settings, and internal diagnostic
+/// screens. It keeps repeated "label + content" groupings on the 8pt grid.
+struct TonicSection<Content: View>: View {
+    let title: String
+    var spacing: CGFloat = TonicDS.Space.sm
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            MonoLabel(title)
+            content()
+        }
+    }
+}
+
+/// Named exception for non-decorative fades, such as horizontal overflow affordances.
+/// Do not use for surface styling or brand atmosphere.
+struct TonicOverflowFade: View {
+    enum Edge { case leading, trailing }
+
+    var edge: Edge = .trailing
+    var color: Color = TonicDS.Colors.canvas
+
+    var body: some View {
+        LinearGradient(
+            colors: edge == .trailing
+                ? [color.opacity(0), color]
+                : [color, color.opacity(0)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Hover lift for arbitrary surfaces. One shadow, scale 1.01, fast timing.
 private struct TonicHoverLiftModifier: ViewModifier {
     let enabled: Bool
@@ -913,6 +983,7 @@ private struct SkeletonPulse: ViewModifier {
 struct TonicProgressBar: View {
     let fraction: Double
     var color: Color?
+    var trackColor: Color = TonicDS.Colors.hairline
     var height: CGFloat = 6
     /// Optional 0...1 reference tick (e.g. 0.75, the caution boundary) so "how
     /// close to trouble" is legible at a glance. Data-colored and subtle.
@@ -926,7 +997,7 @@ struct TonicProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule(style: .continuous).fill(TonicDS.Colors.hairline)
+                Capsule(style: .continuous).fill(trackColor)
                 Capsule(style: .continuous)
                     .fill(fillColor)
                     .frame(width: geo.size.width * (reduceMotion || didDraw ? normalized : 0))

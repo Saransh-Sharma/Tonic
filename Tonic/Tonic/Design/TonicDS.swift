@@ -464,6 +464,9 @@ extension TonicDS {
         /// Tracking in points.
         var tracking: CGFloat {
             switch self {
+            case .heroDisplay: return -1.28
+            case .sectionDisplay: return -0.88
+            case .cardHeading: return -0.40
             case .monoLabel: return 0.50
             default: return 0
             }

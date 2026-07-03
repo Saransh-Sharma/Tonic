@@ -291,6 +291,56 @@ extension SheetChrome where Footer == EmptyView {
 // Shared building blocks for the near-black console surfaces (Monitor detail wall
 // and the menu-bar popover consoles) so both families speak one chart grammar.
 
+/// Mono-labeled group for the near-black console. Use it inside `MonitoringConsole`
+/// when a panel needs several related live readouts.
+struct ConsoleSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+            MonoLabel(title, color: TonicDS.Colors.onDarkMuted)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            content()
+        }
+    }
+}
+
+/// A single console readout row. Status/category color belongs only to the value
+/// or dot; labels and rules stay on the muted on-dark scale.
+struct ConsoleMetricRow: View {
+    let label: String
+    let value: String
+    var color: Color = TonicDS.Colors.onDark
+    var level: TonicDS.StatusLevel?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TonicDS.Space.sm) {
+            if level != nil {
+                StatusDot(color)
+            }
+            Text(label)
+                .tonicType(.body)
+                .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            Spacer(minLength: TonicDS.Space.xs)
+            Text(value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        if let level {
+            return "\(label), \(value), \(level.word)"
+        }
+        return "\(label), \(value)"
+    }
+}
+
 /// A row of vertical mini-bars for a core cluster. Category-colored (E vs P), never
 /// a status hue — the cluster identity is the datum, not utilization.
 struct ConsoleCoreBars: View {
