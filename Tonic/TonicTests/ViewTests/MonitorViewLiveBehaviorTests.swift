@@ -36,6 +36,36 @@ final class MonitorViewLiveBehaviorTests: XCTestCase {
         XCTAssertFalse(source.contains("return !data.cpuHistory.isEmpty"))
     }
 
+    func testMonitorNetworkSurfaceUsesBidirectionalTrafficAndSessionTotals() throws {
+        let source = try monitorViewSource()
+
+        XCTAssertTrue(source.contains("NetworkTrafficCard("))
+        XCTAssertTrue(source.contains("downloadHistory: networkDownloadSeries"))
+        XCTAssertTrue(source.contains("uploadHistory: networkUploadSeries"))
+        XCTAssertTrue(source.contains("context: networkTrafficCardContext"))
+        XCTAssertTrue(source.contains("\"Today while open\""))
+        XCTAssertFalse(source.contains("ChartCard(label: \"Network ↓\""))
+    }
+
+    func testNetworkTrafficCardLiveContextIncludesSessionTotals() {
+        let context = NetworkTrafficCardContext.live(downTotal: "10 MB", upTotal: "2 MB")
+
+        XCTAssertTrue(context.includesSessionTotals)
+        XCTAssertNil(context.rangeLabel)
+        XCTAssertEqual(
+            context.footer,
+            .sessionTotals(downTotal: "10 MB", upTotal: "2 MB", label: "Today while open")
+        )
+    }
+
+    func testNetworkTrafficCardHistoryContextExcludesSessionTotals() {
+        let context = NetworkTrafficCardContext.history(range: .twentyFourHours)
+
+        XCTAssertFalse(context.includesSessionTotals)
+        XCTAssertEqual(context.rangeLabel, "History range: 24h")
+        XCTAssertEqual(context.footer, .range("History range: 24h"))
+    }
+
     private func monitorViewSource() throws -> String {
         let testFile = URL(fileURLWithPath: #filePath)
         let projectRoot = testFile

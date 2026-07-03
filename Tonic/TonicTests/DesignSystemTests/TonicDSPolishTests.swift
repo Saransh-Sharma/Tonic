@@ -71,6 +71,84 @@ final class TonicDSPolishTests: XCTestCase {
         XCTAssertEqual(TonicDS.Layout.inputHeight, 32)
     }
 
+    func testDesignGalleryDocumentsTonicDSPrimitiveFamilies() throws {
+        let source = try source(relativePath: "Tonic/Tonic/Views/Advanced/DesignGalleryView.swift")
+        let requiredFragments = [
+            "TonicScreenScaffold",
+            "PrimaryPill(",
+            "TextAction(",
+            "FilterPill(",
+            "CategoryFilterChip(",
+            "GaugeCard(",
+            "ChartCard(",
+            "ModuleBand(",
+            "MonitoringConsole",
+            "ConsoleMetricRow",
+            "ScanCategoryCard",
+            "SettingsPanel",
+            "SystemListRow",
+            "SheetChrome",
+            "TonicEmptyState",
+            "TonicErrorNotice",
+            "TonicOverflowFade"
+        ]
+
+        for fragment in requiredFragments {
+            XCTAssertTrue(source.contains(fragment), "Design Gallery should include \(fragment)")
+        }
+    }
+
+    func testPermissionRequiredUsesTonicPrimaryPill() throws {
+        let source = try source(relativePath: "Tonic/Tonic/Views/ContentView.swift")
+        XCTAssertFalse(source.contains(".buttonStyle(.borderedProminent)"))
+        XCTAssertTrue(source.contains("PrimaryPill(\"Grant Permission\")"))
+    }
+
+    func testWidgetEnabledChromeIsNotStatusGreen() throws {
+        let source = try source(relativePath: "Tonic/Tonic/Views/Settings/ModulesSettingsContent.swift")
+        XCTAssertFalse(source.contains("config.isEnabled ? TonicDS.Colors.statusSuccess"))
+        XCTAssertFalse(source.contains("preferences.config(for: module)?.isEnabled ?? false) ? TonicDS.Colors.statusSuccess"))
+    }
+
+    func testLinearGradientUsageIsNamedUtilityOrDataChartOnly() throws {
+        let allowed = Set([
+            "Tonic/Tonic/Design/TonicEditorialComponents.swift",
+            "Tonic/Tonic/MenuBarWidgets/Components/SparklineChart.swift"
+        ])
+        let files = try swiftFiles(under: projectRoot.appendingPathComponent("Tonic/Tonic"))
+        for file in files {
+            let relative = file.path.replacingOccurrences(of: projectRoot.path + "/", with: "")
+            let body = try String(contentsOf: file, encoding: .utf8)
+            if body.contains("LinearGradient(") {
+                XCTAssertTrue(allowed.contains(relative), "Unexpected LinearGradient in \(relative)")
+            }
+        }
+    }
+
+    func testProductionViewsDoNotUseLegacyVisualTokens() throws {
+        let checkedRoots = [
+            projectRoot.appendingPathComponent("Tonic/Tonic/Views"),
+            projectRoot.appendingPathComponent("Tonic/Tonic/MenuBarWidgets")
+        ]
+        let banned = [
+            "DesignTokens.",
+            "TonicThemeTokens.",
+            "NSColor.controlBackgroundColor",
+            "controlBackgroundColor",
+            ".buttonStyle(.borderedProminent)"
+        ]
+
+        for root in checkedRoots {
+            for file in try swiftFiles(under: root) {
+                let relative = file.path.replacingOccurrences(of: projectRoot.path + "/", with: "")
+                let body = try String(contentsOf: file, encoding: .utf8)
+                for token in banned {
+                    XCTAssertFalse(body.contains(token), "\(relative) should not contain \(token)")
+                }
+            }
+        }
+    }
+
     // MARK: - Home hero arbitration (live health outranks scan bookkeeping)
 
     func testHeroArbiterPriorityLadder() {
@@ -122,5 +200,33 @@ final class TonicDSPolishTests: XCTestCase {
             blue: CGFloat(int & 0xff) / 255,
             alpha: 1
         )
+    }
+
+    private var projectRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func source(relativePath: String) throws -> String {
+        try String(contentsOf: projectRoot.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
+    private func swiftFiles(under root: URL) throws -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return try enumerator.compactMap { item in
+            guard let url = item as? URL, url.pathExtension == "swift" else { return nil }
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            return values.isRegularFile == true ? url : nil
+        }
     }
 }

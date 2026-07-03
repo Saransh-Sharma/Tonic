@@ -31,4 +31,22 @@ final class EditorialComponentsTests: XCTestCase {
         XCTAssertEqual(TonicDS.Motion.slow, 0.35)
         XCTAssertEqual(TonicDS.Motion.stagger, 0.05)
     }
+
+    func testTonicDSTypographyMatchesDesignSpecTracking() {
+        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.size, 64)
+        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.size, 44)
+        XCTAssertEqual(TonicDS.TypeRole.cardHeading.size, 28)
+        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.tracking, -1.28, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.tracking, -0.88, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.cardHeading.tracking, -0.40, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.monoLabel.tracking, 0.50, accuracy: 0.001)
+    }
+
+    func testMenuBarConsoleDimensionsMatchDesignSpec() {
+        XCTAssertEqual(TonicDS.Layout.MenuBar.width, 280)
+        XCTAssertEqual(TonicDS.Layout.MenuBar.maxHeight, 420)
+        XCTAssertEqual(TonicDS.Layout.MenuBar.compactHeight, 22)
+        XCTAssertEqual(TonicDS.Layout.MenuBar.rowHeight, 28)
+        XCTAssertEqual(TonicDS.Layout.MenuBar.chartHeight, 58)
+    }
 }
