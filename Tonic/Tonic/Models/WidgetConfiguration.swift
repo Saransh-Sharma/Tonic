@@ -102,6 +102,8 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
     case sensors = "sensors"
     case bluetooth = "bluetooth"
     case clock = "clock"
+    /// Tonic's own status: health score and last maintenance at a glance.
+    case tonic = "tonic"
 
     public var id: String { rawValue }
 
@@ -118,6 +120,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
         case .sensors: return "Sensors"
         case .bluetooth: return "Bluetooth"
         case .clock: return "Clock"
+        case .tonic: return "Tonic"
         }
     }
 
@@ -134,6 +137,7 @@ public enum WidgetType: String, CaseIterable, Identifiable, Codable, Sendable {
         case .sensors: return "thermometer"
         case .bluetooth: return "wave.3.right"
         case .clock: return "clock"
+        case .tonic: return "drop.fill"
         }
     }
 
@@ -848,7 +852,7 @@ extension WidgetType {
             return .percentage
         case .disk, .network:
             return .valueWithUnit
-        case .weather, .sensors, .bluetooth, .clock:
+        case .weather, .sensors, .bluetooth, .clock, .tonic:
             return .valueWithUnit
         }
     }
@@ -859,7 +863,7 @@ extension WidgetType {
     var isDefaultEnabled: Bool {
         switch self {
         case .cpu, .memory, .disk: return true
-        case .gpu, .network, .weather, .battery, .sensors, .bluetooth, .clock: return false
+        case .gpu, .network, .weather, .battery, .sensors, .bluetooth, .clock, .tonic: return false
         }
     }
 }
@@ -963,7 +967,7 @@ public final class WidgetPreferences: Sendable {
     /// Create default widget configurations
     private static func defaultConfigs() -> [WidgetConfiguration] {
         let allTypes: [WidgetType] = [
-            .cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock
+            .cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock, .tonic
         ]
 
         return allTypes.enumerated().map { index, type in
@@ -994,7 +998,7 @@ public final class WidgetPreferences: Sendable {
         }
 
         // Ensure all parity widget types exist.
-        let parityTypes: [WidgetType] = [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock]
+        let parityTypes: [WidgetType] = [.cpu, .gpu, .memory, .disk, .network, .battery, .sensors, .bluetooth, .clock, .tonic]
         let missing = parityTypes.filter { !seen.contains($0) }
         let nextPosition = sanitized.count
         sanitized.append(contentsOf: missing.enumerated().map { offset, type in
@@ -1561,6 +1565,8 @@ extension WidgetType {
             return [.stack, .label]
         case .clock:
             return [.stack, .label]
+        case .tonic:
+            return [.label]
         }
     }
 
@@ -1569,6 +1575,7 @@ extension WidgetType {
         switch self {
         case .network: return .speed
         case .sensors, .bluetooth, .clock: return .stack
+        case .tonic: return .label
         default: return .mini
         }
     }
