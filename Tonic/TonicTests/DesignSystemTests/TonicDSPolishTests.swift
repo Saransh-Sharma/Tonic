@@ -113,7 +113,10 @@ final class TonicDSPolishTests: XCTestCase {
     func testLinearGradientUsageIsNamedUtilityOrDataChartOnly() throws {
         let allowed = Set([
             "Tonic/Tonic/Design/TonicEditorialComponents.swift",
-            "Tonic/Tonic/MenuBarWidgets/Components/SparklineChart.swift"
+            "Tonic/Tonic/MenuBarWidgets/Components/SparklineChart.swift",
+            // User-configured cosmetic menu bar tint — a utility gradient the
+            // user opts into, not chrome.
+            "Tonic/Tonic/Views/MenuBar/MenuBarStyleOverlayView.swift"
         ])
         let files = try swiftFiles(under: projectRoot.appendingPathComponent("Tonic/Tonic"))
         for file in files {

@@ -3,27 +3,33 @@ import XCTest
 
 final class MenuBarNetworkWidgetTests: XCTestCase {
     func testNetworkWidgetUsesBidirectionalChartAndSessionTotals() throws {
-        let source = try widgetStatusItemSource()
+        // The popover console renders the paired series through the traffic chart…
+        let popoverSource = try source("Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift")
+        XCTAssertTrue(popoverSource.contains("NetworkTrafficChart("))
+        XCTAssertTrue(popoverSource.contains("snapshot.traffic"))
+        XCTAssertTrue(popoverSource.contains("traffic.primary"))
+        XCTAssertTrue(popoverSource.contains("traffic.secondary"))
 
-        XCTAssertTrue(source.contains("NetworkTrafficChart("))
-        XCTAssertTrue(source.contains("snapshot.networkDownloadHistory"))
-        XCTAssertTrue(source.contains("snapshot.networkUploadHistory"))
-        XCTAssertTrue(source.contains("\"Today while open\""))
-        XCTAssertTrue(source.contains("\"Down total\""))
-        XCTAssertTrue(source.contains("\"Up total\""))
-        XCTAssertTrue(source.contains("dataManager.totalDownloadBytes"))
-        XCTAssertTrue(source.contains("dataManager.totalUploadBytes"))
-        XCTAssertFalse(source.contains("built.append(.chart(uploadHistory"))
+        // …and the snapshot builds the network series + session totals.
+        let snapshotSource = try source("Tonic/Tonic/MenuBarWidgets/WidgetMetricSnapshot.swift")
+        XCTAssertTrue(snapshotSource.contains("networkDownloadHistory"))
+        XCTAssertTrue(snapshotSource.contains("networkUploadHistory"))
+        XCTAssertTrue(snapshotSource.contains("\"Today while open\""))
+        XCTAssertTrue(snapshotSource.contains("\"Down total\""))
+        XCTAssertTrue(snapshotSource.contains("\"Up total\""))
+        XCTAssertTrue(snapshotSource.contains("dataManager.totalDownloadBytes"))
+        XCTAssertTrue(snapshotSource.contains("dataManager.totalUploadBytes"))
+        XCTAssertFalse(snapshotSource.contains("built.append(.chart(uploadHistory"))
     }
 
-    private func widgetStatusItemSource() throws -> String {
+    private func source(_ relativePath: String) throws -> String {
         let testFile = URL(fileURLWithPath: #filePath)
         let projectRoot = testFile
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let url = projectRoot.appendingPathComponent("Tonic/Tonic/MenuBarWidgets/WidgetStatusItem.swift")
+        let url = projectRoot.appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
 }
