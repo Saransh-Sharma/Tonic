@@ -126,7 +126,7 @@ private struct OneViewDetailView: View {
             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
             quickActionsFooter
         }
-        .frame(width: TonicDS.Layout.MenuBar.width, height: TonicDS.Layout.MenuBar.maxHeight)
+        .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth, height: TonicDS.Layout.MenuBar.maxHeight)
         .background(TonicDS.Colors.console)
         .environment(\.colorScheme, .dark)
     }

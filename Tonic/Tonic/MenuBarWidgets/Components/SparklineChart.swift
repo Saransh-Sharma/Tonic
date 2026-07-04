@@ -22,6 +22,9 @@ public struct NetworkSparklineChart: View, Equatable {
     let height: CGFloat
     let showArea: Bool
     let lineWidth: CGFloat
+    /// When set, values normalize against this ceiling (0 at the baseline)
+    /// instead of the data's own min/max range.
+    let fixedMax: Double?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// One-shot path draw-in on first appear; live data updates after stay instant.
@@ -33,7 +36,8 @@ public struct NetworkSparklineChart: View, Equatable {
                lhs.color == rhs.color &&
                lhs.height == rhs.height &&
                lhs.showArea == rhs.showArea &&
-               lhs.lineWidth == rhs.lineWidth
+               lhs.lineWidth == rhs.lineWidth &&
+               lhs.fixedMax == rhs.fixedMax
     }
 
     // MARK: - Initialization
@@ -43,13 +47,15 @@ public struct NetworkSparklineChart: View, Equatable {
         color: Color? = nil,
         height: CGFloat = 32,
         showArea: Bool = true,
-        lineWidth: CGFloat = 1.5
+        lineWidth: CGFloat = 1.5,
+        fixedMax: Double? = nil
     ) {
         self.data = data
         self.color = color ?? TonicDS.Colors.statusInfo
         self.height = height
         self.showArea = showArea
         self.lineWidth = lineWidth
+        self.fixedMax = fixedMax
     }
 
     // MARK: - Body
@@ -122,6 +128,17 @@ public struct NetworkSparklineChart: View, Equatable {
     // MARK: - Path Generation
 
     private func generatePoints(for width: CGFloat, height: CGFloat) -> [CGPoint] {
+        // Pinned scale: normalize against the fixed ceiling with the baseline at 0.
+        if let fixedMax, fixedMax > 0 {
+            let stepX = width / max(1, CGFloat(data.count - 1))
+            let inset: CGFloat = 2
+            return data.enumerated().map { index, value in
+                let fraction = min(1, max(0, value / fixedMax))
+                let y = inset + (1 - fraction) * (height - inset * 2)
+                return CGPoint(x: CGFloat(index) * stepX, y: y)
+            }
+        }
+
         // Calculate fresh points
         let validValues = data.filter { $0 != 0 }
         guard !validValues.isEmpty,
@@ -241,6 +258,10 @@ public struct NetworkTrafficChart: View, Equatable {
     let height: CGFloat
     let mode: NetworkTrafficChartMode
     let lineWidth: CGFloat
+    /// Series colors — defaults are network download/upload; disk consoles
+    /// pass read/write instead.
+    let downloadColor: Color
+    let uploadColor: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drawProgress: CGFloat = 0
@@ -250,7 +271,9 @@ public struct NetworkTrafficChart: View, Equatable {
         lhs.uploadData == rhs.uploadData &&
         lhs.height == rhs.height &&
         lhs.mode == rhs.mode &&
-        lhs.lineWidth == rhs.lineWidth
+        lhs.lineWidth == rhs.lineWidth &&
+        lhs.downloadColor == rhs.downloadColor &&
+        lhs.uploadColor == rhs.uploadColor
     }
 
     public init(
@@ -258,13 +281,17 @@ public struct NetworkTrafficChart: View, Equatable {
         uploadData: [Double],
         height: CGFloat = 32,
         mode: NetworkTrafficChartMode = .popover,
-        lineWidth: CGFloat = 1.5
+        lineWidth: CGFloat = 1.5,
+        downloadColor: Color? = nil,
+        uploadColor: Color? = nil
     ) {
         self.downloadData = downloadData
         self.uploadData = uploadData
         self.height = height
         self.mode = mode
         self.lineWidth = lineWidth
+        self.downloadColor = downloadColor ?? TonicDS.Chart.download
+        self.uploadColor = uploadColor ?? TonicDS.Chart.upload
     }
 
     public var body: some View {
@@ -326,7 +353,7 @@ public struct NetworkTrafficChart: View, Equatable {
                 direction: .download
             )
             .trim(from: 0, to: drawProgress)
-            .stroke(TonicDS.Chart.download, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+            .stroke(downloadColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
 
             linePath(
                 data: uploadData,
@@ -335,7 +362,7 @@ public struct NetworkTrafficChart: View, Equatable {
                 direction: .upload
             )
             .trim(from: 0, to: drawProgress)
-            .stroke(TonicDS.Chart.upload, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+            .stroke(uploadColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
         }
         .onAppear {
             guard drawProgress == 0 else { return }

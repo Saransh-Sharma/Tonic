@@ -31,7 +31,7 @@ struct SidebarView: View {
     private let baseSections: [SidebarSection] = [
         SidebarSection(nil, items: [.dashboard]),
         SidebarSection("Maintenance", items: [.systemCleanup, .appManager]),
-        SidebarSection("Explore", items: [.liveMonitoring]),
+        SidebarSection("Explore", items: [.liveMonitoring, .menuBarManager]),
         SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
         SidebarSection(nil, items: [.settings])
     ]
@@ -172,6 +172,7 @@ extension NavigationDestination {
         case .diskAnalysis: return "Storage"
         case .recentlyCleaned: return "History"
         case .liveMonitoring: return "Monitor"
+        case .menuBarManager: return "Menu Bar"
         case .menuBarWidgets: return "Widgets"
         case .developerTools: return "Developer Tools"
         case .designSandbox: return "Design Gallery"

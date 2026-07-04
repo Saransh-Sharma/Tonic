@@ -47,8 +47,15 @@ struct AppsView: View {
             }
             .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
 
-            TonicTabBar(tabs: AppsSection.allCases, selection: $section) { $0.rawValue }
-                .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
+            TonicTabBar(tabs: AppsSection.allCases, selection: $section) { tab in
+                // The Updates tab carries its count so pending work is visible
+                // without switching tabs.
+                if tab == .updates, inventory.availableUpdates > 0 {
+                    return "Updates · \(inventory.availableUpdates)"
+                }
+                return tab.rawValue
+            }
+            .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
 
             switch section {
             case .inventory:

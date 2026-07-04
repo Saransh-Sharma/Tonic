@@ -204,6 +204,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             WidgetCoordinator.shared.start()
             print("🔵 [TonicApp] WidgetCoordinator.shared.start() completed")
         }
+
+        // Global console shortcut (Carbon hotkey; no-op until one is recorded).
+        GlobalHotkeyManager.shared.start()
+
+        // Bartender-style menu bar management (no-op until enabled in Monitor › Menu Bar).
+        MenuBarManager.shared.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

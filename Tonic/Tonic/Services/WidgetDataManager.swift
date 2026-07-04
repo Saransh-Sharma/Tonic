@@ -108,6 +108,7 @@ public struct CPUData: Sendable {
     public let uptime: TimeInterval        // Seconds since boot
     public let schedulerLimit: Double?     // Max CPU scheduler limit
     public let speedLimit: Double?         // CPU speed limit percentage
+    public let topProcesses: [ProcessUsage]?  // Top CPU-consuming processes (popup only)
 
     public let timestamp: Date
 
@@ -128,6 +129,7 @@ public struct CPUData: Sendable {
         uptime: TimeInterval = 0,
         schedulerLimit: Double? = nil,
         speedLimit: Double? = nil,
+        topProcesses: [ProcessUsage]? = nil,
         timestamp: Date = Date()
     ) {
         self.totalUsage = totalUsage
@@ -146,6 +148,7 @@ public struct CPUData: Sendable {
         self.uptime = uptime
         self.schedulerLimit = schedulerLimit
         self.speedLimit = speedLimit
+        self.topProcesses = topProcesses
         self.timestamp = timestamp
     }
 
@@ -167,6 +170,7 @@ public struct CPUData: Sendable {
         self.uptime = 0
         self.schedulerLimit = nil
         self.speedLimit = nil
+        self.topProcesses = nil
         self.timestamp = timestamp
     }
 }
@@ -872,6 +876,10 @@ public final class WidgetDataManager {
     /// Connectivity status history for grid visualization (bool array)
     public private(set) var connectivityHistory: [Bool] = []
 
+    /// Per-app bandwidth while the network popover is open (nettop, direct build only)
+    public private(set) var networkTopProcesses: [ProcessNetworkUsage]?
+    private var networkTopProcessTask: Task<Void, Never>?
+
     // MARK: - GPU Data
 
     public private(set) var gpuData: GPUData = GPUData()
@@ -1103,6 +1111,21 @@ public final class WidgetDataManager {
             popupVisibleModules.remove(widgetType)
         }
 
+        // Per-app bandwidth (nettop) runs on its own cadence, only while the
+        // network popover is open.
+        if widgetType == .network {
+            if isVisible {
+                startNetworkTopProcessSampling()
+            } else {
+                stopNetworkTopProcessSampling()
+            }
+        }
+
+        // Weather has no reader timer; refresh on open so the console isn't stale.
+        if widgetType == .weather, isVisible {
+            WeatherService.shared.updateWeather()
+        }
+
         guard isVisible, isMonitoring else { return }
         for reader in monitoringReaders where reader.popupOnly && reader.module == widgetType {
             monitoringQueue.async { [weak self] in
@@ -1110,6 +1133,38 @@ public final class WidgetDataManager {
                 reader.action(self)
             }
         }
+    }
+
+    // MARK: - Per-App Network Sampling (popup only)
+
+    private func startNetworkTopProcessSampling() {
+        #if !TONIC_STORE
+        guard networkTopProcessTask == nil, NetworkPerProcessSampler.shared.isAvailable else { return }
+        networkTopProcessTask = Task { [weak self] in
+            while !Task.isCancelled {
+                // First nettop pass establishes the baseline (zero rates);
+                // real rates arrive from the second pass onward.
+                let bandwidth = await NetworkPerProcessSampler.shared.sample(limit: 5)
+                let usage = bandwidth
+                    .filter { $0.bytesInPerSecond + $0.bytesOutPerSecond > 0 }
+                    .map {
+                        ProcessNetworkUsage(pid: Int($0.pid), name: $0.name,
+                                            uploadBytes: UInt64($0.bytesOutPerSecond),
+                                            downloadBytes: UInt64($0.bytesInPerSecond))
+                    }
+                await MainActor.run { [weak self] in
+                    self?.networkTopProcesses = usage.isEmpty ? nil : usage
+                }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+        }
+        #endif
+    }
+
+    private func stopNetworkTopProcessSampling() {
+        networkTopProcessTask?.cancel()
+        networkTopProcessTask = nil
+        networkTopProcesses = nil
     }
 
     // MARK: - Reader Scheduling
@@ -1184,6 +1239,7 @@ public final class WidgetDataManager {
         case .bluetooth: return "Bluetooth_updateInterval"
         case .clock: return "Clock_updateInterval"
         case .weather: return "Weather_updateInterval"
+        case .tonic: return "Tonic_updateInterval"
         }
     }
 
@@ -1231,6 +1287,11 @@ public final class WidgetDataManager {
         let uptime = getCachedSystemUptime()
         let (schedulerLimit, speedLimit) = cachedCPUSpeedLimits ?? (nil, nil)
 
+        // Per-process CPU is popup/detail data; skip the libproc pass otherwise.
+        let topProcesses: [ProcessUsage]? = popupVisibleModules.contains(.cpu)
+            ? ProcessSampler.shared.topByCPU(limit: 3)
+            : nil
+
         let newCPUData = CPUData(
             totalUsage: usageSnapshot.totalUsage,
             perCoreUsage: perCore,
@@ -1247,7 +1308,8 @@ public final class WidgetDataManager {
             idleUsage: usageSnapshot.idleUsage,
             uptime: uptime,
             schedulerLimit: schedulerLimit,
-            speedLimit: speedLimit
+            speedLimit: speedLimit,
+            topProcesses: topProcesses
         )
 
         // Dispatch property updates to main thread for @Observable
@@ -1864,9 +1926,12 @@ public final class WidgetDataManager {
         // Get enhanced disk stats (IOPS, activity rates)
         let (readIOPS, writeIOPS, readBps, writeBps, readTime, writeTime) = getDiskIORates()
 
-        // Keep live disk sampling cheap; SMART and per-process I/O are popup/detail data.
+        // Keep live disk sampling cheap; SMART stays popup/detail data.
         let bootVolumeSMART: NVMeSMARTData? = nil
-        let topDiskProcesses: [ProcessUsage]? = nil
+        // Per-process disk I/O only while the disk popover is open.
+        let topDiskProcesses: [ProcessUsage]? = popupVisibleModules.contains(.disk)
+            ? ProcessSampler.shared.topByDiskIO(limit: 3)
+            : nil
 
         if let volumesURLs = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys) {
             for url in volumesURLs {
@@ -2301,8 +2366,8 @@ public final class WidgetDataManager {
         let wifiDetails = previousNetworkData.wifiDetails
         let publicIP = previousNetworkData.publicIP
         let connectivity = getConnectivityInfo()
-        // Per-process network usage is popup/detail data, not part of live sampling.
-        let topProcesses: [ProcessNetworkUsage]? = nil
+        // Per-process network usage comes from the popup-only nettop task.
+        let topProcesses: [ProcessNetworkUsage]? = networkTopProcesses
         let interfaceName = previousNetworkData.interfaceName
         let macAddress = previousNetworkData.macAddress
         let linkSpeed = previousNetworkData.linkSpeedMbps

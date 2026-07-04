@@ -98,7 +98,7 @@ struct HomeView: View {
     /// to Smart Scan. Every outcome lands as a toast with honest numbers.
     private var quickActions: some View {
         HStack(spacing: TonicDS.Space.lg) {
-            MonoLabel("QUICK")
+            MonoLabel("Quick actions")
             quickAction("Empty Trash", id: "trash") {
                 let result = await FileOperations.shared.emptyTrash()
                 return result.filesProcessed == 0

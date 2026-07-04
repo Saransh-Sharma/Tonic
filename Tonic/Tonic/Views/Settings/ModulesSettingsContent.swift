@@ -244,6 +244,7 @@ private struct ModuleSettingsDetail: View {
             formatter.dateFormat = "HH:mm"
             return formatter.string(from: Date())
         case .weather: return "--"
+        case .tonic: return "OK"
         }
     }
 
@@ -257,7 +258,7 @@ private struct ModuleSettingsDetail: View {
         case .sensors: return dataManager.sensorsData.temperatures.map(\.value).max().map(TonicDS.Chart.temperature) ?? TonicDS.Colors.textMuted
         case .network: return TonicDS.Chart.download
         case .bluetooth: return dataManager.bluetoothData.isBluetoothEnabled ? TonicDS.Colors.statusInfo : TonicDS.Colors.statusWarning
-        case .clock, .weather: return TonicDS.Colors.textMuted
+        case .clock, .weather, .tonic: return TonicDS.Colors.textMuted
         }
     }
 }

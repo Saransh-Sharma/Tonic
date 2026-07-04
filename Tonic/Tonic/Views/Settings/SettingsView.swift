@@ -136,6 +136,12 @@ struct SettingsView: View {
                     isOn: Binding(get: { scheduler.respectQuietHours },
                                   set: { scheduler.respectQuietHours = $0 })
                 )
+                TonicToggleRow(
+                    title: "Bundle alerts into a digest",
+                    description: "Threshold alerts collect into one periodic summary. Maintenance and update notifications still arrive individually.",
+                    isOn: Binding(get: { NotificationManager.shared.digestEnabled },
+                                  set: { NotificationManager.shared.digestEnabled = $0 })
+                )
                 TonicPreferenceRow(
                     title: "Personal files",
                     description: "Downloads, backups, and mail attachments are never cleaned automatically — only through the review sheet.",

@@ -137,6 +137,8 @@ final class MaintenanceScheduler {
     }
 
     func runIfDue() async {
+        // The scheduler's tick doubles as the digest heartbeat.
+        NotificationManager.shared.flushDigestIfDue()
         guard isDue(), !isRunning else { return }
         await runNow()
     }

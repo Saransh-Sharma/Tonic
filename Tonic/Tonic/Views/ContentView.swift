@@ -135,6 +135,9 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openLiveMonitor)) { _ in
                 selectedDestination = .liveMonitoring
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openMenuBarManagement)) { _ in
+                selectedDestination = .menuBarManager
+            }
             .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { note in
                 guard let raw = note.userInfo?["destination"] as? String,
                       let destination = NavigationDestination(rawValue: raw) else { return }
@@ -166,6 +169,8 @@ struct ContentView: View {
                     selectedDestination = .appManager
                 case "monitor":
                     selectedDestination = .liveMonitoring
+                case "menubar":
+                    selectedDestination = .menuBarManager
                 case "settings":
                     selectedDestination = .settings
                 default:
@@ -318,6 +323,8 @@ struct DetailView: View {
             CleanView(session: smartCareSession, initialTab: .history)
         case .liveMonitoring:
             MonitorView(isActive: destination == selectedDestination)
+        case .menuBarManager:
+            MenuBarDashboardView(isActive: destination == selectedDestination)
         case .menuBarWidgets:
             SettingsView(initialSection: .modules)
         case .developerTools:
