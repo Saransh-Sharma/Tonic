@@ -108,6 +108,7 @@ public struct CPUData: Sendable {
     public let uptime: TimeInterval        // Seconds since boot
     public let schedulerLimit: Double?     // Max CPU scheduler limit
     public let speedLimit: Double?         // CPU speed limit percentage
+    public let topProcesses: [ProcessUsage]?  // Top CPU-consuming processes (popup only)
 
     public let timestamp: Date
 
@@ -128,6 +129,7 @@ public struct CPUData: Sendable {
         uptime: TimeInterval = 0,
         schedulerLimit: Double? = nil,
         speedLimit: Double? = nil,
+        topProcesses: [ProcessUsage]? = nil,
         timestamp: Date = Date()
     ) {
         self.totalUsage = totalUsage
@@ -146,6 +148,7 @@ public struct CPUData: Sendable {
         self.uptime = uptime
         self.schedulerLimit = schedulerLimit
         self.speedLimit = speedLimit
+        self.topProcesses = topProcesses
         self.timestamp = timestamp
     }
 
@@ -167,6 +170,7 @@ public struct CPUData: Sendable {
         self.uptime = 0
         self.schedulerLimit = nil
         self.speedLimit = nil
+        self.topProcesses = nil
         self.timestamp = timestamp
     }
 }
@@ -771,12 +775,7 @@ public final class WidgetDataManager {
 
     // MARK: - History Constants
 
-    // Performance optimization: Disable debug logging in release builds
-    #if DEBUG
-    private let isDebugLoggingEnabled = true
-    #else
-    private let isDebugLoggingEnabled = false
-    #endif
+    private let isDebugLoggingEnabled = UserDefaults.standard.bool(forKey: "WidgetDataManagerDebugLogging")
 
     private func logToFile(_ message: String) {
         guard isDebugLoggingEnabled else { return }
@@ -844,7 +843,6 @@ public final class WidgetDataManager {
 
     public private(set) var cpuData: CPUData = CPUData(totalUsage: 0, perCoreUsage: [])
     public private(set) var cpuHistory: [Double] = []
-    public private(set) var topCPUApps: [AppResourceUsage] = []
 
     // MARK: - Memory Data
 
@@ -852,7 +850,6 @@ public final class WidgetDataManager {
         usedBytes: 0, totalBytes: 0, pressure: .normal
     )
     public private(set) var memoryHistory: [Double] = []
-    public private(set) var topMemoryApps: [AppResourceUsage] = []
 
     // MARK: - Disk Data
 
@@ -878,6 +875,10 @@ public final class WidgetDataManager {
 
     /// Connectivity status history for grid visualization (bool array)
     public private(set) var connectivityHistory: [Bool] = []
+
+    /// Per-app bandwidth while the network popover is open (nettop, direct build only)
+    public private(set) var networkTopProcesses: [ProcessNetworkUsage]?
+    private var networkTopProcessTask: Task<Void, Never>?
 
     // MARK: - GPU Data
 
@@ -909,6 +910,9 @@ public final class WidgetDataManager {
     // MARK: - Monitoring State
 
     public private(set) var isMonitoring = false
+    public private(set) var hasLiveMetricSample = false
+    public private(set) var lastLiveSampleAt: Date?
+    public private(set) var lastMonitoringStartAt: Date?
 
     // MARK: - Private Properties
 
@@ -925,6 +929,7 @@ public final class WidgetDataManager {
     }
 
     private var readerTimers: [String: DispatchSourceTimer] = [:]
+    private let requiredLiveReaderIDs: Set<String> = ["CPU.load", "RAM.load", "Disk.load", "Net.load"]
     private var popupVisibleModules: Set<WidgetType> = []
     private var lastNetworkStats: (upload: UInt64, download: UInt64, timestamp: Date)?
     private var lastDiskReadBytes: UInt64 = 0
@@ -935,14 +940,22 @@ public final class WidgetDataManager {
     private let diskStatsLock = NSLock()
 
     // CPU tracking for delta calculation
-    private var previousCPUInfo: processor_info_array_t?
-    private var previousNumCpuInfo: mach_msg_type_number_t = 0
-    private var previousNumCPUs: UInt32 = 0
+    private var previousCPUSnapshot: CPUCounterSnapshot?
     private let cpuLock = NSLock()
+    private var cachedCPUCoreConfig: (eCoreCount: Int, pCoreCount: Int)?
+    private var lastCPUCoreConfigFetch: Date?
+    private var cachedCPUFrequency: (Double?, Double?, Double?)?
+    private var lastCPUFrequencyFetch: Date?
+    private var cachedCPUTemperature: Double?
+    private var lastCPUTemperatureFetch: Date?
+    private var cachedThermalLimit: Bool?
+    private var cachedCPUSpeedLimits: (schedulerLimit: Double?, speedLimit: Double?)?
+    private var lastCPUThermalFetch: Date?
+    private var cachedAverageLoad: [Double]?
+    private var cachedUptime: TimeInterval = 0
+    private var lastCPULoadFetch: Date?
 
-    // Process list caching (to avoid frequent process spawning)
-    private var cachedTopProcesses: [AppResourceUsage]?
-    private var lastProcessFetchDate: Date?
+    private var preferredModuleIntervals: [WidgetType: TimeInterval] = [:]
 
     private var lastBluetoothUpdate: Date?
     private let bluetoothUpdateInterval: TimeInterval = 10.0  // Bluetooth updates less frequently
@@ -955,12 +968,11 @@ public final class WidgetDataManager {
     private let publicIPCacheInterval: TimeInterval = 300  // 5 minutes
     private let connectivityCheckInterval: TimeInterval = 30  // 30 seconds
     private var cachedConnectivity: ConnectivityInfo?
+    private let connectivityQueue = DispatchQueue(label: "com.tonic.widgetdata.connectivity", qos: .utility)
+    private var connectivityRefreshInFlight = false
     private var cachedDNSServers: [String] = []
     private var lastDNSFetch: Date?
     private let dnsCacheInterval: TimeInterval = 60  // 1 minute
-    private var cachedNetworkProcesses: [ProcessNetworkUsage]?
-    private var lastNetworkProcessFetch: Date?
-    private let networkProcessFetchInterval: TimeInterval = 5  // 5 seconds
     private var lastWiFiSecurityFetch: Date?
     private var cachedWiFiSecurity: String?
     private var cachedWiFiSecuritySSID: String?
@@ -984,12 +996,22 @@ public final class WidgetDataManager {
             name: .resetTotalNetworkUsage,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWidgetConfigurationDidUpdate),
+            name: .widgetConfigurationDidUpdate,
+            object: nil
+        )
         startNetworkPathMonitor()
     }
 
     /// Handle reset total network usage notification
     @objc private func handleResetTotalNetworkUsage() {
         resetTotalNetworkUsage()
+    }
+
+    @objc private func handleWidgetConfigurationDidUpdate() {
+        applyWidgetSamplingPreferences()
     }
 
     deinit {
@@ -1003,12 +1025,15 @@ public final class WidgetDataManager {
 
     /// Start monitoring system data
     public func startMonitoring() {
-        guard !isMonitoring else {
-            logger.warning("Already monitoring, skipping startMonitoring")
-            logToFile("Already monitoring, skipping startMonitoring")
+        if isMonitoring {
+            logger.warning("Already monitoring, validating live reader health")
+            logToFile("Already monitoring, validating live reader health")
+            ensureLiveMonitoring(reason: "startMonitoring existing session")
             return
         }
         isMonitoring = true
+        lastMonitoringStartAt = Date()
+        applyWidgetSamplingPreferences(restartIfNeeded: false)
         logger.info("🔵 Starting parity reader monitoring")
         logToFile("🔵 STARTING PARITY READER MONITORING")
         restartReaderTimers()
@@ -1023,9 +1048,50 @@ public final class WidgetDataManager {
         popupVisibleModules.removeAll()
     }
 
+    /// Ensure the live monitor has active required readers and recent samples.
+    public func ensureLiveMonitoring(reason: String = "unspecified") {
+        guard isMonitoring else {
+            logger.info("Ensuring live monitoring by starting stopped monitor: \(reason)")
+            logToFile("Ensuring live monitoring by starting stopped monitor: \(reason)")
+            startMonitoring()
+            return
+        }
+
+        applyWidgetSamplingPreferences(restartIfNeeded: false)
+
+        let activeReaderIDs = Set(readerTimers.keys)
+        let missingRequiredReaders = !requiredLiveReaderIDs.isSubset(of: activeReaderIDs)
+        let staleSample = isLiveSampleStale()
+        let hasNoSample = !hasLiveMetricSample
+
+        guard missingRequiredReaders || staleSample || hasNoSample else { return }
+
+        logger.warning("Repairing live monitoring, reason: \(reason), missingRequiredReaders: \(missingRequiredReaders), staleSample: \(staleSample), hasNoSample: \(hasNoSample)")
+        logToFile("Repairing live monitoring: \(reason), missingRequiredReaders=\(missingRequiredReaders), staleSample=\(staleSample), hasNoSample=\(hasNoSample)")
+
+        if missingRequiredReaders || staleSample {
+            restartReaderTimers()
+        }
+        triggerImmediateReaderPass()
+    }
+
     /// Update the monitoring interval based on preferences
     public func updateInterval() {
         if isMonitoring {
+            restartReaderTimers()
+        }
+    }
+
+    public func applyWidgetSamplingPreferences(restartIfNeeded: Bool = true) {
+        var intervals: [WidgetType: TimeInterval] = [:]
+        for type in WidgetType.allCases {
+            if let interval = WidgetPreferences.shared.config(for: type)?.refreshInterval.timeInterval {
+                intervals[type] = interval
+            }
+        }
+        preferredModuleIntervals = intervals
+
+        if restartIfNeeded, isMonitoring {
             restartReaderTimers()
         }
     }
@@ -1045,6 +1111,21 @@ public final class WidgetDataManager {
             popupVisibleModules.remove(widgetType)
         }
 
+        // Per-app bandwidth (nettop) runs on its own cadence, only while the
+        // network popover is open.
+        if widgetType == .network {
+            if isVisible {
+                startNetworkTopProcessSampling()
+            } else {
+                stopNetworkTopProcessSampling()
+            }
+        }
+
+        // Weather has no reader timer; refresh on open so the console isn't stale.
+        if widgetType == .weather, isVisible {
+            WeatherService.shared.updateWeather()
+        }
+
         guard isVisible, isMonitoring else { return }
         for reader in monitoringReaders where reader.popupOnly && reader.module == widgetType {
             monitoringQueue.async { [weak self] in
@@ -1054,22 +1135,50 @@ public final class WidgetDataManager {
         }
     }
 
+    // MARK: - Per-App Network Sampling (popup only)
+
+    private func startNetworkTopProcessSampling() {
+        #if !TONIC_STORE
+        guard networkTopProcessTask == nil, NetworkPerProcessSampler.shared.isAvailable else { return }
+        networkTopProcessTask = Task { [weak self] in
+            while !Task.isCancelled {
+                // First nettop pass establishes the baseline (zero rates);
+                // real rates arrive from the second pass onward.
+                let bandwidth = await NetworkPerProcessSampler.shared.sample(limit: 5)
+                let usage = bandwidth
+                    .filter { $0.bytesInPerSecond + $0.bytesOutPerSecond > 0 }
+                    .map {
+                        ProcessNetworkUsage(pid: Int($0.pid), name: $0.name,
+                                            uploadBytes: UInt64($0.bytesOutPerSecond),
+                                            downloadBytes: UInt64($0.bytesInPerSecond))
+                    }
+                await MainActor.run { [weak self] in
+                    self?.networkTopProcesses = usage.isEmpty ? nil : usage
+                }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+        }
+        #endif
+    }
+
+    private func stopNetworkTopProcessSampling() {
+        networkTopProcessTask?.cancel()
+        networkTopProcessTask = nil
+        networkTopProcesses = nil
+    }
+
     // MARK: - Reader Scheduling
 
     private var monitoringReaders: [MonitoringReader] {
         [
             MonitoringReader(id: "CPU.load", module: .cpu, intervalKey: "CPU_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateCPUData() },
-            MonitoringReader(id: "CPU.processes", module: .cpu, intervalKey: "CPU_updateTopInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateTopCPUApps() },
-
             MonitoringReader(id: "RAM.load", module: .memory, intervalKey: "RAM_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateMemoryData() },
-            MonitoringReader(id: "RAM.processes", module: .memory, intervalKey: "RAM_updateTopInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateTopMemoryApps() },
-
             MonitoringReader(id: "Disk.load", module: .disk, intervalKey: "Disk_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateDiskData() },
             MonitoringReader(id: "Net.load", module: .network, intervalKey: "Net_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateNetworkData() },
-            MonitoringReader(id: "GPU.load", module: .gpu, intervalKey: "GPU_updateInterval", defaultInterval: 1.0, popupOnly: false) { $0.updateGPUData() },
-            MonitoringReader(id: "Battery.load", module: .battery, intervalKey: "Battery_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateBatteryData() },
-            MonitoringReader(id: "Sensors.load", module: .sensors, intervalKey: "Sensors_updateInterval", defaultInterval: 2.0, popupOnly: false) { $0.updateSensorsData() },
-            MonitoringReader(id: "Bluetooth.load", module: .bluetooth, intervalKey: "Bluetooth_updateInterval", defaultInterval: bluetoothUpdateInterval, popupOnly: false) { $0.updateBluetoothData() }
+            MonitoringReader(id: "GPU.load", module: .gpu, intervalKey: "GPU_updateInterval", defaultInterval: 1.0, popupOnly: true) { $0.updateGPUData() },
+            MonitoringReader(id: "Battery.load", module: .battery, intervalKey: "Battery_updateInterval", defaultInterval: 2.0, popupOnly: true) { $0.updateBatteryData() },
+            MonitoringReader(id: "Sensors.load", module: .sensors, intervalKey: "Sensors_updateInterval", defaultInterval: 2.0, popupOnly: true) { $0.updateSensorsData() },
+            MonitoringReader(id: "Bluetooth.load", module: .bluetooth, intervalKey: "Bluetooth_updateInterval", defaultInterval: bluetoothUpdateInterval, popupOnly: true) { $0.updateBluetoothData() }
         ]
     }
 
@@ -1107,6 +1216,10 @@ public final class WidgetDataManager {
     }
 
     private func moduleInterval(reader: MonitoringReader) -> TimeInterval {
+        if let preferred = preferredModuleIntervals[reader.module], preferred >= 0.5 {
+            return preferred
+        }
+
         let stored = UserDefaults.standard.double(forKey: reader.intervalKey)
         if stored >= 0.5 {
             return stored
@@ -1126,6 +1239,7 @@ public final class WidgetDataManager {
         case .bluetooth: return "Bluetooth_updateInterval"
         case .clock: return "Clock_updateInterval"
         case .weather: return "Weather_updateInterval"
+        case .tonic: return "Tonic_updateInterval"
         }
     }
 
@@ -1133,33 +1247,53 @@ public final class WidgetDataManager {
         .milliseconds(max(250, Int(seconds * 1000)))
     }
 
+    private func isLiveSampleStale(now: Date = Date()) -> Bool {
+        let threshold = maxRequiredLiveReaderInterval() * 2
+        if let lastLiveSampleAt {
+            return now.timeIntervalSince(lastLiveSampleAt) > threshold
+        }
+        if let lastMonitoringStartAt {
+            return now.timeIntervalSince(lastMonitoringStartAt) > threshold
+        }
+        return true
+    }
+
+    private func maxRequiredLiveReaderInterval() -> TimeInterval {
+        let requiredReaders = monitoringReaders.filter { requiredLiveReaderIDs.contains($0.id) }
+        let maxInterval = requiredReaders
+            .map { moduleInterval(reader: $0) }
+            .max() ?? 1.0
+        return max(1.0, maxInterval)
+    }
+
+    private func markLiveMetricSampleReceived(at date: Date = Date()) {
+        hasLiveMetricSample = true
+        lastLiveSampleAt = date
+    }
+
     // MARK: - CPU Monitoring
 
     private func updateCPUData() {
-        // Fetch data on background thread
-        let usage = getCPUUsage()
-        let perCore = getPerCoreCPUUsage()
+        let usageSnapshot = getCPUUsageSnapshot()
+        let perCore = usageSnapshot.perCoreUsage
 
         // Get E/P core usage distribution (Apple Silicon only)
         let (eCores, pCores) = getEPCores(from: perCore)
 
-        // Get enhanced CPU data
-        let (frequency, eCoreFreq, pCoreFreq) = getCPUFrequency()
-        let temperature = getCPUTemperature()
-        let thermalLimit = getThermalLimit()
-        let averageLoad = getAverageLoad()
+        let (frequency, eCoreFreq, pCoreFreq) = getCachedCPUFrequency()
+        let temperature = getCachedCPUTemperature()
+        let thermalLimit = cachedThermalLimit
+        let averageLoad = getCachedAverageLoad()
+        let uptime = getCachedSystemUptime()
+        let (schedulerLimit, speedLimit) = cachedCPUSpeedLimits ?? (nil, nil)
 
-        // Get System/User/Idle split
-        let (systemUsage, userUsage, idleUsage) = getCPUUsageSplit()
-
-        // Get system uptime
-        let uptime = getSystemUptime()
-
-        // Get CPU speed limits from pmset
-        let (schedulerLimit, speedLimit) = getCPUSpeedLimits()
+        // Per-process CPU is popup/detail data; skip the libproc pass otherwise.
+        let topProcesses: [ProcessUsage]? = popupVisibleModules.contains(.cpu)
+            ? ProcessSampler.shared.topByCPU(limit: 3)
+            : nil
 
         let newCPUData = CPUData(
-            totalUsage: usage,
+            totalUsage: usageSnapshot.totalUsage,
             perCoreUsage: perCore,
             eCoreUsage: eCores,
             pCoreUsage: pCores,
@@ -1169,12 +1303,13 @@ public final class WidgetDataManager {
             temperature: temperature,
             thermalLimit: thermalLimit,
             averageLoad: averageLoad,
-            systemUsage: systemUsage,
-            userUsage: userUsage,
-            idleUsage: idleUsage,
+            systemUsage: usageSnapshot.systemUsage,
+            userUsage: usageSnapshot.userUsage,
+            idleUsage: usageSnapshot.idleUsage,
             uptime: uptime,
             schedulerLimit: schedulerLimit,
-            speedLimit: speedLimit
+            speedLimit: speedLimit,
+            topProcesses: topProcesses
         )
 
         // Dispatch property updates to main thread for @Observable
@@ -1182,81 +1317,35 @@ public final class WidgetDataManager {
             guard let self = self else { return }
             self.cpuData = newCPUData
             // Performance optimization: Use circular buffer for O(1) history add
-            self.cpuCircularBuffer.add(usage)
+            self.cpuCircularBuffer.add(usageSnapshot.totalUsage)
             self.cpuHistory = self.cpuCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Check notification thresholds
-            NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usage)
+            NotificationManager.shared.checkThreshold(widgetType: .cpu, value: usageSnapshot.totalUsage)
         }
 
         if isDebugLoggingEnabled {
-            logger.debug("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores)")
-            logToFile("🔵 CPU updated: \(Int(usage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
+            logger.debug("🔵 CPU updated: \(Int(usageSnapshot.totalUsage))% (\(perCore.count) cores)")
+            logToFile("🔵 CPU updated: \(Int(usageSnapshot.totalUsage))% (\(perCore.count) cores), perCore: \(perCore.prefix(3))")
         }
     }
 
-    private func getCPUUsage() -> Double {
-        var _: UInt32 = 0
-        var numCpuInfo: mach_msg_type_number_t = 0
-        var cpuInfo: processor_info_array_t?
-        var numTotalCpu: UInt32 = 0
-
-        let result = host_processor_info(
-            mach_host_self(),
-            PROCESSOR_CPU_LOAD_INFO,
-            &numTotalCpu,
-            &cpuInfo,
-            &numCpuInfo
-        )
-
-        guard result == KERN_SUCCESS else { return 0 }
+    private func getCPUUsageSnapshot() -> CPUUsageSnapshot {
+        guard let current = readCPUCounterSnapshot() else {
+            return .zero(coreCount: previousCPUSnapshot?.cores.count ?? 0)
+        }
 
         cpuLock.lock()
         defer { cpuLock.unlock() }
 
-        var usage = 0.0
-
-        if let prevInfo = previousCPUInfo, previousNumCPUs > 0 {
-            let prevUser = prevInfo[Int(CPU_STATE_USER)]
-            let prevSystem = prevInfo[Int(CPU_STATE_SYSTEM)]
-            let prevIdle = prevInfo[Int(CPU_STATE_IDLE)]
-            let prevNice = prevInfo[Int(CPU_STATE_NICE)]
-
-            let currentUser = cpuInfo?[Int(CPU_STATE_USER)] ?? 0
-            let currentSystem = cpuInfo?[Int(CPU_STATE_SYSTEM)] ?? 0
-            let currentIdle = cpuInfo?[Int(CPU_STATE_IDLE)] ?? 0
-            let currentNice = cpuInfo?[Int(CPU_STATE_NICE)] ?? 0
-
-            let prevTotal = prevUser + prevSystem + prevIdle + prevNice
-            let currentTotal = currentUser + currentSystem + currentIdle + currentNice
-
-            let diffTotal = currentTotal - prevTotal
-            let diffIdle = currentIdle - prevIdle
-
-            if diffTotal > 0 {
-                usage = (1.0 - Double(diffIdle) / Double(diffTotal)) * 100.0
-            }
-        }
-
-        // Store current for next iteration
-        if let prevInfo = previousCPUInfo {
-            vm_deallocate(
-                mach_task_self_,
-                vm_address_t(UInt(bitPattern: prevInfo)),
-                vm_size_t(Int(previousNumCpuInfo) * MemoryLayout<integer_t>.size)
-            )
-        }
-
-        previousCPUInfo = cpuInfo
-        previousNumCpuInfo = numCpuInfo
-        previousNumCPUs = numTotalCpu
-
-        return max(0, min(100, usage))
+        let usage = ResourceMetricCalculators.cpuUsage(previous: previousCPUSnapshot, current: current)
+        previousCPUSnapshot = current
+        return usage
     }
 
-    private func getPerCoreCPUUsage() -> [Double] {
-        var coreUsages: [Double] = []
-        var _: UInt32 = 0
+    private func readCPUCounterSnapshot() -> CPUCounterSnapshot? {
         var numCpuInfo: mach_msg_type_number_t = 0
         var cpuInfo: processor_info_array_t?
         var numTotalCpu: UInt32 = 0
@@ -1270,24 +1359,30 @@ public final class WidgetDataManager {
         )
 
         guard result == KERN_SUCCESS, let info = cpuInfo else {
-            return []
+            return nil
+        }
+        defer {
+            vm_deallocate(
+                mach_task_self_,
+                vm_address_t(UInt(bitPattern: info)),
+                vm_size_t(Int(numCpuInfo) * MemoryLayout<integer_t>.size)
+            )
         }
 
-        let CPU_STATE_MAX = 4
+        let cpuStateCount = 4
+        var cores: [CPUCounterSnapshot.Core] = []
+        cores.reserveCapacity(Int(numTotalCpu))
         for i in 0..<Int(numTotalCpu) {
-            let base = i * Int(CPU_STATE_MAX)
-
-            let user = UInt32(info[base + Int(CPU_STATE_USER)])
-            let system = UInt32(info[base + Int(CPU_STATE_SYSTEM)])
-            let idle = UInt32(info[base + Int(CPU_STATE_IDLE)])
-            let nice = UInt32(info[base + Int(CPU_STATE_NICE)])
-
-            let total = user + system + idle + nice
-            let usage = total > 0 ? Double(user + system) / Double(total) * 100.0 : 0.0
-            coreUsages.append(max(0, min(100, usage)))
+            let base = i * cpuStateCount
+            cores.append(CPUCounterSnapshot.Core(
+                user: UInt64(info[base + Int(CPU_STATE_USER)]),
+                system: UInt64(info[base + Int(CPU_STATE_SYSTEM)]),
+                idle: UInt64(info[base + Int(CPU_STATE_IDLE)]),
+                nice: UInt64(info[base + Int(CPU_STATE_NICE)])
+            ))
         }
 
-        return coreUsages
+        return CPUCounterSnapshot(cores: cores)
     }
 
     // MARK: - Enhanced CPU Readers
@@ -1334,7 +1429,7 @@ public final class WidgetDataManager {
     /// Split per-core usage into E and P core arrays
     private func getEPCores(from perCoreUsage: [Double]) -> (eCores: [Double]?, pCores: [Double]?) {
         #if arch(arm64)
-        guard let config = getCPUCoreConfig() else {
+        guard let config = getCachedCPUCoreConfig() else {
             return (nil, nil)
         }
 
@@ -1351,6 +1446,83 @@ public final class WidgetDataManager {
         #else
         return (nil, nil)
         #endif
+    }
+
+    private func getCachedCPUCoreConfig() -> (eCoreCount: Int, pCoreCount: Int)? {
+        if let lastFetch = lastCPUCoreConfigFetch,
+           Date().timeIntervalSince(lastFetch) < 30 {
+            return cachedCPUCoreConfig
+        }
+
+        cachedCPUCoreConfig = getCPUCoreConfig()
+        lastCPUCoreConfigFetch = Date()
+        return cachedCPUCoreConfig
+    }
+
+    private func getCachedCPUFrequency() -> (Double?, Double?, Double?) {
+        if let lastFetch = lastCPUFrequencyFetch,
+           Date().timeIntervalSince(lastFetch) < 30,
+           let cached = cachedCPUFrequency {
+            return cached
+        }
+
+        let value = getCPUFrequency()
+        cachedCPUFrequency = value
+        lastCPUFrequencyFetch = Date()
+        return value
+    }
+
+    private func getCachedCPUTemperature() -> Double? {
+        if let lastFetch = lastCPUTemperatureFetch,
+           Date().timeIntervalSince(lastFetch) < 2 {
+            return cachedCPUTemperature
+        }
+
+        cachedCPUTemperature = getThermalStateTemperature()
+        lastCPUTemperatureFetch = Date()
+        return cachedCPUTemperature
+    }
+
+    private func getCachedThermalLimit() -> Bool? {
+        refreshCPUThermalCacheIfNeeded()
+        return cachedThermalLimit
+    }
+
+    private func getCachedCPUSpeedLimits() -> (schedulerLimit: Double?, speedLimit: Double?) {
+        refreshCPUThermalCacheIfNeeded()
+        return cachedCPUSpeedLimits ?? (nil, nil)
+    }
+
+    private func refreshCPUThermalCacheIfNeeded() {
+        if let lastFetch = lastCPUThermalFetch,
+           Date().timeIntervalSince(lastFetch) < 10 {
+            return
+        }
+
+        cachedThermalLimit = getThermalLimit()
+        cachedCPUSpeedLimits = getCPUSpeedLimits()
+        lastCPUThermalFetch = Date()
+    }
+
+    private func getCachedAverageLoad() -> [Double]? {
+        refreshCPULoadCacheIfNeeded()
+        return cachedAverageLoad
+    }
+
+    private func getCachedSystemUptime() -> TimeInterval {
+        refreshCPULoadCacheIfNeeded()
+        return cachedUptime
+    }
+
+    private func refreshCPULoadCacheIfNeeded() {
+        if let lastFetch = lastCPULoadFetch,
+           Date().timeIntervalSince(lastFetch) < 5 {
+            return
+        }
+
+        cachedAverageLoad = getAverageLoad()
+        cachedUptime = getSystemUptime()
+        lastCPULoadFetch = Date()
     }
 
     /// Get current CPU frequency in GHz
@@ -1554,87 +1726,10 @@ public final class WidgetDataManager {
 
     /// Get average load (1, 5, 15 minute averages)
     private func getAverageLoad() -> [Double]? {
-        let task = Process()
-        task.launchPath = "/usr/bin/uptime"
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8),
-                  let line = output.split(separator: "\n").first else {
-                return nil
-            }
-
-            // Parse load averages from uptime output
-            // Format: "load averages: 0.5 0.3 0.1" or "load average: 0.50, 0.30, 0.10"
-            if let range = line.range(of: "load average")?.upperBound ?? line.range(of: "load averages")?.upperBound {
-                let loadString = String(line[range...])
-                let components = loadString.components(separatedBy: CharacterSet(charactersIn: " ,"))
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-                    .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
-
-                if components.count >= 3 {
-                    return Array(components.prefix(3))
-                }
-            }
-        } catch {
-            logger.warning("Failed to get average load: \(error.localizedDescription)")
-        }
-
-        return nil
-    }
-
-    /// Get CPU usage split (System, User, Idle percentages)
-    private func getCPUUsageSplit() -> (system: Double, user: Double, idle: Double) {
-        // Use host_processor_info to get CPU load info
-        var numCpuInfo: mach_msg_type_number_t = 0
-        var cpuInfo: processor_info_array_t?
-        var numTotalCpu: UInt32 = 0
-
-        let result = host_processor_info(
-            mach_host_self(),
-            PROCESSOR_CPU_LOAD_INFO,
-            &numTotalCpu,
-            &cpuInfo,
-            &numCpuInfo
-        )
-
-        guard result == KERN_SUCCESS, let info = cpuInfo else {
-            return (0, 0, 100)
-        }
-
-        // Sum up all the ticks from all cores
-        var totalUserTicks: UInt64 = 0
-        var totalSystemTicks: UInt64 = 0
-        var totalIdleTicks: UInt64 = 0
-        var totalNiceTicks: UInt64 = 0
-
-        let CPU_STATE_MAX = 4
-        for i in 0..<Int(numTotalCpu) {
-            let base = i * Int(CPU_STATE_MAX)
-            totalUserTicks += UInt64(info[base + Int(CPU_STATE_USER)])
-            totalSystemTicks += UInt64(info[base + Int(CPU_STATE_SYSTEM)])
-            totalIdleTicks += UInt64(info[base + Int(CPU_STATE_IDLE)])
-            totalNiceTicks += UInt64(info[base + Int(CPU_STATE_NICE)])
-        }
-
-        let totalTicks = totalUserTicks + totalSystemTicks + totalIdleTicks + totalNiceTicks
-
-        guard totalTicks > 0 else {
-            return (0, 0, 100)
-        }
-
-        let user = (Double(totalUserTicks + totalNiceTicks) / Double(totalTicks)) * 100.0
-        let system = (Double(totalSystemTicks) / Double(totalTicks)) * 100.0
-        let idle = (Double(totalIdleTicks) / Double(totalTicks)) * 100.0
-
-        return (system, user, idle)
+        var loads = [Double](repeating: 0, count: 3)
+        let count = getloadavg(&loads, Int32(loads.count))
+        guard count == Int32(loads.count) else { return nil }
+        return loads
     }
 
     /// Get system uptime in seconds (time since boot)
@@ -1706,8 +1801,9 @@ public final class WidgetDataManager {
         // Calculate pressure value on 0-100 scale using kernel level
         let pressureValue = getMemoryPressureValue(level: pressureLevel, freePercentage: freePercentage)
 
-        // Get top memory processes (async - we'll use cached value)
-        let topProcesses = getTopMemoryProcesses()
+        // Real top-memory processes via libproc (~ms per pass). Previously
+        // hardcoded nil, which left every popover's process list empty.
+        let topProcesses: [AppResourceUsage]? = ProcessSampler.shared.topByMemory(limit: 5)
 
         let swapBytes = swapUsed ?? 0
 
@@ -1731,6 +1827,8 @@ public final class WidgetDataManager {
             // Performance optimization: Use circular buffer for O(1) history add
             self.memoryCircularBuffer.add(newMemoryData.usagePercentage)
             self.memoryHistory = self.memoryCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Check notification thresholds
             NotificationManager.shared.checkThreshold(widgetType: .memory, value: newMemoryData.usagePercentage)
@@ -1811,240 +1909,6 @@ public final class WidgetDataManager {
         }
     }
 
-    /// Get top memory-consuming processes using top command (Stats Master pattern)
-    /// Uses cached result to avoid frequent process spawning
-    /// Returns [AppResourceUsage] to integrate with existing UI components
-    private func getTopMemoryProcesses(limit: Int = 8) -> [AppResourceUsage]? {
-        // Use a simple cache to avoid spawning commands too frequently
-        let now = Date()
-        if let cachedDate = lastProcessFetchDate,
-           now.timeIntervalSince(cachedDate) < 2.0,
-           let cached = cachedTopProcesses {
-            return cached
-        }
-
-        // Use top command following Stats Master pattern
-        // top -l 1 -o mem -n <limit> -stats pid,command,mem
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/top")
-        task.arguments = ["-l", "1", "-o", "mem", "-n", "\(limit)", "-stats", "pid,command,mem"]
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        task.standardOutput = outputPipe
-        task.standardError = errorPipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8),
-                  task.terminationStatus == 0 else {
-                return nil
-            }
-
-            let processes = parseTopOutput(output, limit: limit)
-            lastProcessFetchDate = now
-            cachedTopProcesses = processes
-            return processes
-        } catch {
-            return nil
-        }
-    }
-
-    /// Parse top command output to extract process info
-    /// Stats Master pattern: matches lines like "12345* processname 100M"
-    private func parseTopOutput(_ output: String, limit: Int) -> [AppResourceUsage]? {
-        var processes: [AppResourceUsage] = []
-
-        output.enumerateLines { line, stop in
-            // Skip non-process lines (headers, stats, etc.)
-            guard self.lineMatchesProcessPattern(line) else { return }
-
-            if let process = self.parseProcessLine(line) {
-                processes.append(process)
-            }
-
-            if processes.count >= limit {
-                stop = true
-            }
-        }
-
-        return processes.isEmpty ? nil : processes
-    }
-
-    /// Check if line matches the process output pattern
-    /// Pattern: starts with digits (PID), ends with memory size (digits followed by K/M/G)
-    private func lineMatchesProcessPattern(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return false }
-
-        // Check if line starts with a number (PID)
-        guard let firstChar = trimmed.first, firstChar.isNumber else { return false }
-
-        // Check if line ends with memory size pattern (digits + optional suffix)
-        let pattern = "\\d+[KMG]?\\+?\\-?\\s*$"
-        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-            let range = NSRange(location: 0, length: trimmed.utf16.count)
-            return regex.firstMatch(in: trimmed, options: [], range: range) != nil
-        }
-
-        return false
-    }
-
-    /// Parse a single process line from top output
-    /// Format: "PID[*] COMMAND MEM" where MEM is like "100M", "1G", "500K"
-    private func parseProcessLine(_ line: String) -> AppResourceUsage? {
-        var str = line.trimmingCharacters(in: .whitespaces)
-
-        // Extract PID (first numeric sequence)
-        guard let pidMatch = str.range(of: "^\\d+", options: .regularExpression) else { return nil }
-        let pidString = String(str[pidMatch])
-        guard let pid = Int32(pidString) else { return nil }
-
-        // Remove PID and any asterisk marker
-        str = String(str[pidMatch.upperBound...]).trimmingCharacters(in: .whitespaces)
-        if str.hasPrefix("*") {
-            str = String(str.dropFirst()).trimmingCharacters(in: .whitespaces)
-        }
-
-        // Split remaining into parts
-        var parts = str.split(separator: " ", omittingEmptySubsequences: true)
-        guard parts.count >= 2 else { return nil }
-
-        // Last part is memory usage
-        let memString = String(parts.removeLast())
-
-        // Remaining parts form the command name
-        let command = parts.joined(separator: " ")
-            .trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: " +", with: "", options: .regularExpression)
-            .replacingOccurrences(of: " -", with: "", options: .regularExpression)
-
-        // Parse memory value (convert to bytes)
-        let memoryBytes = parseMemoryString(memString)
-
-        // Try to get app name from NSRunningApplication
-        var name = command
-        if let app = NSRunningApplication(processIdentifier: pid),
-           let appName = app.localizedName {
-            name = appName
-        }
-
-        // Try to get app icon
-        let appIcon = getAppIconForProcess(pid: pid, name: name)
-        let bundleId = getBundleIdentifier(for: name)
-
-        return AppResourceUsage(
-            name: name.isEmpty ? "Unknown" : name,
-            bundleIdentifier: bundleId,
-            icon: appIcon,
-            cpuUsage: 0,
-            memoryBytes: memoryBytes
-        )
-    }
-
-    /// Parse memory string like "100M", "1G", "500K" to bytes
-    private func parseMemoryString(_ str: String) -> UInt64 {
-        let cleaned = str.trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: "+", with: "")
-            .replacingOccurrences(of: "-", with: "")
-
-        guard !cleaned.isEmpty else { return 0 }
-
-        // Get last character and check if it's a unit suffix
-        guard let lastCharacter = cleaned.last else { return 0 }
-        let lastChar = lastCharacter.uppercased()
-
-        // Determine if last character is numeric or a unit suffix
-        let hasUnitSuffix = !lastCharacter.isNumber
-        let numericString: String
-        if hasUnitSuffix {
-            numericString = String(cleaned.dropLast())
-        } else {
-            numericString = cleaned
-        }
-
-        guard let value = Double(numericString) else { return 0 }
-
-        if hasUnitSuffix {
-            switch lastChar {
-            case "G":
-                return UInt64(value * 1024 * 1024 * 1024)
-            case "M":
-                return UInt64(value * 1024 * 1024)
-            case "K":
-                return UInt64(value * 1024)
-            default:
-                // Unknown suffix, assume megabytes
-                return UInt64(value * 1024 * 1024)
-            }
-        } else {
-            // No suffix, assume megabytes (top default)
-            return UInt64(value * 1024 * 1024)
-        }
-    }
-
-    /// Get app icon for a process by PID
-    private func getAppIconForProcess(pid: Int32, name: String) -> NSImage? {
-        // Try to get the app's bundle from the process
-        var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
-        let result = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
-
-        guard result > 0 else { return nil }
-        let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-
-        // Check if this is an app bundle
-        if path.contains(".app/") {
-            if let appPath = path.components(separatedBy: ".app/").first?.appending(".app"),
-               let bundle = Bundle(path: appPath) {
-                // Try to get the app icon from Info.plist
-                if let iconFile = bundle.infoDictionary?["CFBundleIconFile"] as? String,
-                   let iconPath = bundle.path(forResource: iconFile.replacingOccurrences(of: ".icns", with: ""), ofType: "icns") {
-                    return NSImage(contentsOfFile: iconPath)
-                }
-            }
-        }
-
-        return nil
-    }
-
-    /// Get bundle identifier for a process name
-    private func getBundleIdentifier(for name: String) -> String? {
-        // Common apps bundle identifiers
-        let knownApps: [String: String] = [
-            "Safari": "com.apple.Safari",
-            "Finder": "com.apple.finder",
-            "Activity Monitor": "com.apple.ActivityMonitor",
-            "Calendar": "com.apple.iCal",
-            "Mail": "com.apple.Mail",
-            "Messages": "com.apple.iChat",
-            "Music": "com.apple.Music",
-            "Photos": "com.apple.Photos",
-            "Notes": "com.apple.Notes",
-            "Reminders": "com.apple.Reminders",
-            "Terminal": "com.apple.Terminal",
-            "Xcode": "com.apple.dt.Xcode",
-            "Firefox": "org.mozilla.firefox",
-            "Chrome": "com.google.Chrome",
-            "Chrome Renderer": "com.google.Chrome",
-            "Chrome Helper": "com.google.Chrome.helper",
-            "Slack": "com.tinyspeck.slackmacgap",
-            "Discord": "com.hnc.Discord",
-            "Zoom": "us.zoom.xos",
-            "Visual Studio Code": "com.microsoft.VSCode",
-            "Atom": "com.github.atom",
-            "Sublime Text": "com.sublimetext.3",
-            "iTunes": "com.apple.iTunes",
-            "TV": "com.apple.TV",
-            "News": "com.apple.News",
-            "FaceTime": "com.apple.FaceTime"
-        ]
-
-        return knownApps[name]
-    }
-
     // MARK: - Disk Monitoring
 
     private func updateDiskData() {
@@ -2062,11 +1926,12 @@ public final class WidgetDataManager {
         // Get enhanced disk stats (IOPS, activity rates)
         let (readIOPS, writeIOPS, readBps, writeBps, readTime, writeTime) = getDiskIORates()
 
-        // Get SMART data for the boot volume (typically NVMe on modern Macs)
-        let bootVolumeSMART = getNVMeSMARTData()
-
-        // Get top disk I/O processes
-        let topDiskProcesses = getTopDiskProcesses()
+        // Keep live disk sampling cheap; SMART stays popup/detail data.
+        let bootVolumeSMART: NVMeSMARTData? = nil
+        // Per-process disk I/O only while the disk popover is open.
+        let topDiskProcesses: [ProcessUsage]? = popupVisibleModules.contains(.disk)
+            ? ProcessSampler.shared.topByDiskIO(limit: 3)
+            : nil
 
         if let volumesURLs = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys) {
             for url in volumesURLs {
@@ -2126,14 +1991,13 @@ public final class WidgetDataManager {
                 self.diskCircularBuffer.add(primaryVolume.usagePercentage)
                 self.diskHistory = self.diskCircularBuffer.toArray()
 
-                // Track read/write rate history for PerDiskContainer charts
-                // Use MB/s for history tracking (normalized values)
-                let readMBps = (primaryVolume.readBytesPerSecond ?? 0) / (1024 * 1024)
-                let writeMBps = (primaryVolume.writeBytesPerSecond ?? 0) / (1024 * 1024)
-                self.diskReadCircularBuffer.add(readMBps)
-                self.diskWriteCircularBuffer.add(writeMBps)
+                // Track read/write rate history in bytes/sec; formatting belongs at the UI boundary.
+                self.diskReadCircularBuffer.add(primaryVolume.readBytesPerSecond ?? 0)
+                self.diskWriteCircularBuffer.add(primaryVolume.writeBytesPerSecond ?? 0)
                 self.diskReadHistory = self.diskReadCircularBuffer.toArray()
                 self.diskWriteHistory = self.diskWriteCircularBuffer.toArray()
+                self.markLiveMetricSampleReceived()
+                self.recordResourceHistorySample()
 
                 NotificationManager.shared.checkThreshold(widgetType: .disk, value: primaryVolume.usagePercentage)
             }
@@ -2429,92 +2293,6 @@ public final class WidgetDataManager {
         }
     }
 
-    /// Get top processes by disk I/O usage
-    /// Uses proc_pid_rusage to get per-process disk statistics
-    private func getTopDiskProcesses(limit: Int = 8) -> [ProcessUsage]? {
-        var processes: [ProcessUsage] = []
-
-        // Get list of all PIDs
-        var pids: [Int32] = []
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["-ax", "-o", "pid"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else {
-                return nil
-            }
-
-            // Parse PIDs (skip header)
-            for line in output.components(separatedBy: "\n").dropFirst() {
-                guard let pid = Int32(line.trimmingCharacters(in: .whitespaces)), pid > 0 else {
-                    continue
-                }
-                pids.append(pid)
-            }
-        } catch {
-            return nil
-        }
-
-        // Get disk I/O stats for each PID using proc_pid_rusage
-        for pid in pids {
-            var rusage = rusage_info_v2()
-            let result = proc_pid_rusage(pid, RUSAGE_INFO_V2, &rusage)
-
-            guard result == 0 else {
-                continue
-            }
-
-            // Only include processes with actual disk I/O
-            guard rusage.ri_diskio_bytesread > 0 || rusage.ri_diskio_byteswritten > 0 else {
-                continue
-            }
-
-            // Get process name
-            var pathBuffer = [Int8](repeating: 0, count: Int(MAXPATHLEN))
-            let pathResult = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
-
-            guard pathResult > 0 else { continue }
-            let path = String(decodingCString: pathBuffer.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-
-            let processName = (path as NSString).lastPathComponent
-
-            // Get icon if possible
-            let _ = getAppIconForProcess(pid: pid, name: processName)
-
-            processes.append(ProcessUsage(
-                id: pid,
-                name: processName,
-                iconData: nil, // Will be set later if needed
-                cpuUsage: nil,
-                memoryUsage: nil,
-                diskReadBytes: rusage.ri_diskio_bytesread,
-                diskWriteBytes: rusage.ri_diskio_byteswritten
-            ))
-        }
-
-        // Sort by total disk I/O (read + write)
-        processes.sort { (p1, p2) -> Bool in
-            let p1Total = (p1.diskReadBytes ?? 0) + (p1.diskWriteBytes ?? 0)
-            let p2Total = (p2.diskReadBytes ?? 0) + (p2.diskWriteBytes ?? 0)
-            return p1Total > p2Total
-        }
-
-        // Take top N processes and add icons
-        let topProcesses = Array(processes.prefix(limit))
-        return topProcesses.map { process in
-            let icon = getAppIconForProcess(pid: process.id, name: process.name)
-            return process.withIcon(icon)
-        }
-    }
-
     // MARK: - Network Monitoring
 
     private func startNetworkPathMonitor() {
@@ -2578,20 +2356,22 @@ public final class WidgetDataManager {
 
         lastNetworkStats = (upload: stats.bytesOut, download: stats.bytesIn, timestamp: now)
 
-        // Get connection info
-        let connectionType = getConnectionType()
-        let ssid = getWiFiSSID()
-        let ipAddress = getLocalIPAddress()
+        let previousNetworkData = networkData
 
-        // Get enhanced network data (cached/throttled)
-        let wifiDetails = getWiFiDetails()
-        let publicIP = getPublicIP()
+        // Keep live network sampling to cheap byte counters. Wi-Fi metadata uses
+        // synchronous CoreWLAN XPC calls, so preserve cached values on this path.
+        let connectionType: ConnectionType = isConnected ? previousNetworkData.connectionType : .disconnected
+        let ssid = previousNetworkData.ssid
+        let ipAddress = previousNetworkData.ipAddress ?? getLocalIPAddress()
+        let wifiDetails = previousNetworkData.wifiDetails
+        let publicIP = previousNetworkData.publicIP
         let connectivity = getConnectivityInfo()
-        let topProcesses = getTopNetworkProcesses()
-        let interfaceName = getPrimaryInterfaceName()
-        let macAddress = interfaceName.flatMap { getMACAddress(for: $0) }
-        let linkSpeed = getLinkSpeedMbps(interfaceName: interfaceName)
-        let dnsServers = getDNSServers()
+        // Per-process network usage comes from the popup-only nettop task.
+        let topProcesses: [ProcessNetworkUsage]? = networkTopProcesses
+        let interfaceName = previousNetworkData.interfaceName
+        let macAddress = previousNetworkData.macAddress
+        let linkSpeed = previousNetworkData.linkSpeedMbps
+        let dnsServers = previousNetworkData.dnsServers
 
         let newNetworkData = NetworkData(
             uploadBytesPerSecond: max(0, uploadRate),
@@ -2616,10 +2396,12 @@ public final class WidgetDataManager {
             self.networkData = newNetworkData
 
             // Performance optimization: Use circular buffers for O(1) history add
-            self.networkUploadCircularBuffer.add(uploadRate / 1024) // KB/s
-            self.networkDownloadCircularBuffer.add(downloadRate / 1024)
+            self.networkUploadCircularBuffer.add(uploadRate)
+            self.networkDownloadCircularBuffer.add(downloadRate)
             self.networkUploadHistory = self.networkUploadCircularBuffer.toArray()
             self.networkDownloadHistory = self.networkDownloadCircularBuffer.toArray()
+            self.markLiveMetricSampleReceived()
+            self.recordResourceHistorySample()
 
             // Update cumulative totals (for Details section)
             self.totalUploadBytes += Int64(uploadDeltaBytes)
@@ -2638,8 +2420,11 @@ public final class WidgetDataManager {
     }
 
     private func getNetworkStats() -> NetworkStats {
-        var totalBytesIn: UInt64 = 0
-        var totalBytesOut: UInt64 = 0
+        var activeBytesIn: UInt64 = 0
+        var activeBytesOut: UInt64 = 0
+        var fallbackBytesIn: UInt64 = 0
+        var fallbackBytesOut: UInt64 = 0
+        let interfaceNames = interfaceNamesByIndex()
 
         // mib array: CTL_NET, PF_ROUTE, 0 (protocol), 0 (address family - all), NET_RT_IFLIST2, 0 (interface index - all)
         var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
@@ -2670,15 +2455,62 @@ public final class WidgetDataManager {
 
                 if Int32(ifm.ifm_type) == RTM_IFINFO2 {
                     // The if_data64 is embedded in if_msghdr2 as ifm_data
-                    totalBytesIn += ifm.ifm_data.ifi_ibytes
-                    totalBytesOut += ifm.ifm_data.ifi_obytes
+                    let name = interfaceNames[UInt32(ifm.ifm_index)]
+                    let isLoopback = (Int32(ifm.ifm_flags) & IFF_LOOPBACK) != 0
+                    let isUp = (Int32(ifm.ifm_flags) & IFF_UP) != 0
+                    let isVirtual = name.map(isVirtualNetworkInterface) ?? false
+
+                    if !isLoopback {
+                        fallbackBytesIn += ifm.ifm_data.ifi_ibytes
+                        fallbackBytesOut += ifm.ifm_data.ifi_obytes
+                    }
+
+                    if isUp && !isLoopback && !isVirtual {
+                        activeBytesIn += ifm.ifm_data.ifi_ibytes
+                        activeBytesOut += ifm.ifm_data.ifi_obytes
+                    }
                 }
 
                 offset += Int(ifm.ifm_msglen)
             }
         }
 
-        return NetworkStats(bytesIn: totalBytesIn, bytesOut: totalBytesOut)
+        if activeBytesIn > 0 || activeBytesOut > 0 {
+            return NetworkStats(bytesIn: activeBytesIn, bytesOut: activeBytesOut)
+        }
+        return NetworkStats(bytesIn: fallbackBytesIn, bytesOut: fallbackBytesOut)
+    }
+
+    private func interfaceNamesByIndex() -> [UInt32: String] {
+        var names: [UInt32: String] = [:]
+        var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrPtr) == 0, let firstAddr = ifaddrPtr else {
+            return names
+        }
+        defer { freeifaddrs(ifaddrPtr) }
+
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
+        while let current = ptr {
+            if let ifaName = current.pointee.ifa_name,
+               let addr = current.pointee.ifa_addr,
+               addr.pointee.sa_family == UInt8(AF_LINK) {
+                let name = String(cString: ifaName)
+                let sdl = UnsafeRawPointer(addr).assumingMemoryBound(to: sockaddr_dl.self).pointee
+                if sdl.sdl_index > 0 {
+                    names[UInt32(sdl.sdl_index)] = name
+                }
+            }
+            ptr = current.pointee.ifa_next
+        }
+        return names
+    }
+
+    private func isVirtualNetworkInterface(_ name: String) -> Bool {
+        let virtualPrefixes = [
+            "lo", "utun", "awdl", "llw", "bridge", "gif", "stf",
+            "p2p", "vmenet", "vmnet", "ipsec", "ap"
+        ]
+        return virtualPrefixes.contains { name.hasPrefix($0) }
     }
 
     private func getConnectionType() -> ConnectionType {
@@ -2902,6 +2734,8 @@ public final class WidgetDataManager {
             return "802.11ac"
         case .mode11ax:
             return "802.11ax"
+        case .mode11be:
+            return "802.11be"
         case .modeNone:
             return "Unknown"
         @unknown default:
@@ -3070,33 +2904,49 @@ public final class WidgetDataManager {
     private func getConnectivityInfo() -> ConnectivityInfo? {
         let now = Date()
 
-        // Only check connectivity every 30 seconds to avoid excessive pings
         if let lastCheck = lastConnectivityCheck,
            now.timeIntervalSince(lastCheck) < connectivityCheckInterval {
             return cachedConnectivity
         }
 
-        lastConnectivityCheck = now
-
-        // Perform ping test to 8.8.8.8 (Google DNS)
-        let pingResults = performPingTest(host: "8.8.8.8", count: 5)
-
-        guard let avgLatency = pingResults.average, !pingResults.latencies.isEmpty else {
-            let info = ConnectivityInfo(latency: 0, jitter: 0, isReachable: false)
-            cachedConnectivity = info
-            return info
-        }
-
-        // Calculate jitter (standard deviation of latencies)
-        let jitter = calculateJitter(latencies: pingResults.latencies)
-
-        let info = ConnectivityInfo(
-            latency: avgLatency,
-            jitter: jitter,
-            isReachable: pingResults.isReachable
+        scheduleConnectivityRefreshIfNeeded(startedAt: now)
+        return cachedConnectivity ?? ConnectivityInfo(
+            latency: 0,
+            jitter: 0,
+            isReachable: networkReachable ?? true,
+            timestamp: now
         )
-        cachedConnectivity = info
-        return info
+    }
+
+    private func scheduleConnectivityRefreshIfNeeded(startedAt now: Date) {
+        guard !connectivityRefreshInFlight else { return }
+        connectivityRefreshInFlight = true
+        lastConnectivityCheck = now
+        let fallbackReachable = networkReachable ?? false
+
+        connectivityQueue.async { [weak self] in
+            guard let self = self else { return }
+            let pingResults = Self.performPingTest(host: "8.8.8.8", count: 2)
+            let info: ConnectivityInfo
+            if let avgLatency = pingResults.average, !pingResults.latencies.isEmpty {
+                info = ConnectivityInfo(
+                    latency: avgLatency,
+                    jitter: Self.calculateJitter(latencies: pingResults.latencies),
+                    isReachable: pingResults.isReachable
+                )
+            } else {
+                info = ConnectivityInfo(
+                    latency: 0,
+                    jitter: 0,
+                    isReachable: fallbackReachable
+                )
+            }
+
+            Task { @MainActor [weak self] in
+                self?.cachedConnectivity = info
+                self?.connectivityRefreshInFlight = false
+            }
+        }
     }
 
     /// Get DNS server list using SystemConfiguration (cached)
@@ -3183,7 +3033,7 @@ public final class WidgetDataManager {
     }
 
     /// Perform ICMP ping test to a host
-    private func performPingTest(host: String, count: Int) -> PingResult {
+    nonisolated private static func performPingTest(host: String, count: Int) -> PingResult {
         var latencies: [Double] = []
 
         // Use ping command with timeout
@@ -3199,10 +3049,18 @@ public final class WidgetDataManager {
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = Pipe()
+        let completion = DispatchSemaphore(value: 0)
+        task.terminationHandler = { _ in
+            completion.signal()
+        }
 
         do {
             try task.run()
-            task.waitUntilExit()
+            let timeout: DispatchTime = .now() + .seconds(3)
+            if completion.wait(timeout: timeout) == .timedOut {
+                task.terminate()
+                return PingResult(latencies: [], isReachable: false, average: nil)
+            }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let output = String(data: data, encoding: .utf8) else {
@@ -3230,152 +3088,17 @@ public final class WidgetDataManager {
             return PingResult(latencies: latencies, isReachable: isReachable, average: average)
 
         } catch {
-            logger.warning("Ping test failed: \(error.localizedDescription)")
             return PingResult(latencies: [], isReachable: false, average: nil)
         }
     }
 
     /// Calculate jitter (standard deviation of latencies)
-    private func calculateJitter(latencies: [Double]) -> Double {
+    nonisolated private static func calculateJitter(latencies: [Double]) -> Double {
         guard latencies.count > 1 else { return 0 }
 
         let avg = latencies.reduce(0, +) / Double(latencies.count)
         let variance = latencies.map { pow($0 - avg, 2) }.reduce(0, +) / Double(latencies.count)
         return sqrt(variance)
-    }
-
-    /// Get top processes by network usage
-    private func getTopNetworkProcesses(limit: Int = 8) -> [ProcessNetworkUsage]? {
-        if let lastFetch = lastNetworkProcessFetch,
-           Date().timeIntervalSince(lastFetch) < networkProcessFetchInterval,
-           let cached = cachedNetworkProcesses {
-            return cached
-        }
-
-        // Use nettop command to get network usage per process
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        task.arguments = [
-            "-P",           // Parseable output
-            "-L", "1",      // Single sample
-            "-n",           // No DNS resolution
-            "-k", "time,interface,state,rx_dupe,rx_ooo,re-tx,rtt_avg,rcvsize,rcvsize_max,tcpi_win_mrcv,tcpi_win_snd,tcpi_rcv_wnd,tcpi_snd_wnd,snd_wnd,snd_wnd_max,tcpi_snd_bwnd,tcpi_rttcur,tcpi_rttcur,srtt,srtt_var,rtt_var,rtt_min,rtt_max,rtt_cnt,rtt_tot,rtt_tot_sec,rx_win,tx_win,tx_win_max,tx_win_una,tx_win_una_max,tx_win_nxt,tx_win_nxt_max,tx_win_cnt,tx_win_cnt_max,tx_win_tot,tx_win_tot_max,tx_win_sec,tx_win_sec_max,tx_win_usec,tx_win_usec_max,tx_win_usec_tot,tx_win_usec_tot_max,tcpi_rcv_oopack,tcpi_rcv_ovpack,tcpi_snd_zerowin,tcpi_rcv_zerowin,tcpi_snd_dupack,tcpi_snd_zerowin_probe,tcpi_rcv_zerowin_probe,tcpi_rexmt_lim,tcpi_rexmt_cnt,tcpi_rexmt_tot,tcpi_rexmt_tot_sec,tcpi_pmtu,tcpi_snd_bwnd_1,tcpi_snd_bwnd_2,tcpi_snd_bwnd_3,tcpi_snd_bwnd_4,tcpi_snd_bwnd_5,tcpi_snd_bwnd_6,tcpi_snd_bwnd_7,tcpi_snd_bwnd_8,tcpi_snd_bwnd_9,tcpi_snd_bwnd_10,tcpi_snd_bwnd_11,tcpi_snd_bwnd_12,tcpi_snd_bwnd_13,tcpi_snd_bwnd_14,tcpi_snd_bwnd_15,tcpi_snd_bwnd_16,tcpi_snd_bwnd_17,tcpi_snd_bwnd_18,tcpi_snd_bwnd_19,tcpi_snd_bwnd_20,tcpi_snd_bwnd_21,tcpi_snd_bwnd_22,tcpi_snd_bwnd_23,tcpi_snd_bwnd_24,tcpi_snd_bwnd_25,tcpi_snd_bwnd_26,tcpi_snd_bwnd_27,tcpi_snd_bwnd_28,tcpi_snd_bwnd_29,tcpi_snd_bwnd_30,tcpi_snd_bwnd_31,tcpi_snd_bwnd_32,tcpi_snd_bwnd_33,tcpi_snd_bwnd_34,tcpi_snd_bwnd_35,tcpi_snd_bwnd_36,tcpi_snd_bwnd_37,tcpi_snd_bwnd_38,tcpi_snd_bwnd_39,tcpi_snd_bwnd_40,tcpi_snd_bwnd_41,tcpi_snd_bwnd_42,tcpi_snd_bwnd_43,tcpi_snd_bwnd_44,tcpi_snd_bwnd_45,tcpi_snd_bwnd_46,tcpi_snd_bwnd_47,tcpi_snd_bwnd_48,tcpi_snd_bwnd_49,tcpi_snd_bwnd_50,tcpi_snd_bwnd_51,tcpi_snd_bwnd_52,tcpi_snd_bwnd_53,tcpi_snd_bwnd_54,tcpi_snd_bwnd_55,tcpi_snd_bwnd_56,tcpi_snd_bwnd_57,tcpi_snd_bwnd_58,tcpi_snd_bwnd_59,tcpi_snd_bwnd_60,tcpi_snd_bwnd_61,tcpi_snd_bwnd_62,tcpi_snd_bwnd_63,tcpi_snd_bwnd_64,tcpi_snd_bwnd_65,tcpi_snd_bwnd_66,tcpi_snd_bwnd_67,tcpi_snd_bwnd_68,tcpi_snd_bwnd_69,tcpi_snd_bwnd_70,tcpi_snd_bwnd_71,tcpi_snd_bwnd_72,tcpi_snd_bwnd_73,tcpi_snd_bwnd_74,tcpi_snd_bwnd_75,tcpi_snd_bwnd_76,tcpi_snd_bwnd_77,tcpi_snd_bwnd_78,tcpi_snd_bwnd_79,tcpi_snd_bwnd_80,tcpi_snd_bwnd_81,tcpi_snd_bwnd_82,tcpi_snd_bwnd_83,tcpi_snd_bwnd_84,tcpi_snd_bwnd_85,tcpi_snd_bwnd_86,tcpi_snd_bwnd_87,tcpi_snd_bwnd_88,tcpi_snd_bwnd_89,tcpi_snd_bwnd_90,tcpi_snd_bwnd_91,tcpi_snd_bwnd_92,tcpi_snd_bwnd_93,tcpi_snd_bwnd_94,tcpi_snd_bwnd_95,tcpi_snd_bwnd_96,tcpi_snd_bwnd_97,tcpi_snd_bwnd_98,tcpi_snd_bwnd_99,tcpi_snd_bwnd_100,tcpi_snd_bwnd_101,tcpi_snd_bwnd_102,tcpi_snd_bwnd_103,tcpi_snd_bwnd_104,tcpi_snd_bwnd_105,tcpi_snd_bwnd_106,tcpi_snd_bwnd_107,tcpi_snd_bwnd_108,tcpi_snd_bwnd_109,tcpi_snd_bwnd_110,tcpi_snd_bwnd_111,tcpi_snd_bwnd_112,tcpi_snd_bwnd_113,tcpi_snd_bwnd_114,tcpi_snd_bwnd_115,tcpi_snd_bwnd_116,tcpi_snd_bwnd_117,tcpi_snd_bwnd_118,tcpi_snd_bwnd_119,tcpi_snd_bwnd_120,tcpi_snd_bwnd_121,tcpi_snd_bwnd_122,tcpi_snd_bwnd_123,tcpi_snd_bwnd_124,tcpi_snd_bwnd_125,tcpi_snd_bwnd_126,tcpi_snd_bwnd_127,tcpi_snd_bwnd_128,tcpi_snd_bwnd_129,tcpi_snd_bwnd_130,tcpi_snd_bwnd_131,tcpi_snd_bwnd_132,tcpi_snd_bwnd_133,tcpi_snd_bwnd_134,tcpi_snd_bwnd_135,tcpi_snd_bwnd_136,tcpi_snd_bwnd_137,tcpi_snd_bwnd_138,tcpi_snd_bwnd_139,tcpi_snd_bwnd_140,tcpi_snd_bwnd_141,tcpi_snd_bwnd_142,tcpi_snd_bwnd_143,tcpi_snd_bwnd_144,tcpi_snd_bwnd_145,tcpi_snd_bwnd_146,tcpi_snd_bwnd_147,tcpi_snd_bwnd_148,tcpi_snd_bwnd_149,tcpi_snd_bwnd_150,tcpi_snd_bwnd_151,tcpi_snd_bwnd_152,tcpi_snd_bwnd_153,tcpi_snd_bwnd_154,tcpi_snd_bwnd_155,tcpi_snd_bwnd_156,tcpi_snd_bwnd_157,tcpi_snd_bwnd_158,tcpi_snd_bwnd_159,tcpi_snd_bwnd_160,tcpi_snd_bwnd_161,tcpi_snd_bwnd_162,tcpi_snd_bwnd_163,tcpi_snd_bwnd_164,tcpi_snd_bwnd_165,tcpi_snd_bwnd_166,tcpi_snd_bwnd_167,tcpi_snd_bwnd_168,tcpi_snd_bwnd_169,tcpi_snd_bwnd_170,tcpi_snd_bwnd_171,tcpi_snd_bwnd_172,tcpi_snd_bwnd_173,tcpi_snd_bwnd_174,tcpi_snd_bwnd_175,tcpi_snd_bwnd_176,tcpi_snd_bwnd_177,tcpi_snd_bwnd_178,tcpi_snd_bwnd_179,tcpi_snd_bwnd_180,tcpi_snd_bwnd_181,tcpi_snd_bwnd_182,tcpi_snd_bwnd_183,tcpi_snd_bwnd_184,tcpi_snd_bwnd_185,tcpi_snd_bwnd_186,tcpi_snd_bwnd_187,tcpi_snd_bwnd_188,tcpi_snd_bwnd_189,tcpi_snd_bwnd_190,tcpi_snd_bwnd_191,tcpi_snd_bwnd_192,tcpi_snd_bwnd_193,tcpi_snd_bwnd_194,tcpi_snd_bwnd_195,tcpi_snd_bwnd_196,tcpi_snd_bwnd_197,tcpi_snd_bwnd_198,tcpi_snd_bwnd_199,tcpi_snd_bwnd_200,tcpi_snd_bwnd_201,tcpi_snd_bwnd_202,tcpi_snd_bwnd_203,tcpi_snd_bwnd_204,tcpi_snd_bwnd_205,tcpi_snd_bwnd_206,tcpi_snd_bwnd_207,tcpi_snd_bwnd_208,tcpi_snd_bwnd_209,tcpi_snd_bwnd_210,tcpi_snd_bwnd_211,tcpi_snd_bwnd_212,tcpi_snd_bwnd_213,tcpi_snd_bwnd_214,tcpi_snd_bwnd_215,tcpi_snd_bwnd_216,tcpi_snd_bwnd_217,tcpi_snd_bwnd_218,tcpi_snd_bwnd_219,tcpi_snd_bwnd_220,tcpi_snd_bwnd_221,tcpi_snd_bwnd_222,tcpi_snd_bwnd_223,tcpi_snd_bwnd_224,tcpi_snd_bwnd_225,tcpi_snd_bwnd_226,tcpi_snd_bwnd_227,tcpi_snd_bwnd_228,tcpi_snd_bwnd_229,tcpi_snd_bwnd_230,tcpi_snd_bwnd_231,tcpi_snd_bwnd_232,tcpi_snd_bwnd_233,tcpi_snd_bwnd_234,tcpi_snd_bwnd_235,tcpi_snd_bwnd_236,tcpi_snd_bwnd_237,tcpi_snd_bwnd_238,tcpi_snd_bwnd_239,tcpi_snd_bwnd_240,tcpi_snd_bwnd_241,tcpi_snd_bwnd_242,tcpi_snd_bwnd_243,tcpi_snd_bwnd_244,tcpi_snd_bwnd_245,tcpi_snd_bwnd_246,tcpi_snd_bwnd_247,tcpi_snd_bwnd_248,tcpi_snd_bwnd_249,tcpi_snd_bwnd_250,tcpi_snd_bwnd_251,tcpi_snd_bwnd_252,tcpi_snd_bwnd_253,tcpi_snd_bwnd_254,tcpi_snd_bwnd_255"
-        ]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard task.terminationStatus == 0,
-                  let output = String(data: data, encoding: .utf8) else {
-                return parseNettopOutputAlternative()
-            }
-
-            let processes = parseNettopOutput(output, limit: limit)
-            if let processes {
-                cachedNetworkProcesses = processes
-                lastNetworkProcessFetch = Date()
-            }
-            return processes
-        } catch {
-            logger.warning("nettop failed: \(error.localizedDescription)")
-            let processes = parseNettopOutputAlternative()
-            if let processes {
-                cachedNetworkProcesses = processes
-                lastNetworkProcessFetch = Date()
-            }
-            return processes
-        }
-    }
-
-    /// Parse nettop output to extract process network usage
-    private func parseNettopOutput(_ output: String, limit: Int) -> [ProcessNetworkUsage]? {
-        var processes: [ProcessNetworkUsage] = []
-        let lines = output.components(separatedBy: .newlines)
-
-        // nettop parseable format has columns separated by commas
-        // First line is header, skip it
-        for line in lines.dropFirst() where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            guard processes.count < limit else { break }
-
-            // Parse: command,pid,rx_bytes,tx_bytes,...
-            let components = line.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            guard components.count >= 4,
-                  let pid = Int(components[1]),
-                  let rxBytes = UInt64(components[2]),
-                  let txBytes = UInt64(components[3]) else {
-                continue
-            }
-
-            let processName = components[0]
-
-            processes.append(ProcessNetworkUsage(
-                pid: pid,
-                name: processName,
-                uploadBytes: txBytes,
-                downloadBytes: rxBytes
-            ))
-        }
-
-        // Sort by total bytes
-        processes.sort { $0.totalBytes > $1.totalBytes }
-
-        return processes.isEmpty ? nil : Array(processes.prefix(limit))
-    }
-
-    /// Alternative method using lsof to get network connections by process
-    private func parseNettopOutputAlternative() -> [ProcessNetworkUsage]? {
-        // Use lsof to count network connections per process as a proxy
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        task.arguments = ["-i", "-n", "-P", "-c", ""]
-        task.arguments = ["-i", "-n", "-P"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard task.terminationStatus == 0,
-                  let output = String(data: data, encoding: .utf8) else {
-                return nil
-            }
-
-            // Count connections per process
-            var processConnections: [String: (pid: Int, tx: UInt64, rx: UInt64)] = [:]
-            let lines = output.components(separatedBy: .newlines)
-
-            for line in lines.dropFirst() {  // Skip header
-                let parts = line.split(separator: " ", omittingEmptySubsequences: true)
-                guard parts.count >= 2,
-                      let pid = Int(parts[1]) else { continue }
-
-                let name = String(parts[0])
-                if let existing = processConnections[name] {
-                    processConnections[name] = (pid: existing.pid, tx: existing.tx + 1, rx: existing.rx + 1)
-                } else {
-                    processConnections[name] = (pid: pid, tx: 1, rx: 1)
-                }
-            }
-
-            // Convert to ProcessNetworkUsage
-            let processes = processConnections.map { name, data in
-                ProcessNetworkUsage(pid: data.pid, name: name, uploadBytes: data.tx, downloadBytes: data.rx)
-            }.sorted { $0.totalBytes > $1.totalBytes }.prefix(8)
-
-            return Array(processes)
-        } catch {
-            return nil
-        }
     }
 
     // MARK: - GPU Monitoring
@@ -4424,138 +4147,41 @@ public final class WidgetDataManager {
         bluetoothHistory = bluetoothCircularBuffer.toArray()
     }
 
-    /// Update top apps by CPU usage
-    public func updateTopCPUApps() {
-        let task = Process()
-        task.launchPath = "/bin/ps"
-        task.arguments = ["-axro", "pid,pcpu,rss,comm", "-c"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else {
-                topCPUApps = []
-                return
-            }
-
-            var apps: [AppResourceUsage] = []
-            let lines = output.components(separatedBy: "\n").dropFirst() // Skip header
-
-            for line in lines where !line.isEmpty {
-                let components = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                guard components.count >= 4,
-                      let cpuUsage = Double(components[1]),
-                      let memKB = UInt64(components[2]) else { continue }
-
-                let name = components.dropFirst(3).joined(separator: " ")
-
-                // Skip system processes with very low CPU
-                guard cpuUsage >= 0.1 else { continue }
-
-                // Try to get app icon
-                let icon = getAppIcon(for: name)
-
-                apps.append(AppResourceUsage(
-                    name: name,
-                    bundleIdentifier: nil,
-                    icon: icon,
-                    cpuUsage: cpuUsage,
-                    memoryBytes: memKB * 1024
-                ))
-            }
-
-            // Sort by CPU and take top 5
-            topCPUApps = apps.sorted { $0.cpuUsage > $1.cpuUsage }.prefix(10).map { $0 }
-        } catch {
-            logger.warning("Failed to get top CPU apps: \(error.localizedDescription)")
-            topCPUApps = []
-        }
+    #if DEBUG
+    var activeReaderIDsForTesting: Set<String> {
+        Set(readerTimers.keys)
     }
 
-    /// Update top apps by memory usage
-    public func updateTopMemoryApps() {
-        let task = Process()
-        task.launchPath = "/bin/ps"
-        task.arguments = ["-axro", "pid,rss,pcpu,comm", "-c"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else {
-                topMemoryApps = []
-                return
-            }
-
-            var apps: [AppResourceUsage] = []
-            let lines = output.components(separatedBy: "\n").dropFirst() // Skip header
-
-            for line in lines where !line.isEmpty {
-                let components = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-                guard components.count >= 4,
-                      let memKB = UInt64(components[1]),
-                      let cpuUsage = Double(components[2]) else { continue }
-
-                let name = components.dropFirst(3).joined(separator: " ")
-
-                // Skip processes with very little memory (< 10MB)
-                guard memKB >= 10 * 1024 else { continue }
-
-                // Try to get app icon
-                let icon = getAppIcon(for: name)
-
-                apps.append(AppResourceUsage(
-                    name: name,
-                    bundleIdentifier: nil,
-                    icon: icon,
-                    cpuUsage: cpuUsage,
-                    memoryBytes: memKB * 1024
-                ))
-            }
-
-            // Sort by memory and take top 5
-            topMemoryApps = apps.sorted { $0.memoryBytes > $1.memoryBytes }.prefix(10).map { $0 }
-        } catch {
-            logger.warning("Failed to get top memory apps: \(error.localizedDescription)")
-            topMemoryApps = []
-        }
+    func cancelReaderTimersForTesting(keepMonitoring: Bool = true) {
+        readerTimers.values.forEach { $0.cancel() }
+        readerTimers.removeAll()
+        isMonitoring = keepMonitoring
     }
 
-    /// Get app icon for a process name
-    private func getAppIcon(for processName: String) -> NSImage? {
-        // Try to find the app in /Applications
-        let appName = processName.replacingOccurrences(of: " Helper", with: "")
-            .replacingOccurrences(of: " Renderer", with: "")
-        
-        let possiblePaths = [
-            "/Applications/\(appName).app",
-            "/System/Applications/\(appName).app",
-            "/Applications/Utilities/\(appName).app"
-        ]
-        
-        for path in possiblePaths {
-            if FileManager.default.fileExists(atPath: path) {
-                return NSWorkspace.shared.icon(forFile: path)
-            }
-        }
+    func setLastLiveSampleAtForTesting(_ date: Date?) {
+        lastLiveSampleAt = date
+        hasLiveMetricSample = date != nil
+    }
 
-        // Try running apps
-        for app in NSWorkspace.shared.runningApplications {
-            if app.localizedName == processName || app.executableURL?.lastPathComponent == processName {
-                return app.icon
-            }
-        }
+    func markLiveMetricSampleReceivedForTesting(at date: Date = Date()) {
+        markLiveMetricSampleReceived(at: date)
+    }
+    #endif
 
-        return nil
+    private func recordResourceHistorySample() {
+        let primaryDisk = diskVolumes.first(where: { $0.isBootVolume }) ?? diskVolumes.first
+        let sample = ResourceMetricSample(
+            cpuPercent: cpuData.totalUsage,
+            memoryPercent: memoryData.usagePercentage,
+            memoryUsedBytes: memoryData.usedBytes,
+            memoryTotalBytes: memoryData.totalBytes,
+            networkUploadBytesPerSecond: networkData.uploadBytesPerSecond,
+            networkDownloadBytesPerSecond: networkData.downloadBytesPerSecond,
+            diskUsedPercent: primaryDisk?.usagePercentage ?? 0,
+            diskReadBytesPerSecond: primaryDisk?.readBytesPerSecond ?? 0,
+            diskWriteBytesPerSecond: primaryDisk?.writeBytesPerSecond ?? 0
+        )
+        WidgetHistoryStore.shared.record(sample)
     }
 
     // MARK: - Bluetooth Monitoring

@@ -18,12 +18,13 @@ public enum MemoryPressure: String, CaseIterable, Sendable {
     case warning = "Warning"
     case critical = "Critical"
 
-    /// Color representation for UI
+    /// Status color for UI — memory pressure is machine state, so it draws from the
+    /// data-only status scale (never brand).
     public var color: Color {
         switch self {
-        case .normal: return DesignTokens.Colors.success
-        case .warning: return DesignTokens.Colors.warning
-        case .critical: return DesignTokens.Colors.error
+        case .normal: return TonicDS.Colors.statusSuccess
+        case .warning: return TonicDS.Colors.statusWarning
+        case .critical: return TonicDS.Colors.statusCritical
         }
     }
 }
@@ -90,10 +91,10 @@ public enum ThermalState: String, Sendable, Codable {
 
     public var colorHex: String {
         switch self {
-        case .nominal: return "#34C759"      // Green
-        case .fair: return "#FF9F0A"         // Orange
-        case .serious: return "#FF9500"      // Darker Orange
-        case .critical: return "#FF3B30"     // Red
+        case .nominal: return "#1f9d57"      // status-success
+        case .fair: return "#e0a32c"         // status-warning
+        case .serious: return "#e07b39"      // status-caution
+        case .critical: return "#d14b4b"     // status-critical
         }
     }
 }

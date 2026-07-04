@@ -57,10 +57,13 @@ open Tonic/Tonic.xcodeproj
 | `Tonic/Tonic/Design/` | Design tokens, components, animations |
 | `Tonic/Tonic/MenuBarWidgets/` | Menu bar widget implementations |
 | `Tonic/Tonic/MenuBarWidgets/ChartStatusItems/` | Chart-based widget status items |
-| `Tonic/Tonic/MenuBarWidgets/Popovers/` | Stats Master-style popover views |
 | `Tonic/Tonic/MenuBarWidgets/Views/` | Chart view components |
-| `Tonic/Tonic/Utilities/` | Helper utilities |
-| `TonicHelperTool/` | Privileged helper for root operations |
+| `Tonic/Tonic/Utilities/` | Helper utilities (BuildFlavor, SemanticVersion, SparkleUpdater) |
+
+> There is currently **no privileged helper target** — root-only operations
+> (Time Machine snapshot deletion, DocumentRevisions purge) are planned but
+> not built. Popover content is rendered by `MenuBarWidgets/WidgetStatusItem.swift`
+> consoles; the `Popovers/` directory is empty.
 
 ### Entry Points
 
@@ -76,21 +79,26 @@ WidgetCoordinator.shared        // Menu bar widget lifecycle (OneView/Individual
 WidgetDataManager.shared        // Central data source for all widget metrics (@Observable)
 NotificationManager.shared      // Threshold-based notifications
 PermissionManager.shared        // Permission checks
-PrivilegedHelperManager.shared  // Root operations (including SMC write for fan control)
 CollectorBin.shared             // Deletion staging
 WeatherService.shared           // Weather data
-SparkleUpdater.shared           // App updates
-SMCReader.shared                // SMC sensor readings (temperature, fan, voltage) + fan write control
+SparkleUpdater.shared           // Tonic self-update (direct build only; excluded from TonicStore)
+SMCReader.shared                // SMC sensor readings (temperature, fan speed, voltage) — read-only
+AppUpdater.shared               // Third-party app update detection (Sparkle appcast, MAS lookup, Homebrew)
+AppUpdateApplier.shared         // Applies detected updates (MAS deep link, launch app, brew upgrade)
+HomebrewService.shared          // Cask inventory + streamed upgrades (direct build only, #if !TONIC_STORE)
+CleanupHistoryStore.shared      // 30-day recoverable cleanup history (Trash-backed undo)
+DiskUsageHistoryStore.shared    // Daily disk samples + storage forecast
 ```
 
-### Fan Control Architecture (`SMCReader.swift`, `PrivilegedHelperManager.swift`)
+### App Update Architecture (`Services/AppUpdater.swift` + friends)
 
-Tonic supports full fan control for advanced users:
-
-- **Read Operations**: Get current fan speeds, mode (Automatic/Forced/Manual), minimum/maximum speeds via SMC
-- **Write Operations**: Set fan mode, set specific RPM, set percentage speed (requires helper tool)
-- **FanControlView**: UI with per-fan sliders, mode selection (Manual/Auto/System), min/max indicators
-- **Privileged Operations**: Fan write commands go through `TonicHelperTool` for root-level SMC access
+- **Detection order** per app: MAS receipt (`Contents/_MASReceipt/receipt`) → Sparkle
+  `SUFeedURL` (parsed by `SparkleAppcastParser`, XMLParser-based) → Homebrew cask map →
+  unknown. Version comparison via `Utilities/SemanticVersion.swift`.
+- **Apply tiers** (`AppUpdateApplier`): MAS → store deep link; Sparkle → launch the app's
+  own updater; Homebrew → in-app streamed `brew upgrade --cask`. A download-verify-install
+  tier for Sparkle apps is planned but not built.
+- Errors surface per app in the Apps → Updates tab (`Views/Apps/AppUpdatesSection.swift`).
 
 ### Settings Architecture (`MenuBarWidgets/Settings/TabbedSettingsView.swift`)
 
@@ -141,37 +149,66 @@ User Defaults wrapper:
 @AppStorage("launchAtLogin") private var launchAtLogin = false
 ```
 
-## Design System
+## Design System — TonicDS (Editorial "Command Center")
+
+The UI uses the editorial design language defined in `TonicDesign.md` (white/obsidian
+canvases, deep-green/navy module bands, near-black `#17171c` monitoring consoles, flat depth,
+display/body/mono type split). **The data is the media**: status colors (green→yellow→orange→red)
+are data-only; brand coral is brand-only.
 
 Located in `Tonic/Tonic/Design/`:
 
-- **DesignTokens.swift**: Colors, spacing, typography, animations
-- **DesignComponents.swift**: Reusable UI components (Card, PrimaryButton, StatusLevel)
-- **DesignAnimations.swift**: View modifiers (shimmer, fadeIn, scaleIn, skeleton)
+- **TonicDS.swift** — the source of truth: `TonicDS.Colors` (canvas, surface, ink, console,
+  deepGreen, darkNavy, softStone, status scale, accentCoral, linkBlue), `TonicDS.TypeRole` +
+  `.tonicType(_:)` (carved tracking/line-height), `TonicDS.Space/Radius/Layout/Motion/Elevation`,
+  and `TonicDS.status(forFraction:/forTempC:/forBattery:)`.
+- **TonicEditorialComponents.swift** — `PrimaryPill`, `TextAction`, `FilterPill`,
+  `CategoryFilterChip`, `StatusChip`, `AlertBanner`, `DataCard`, `MonitoringConsole`, `ModuleBand`,
+  `ScanCategoryCard`, `SettingsPanel`, `SystemListRow`, `TonicPageHeader`, `TonicEmptyState`,
+  `TonicSearchField`, `MonoLabel`, `Metric`, press/hover/focus/hairline helpers.
+- **TonicEditorialChrome.swift** — `TonicTabBar`, `TonicBentoGrid`, `GaugeCard`/`ChartCard`
+  (wrap the kept `MenuBarWidgets/Components/*` renderers with status colors), `ToastData`/`tonicToast`,
+  `SheetChrome`.
+- Still present: `DesignTokens.swift` (low-level base), `ColorZones`, `WidgetColors`,
+  `DesignAnimations`, `ActionTable`, `OutlineView`, `ErrorView`, `InputValidation`, `DesignComponents`
+  (menu-bar settings rows), `TonicThemeTokens` (retains `TonicWorld`/status used by Models).
+  The legacy glass/world visual files (TonicVisualPrimitives, TonicThemeProvider, Tonic*Components,
+  Atelier UI) were removed in the redesign.
 
 ### Key Tokens
 
 ```swift
-DesignTokens.Colors.accent      // Primary accent color
-DesignTokens.Colors.surface     // Background for cards
-DesignTokens.Spacing.md         // 16pt standard spacing
-DesignTokens.CornerRadius.large // 12pt rounded corners
+TonicDS.Colors.canvas / .console / .deepGreen / .statusSuccess
+TonicDS.Space.md / .section          // 16pt / 64pt
+TonicDS.Radius.card / .pill          // 22pt / 32pt
+Text("CPU").tonicType(.monoLabel)    // carved/tracked type roles
+TonicDS.status(forFraction: 0.92)    // data status color
 ```
 
-## Navigation Structure
+## Navigation Structure (reimagined IA — 5 primary + Advanced)
+
+The sidebar shows **Home · Clean · Apps · Monitor · Settings** (+ flagged Advanced). The
+`NavigationDestination` enum keeps its original case names for routing stability; several map to the
+consolidated screens:
 
 ```swift
-enum NavigationDestination: String, CaseIterable {
-    case dashboard          // DashboardView.swift
-    case systemCleanup      // SmartScanView.swift
-    case appManager         // AppInventoryView.swift
-    case diskAnalysis       // DiskAnalysisView.swift
-    case liveMonitoring     // SystemStatusDashboard.swift
-    case menuBarWidgets     // WidgetsPanelView.swift
-    case developerTools     // DeveloperToolsView.swift
-    case settings           // PreferencesView.swift
+enum NavigationDestination {
+    case dashboard       // Home — Views/Home/HomeView.swift
+    case systemCleanup   // Clean — Views/Clean/CleanView.swift (Smart Scan/Storage/History tabs)
+    case appManager      // Apps — Views/Apps/AppsView.swift
+    case diskAnalysis    // → CleanView(initialTab: .storage)
+    case recentlyCleaned // → CleanView(initialTab: .history)
+    case liveMonitoring  // Monitor — Views/Monitor/MonitorView.swift
+    case menuBarWidgets  // → SettingsView(initialSection: .modules)
+    case settings        // Settings — Views/Settings/SettingsView.swift (consolidated)
+    case developerTools  // Advanced — DeveloperToolsView (in ContentView.swift)
+    case designSandbox   // Advanced — Views/Advanced/DesignGalleryView.swift
 }
 ```
+
+Clean is driven by `SmartCareSessionStore`; Home/triage by `SmartScanManager` (Services/) +
+`Recommendation` (Models/); appearance by `AppearancePreferences` (Models/); Settings window by
+`PreferencesWindowController` (Services/).
 
 ## Core Features
 
@@ -222,18 +259,14 @@ Stats Master-parity widget system with flexible visualizations:
 - **Color System**: 30+ color options including utilization-based auto-coloring (green-&gt;yellow-&gt;orange-&gt;red)
 - **Per-Widget Popovers**: Stats Master-style detail views for each widget type
 
-#### Popover Views (`MenuBarWidgets/Popovers/`)
+#### Popover Rendering
 
-Each widget type has a dedicated popover view with Stats Master parity:
-
-- **CPUPopoverView.swift**: Total usage gauge, E-core/P-core charts, per-core bar chart, scheduler/speed limits, uptime, load averages, top processes
-- **MemoryPopoverView.swift**: Pressure gauge (3-color arc with needle), usage charts, swap section, top processes
-- **GPUPopoverView.swift**: Per-GPU containers, temp/utilization/render/tiler gauges, line charts, expandable details, fan/clock/memory info
-- **DiskPopoverView.swift**: Per-disk containers, dual-line read/write charts, I/O stats, expandable details, top I/O processes
-- **NetworkPopoverView.swift**: Bandwidth charts, connectivity grid, WiFi details (RSSI, noise, SNR, band, width), DNS servers, public IP, interface info
-- **BatteryPopoverView.swift**: Battery visual, electrical metrics (amperage, voltage, power), adapter section, capacity breakdown, time formatting
-- **SensorsPopoverView.swift**: Temperature readings, **FanControlView** with sliders and modes (Manual/Auto/System), per-fan speed control
-- **BluetoothPopoverView.swift**: Connection status, history chart, device list with multi-battery support (case/left/right)
+Per-module detail popovers (CPU, Memory, GPU, Disk, Network, Battery, Sensors,
+Bluetooth) are rendered as **console layouts inside `WidgetStatusItem.swift`**
+and composed from `MenuBarWidgets/Components/` and `MenuBarWidgets/Views/`
+chart renderers. The `Popovers/` directory is currently empty — there are no
+per-module `*PopoverView.swift` files and no fan-control UI (SMC access is
+read-only via `SMCReader`).
 
 Visualization Type Details:
 
@@ -288,17 +321,16 @@ xcodebuild -scheme Tonic -configuration Debug build
 # Build release
 xcodebuild -scheme Tonic -configuration Release build
 
-# Build helper tool
-xcodebuild -scheme TonicHelperTool -configuration Release build
+# Build the sandboxed Mac App Store edition
+xcodebuild -scheme TonicStore -configuration Debug build
 ```
 
 ## Key File Locations
 
 ```
-~/Library/Application Support/Tonic/  # App data
+~/Library/Application Support/Tonic/  # App data (cleanup history, disk-usage history)
 ~/Library/Caches/com.tonic.Tonic/     # Cache
 ~/Library/Logs/com.tonic.Tonic/       # Logs
-/Library/PrivilegedHelperTools/       # Helper binary
 ```
 
 ## Development Notes
@@ -311,54 +343,25 @@ xcodebuild -scheme TonicHelperTool -configuration Release build
 
 ### Privileged Operations
 
-- Install `TonicHelperTool` for root-level file operations
-- Uses XPC for communication between app and helper
-- SMJobSubmit for installation (requires admin auth)
+- **No privileged helper exists yet.** Operations needing root (Time Machine
+  snapshot deletion, `/.DocumentRevisions-V100` purge) are report-only until a
+  new `SMAppService.daemon` helper target is built (planned, Phase B2 of the
+  suite build-out plan).
+- The direct `Tonic` target is **not sandboxed** (Full Disk Access model);
+  `TonicStore` is sandboxed and gates file access through
+  `ScopedFileSystem`/`AccessBroker`. Code that can't ship in the Store build
+  is excluded with `#if !TONIC_STORE` (e.g. `HomebrewService`).
 
 ### Styling Conventions
 
-- Use `DesignTokens` instead of hardcoded values
-- Use `PopoverConstants` for popover-specific spacing and typography
-- Prefer `DesignComponents` (Card, PrimaryButton) over raw views
-- Apply animations from `DesignAnimations` for consistency
-- Use reusable popover components from `PopoverTemplate.swift` (ProcessRow, IconLabelRow, SectionHeader, etc.)
-
-### Popover Design System (Stats Master Parity)
-
-Located in `Tonic/Tonic/MenuBarWidgets/Popovers/`:
-
-#### PopoverConstants.swift
-
-Standardized spacing, typography, and sizes for all widget popovers:
-
-- **Dimensions**: Width 280px, maxHeight 600px (matches Stats Master)
-- **Typography**: 9pt (small), 11pt (default), 13pt (header) - using `DesignTokens`
-- **Spacing**: Uses 8-point grid (4, 8, 12, 16, 24pt values)
-- **Corner Radius**: 6pt for inner cards, 10pt for popover
-- **Icons**: SF Symbols with consistent sizing
-- **Colors**: Helper functions for percentage (green/yellow/orange/red), temperature, battery
-- **Animations**: fast (0.15s), normal (0.25s), slow (0.35s)
-
-#### PopoverTemplate.swift
-
-Reusable components for consistent popover UI:
-
-- `PopoverTemplate`: Standard template with header, content, action button
-- `PopoverSection` / `TitledPopoverSection`: Section containers with consistent padding
-- `PopoverDetailRow` / `PopoverDetailGrid`: Key-value displays for metrics
-- `ProcessRow`: Standardized process list row (PID, name, CPU%, memory, kill button)
-- `IconLabelRow`: Icon + label + value row with alignment
-- `SectionHeader`: Section title with optional icon
-- `EmptyStateView`: Empty state placeholder with icon and message
-- `MetricCard`: Metric display with label and value
-- `CircularProgress`, `UsageBar`, `MetricDisplay`: Visual components
-
-#### Gauge Components
-
-Located in `Tonic/Tonic/Views/`:
-
-- `PressureGaugeView.swift`: 3-color arc gauge with needle for memory pressure (green 0-50%, yellow 50-80%, red 80-100%)
-- `TachometerView.swift`: Half-circle gauge with needle for CPU/GPU utilization
+- Use `TonicDS` tokens (`TonicDS.Colors/Space/Radius/Motion`) and
+  `.tonicType(_:)` roles instead of hardcoded values.
+- Compose from `TonicEditorialComponents` (PrimaryPill, TextAction, StatusChip,
+  SystemListRow, DataCard, MonitoringConsole, MonoLabel, Metric …) and
+  `TonicEditorialChrome` (TonicTabBar, TonicBentoGrid, ChartCard, tonicToast).
+- Status colors (green→yellow→orange→red) are **data-only** and always pair
+  with a status word; brand coral never appears on gauges or readouts.
+- Menu-bar popovers are fixed 280pt consoles; dense rows keep 44pt targets.
 
 ## Common Tasks
 

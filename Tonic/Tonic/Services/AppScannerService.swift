@@ -5,6 +5,7 @@
 //  Persistent app cache and background scanner for app discovery.
 //
 
+import CoreServices
 import Foundation
 
 // MARK: - App Cache
@@ -87,6 +88,7 @@ struct CachedAppData: Codable, Sendable {
             path: url,
             version: version,
             totalSize: totalSize,
+            lastUsed: lastUsed,
             category: AppMetadata.AppCategory(rawValue: category) ?? .other,
             itemType: itemType
         )
@@ -457,8 +459,16 @@ final class BackgroundAppScanner: @unchecked Sendable {
             installDate: installDate ?? Date(),
             category: category,
             totalSize: 0,
-            itemType: itemType
+            itemType: itemType,
+            lastUsed: Self.spotlightLastUsedDate(forPath: url.path)
         )
+    }
+
+    /// Spotlight's last-used date for a bundle. nil when the item isn't
+    /// indexed — callers must treat nil as unknown, never as "never used".
+    static func spotlightLastUsedDate(forPath path: String) -> Date? {
+        guard let item = MDItemCreate(nil, path as CFString) else { return nil }
+        return MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date
     }
 
     func appCategory(from rawValue: String) -> AppMetadata.AppCategory {

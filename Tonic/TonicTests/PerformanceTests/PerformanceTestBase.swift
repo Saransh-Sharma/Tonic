@@ -102,13 +102,13 @@ class PerformanceTestBase: XCTestCase {
 
     /// Get current memory usage in bytes
     func getMemoryUsage() -> Int64 {
-        var info = task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size)
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.stride / MemoryLayout<natural_t>.stride)
         let kerr = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
                 task_info(
                     mach_task_self_,
-                    task_flavor_t(TASK_BASIC_INFO),
+                    task_flavor_t(MACH_TASK_BASIC_INFO),
                     $0,
                     &count
                 )
@@ -137,6 +137,7 @@ class PerformanceTestBase: XCTestCase {
 
         let beforeMemory = getMemoryUsage()
         closure()
+        drainAutoreleasePool()
         let afterMemory = getMemoryUsage()
 
         return max(0, afterMemory - beforeMemory)

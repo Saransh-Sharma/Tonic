@@ -49,27 +49,6 @@ final class SmartCareSessionStore: ObservableObject {
         runSummary?.formattedSummary
     }
 
-    var activeWorld: TonicWorld {
-        switch destination {
-        case .smartScan:
-            return .smartScanPurple
-        case .manager(let route):
-            switch route {
-            case .space(let focus):
-                switch focus {
-                case .clutter:
-                    return .clutterTeal
-                case .spaceRoot, .cleanup:
-                    return .cleanupGreen
-                }
-            case .performance:
-                return .performanceOrange
-            case .apps:
-                return .applicationsBlue
-            }
-        }
-    }
-
     func reviewCustomize() {
         guard scanResult != nil else { return }
         destination = .manager(.space(.spaceRoot))
@@ -141,6 +120,10 @@ final class SmartCareSessionStore: ObservableObject {
                 )
                 self.logSmartScanCompleted(result)
             }
+
+            // Snapshot tracked directory sizes so Storage can show what grew
+            // between scans (rate-limited inside the store).
+            DirectorySnapshotStore.shared.captureIfDue()
         }
     }
 
@@ -414,9 +397,12 @@ final class SmartCareSessionStore: ObservableObject {
         return "About to \(action.rawValue) \(runnableCount) \(noun)."
     }
 
-    private func performRun(
+    /// Internal (not private) so routing tests can prove that personal items
+    /// go to the Trash with recoverable history while junk deletes permanently.
+    func performRun(
         items: [SmartCareItem],
         title: String = "Smart Clean",
+        historyStore: CleanupHistoryStore = .shared,
         progressUpdate: @MainActor @escaping (Double) -> Void
     ) async -> SmartScanRunSummary {
         var bytesFreed: Int64 = 0
@@ -482,7 +468,7 @@ final class SmartCareSessionStore: ObservableObject {
             }
         }
 
-        let batch = CleanupHistoryStore.shared.record(title: title, entries: historyEntries)
+        let batch = historyStore.record(title: title, entries: historyEntries)
         let recoverableCount = batch?.recoverableEntries.count ?? 0
 
         let scoreGain = items.reduce(0) { $0 + $1.scoreImpact }

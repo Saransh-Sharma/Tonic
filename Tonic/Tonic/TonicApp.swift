@@ -17,8 +17,37 @@ struct TonicApp: App {
             ContentView(showCommandPalette: $showCommandPalette)
         }
         .commands {
-            // Command Palette
+            // Primary navigation lives in the View menu with ⌘1–⌘5, like every
+            // sidebar-driven native Mac app.
+            CommandGroup(after: .sidebar) {
+                Divider()
+                navigationCommand("Home", .dashboard, "1")
+                navigationCommand("Clean", .systemCleanup, "2")
+                navigationCommand("Apps", .appManager, "3")
+                navigationCommand("Monitor", .liveMonitoring, "4")
+                navigationCommand("Settings", .settings, "5")
+            }
+
             CommandMenu("Tools") {
+                Button("Run Smart Scan") {
+                    NotificationCenter.default.post(name: .runSmartScanCommand, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                Button("Scan Folder…") {
+                    let panel = NSOpenPanel()
+                    panel.canChooseDirectories = true
+                    panel.canChooseFiles = false
+                    panel.allowsMultipleSelection = false
+                    panel.prompt = "Scan"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        NotificationCenter.default.post(
+                            name: .scanFolderCommand, object: nil,
+                            userInfo: ["path": url.path]
+                        )
+                    }
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                Divider()
                 Button("Command Palette") {
                     showCommandPalette = true
                 }
@@ -58,6 +87,17 @@ struct TonicApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultPosition(.center)
     }
+
+    private func navigationCommand(_ title: String, _ destination: NavigationDestination,
+                                   _ key: KeyEquivalent) -> some View {
+        Button(title) {
+            NotificationCenter.default.post(
+                name: .navigateToDestination, object: nil,
+                userInfo: ["destination": destination.rawValue]
+            )
+        }
+        .keyboardShortcut(key, modifiers: .command)
+    }
 }
 
 @MainActor
@@ -78,6 +118,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.buildNumber
         ActivityLogStore.shared.recordInstallIfNeeded(version: version, build: build)
         ActivityLogStore.shared.recordUpdateIfNeeded(version: version, build: build)
+
+        // Daily disk-usage sample for the storage timeline and forecast.
+        // Cheap no-op when today's sample already exists.
+        Task.detached(priority: .utility) {
+            DiskUsageHistoryStore.shared.recordSampleIfNeeded()
+        }
+
+        // Actionable notifications (Review / Open Apps) and the scheduled-
+        // maintenance timer. The scheduler is a no-op while cadence is Off.
+        NotificationDelegate.shared.install()
+        MaintenanceScheduler.shared.start()
 
         // Apply saved theme preference
         applyThemePreference()
@@ -113,6 +164,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // Catch-up sample for instances that stay running across days.
+        Task.detached(priority: .utility) {
+            DiskUsageHistoryStore.shared.recordSampleIfNeeded()
+        }
+    }
+
+    /// Folders dropped onto the Dock icon open the folder scan report.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.isFileURL {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { continue }
+            NSApp.activate(ignoringOtherApps: true)
+            NotificationCenter.default.post(
+                name: .scanFolderCommand, object: nil,
+                userInfo: ["path": url.path]
+            )
+            return // one report at a time
+        }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep app running when window is closed (menu bar app behavior)
         return false
@@ -131,6 +204,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             WidgetCoordinator.shared.start()
             print("🔵 [TonicApp] WidgetCoordinator.shared.start() completed")
         }
+
+        // Global console shortcut (Carbon hotkey; no-op until one is recorded).
+        GlobalHotkeyManager.shared.start()
+
+        // Bartender-style menu bar management (no-op until enabled in Monitor › Menu Bar).
+        MenuBarManager.shared.start()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

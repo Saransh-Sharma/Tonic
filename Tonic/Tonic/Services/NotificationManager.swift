@@ -264,9 +264,48 @@ public final class NotificationManager: Sendable {
         case .clock:
             title = "Clock Alert"
             body = "Clock threshold triggered"
+
+        case .tonic:
+            title = "Tonic Alert"
+            body = "Status threshold triggered"
         }
 
         return (title, body)
+    }
+
+    // MARK: - Digest mode
+
+    /// When on, threshold/usage alerts (no actionable category) collect into
+    /// one periodic summary instead of firing individually. Actionable
+    /// notifications — maintenance done, updates available — always deliver.
+    public var digestEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "tonic.notifications.digestEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "tonic.notifications.digestEnabled") }
+    }
+
+    private var pendingDigestLines: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "tonic.notifications.digestQueue") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "tonic.notifications.digestQueue") }
+    }
+
+    private var lastDigestFlush: Date? {
+        get { UserDefaults.standard.object(forKey: "tonic.notifications.digestLastFlush") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "tonic.notifications.digestLastFlush") }
+    }
+
+    /// Deliver the queued digest when it's worth a notification: something is
+    /// queued and either the queue is deep or four hours have passed.
+    public func flushDigestIfDue(now: Date = Date()) {
+        let queue = pendingDigestLines
+        guard !queue.isEmpty else { return }
+        let elapsed = now.timeIntervalSince(lastDigestFlush ?? .distantPast)
+        guard queue.count >= 5 || elapsed >= 4 * 3600 else { return }
+
+        let body = queue.suffix(6).joined(separator: "\n")
+        let title = queue.count == 1 ? "1 alert while you were away" : "\(queue.count) alerts"
+        pendingDigestLines = []
+        lastDigestFlush = now
+        deliver(title: title, body: body, thresholdId: "digest", category: nil)
     }
 
     /// Send a notification
@@ -274,11 +313,44 @@ public final class NotificationManager: Sendable {
     ///   - title: Notification title
     ///   - body: Notification body
     ///   - thresholdId: Unique identifier for this notification
-    public func sendNotification(title: String, body: String, thresholdId: String = UUID().uuidString) {
+    ///   - category: Optional actionable category (see NotificationDelegate)
+    public func sendNotification(
+        title: String,
+        body: String,
+        thresholdId: String = UUID().uuidString,
+        category: String? = nil
+    ) {
+        // Every alert lands in the activity log regardless of digest mode —
+        // notifications are transient, the log is the reviewable record.
+        ActivityLogStore.shared.record(ActivityEvent(
+            category: .notification,
+            title: title,
+            detail: body,
+            impact: .low
+        ))
+
+        if digestEnabled, category == nil {
+            pendingDigestLines = Array((pendingDigestLines + ["\(title) — \(body)"]).suffix(20))
+            flushDigestIfDue()
+            return
+        }
+
+        deliver(title: title, body: body, thresholdId: thresholdId, category: category)
+    }
+
+    private func deliver(
+        title: String,
+        body: String,
+        thresholdId: String,
+        category: String?
+    ) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let category {
+            content.categoryIdentifier = category
+        }
 
         // Create notification request
         let request = UNNotificationRequest(

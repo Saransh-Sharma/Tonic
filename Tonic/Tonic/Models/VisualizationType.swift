@@ -3,7 +3,7 @@
 //  Tonic
 //
 //  Visualization types for menu bar widgets
-//  Matches Stats Master's widget visualization system
+//  Visualization types for editorial menu-bar widgets
 //
 
 import SwiftUI
@@ -193,7 +193,7 @@ public struct ChartConfiguration: Codable, Sendable, Equatable {
         showBackground: Bool = false,
         showFrame: Bool = false,
         showValue: Bool = false,
-        fillMode: ChartFillMode = .gradient,
+        fillMode: ChartFillMode = .lineOnly,
         barColorMode: ChartBarColorMode = .uniform
     ) {
         self.historySize = min(120, max(30, historySize))

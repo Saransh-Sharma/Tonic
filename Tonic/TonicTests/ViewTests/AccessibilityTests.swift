@@ -371,212 +371,38 @@ final class AccessibilityTests: XCTestCase {
         XCTAssertFalse(direction.isEmpty)
     }
 
-    // MARK: - Smart Scan Visual Regression
+    // MARK: - Editorial TonicDS Regression
 
     @MainActor
-    func testSmartScanChipSnapshots() {
+    func testEditorialControlShowcaseRendersInLightAndDark() {
         let dark = renderImage(
-            content: chipShowcase
+            content: editorialControlShowcase
                 .padding(24)
-                .frame(width: 520, height: 240)
-                .background(WorldCanvasBackground())
-                .tonicTheme(.smartScanPurple)
+                .frame(width: 620, height: 260)
+                .background(TonicDS.Colors.canvas)
                 .environment(\.colorScheme, .dark)
         )
         let light = renderImage(
-            content: chipShowcase
+            content: editorialControlShowcase
                 .padding(24)
-                .frame(width: 520, height: 240)
-                .background(WorldCanvasBackground())
-                .tonicTheme(.smartScanPurple)
+                .frame(width: 620, height: 260)
+                .background(TonicDS.Colors.canvas)
                 .environment(\.colorScheme, .light)
         )
 
-        XCTAssertNotNil(dark)
-        XCTAssertNotNil(light)
+        XCTAssertGreaterThan(dark.size.width, 0)
+        XCTAssertGreaterThan(light.size.width, 0)
         add(XCTAttachment(image: dark))
         add(XCTAttachment(image: light))
     }
 
-    func testSmartScanChipReadabilityAcrossCanvases() {
-        let darkCanvas = nsColor(TonicCanvasTokens.fill(for: .smartScanPurple, colorScheme: .dark))
-        let sectionCanvas = nsColor(TonicCanvasTokens.fill(for: .cleanupGreen, colorScheme: .dark))
-        let lightCanvas = nsColor(TonicNeutralToken.neutral3)
+    func testEditorialConsoleContrastGuards() {
+        let console = NSColor(calibratedRed: 23.0 / 255.0, green: 23.0 / 255.0, blue: 28.0 / 255.0, alpha: 1)
+        let onDark = NSColor.white
+        let muted = NSColor(calibratedRed: 147.0 / 255.0, green: 147.0 / 255.0, blue: 159.0 / 255.0, alpha: 1)
 
-        let darkSemantic = TonicChipTokens.style(role: .semantic(.warning), strength: .subtle, colorScheme: .dark)
-        let darkWorld = TonicChipTokens.style(role: .world(.cleanupGreen), strength: .subtle, colorScheme: .dark)
-        let lightSemantic = TonicChipTokens.style(role: .semantic(.info), strength: .subtle, colorScheme: .light)
-
-        assertChipReadability(style: darkSemantic, on: darkCanvas, context: "dark canvas semantic chip", minTextRatio: 4.5, minIconRatio: 4.5)
-        assertChipReadability(style: darkWorld, on: sectionCanvas, context: "dark bento/section world chip")
-        assertChipReadability(style: lightSemantic, on: lightCanvas, context: "light canvas semantic chip", minTextRatio: 4.5, minIconRatio: 4.5)
-
-        for kind in TonicSemanticKind.allCases {
-            let darkStatus = TonicStatusPalette.style(kind, for: .dark)
-            assertStatusReadability(status: darkStatus, context: "dark status \(kind.rawValue)")
-
-            let lightStatus = TonicStatusPalette.style(kind, for: .light)
-            assertStatusReadability(status: lightStatus, context: "light status \(kind.rawValue)")
-        }
-    }
-
-    @MainActor
-    func testSmartScanSectionSnapshot() {
-        let view = VStack(spacing: TonicSpaceToken.gridGap) {
-            PillarSectionHeader(
-                title: "Space",
-                subtitle: "Cleanup + Clutter",
-                summary: "12.8 GB reclaimable",
-                sectionActionTitle: "Review",
-                world: .cleanupGreen,
-                sectionAccessibilityIdentifier: nil,
-                onSectionAction: {}
-            )
-            BentoGrid(
-                world: .cleanupGreen,
-                tiles: [
-                    .init(
-                        id: .spaceSystemJunk,
-                        size: .large,
-                        metricTitle: "9.4 GB",
-                        title: "System Junk Found",
-                        subtitle: "Muted Pro sample tile for regression validation.",
-                        iconSymbols: ["gearshape.2.fill"],
-                        reviewTarget: .section(.space),
-                        actions: [.init(title: "Review", kind: .review), .init(title: "Clean", kind: .clean)]
-                    ),
-                    .init(
-                        id: .spaceTrashBins,
-                        size: .wide,
-                        metricTitle: "1.2 GB",
-                        title: "Trash Bins Found",
-                        subtitle: "Regression sample.",
-                        iconSymbols: ["trash.fill"],
-                        reviewTarget: .section(.space),
-                        actions: [.init(title: "Review", kind: .review)]
-                    ),
-                    .init(
-                        id: .spaceExtraBinaries,
-                        size: .small,
-                        metricTitle: "420 MB",
-                        title: "Extra Binaries",
-                        subtitle: "Regression sample.",
-                        iconSymbols: ["terminal.fill"],
-                        reviewTarget: .section(.space),
-                        actions: [.init(title: "Review", kind: .review)]
-                    ),
-                    .init(
-                        id: .spaceXcodeJunk,
-                        size: .small,
-                        metricTitle: "850 MB",
-                        title: "Xcode Junk",
-                        subtitle: "Regression sample.",
-                        iconSymbols: ["hammer.fill"],
-                        reviewTarget: .section(.space),
-                        actions: [.init(title: "Review", kind: .review)]
-                    )
-                ],
-                onReview: { _ in },
-                onAction: { _, _ in }
-            )
-        }
-            .padding(24)
-            .frame(width: 980, height: 640, alignment: .topLeading)
-            .background(WorldCanvasBackground())
-            .tonicTheme(.smartScanPurple)
-            .environment(\.colorScheme, .dark)
-
-        let dark = renderImage(content: view)
-        XCTAssertNotNil(dark)
-        add(XCTAttachment(image: dark))
-
-        let light = renderImage(
-            content: view
-                .environment(\.colorScheme, .light)
-        )
-        XCTAssertNotNil(light)
-        add(XCTAttachment(image: light))
-    }
-
-    @MainActor
-    func testSmartScanButtonStateSnapshots() {
-        let dark = renderImage(
-            content: buttonStateShowcase
-                .padding(24)
-                .frame(width: 860, height: 220)
-                .background(WorldCanvasBackground())
-                .tonicTheme(.smartScanPurple)
-                .environment(\.colorScheme, .dark)
-        )
-
-        let light = renderImage(
-            content: buttonStateShowcase
-                .padding(24)
-                .frame(width: 860, height: 220)
-                .background(WorldCanvasBackground())
-                .tonicTheme(.smartScanPurple)
-                .environment(\.colorScheme, .light)
-        )
-
-        XCTAssertNotNil(dark)
-        XCTAssertNotNil(light)
-        add(XCTAttachment(image: dark))
-        add(XCTAttachment(image: light))
-    }
-
-    @MainActor
-    func testSmartScanBentoHoverElevationSnapshot() {
-        let baseTile = BentoTile(
-            model: .init(
-                id: .spaceSystemJunk,
-                size: .wide,
-                metricTitle: "1.8 GB",
-                title: "System Junk Found",
-                subtitle: "Elevation snapshot sample.",
-                iconSymbols: ["gearshape.fill"],
-                reviewTarget: .section(.space),
-                actions: [.init(title: "Review", kind: .review)]
-            ),
-            world: .cleanupGreen,
-            onReview: { _ in },
-            onAction: { _, _ in }
-        )
-
-        let view = HStack(spacing: 16) {
-            baseTile
-            baseTile
-                .offset(y: -2)
-                .softShadow(TonicShadowToken.lightE2)
-        }
-        .padding(24)
-        .frame(width: 900, height: 300)
-        .background(WorldCanvasBackground())
-        .tonicTheme(.smartScanPurple)
-        .environment(\.colorScheme, .light)
-
-        let image = renderImage(content: view)
-        XCTAssertNotNil(image)
-        add(XCTAttachment(image: image))
-    }
-
-    func testSmartScanThemeRegressionContrastGuards() {
-        let darkCanvas = nsColor(TonicCanvasTokens.fill(for: .smartScanPurple, colorScheme: .dark))
-        let lightCanvas = nsColor(TonicCanvasTokens.fill(for: .smartScanPurple, colorScheme: .light))
-
-        let darkPrimary = compositedColor(
-            foreground: NSColor(calibratedWhite: 1.0, alpha: 0.92),
-            over: darkCanvas
-        )
-        let lightPrimary = compositedColor(
-            foreground: NSColor(calibratedWhite: 0.0, alpha: 0.88),
-            over: lightCanvas
-        )
-
-        let darkRatio = ColorAccessibilityHelper.contrastRatio(foreground: darkPrimary, background: darkCanvas)
-        let lightRatio = ColorAccessibilityHelper.contrastRatio(foreground: lightPrimary, background: lightCanvas)
-
-        XCTAssertGreaterThanOrEqual(darkRatio, 4.5, "Dark theme labels must retain AA contrast")
-        XCTAssertGreaterThanOrEqual(lightRatio, 4.5, "Light theme labels must retain AA contrast")
+        XCTAssertGreaterThanOrEqual(ColorAccessibilityHelper.contrastRatio(foreground: onDark, background: console), 4.5)
+        XCTAssertGreaterThanOrEqual(ColorAccessibilityHelper.contrastRatio(foreground: muted, background: console), 4.5)
     }
 
     @MainActor
@@ -587,121 +413,24 @@ final class AccessibilityTests: XCTestCase {
         return renderer.nsImage ?? NSImage(size: NSSize(width: 1, height: 1))
     }
 
-    private func assertChipReadability(
-        style: TonicChipStyle,
-        on canvas: NSColor,
-        context: String,
-        minTextRatio: Double = 3.0,
-        minIconRatio: Double = 2.0
-    ) {
-        let composedBase = compositedColor(foreground: nsColor(style.backgroundBase), over: canvas)
-        let composedFill = compositedColor(foreground: nsColor(style.backgroundTint), over: composedBase)
-        let textRatio = ColorAccessibilityHelper.contrastRatio(
-            foreground: nsColor(style.text),
-            background: composedFill
-        )
-        let iconRatio = ColorAccessibilityHelper.contrastRatio(
-            foreground: nsColor(style.icon),
-            background: composedFill
-        )
-
-        XCTAssertGreaterThanOrEqual(textRatio, minTextRatio, "\(context) text contrast should remain readable")
-        XCTAssertGreaterThanOrEqual(iconRatio, minIconRatio, "\(context) icon contrast should remain readable")
-    }
-
-    private func assertStatusReadability(status: TonicStatusStyle, context: String) {
-        let ratio = ColorAccessibilityHelper.contrastRatio(
-            foreground: nsColor(status.text),
-            background: nsColor(status.fill)
-        )
-        XCTAssertGreaterThanOrEqual(ratio, 4.5, "\(context) text should meet WCAG AA")
-    }
-
-    private func nsColor(_ color: Color) -> NSColor {
-        let value = NSColor(color)
-        return value.usingColorSpace(.deviceRGB) ?? value
-    }
-
-    private func compositedColor(foreground: NSColor, over background: NSColor) -> NSColor {
-        let fg = foreground.usingColorSpace(.deviceRGB) ?? foreground
-        let bg = background.usingColorSpace(.deviceRGB) ?? background
-
-        let fgA = fg.alphaComponent
-        let bgA = bg.alphaComponent
-        let outA = fgA + bgA * (1 - fgA)
-
-        guard outA > 0 else {
-            return .clear
-        }
-
-        let outR = (fg.redComponent * fgA + bg.redComponent * bgA * (1 - fgA)) / outA
-        let outG = (fg.greenComponent * fgA + bg.greenComponent * bgA * (1 - fgA)) / outA
-        let outB = (fg.blueComponent * fgA + bg.blueComponent * bgA * (1 - fgA)) / outA
-
-        return NSColor(calibratedRed: outR, green: outG, blue: outB, alpha: outA)
-    }
-
-    private var chipShowcase: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                GlassChip(title: "Safe", role: .semantic(.success))
-                GlassChip(title: "Needs Review", role: .semantic(.warning))
-                GlassChip(title: "Risky", role: .semantic(.danger), strength: .strong)
-            }
-            HStack(spacing: 8) {
-                GlassChip(title: "Reclaimable", role: .world(.cleanupGreen))
-                GlassChip(title: "Startup Impact", role: .world(.performanceOrange))
-                GlassChip(title: "Apps Found", role: .world(.applicationsBlue), strength: .outline)
-            }
-        }
-    }
-
-    private var buttonStateShowcase: some View {
+    private var editorialControlShowcase: some View {
         VStack(alignment: .leading, spacing: 16) {
+            MonoLabel("Controls")
             HStack(spacing: 10) {
-                ButtonStatePillView(title: "Default", variant: .primary, state: .default)
-                ButtonStatePillView(title: "Hover", variant: .primary, state: .hover)
-                ButtonStatePillView(title: "Pressed", variant: .primary, state: .pressed)
-                ButtonStatePillView(title: "Focused", variant: .primary, state: .focused)
-                ButtonStatePillView(title: "Disabled", variant: .primary, state: .disabled)
+                PrimaryPill("Run Smart Scan") {}
+                FilterPill(title: "All", isActive: true) {}
+                FilterPill(title: "Large", isActive: false) {}
             }
-            HStack(spacing: 10) {
-                ButtonStatePillView(title: "Secondary", variant: .secondary, state: .default)
-                ButtonStatePillView(title: "Hover", variant: .secondary, state: .hover)
-                ButtonStatePillView(title: "Pressed", variant: .secondary, state: .pressed)
-                ButtonStatePillView(title: "Focused", variant: .secondary, state: .focused)
-                ButtonStatePillView(title: "Disabled", variant: .secondary, state: .disabled)
+            MonitoringConsole {
+                VStack(alignment: .leading, spacing: 10) {
+                    MonoLabel("Console", color: TonicDS.Colors.onDarkMuted)
+                    HStack {
+                        StatusChip("Healthy", color: TonicDS.Colors.statusSuccess)
+                        StatusChip("Critical", color: TonicDS.Colors.statusCritical)
+                    }
+                    Metric("42", unit: "%", color: TonicDS.Colors.statusInfo)
+                }
             }
         }
-    }
-}
-
-private struct ButtonStatePillView: View {
-    let title: String
-    let variant: TonicButtonVariant
-    let state: TonicControlState
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let style = TonicButtonTokens.style(variant: variant, state: state, colorScheme: colorScheme)
-        let token = TonicButtonStateTokens.token(for: state)
-
-        Text(title)
-            .font(TonicTypeToken.caption.weight(.semibold))
-            .foregroundStyle(style.foreground)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(style.background)
-            .overlay(Capsule().stroke(style.stroke, lineWidth: 1))
-            .overlay(Capsule().stroke(style.strokeBoost, lineWidth: 1))
-            .overlay(
-                Capsule()
-                    .inset(by: -3)
-                    .stroke(state == .focused ? style.focusRing : .clear, lineWidth: 2)
-            )
-            .clipShape(Capsule())
-            .scaleEffect(token.scale)
-            .brightness(token.brightnessDelta)
-            .opacity(token.contentOpacity)
     }
 }

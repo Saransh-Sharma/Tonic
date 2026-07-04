@@ -106,4 +106,7 @@ struct FastAppData: Sendable {
     let category: AppMetadata.AppCategory
     var totalSize: Int64
     let itemType: ItemType
+    /// Spotlight's kMDItemLastUsedDate. nil = unknown, which must never be
+    /// interpreted as "never used" (plists, extensions, unindexed volumes).
+    var lastUsed: Date? = nil
 }

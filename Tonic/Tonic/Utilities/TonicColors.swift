@@ -7,35 +7,10 @@
 
 import SwiftUI
 
-/// Tonic color palette
-public enum TonicColors {
-    // Brand colors
-    public static let accent = Color(red: 0.3, green: 0.5, blue: 1.0)
-    public static let pro = Color(red: 1.0, green: 0.75, blue: 0.0)
-
-    // Status colors (migrated from ESC color codes)
-    public static let success = Color(red: 0.2, green: 0.8, blue: 0.4)
-    public static let error = Color(red: 1.0, green: 0.3, blue: 0.3)
-    public static let warning = Color(red: 1.0, green: 0.6, blue: 0.0)
-
-    // UI colors
-    public static let backgroundPrimary = Color(nsColor: .windowBackgroundColor)
-    public static let backgroundSecondary = Color(nsColor: .controlBackgroundColor)
-    public static let backgroundTertiary = Color(nsColor: .textBackgroundColor)
-
-    public static let textPrimary = Color(nsColor: .labelColor)
-    public static let textSecondary = Color(nsColor: .secondaryLabelColor)
-    public static let textTertiary = Color(nsColor: .tertiaryLabelColor)
-
-    // Category colors for visual distinction
-    public static let categorySystem = Color(red: 0.5, green: 0.5, blue: 0.5)
-    public static let categoryProductivity = Color(red: 0.2, green: 0.6, blue: 1.0)
-    public static let categoryCreativity = Color(red: 0.9, green: 0.3, blue: 0.5)
-    public static let categoryDevelopment = Color(red: 0.3, green: 0.7, blue: 0.4)
-    public static let categoryCommunication = Color(red: 0.4, green: 0.4, blue: 0.9)
-    public static let categoryEntertainment = Color(red: 0.8, green: 0.4, blue: 0.2)
-    public static let categoryUtilities = Color(red: 0.6, green: 0.5, blue: 0.3)
-}
+// The legacy `TonicColors` palette was retired in the TonicDS redesign. Status colors
+// now come from `TonicDS.Colors.status*` (the single data-color authority) and accents
+// from `TonicDS.Colors.linkBlue`. The brand-asset helper and Color initializers below
+// are kept because they are still used app-wide.
 
 enum TonicBrandAssets {
     private static let preferredAssetNames = [

@@ -2,7 +2,7 @@
 //  SidebarView.swift
 //  Tonic
 //
-//  Sidebar navigation component with grouped sections
+//  Editorial sidebar — quiet, monochrome, custom selection (no OS accent highlight).
 //
 
 import SwiftUI
@@ -27,12 +27,11 @@ struct SidebarSection: Identifiable {
 struct SidebarView: View {
     @Binding var selectedDestination: NavigationDestination
 
-    /// Base grouped navigation sections following the new IA
+    /// Grouped navigation sections following the new IA.
     private let baseSections: [SidebarSection] = [
         SidebarSection(nil, items: [.dashboard]),
-        SidebarSection("Maintenance", items: [.systemCleanup, .diskAnalysis, .appManager, .recentlyCleaned]),
-        SidebarSection("Explore", items: [.liveMonitoring]),
-        SidebarSection("Menu Bar", items: [.menuBarWidgets]),
+        SidebarSection("Maintenance", items: [.systemCleanup, .appManager]),
+        SidebarSection("Explore", items: [.liveMonitoring, .menuBarManager]),
         SidebarSection("Advanced", items: [.developerTools, .designSandbox]),
         SidebarSection(nil, items: [.settings])
     ]
@@ -40,98 +39,124 @@ struct SidebarView: View {
     private var sections: [SidebarSection] {
         baseSections.compactMap { section in
             let enabledItems = section.items.filter(FeatureFlags.isEnabled)
-            guard !enabledItems.isEmpty else {
-                return nil
-            }
+            guard !enabledItems.isEmpty else { return nil }
             return SidebarSection(section.title, items: enabledItems)
         }
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // App header
+        VStack(alignment: .leading, spacing: 0) {
             appHeader
 
-            Divider()
-
-            // Navigation list with grouped sections
-            List(selection: $selectedDestination) {
-                ForEach(sections) { section in
-                    sectionContent(section)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+                    ForEach(sections) { section in
+                        sectionView(section)
+                    }
                 }
+                .padding(.horizontal, TonicDS.Space.xs)
+                .padding(.vertical, TonicDS.Space.md)
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
         }
-        .padding(8)
-        .atelierSurface(radius: AtelierLayout.radiusLg)
-        .frame(minWidth: DesignTokens.Layout.sidebarWidth)
+        .frame(minWidth: TonicDS.Layout.sidebarWidth, maxHeight: .infinity, alignment: .top)
+        .background(TonicDS.Colors.canvasSoft)
     }
 
     // MARK: - App Header
 
     private var appHeader: some View {
-        HStack(spacing: DesignTokens.Spacing.xxs) {
+        HStack(spacing: TonicDS.Space.xs) {
             TonicBrandAssets.appImage()
                 .resizable()
                 .scaledToFit()
-                .frame(width: 22, height: 22)
+                .frame(width: 20, height: 20)
 
-            Text("Tonic")
-                .font(AtelierTypography.bodyStrong)
-                .foregroundStyle(TonicTextToken.primary)
+            Text("TONIC")
+                .tonicType(.monoLabel)
+                .tracking(2)
+                .foregroundStyle(TonicDS.Colors.textPrimary)
 
             Spacer()
         }
-        .padding(DesignTokens.Spacing.sm)
+        .padding(.horizontal, TonicDS.Space.md)
+        .padding(.vertical, TonicDS.Space.md)
     }
 
-    // MARK: - Section Content
+    // MARK: - Section
 
     @ViewBuilder
-    private func sectionContent(_ section: SidebarSection) -> some View {
-        if let title = section.title {
-            // Section with header
-            Section {
-                ForEach(section.items, id: \.self) { destination in
-                    navigationRow(destination)
-                }
-            } header: {
-                Text(title)
-                    .font(AtelierTypography.micro)
-                    .foregroundColor(TonicTextToken.tertiary)
-                    .textCase(.uppercase)
-                    .padding(.top, section.id == sections.first?.id ? 0 : DesignTokens.Spacing.xxs)
+    private func sectionView(_ section: SidebarSection) -> some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+            if let title = section.title {
+                MonoLabel(title)
+                    .padding(.horizontal, TonicDS.Space.sm)
+                    .padding(.bottom, 2)
             }
-        } else {
-            // Items without section header
             ForEach(section.items, id: \.self) { destination in
-                navigationRow(destination)
+                SidebarRow(
+                    destination: destination,
+                    isSelected: destination == selectedDestination,
+                    action: { selectedDestination = destination }
+                )
             }
         }
     }
+}
 
-    // MARK: - Navigation Row
+// MARK: - Sidebar Row
 
-    private func navigationRow(_ destination: NavigationDestination) -> some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: destination.systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(TonicTextToken.secondary)
-                .frame(width: 18)
+private struct SidebarRow: View {
+    let destination: NavigationDestination
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var hovering = false
 
-            Text(destination.sidebarDisplayName)
-                .font(AtelierTypography.caption)
-                .foregroundStyle(TonicTextToken.primary)
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: TonicDS.Space.sm) {
+                Image(systemName: destination.systemImage)
+                    .font(.system(size: 13, weight: .regular))
+                    .frame(width: 18)
+                    .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
 
-            #if DEBUG
-            if destination.wipFeature != nil {
-                Badge(text: "WIP", color: DesignTokens.Colors.warning, size: .small)
+                Text(destination.sidebarDisplayName)
+                    .tonicType(.body)
+                    .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+
+                Spacer(minLength: 0)
+
+                #if DEBUG
+                if destination.wipFeature != nil {
+                    Text("WIP")
+                        .tonicType(.monoLabel)
+                        .foregroundStyle(TonicDS.Colors.statusWarning)
+                }
+                #endif
             }
-            #endif
+            .padding(.horizontal, TonicDS.Space.sm)
+            .frame(height: TonicDS.Layout.minControlTarget)
+            .background(rowBackground)
+            .contentShape(Rectangle())
         }
-            .tag(destination)
+        .buttonStyle(.plain)
+        .tonicFocusableControl(radius: TonicDS.Radius.sm)
+        .accessibilityLabel(destination.sidebarDisplayName)
+        .accessibilityAddTraits(isSelected ? .isSelected : AccessibilityTraits())
+        .onHover { hovering = $0 }
+        .tonicPointerCursor()
+    }
+
+    @ViewBuilder
+    private var rowBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
+        if isSelected {
+            shape.fill(TonicDS.Colors.surface)
+                .overlay(shape.strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
+        } else if hovering {
+            shape.fill(TonicDS.Colors.rowHover(0.05))
+        } else {
+            Color.clear
+        }
     }
 }
 
@@ -141,15 +166,16 @@ extension NavigationDestination {
     /// Display name for sidebar (may differ from rawValue for brevity)
     var sidebarDisplayName: String {
         switch self {
-        case .dashboard: return "Dashboard"
-        case .systemCleanup: return "Smart Scan"
+        case .dashboard: return "Home"
+        case .systemCleanup: return "Clean"
         case .appManager: return "Apps"
-        case .diskAnalysis: return "Storage Hub"
-        case .recentlyCleaned: return "Recently Cleaned"
-        case .liveMonitoring: return "Activity"
+        case .diskAnalysis: return "Storage"
+        case .recentlyCleaned: return "History"
+        case .liveMonitoring: return "Monitor"
+        case .menuBarManager: return "Menu Bar"
         case .menuBarWidgets: return "Widgets"
         case .developerTools: return "Developer Tools"
-        case .designSandbox: return "Design Sandbox"
+        case .designSandbox: return "Design Gallery"
         case .settings: return "Settings"
         }
     }

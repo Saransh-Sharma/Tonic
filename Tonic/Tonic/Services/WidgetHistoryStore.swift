@@ -2,14 +2,13 @@
 //  WidgetHistoryStore.swift
 //  Tonic
 //
-//  Widget graph history persistence
-//  Task ID: fn-2.13
+//  Timestamped resource graph history for the monitoring dashboard.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
-/// Stores graph history data for widgets with 1-week persistence
+/// Stores live session samples and 24-hour downsampled resource history.
 @MainActor
 @Observable
 public final class WidgetHistoryStore {
@@ -18,69 +17,190 @@ public final class WidgetHistoryStore {
 
     // MARK: - Constants
 
-    private let maxHistoryPoints = 60
-    private let persistenceDuration: TimeInterval = 7 * 24 * 60 * 60 // 1 week
+    private let liveCapacity: Int
+    private let historicalCapacity: Int
+    private let persistenceDuration: TimeInterval
+    private let minimumSaveInterval: TimeInterval
+    private let storageURL: URL
+    private let fileManager: FileManager
+    private let logger = Logger(subsystem: "com.tonic.app", category: "WidgetHistoryStore")
 
-    // MARK: - History Storage
+    // MARK: - Storage
 
-    /// CPU history (60 points of usage percentages)
-    public private(set) var cpuHistory: [Double] = []
+    public private(set) var liveSamples: [ResourceMetricSample] = []
+    public private(set) var historicalSamples: [ResourceMetricSample] = []
 
-    /// Memory history (60 points of usage percentages)
-    public private(set) var memoryHistory: [Double] = []
+    private var lastSaveDate: Date?
 
-    /// Network upload history (60 points of KB/s)
-    public private(set) var networkUploadHistory: [Double] = []
+    // MARK: - Compatibility History Accessors
 
-    /// Network download history (60 points of KB/s)
-    public private(set) var networkDownloadHistory: [Double] = []
-
-    // MARK: - UserDefaults Keys
-
-    private enum Keys {
-        static let cpuHistory = "tonic.history.cpu"
-        static let memoryHistory = "tonic.history.memory"
-        static let networkUploadHistory = "tonic.history.networkUpload"
-        static let networkDownloadHistory = "tonic.history.networkDownload"
-        static let lastSaveTime = "tonic.history.lastSave"
+    public var cpuHistory: [Double] {
+        chartSeries(for: .cpuPercent, range: .live)
     }
 
-    // MARK: - Auto-Save
-
-    /// Interval for auto-save (5 minutes)
-    private let autoSaveInterval: TimeInterval = 5 * 60
-
-    /// Timer for periodic history saving (every 5 minutes)
-    /// Uses RunLoop which is thread-safe by design
-    private final class TimerBox: @unchecked Sendable {
-        var timer: Timer?
-        init() {}
+    public var memoryHistory: [Double] {
+        chartSeries(for: .memoryPercent, range: .live)
     }
 
-    private let timerBox = TimerBox()
+    public var networkUploadHistory: [Double] {
+        chartSeries(for: .networkUploadBytesPerSecond, range: .live)
+    }
+
+    public var networkDownloadHistory: [Double] {
+        chartSeries(for: .networkDownloadBytesPerSecond, range: .live)
+    }
 
     // MARK: - Initialization
 
-    private init() {
+    init(
+        storageURL: URL? = nil,
+        fileManager: FileManager = .default,
+        liveCapacity: Int = 180,
+        historicalCapacity: Int = 1_440,
+        persistenceDuration: TimeInterval = 24 * 60 * 60,
+        minimumSaveInterval: TimeInterval = 60
+    ) {
+        self.fileManager = fileManager
+        self.storageURL = storageURL ?? Self.defaultStorageURL(fileManager: fileManager)
+        self.liveCapacity = liveCapacity
+        self.historicalCapacity = historicalCapacity
+        self.persistenceDuration = persistenceDuration
+        self.minimumSaveInterval = minimumSaveInterval
+
         loadHistory()
-        cleanupOldHistory()
-        setupAutoSave()
+        pruneOldHistory()
         setupAppLifecycleObservers()
     }
 
-    // MARK: - Auto-Save Setup
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
-    private func setupAutoSave() {
-        // Schedule periodic auto-save every 5 minutes
-        timerBox.timer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.saveHistory()
-            }
+    // MARK: - Public API
+
+    public func record(_ sample: ResourceMetricSample) {
+        liveSamples.append(sample)
+        if liveSamples.count > liveCapacity {
+            liveSamples.removeFirst(liveSamples.count - liveCapacity)
+        }
+
+        upsertHistoricalSample(sample)
+        pruneOldHistory()
+        saveHistoryIfNeeded()
+    }
+
+    public func samples(for range: ResourceHistoryRange) -> [ResourceMetricSample] {
+        switch range {
+        case .live:
+            return liveSamples
+        case .oneHour, .twentyFourHours:
+            guard let duration = range.duration else { return historicalSamples }
+            let cutoff = Date().addingTimeInterval(-duration)
+            return historicalSamples.filter { $0.timestamp >= cutoff }
         }
     }
 
+    public func chartSeries(for metric: ResourceMetricKind, range: ResourceHistoryRange) -> [Double] {
+        samples(for: range).map { $0.value(for: metric) }
+    }
+
+    public func summary(for metric: ResourceMetricKind, range: ResourceHistoryRange) -> ResourceMetricSummary {
+        let values = chartSeries(for: metric, range: range)
+        guard let latest = values.last else {
+            return .empty
+        }
+
+        let total = values.reduce(0, +)
+        return ResourceMetricSummary(
+            latest: latest,
+            average: total / Double(values.count),
+            peak: values.max() ?? latest
+        )
+    }
+
+    public func saveHistory() {
+        pruneOldHistory()
+        do {
+            try fileManager.createDirectory(
+                at: storageURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let data = try JSONEncoder.resourceHistory.encode(historicalSamples)
+            try data.write(to: storageURL, options: .atomic)
+            lastSaveDate = Date()
+        } catch {
+            logger.error("Failed to save widget history: \(error.localizedDescription)")
+        }
+    }
+
+    public func clearHistory() {
+        liveSamples = []
+        historicalSamples = []
+        lastSaveDate = nil
+        try? fileManager.removeItem(at: storageURL)
+    }
+
+    // MARK: - Legacy Add API
+
+    public func addCPUValue(_ value: Double) {
+        record(legacySample(cpuPercent: value))
+    }
+
+    public func addMemoryValue(_ value: Double) {
+        record(legacySample(memoryPercent: value))
+    }
+
+    public func addNetworkUploadValue(_ bytesPerSecond: Double) {
+        record(legacySample(networkUploadBytesPerSecond: bytesPerSecond))
+    }
+
+    public func addNetworkDownloadValue(_ bytesPerSecond: Double) {
+        record(legacySample(networkDownloadBytesPerSecond: bytesPerSecond))
+    }
+
+    // MARK: - Private Methods
+
+    /// Historical samples are always appended/updated in non-decreasing timestamp order (they
+    /// come from a serially-dispatched live monitoring tick), so a fresh append is already in the
+    /// right place and an in-place update to the last bucket never changes ordering — no sort
+    /// needed on this hot path.
+    private func upsertHistoricalSample(_ sample: ResourceMetricSample) {
+        let bucketTimestamp = ResourceMetricCalculators.minuteBucketTimestamp(for: sample.timestamp)
+        let bucketed = sample.withTimestamp(bucketTimestamp)
+
+        if let index = historicalSamples.firstIndex(where: { $0.timestamp == bucketTimestamp }) {
+            historicalSamples[index] = historicalSamples[index].averaged(with: bucketed)
+        } else {
+            historicalSamples.append(bucketed)
+        }
+
+        if historicalSamples.count > historicalCapacity {
+            historicalSamples.removeFirst(historicalSamples.count - historicalCapacity)
+        }
+    }
+
+    private func pruneOldHistory() {
+        let cutoff = Date().addingTimeInterval(-persistenceDuration)
+        historicalSamples.removeAll { $0.timestamp < cutoff }
+    }
+
+    private func saveHistoryIfNeeded() {
+        guard lastSaveDate.map({ Date().timeIntervalSince($0) >= minimumSaveInterval }) ?? true else {
+            return
+        }
+        saveHistory()
+    }
+
+    private func loadHistory() {
+        guard let data = try? Data(contentsOf: storageURL),
+              let decoded = try? JSONDecoder.resourceHistory.decode([ResourceMetricSample].self, from: data) else {
+            return
+        }
+
+        historicalSamples = decoded.sorted { $0.timestamp < $1.timestamp }
+    }
+
     private func setupAppLifecycleObservers() {
-        // Listen for app termination to save history
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationWillTerminate),
@@ -88,7 +208,6 @@ public final class WidgetHistoryStore {
             object: nil
         )
 
-        // Also save when app goes to background (for sleep/lock)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(applicationWillResignActive),
@@ -99,88 +218,97 @@ public final class WidgetHistoryStore {
 
     @objc private func applicationWillTerminate() {
         saveHistory()
-        timerBox.timer?.invalidate()
     }
 
     @objc private func applicationWillResignActive() {
         saveHistory()
     }
 
-    deinit {
-        // Timer needs to be invalidated outside of MainActor context
-        timerBox.timer?.invalidate()
-        NotificationCenter.default.removeObserver(self)
+    private func legacySample(
+        cpuPercent: Double = 0,
+        memoryPercent: Double = 0,
+        networkUploadBytesPerSecond: Double = 0,
+        networkDownloadBytesPerSecond: Double = 0
+    ) -> ResourceMetricSample {
+        ResourceMetricSample(
+            cpuPercent: cpuPercent,
+            memoryPercent: memoryPercent,
+            memoryUsedBytes: 0,
+            memoryTotalBytes: 0,
+            networkUploadBytesPerSecond: networkUploadBytesPerSecond,
+            networkDownloadBytesPerSecond: networkDownloadBytesPerSecond,
+            diskUsedPercent: 0,
+            diskReadBytesPerSecond: 0,
+            diskWriteBytesPerSecond: 0
+        )
     }
 
-    // MARK: - Public Methods
+    private static func defaultStorageURL(fileManager: FileManager) -> URL {
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        return base
+            .appendingPathComponent("Tonic", isDirectory: true)
+            .appendingPathComponent("ResourceMetricHistory.json")
+    }
+}
 
-    /// Add a value to CPU history
-    public func addCPUValue(_ value: Double) {
-        addToHistory(&cpuHistory, value: value)
+private extension ResourceMetricSample {
+    func withTimestamp(_ timestamp: Date) -> ResourceMetricSample {
+        ResourceMetricSample(
+            timestamp: timestamp,
+            cpuPercent: cpuPercent,
+            memoryPercent: memoryPercent,
+            memoryUsedBytes: memoryUsedBytes,
+            memoryTotalBytes: memoryTotalBytes,
+            networkUploadBytesPerSecond: networkUploadBytesPerSecond,
+            networkDownloadBytesPerSecond: networkDownloadBytesPerSecond,
+            diskUsedPercent: diskUsedPercent,
+            diskReadBytesPerSecond: diskReadBytesPerSecond,
+            diskWriteBytesPerSecond: diskWriteBytesPerSecond,
+            sampleCount: sampleCount
+        )
     }
 
-    /// Add a value to memory history
-    public func addMemoryValue(_ value: Double) {
-        addToHistory(&memoryHistory, value: value)
-    }
+    func averaged(with next: ResourceMetricSample) -> ResourceMetricSample {
+        let count = Double(sampleCount)
+        let divisor = count + 1
 
-    /// Add network upload value (in bytes/sec)
-    public func addNetworkUploadValue(_ bytesPerSecond: Double) {
-        let kbPerSecond = bytesPerSecond / 1024
-        addToHistory(&networkUploadHistory, value: kbPerSecond)
-    }
-
-    /// Add network download value (in bytes/sec)
-    public func addNetworkDownloadValue(_ bytesPerSecond: Double) {
-        let kbPerSecond = bytesPerSecond / 1024
-        addToHistory(&networkDownloadHistory, value: kbPerSecond)
-    }
-
-    /// Save all history to disk
-    public func saveHistory() {
-        UserDefaults.standard.set(cpuHistory, forKey: Keys.cpuHistory)
-        UserDefaults.standard.set(memoryHistory, forKey: Keys.memoryHistory)
-        UserDefaults.standard.set(networkUploadHistory, forKey: Keys.networkUploadHistory)
-        UserDefaults.standard.set(networkDownloadHistory, forKey: Keys.networkDownloadHistory)
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Keys.lastSaveTime)
-    }
-
-    /// Clear all history
-    public func clearHistory() {
-        cpuHistory = []
-        memoryHistory = []
-        networkUploadHistory = []
-        networkDownloadHistory = []
-        saveHistory()
-    }
-
-    // MARK: - Private Methods
-
-    private func addToHistory(_ array: inout [Double], value: Double) {
-        array.append(value)
-        if array.count > maxHistoryPoints {
-            array.removeFirst()
-        }
-    }
-
-    private func loadHistory() {
-        cpuHistory = UserDefaults.standard.array(forKey: Keys.cpuHistory) as? [Double] ?? []
-        memoryHistory = UserDefaults.standard.array(forKey: Keys.memoryHistory) as? [Double] ?? []
-        networkUploadHistory = UserDefaults.standard.array(forKey: Keys.networkUploadHistory) as? [Double] ?? []
-        networkDownloadHistory = UserDefaults.standard.array(forKey: Keys.networkDownloadHistory) as? [Double] ?? []
-    }
-
-    /// Remove history older than 1 week
-    private func cleanupOldHistory() {
-        guard let lastSaveTimestamp = UserDefaults.standard.object(forKey: Keys.lastSaveTime) as? TimeInterval else {
-            return
+        func average(_ old: Double, _ new: Double) -> Double {
+            ((old * count) + new) / divisor
         }
 
-        let lastSaveDate = Date(timeIntervalSince1970: lastSaveTimestamp)
-        let elapsed = Date().timeIntervalSince(lastSaveDate)
-
-        if elapsed > persistenceDuration {
-            clearHistory()
+        func averageBytes(_ old: UInt64, _ new: UInt64) -> UInt64 {
+            UInt64(average(Double(old), Double(new)).rounded())
         }
+
+        return ResourceMetricSample(
+            timestamp: timestamp,
+            cpuPercent: average(cpuPercent, next.cpuPercent),
+            memoryPercent: average(memoryPercent, next.memoryPercent),
+            memoryUsedBytes: averageBytes(memoryUsedBytes, next.memoryUsedBytes),
+            memoryTotalBytes: averageBytes(memoryTotalBytes, next.memoryTotalBytes),
+            networkUploadBytesPerSecond: average(networkUploadBytesPerSecond, next.networkUploadBytesPerSecond),
+            networkDownloadBytesPerSecond: average(networkDownloadBytesPerSecond, next.networkDownloadBytesPerSecond),
+            diskUsedPercent: average(diskUsedPercent, next.diskUsedPercent),
+            diskReadBytesPerSecond: average(diskReadBytesPerSecond, next.diskReadBytesPerSecond),
+            diskWriteBytesPerSecond: average(diskWriteBytesPerSecond, next.diskWriteBytesPerSecond),
+            sampleCount: sampleCount + next.sampleCount
+        )
+    }
+}
+
+private extension JSONEncoder {
+    static var resourceHistory: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var resourceHistory: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

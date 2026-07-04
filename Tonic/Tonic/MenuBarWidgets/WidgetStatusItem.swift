@@ -167,6 +167,8 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Bluetooth: \(dataManager.bluetoothData.connectedDevices.count) connected, enabled: \(dataManager.bluetoothData.isBluetoothEnabled)")
         case .clock:
             self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Clock: \(ClockPreferences.shared.enabledEntries.count) timezones")
+        case .tonic:
+            self.logger.debug("🔄 \(self.widgetType.rawValue) view updated - Tonic status")
         }
     }
 
@@ -188,13 +190,12 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
 
     /// Update the configuration and refresh the view
     public func updateConfiguration(_ newConfig: WidgetConfiguration) {
-        let oldColor = configuration.accentColor.rawValue
         let oldFormat = configuration.valueFormat.rawValue
         let oldMode = configuration.displayMode.rawValue
 
         configuration = newConfig
 
-        logger.info("🔧 updateConfiguration for \(self.widgetType.rawValue): color \(oldColor)→\(newConfig.accentColor.rawValue), format \(oldFormat)→\(newConfig.valueFormat.rawValue), mode \(oldMode)→\(newConfig.displayMode.rawValue)")
+        logger.info("🔧 updateConfiguration for \(self.widgetType.rawValue): format \(oldFormat)→\(newConfig.valueFormat.rawValue), mode \(oldMode)→\(newConfig.displayMode.rawValue)")
 
         if newConfig.isEnabled && !isVisible {
             // Widget was re-enabled
@@ -239,7 +240,7 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
                 self.logger.debug("🔄 Forced NSView redraw for \(self.widgetType.rawValue)")
             }
 
-            logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), color=\(newConfig.accentColor.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
+            logger.info("✏️ Updated widget \(self.widgetType.rawValue): displayMode=\(newConfig.displayMode.rawValue), valueFormat=\(newConfig.valueFormat.rawValue)")
         }
     }
 
@@ -274,34 +275,17 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
 
     /// Create the detail view for this widget (to be overridden by subclasses)
     open func createDetailView() -> AnyView {
-        // Return the appropriate Stats Master-style popover for each widget type
-        switch widgetType {
-        case .cpu:
-            return AnyView(CPUPopoverView())
-        case .gpu:
-            return AnyView(GPUPopoverView())
-        case .memory:
-            return AnyView(MemoryPopoverView())
-        case .disk:
-            return AnyView(DiskPopoverView())
-        case .network:
-            return AnyView(NetworkPopoverView())
-        case .battery:
-            return AnyView(BatteryPopoverView())
-        case .sensors:
-            return AnyView(SensorsPopoverView())
-        case .bluetooth:
-            return AnyView(BluetoothPopoverView())
-        case .clock:
-            return AnyView(ClockPopoverView())
-        case .weather:
-            return AnyView(WeatherDetailView())
-        }
+        AnyView(WidgetDetailViewPlaceholder(widgetType: widgetType))
     }
 
     // MARK: - Actions
 
     @objc private func statusBarButtonClicked() {
+        togglePopover()
+    }
+
+    /// Toggle the popover programmatically (button click or global hotkey).
+    public func togglePopover() {
         if let popover = popover, popover.isShown {
             hidePopover()
         } else {
@@ -375,218 +359,284 @@ struct WidgetCompactView: View {
     let configuration: WidgetConfiguration
     @State private var dataManager = WidgetDataManager.shared
 
-    private var accentColor: Color {
-        configuration.accentColor.colorValue(for: widgetType)
+    private var snapshot: WidgetMetricSnapshot {
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            // Icon
+        HStack(spacing: TonicDS.Space.xxs) {
             Image(systemName: widgetType.icon)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(accentColor)
+                .foregroundStyle(snapshot.iconColor)
 
-            // Value - always shown in both compact and detailed modes
-            Text(widgetValue)
+            Text(snapshot.value)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(.primary)
+                .monospacedDigit()
+                .foregroundStyle(snapshot.color)
+                .contentTransition(.numericText())
 
-            // Label (if enabled)
             if configuration.showLabel {
                 Text(widgetType.displayName)
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(TonicDS.Colors.textMuted)
             }
 
-            // Sparkline for detailed mode
             if configuration.displayMode == .detailed {
-                miniSparkline
-                    .frame(width: 36, height: 14)
+                if let traffic = snapshot.traffic, !traffic.isEmpty {
+                    NetworkTrafficChart(
+                        downloadData: traffic.primary,
+                        uploadData: traffic.secondary,
+                        height: 14,
+                        mode: .compactMenuBar,
+                        lineWidth: 1.2,
+                        downloadColor: traffic.primaryColor,
+                        uploadColor: traffic.secondaryColor
+                    )
+                    .frame(width: 36)
+                } else if !snapshot.history.isEmpty {
+                    NetworkSparklineChart(data: snapshot.history, color: snapshot.color, height: 14, showArea: false, lineWidth: 1.25,
+                                          fixedMax: PopupSettingsStore.shared.settings.chartFixedMax(for: widgetType))
+                        .frame(width: 36)
+                }
             }
         }
         .padding(.horizontal, 4)
-        .frame(height: 22)
-    }
-
-    // MARK: - Sparkline
-
-    private var miniSparkline: some View {
-        let data = sparklineData
-        return GeometryReader { geometry in
-            Path { path in
-                guard data.count > 1 else { return }
-
-                let stepX = geometry.size.width / CGFloat(data.count - 1)
-                let maxY = data.max() ?? 1
-                let minY = data.min() ?? 0
-                let range = max(maxY - minY, 0.1)
-
-                for (index, value) in data.enumerated() {
-                    let x = CGFloat(index) * stepX
-                    let normalizedY = (value - minY) / range
-                    let y = geometry.size.height * (1 - normalizedY)
-
-                    if index == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
-                }
-            }
-            .stroke(
-                LinearGradient(
-                    colors: [accentColor, accentColor.opacity(0.4)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                lineWidth: 1.5
-            )
-        }
-    }
-
-    private var sparklineData: [Double] {
-        switch widgetType {
-        case .cpu:
-            let history = dataManager.cpuHistory.suffix(10)
-            return history.isEmpty ? [30, 35, 32, 38, 36, 34, 37, 35, 33, 36] : Array(history)
-        case .memory:
-            let history = dataManager.memoryHistory.suffix(10)
-            return history.isEmpty ? [60, 62, 58, 65, 63, 67, 64, 68, 66, 65] : Array(history)
-        default:
-            return [30, 35, 32, 38, 36, 34, 37, 35, 33, 36]
-        }
-    }
-
-    private var widgetValue: String {
-        let usePercent = configuration.valueFormat == .percentage
-
-        switch widgetType {
-        case .cpu:
-            if usePercent {
-                return "\(Int(dataManager.cpuData.totalUsage))%"
-            } else {
-                // Show GHz equivalent roughly
-                let baseFreq = 3.0 // Base frequency assumption
-                let currentFreq = baseFreq * (dataManager.cpuData.totalUsage / 100.0)
-                return String(format: "%.1fGHz", currentFreq)
-            }
-
-        case .memory:
-            if usePercent {
-                return "\(Int(dataManager.memoryData.usagePercentage))%"
-            } else {
-                let usedGB = Double(dataManager.memoryData.usedBytes) / (1024 * 1024 * 1024)
-                return String(format: "%.1fGB", usedGB)
-            }
-
-        case .disk:
-            if let primary = dataManager.diskVolumes.first {
-                if usePercent {
-                    return "\(Int(primary.usagePercentage))%"
-                } else {
-                    let freeGB = primary.freeBytes / (1024 * 1024 * 1024)
-                    return "\(freeGB)GB"
-                }
-            }
-            return "--"
-
-        case .network:
-            return dataManager.networkData.downloadString
-
-        case .gpu:
-            if let usage = dataManager.gpuData.usagePercentage {
-                if usePercent {
-                    return "\(Int(usage))%"
-                } else {
-                    // Rough frequency estimate
-                    let baseFreq = 1.0
-                    let currentFreq = baseFreq + (usage / 100.0)
-                    return String(format: "%.1fGHz", currentFreq)
-                }
-            }
-            return "--"
-
-        case .weather:
-            return "--°" // Will be filled by WeatherWidgetView
-
-        case .battery:
-            if dataManager.batteryData.isPresent {
-                if usePercent {
-                    return "\(Int(dataManager.batteryData.chargePercentage))%"
-                } else {
-                    if let minutes = dataManager.batteryData.estimatedMinutesRemaining {
-                        let hours = minutes / 60
-                        let mins = minutes % 60
-                        if hours > 0 {
-                            return "\(hours)h\(mins)m"
-                        } else {
-                            return "\(mins)m"
-                        }
-                    } else {
-                        return "--"
-                    }
-                }
-            }
-            return "--"
-            
-        case .sensors:
-            if let hottest = dataManager.sensorsData.temperatures.map(\.value).max() {
-                if usePercent {
-                    return "\(Int(min(100, hottest)))%"
-                }
-                return "\(Int(hottest))°"
-            }
-            if let fastestFan = dataManager.sensorsData.fans.map(\.rpm).max() {
-                return "\(fastestFan)RPM"
-            }
-            return "--"
-
-        case .bluetooth:
-            if dataManager.bluetoothData.isBluetoothEnabled {
-                let connectedCount = dataManager.bluetoothData.connectedDevices.count
-                if let device = dataManager.bluetoothData.devicesWithBattery.first,
-                   let battery = device.primaryBatteryLevel {
-                    return "\(battery)%"
-                }
-                return "\(connectedCount)"
-            }
-            return "Off"
-
-        case .clock:
-            // Clock is handled by ClockStatusItem, not WidgetCompactView
-            return "--:--"
-        }
+        .frame(height: TonicDS.Layout.MenuBar.compactHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(widgetType.displayName), \(snapshot.value)")
     }
 }
 
-// MARK: - Placeholder Detail View
+private struct EditorialWidgetPopoverView: View {
+    let widgetType: WidgetType
+    let configuration: WidgetConfiguration
+    @State private var dataManager = WidgetDataManager.shared
 
-/// Placeholder detail view until specific widget detail views are implemented
-struct WidgetDetailViewPlaceholder: View {
+    private var snapshot: WidgetMetricSnapshot {
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: TonicDS.Space.xs) {
+                Image(systemName: widgetType.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                MonoLabel(widgetType.displayName, color: TonicDS.Colors.onDarkMuted)
+                Spacer()
+                Metric(snapshot.value, color: snapshot.color, role: .metricSmall)
+                PopoverHeaderButton(systemImage: "gearshape",
+                                    accessibilityLabel: "Open \(widgetType.displayName) settings") {
+                    SettingsDeepLinkNavigator.openModuleSettings(widgetType)
+                }
+            }
+            .padding(.horizontal, TonicDS.Space.md)
+            .frame(height: TonicDS.Layout.minRowHeight)
+
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let traffic = snapshot.traffic {
+                        if !traffic.isEmpty {
+                            NetworkTrafficChart(
+                                downloadData: traffic.primary,
+                                uploadData: traffic.secondary,
+                                height: TonicDS.Layout.MenuBar.chartHeight,
+                                mode: .popover,
+                                lineWidth: 1.5,
+                                downloadColor: traffic.primaryColor,
+                                uploadColor: traffic.secondaryColor
+                            )
+                            .padding(TonicDS.Space.md)
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                        } else if widgetType.expectsHistory {
+                            popoverEmptyHistory
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                        }
+                    } else if !snapshot.history.isEmpty {
+                            NetworkSparklineChart(
+                                data: snapshot.history,
+                                color: snapshot.color,
+                                height: TonicDS.Layout.MenuBar.chartHeight,
+                                showArea: true,
+                                lineWidth: 1.5,
+                                fixedMax: PopupSettingsStore.shared.settings.chartFixedMax(for: widgetType)
+                            )
+                            .padding(TonicDS.Space.md)
+                            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    } else if widgetType.expectsHistory {
+                        popoverEmptyHistory
+                        TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+                    }
+
+                    ForEach(snapshot.blocks) { block in
+                        popoverBlock(block)
+                    }
+                }
+            }
+
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            popoverFooter
+        }
+        .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth)
+        .frame(maxHeight: TonicDS.Layout.MenuBar.maxHeight)
+        .background(TonicDS.Colors.console)
+        .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder
+    private func popoverBlock(_ block: WidgetPopoverBlock) -> some View {
+        switch block.kind {
+        case .row(let row):
+            PopoverMetricRow(row: row)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+        case .label(let text):
+            MonoLabel(text, color: TonicDS.Colors.onDarkMuted)
+                .padding(.horizontal, TonicDS.Space.md)
+                .frame(height: TonicDS.Layout.MenuBar.sectionHeaderHeight, alignment: .bottomLeading)
+                .padding(.top, TonicDS.Space.xs)
+        case .chart(let data, let chartColor):
+            NetworkSparklineChart(data: data, color: chartColor,
+                                  height: TonicDS.Layout.MenuBar.chartHeight * 0.66,
+                                  showArea: true, lineWidth: 1.5)
+                .padding(.horizontal, TonicDS.Space.md)
+                .padding(.vertical, TonicDS.Space.xs)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+        case .breakdown(let segments, let legend):
+            VStack(alignment: .leading, spacing: TonicDS.Space.xs) {
+                ConsoleBreakdownBar(segments: segments)
+                ConsoleLegend(items: legend)
+            }
+            .padding(.horizontal, TonicDS.Space.md)
+            .padding(.vertical, TonicDS.Space.xs)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+        case .coreBars(let label, let values, let barColor):
+            HStack(alignment: .center, spacing: TonicDS.Space.sm) {
+                Text(label)
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                ConsoleCoreBars(values: values, color: barColor)
+                Spacer(minLength: TonicDS.Space.xs)
+                Text("\(Int(values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)))%")
+                    .tonicType(.monoLabel).monospacedDigit()
+                    .foregroundStyle(TonicDS.Colors.onDark)
+            }
+            .padding(.horizontal, TonicDS.Space.md)
+            .padding(.vertical, TonicDS.Space.xs)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(label), average \(Int(values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count))) percent, \(values.count) cores")
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+        }
+    }
+
+    /// Cross-navigation: the popover is the glance; Monitor is the instrument wall.
+    private var popoverFooter: some View {
+        HStack {
+            TextAction("Open Monitor", systemImage: "arrow.up.right",
+                       color: TonicDS.Colors.onDarkMuted) {
+                MainWindowNavigator.openLiveMonitor()
+            }
+            Spacer()
+        }
+        .padding(.horizontal, TonicDS.Space.md)
+        .frame(height: TonicDS.Layout.MenuBar.rowHeight + TonicDS.Space.xs)
+    }
+
+    private var popoverEmptyHistory: some View {
+        HStack(spacing: TonicDS.Space.sm) {
+            TonicSkeleton(height: 34, width: 48, radius: TonicDS.Radius.xs)
+            VStack(alignment: .leading, spacing: TonicDS.Space.xxs) {
+                MonoLabel("HISTORY", color: TonicDS.Colors.onDarkMuted)
+                Text("Waiting for live samples")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            }
+            Spacer()
+        }
+        .padding(TonicDS.Space.md)
+    }
+}
+
+/// Icon-only console header control (settings gear, etc.) with hover feedback.
+private struct PopoverHeaderButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hovering ? TonicDS.Colors.onDark : TonicDS.Colors.onDarkMuted)
+                .frame(width: 22, height: 22)
+                .background(
+                    Circle().fill(TonicDS.Colors.onDark.opacity(hovering ? 0.10 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(TonicDS.Motion.press, value: hovering)
+        .accessibilityLabel(accessibilityLabel)
+        .tonicPointerCursor()
+    }
+}
+
+private struct PopoverMetricRow: View {
+    let row: WidgetPopoverRow
+
+    var body: some View {
+        HStack(spacing: TonicDS.Space.sm) {
+            if let color = row.statusColor {
+                StatusDot(color)
+            }
+            Text(row.label)
+                .tonicType(.caption)
+                .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            Spacer(minLength: TonicDS.Space.sm)
+            Text(row.value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(row.statusColor ?? TonicDS.Colors.onDark)
+                .contentTransition(.numericText())
+        }
+        .frame(height: TonicDS.Layout.MenuBar.rowHeight)
+        .padding(.horizontal, TonicDS.Space.md)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        if let level = row.level {
+            return "\(row.label): \(row.value), \(level.word)"
+        }
+        return "\(row.label): \(row.value)"
+    }
+}
+
+// MARK: - Detail Placeholder
+
+/// Base console placeholder shown until a widget subclass supplies its own detail view.
+private struct WidgetDetailViewPlaceholder: View {
     let widgetType: WidgetType
 
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
+        VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+            MonoLabel(widgetType.displayName, color: TonicDS.Colors.onDarkMuted)
+            HStack(spacing: TonicDS.Space.sm) {
                 Image(systemName: widgetType.icon)
-                    .font(.title2)
-                    .foregroundColor(TonicColors.accent)
-
-                Text("\(widgetType.displayName) Details")
-                    .font(.headline)
-
-                Spacer()
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                Text("Waiting for live samples")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.onDarkMuted)
             }
-            .padding()
-
-            Text("Detailed view for \(widgetType.displayName) widget coming soon.")
-                .foregroundColor(.secondary)
-                .padding()
-
-            Spacer()
         }
-        .frame(width: 300, height: 200)
-        .padding()
+        .padding(TonicDS.Space.md)
+        .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth, alignment: .leading)
+        .background(TonicDS.Colors.console)
+        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -757,7 +807,7 @@ public final class WidgetCoordinator: ObservableObject {
         // Add or update enabled widgets
         for config in enabledConfigs {
             if let existing = activeWidgets[config.type] {
-                logger.info("🔄 Updating existing widget: \(config.type.rawValue) with color=\(config.accentColor.rawValue)")
+                logger.info("🔄 Updating existing widget: \(config.type.rawValue)")
                 existing.updateConfiguration(config)
             } else {
                 logger.info("➕ Creating new widget: \(config.type.rawValue)")
@@ -840,6 +890,20 @@ public final class WidgetCoordinator: ObservableObject {
     public func updateWidget(type: WidgetType, configuration: WidgetConfiguration) {
         if let widget = activeWidgets[type] {
             widget.updateConfiguration(configuration)
+        }
+    }
+
+    /// Toggle the primary console popover: OneView when unified mode is on,
+    /// otherwise the first enabled widget's console. Global-hotkey entry point.
+    public func togglePrimaryPopover() {
+        if let oneView = oneViewStatusItem {
+            oneView.togglePopover()
+            return
+        }
+        let enabled = WidgetPreferences.shared.enabledWidgets
+        if let first = enabled.first(where: { activeWidgets[$0.type] != nil }),
+           let widget = activeWidgets[first.type] {
+            widget.togglePopover()
         }
     }
 

@@ -2,14 +2,13 @@
 //  WidgetStore.swift
 //  Tonic
 //
-//  Widget configuration store following Stats Master's Store pattern
+//  Widget configuration store
 //  Provides UserDefaults persistence with in-memory cache and legacy migration
 //  Task ID: fn-5-v8r.3
 //
 
 import Foundation
 
-/// Widget configuration store following Stats Master's Store pattern
 /// Provides UserDefaults persistence with in-memory cache and legacy migration
 @Observable
 @MainActor
@@ -24,7 +23,7 @@ final class WidgetStore {
     private enum Keys {
         static let configs = "tonic.widget.store.configs"
         static let migrationVersion = "tonic.widget.store.migrationVersion"
-        static let currentMigrationVersion = 2
+        static let currentMigrationVersion = 3
 
         // Legacy key for migration
         static let legacyConfigs = "tonic.widget.configs"
@@ -138,7 +137,7 @@ final class WidgetStore {
                 return
             }
 
-            // Try legacy format with accentColor migration
+            // Try legacy format.
             struct LegacyConfig: Codable {
                 let id: UUID
                 let type: WidgetType
@@ -148,16 +147,16 @@ final class WidgetStore {
                 let showLabel: Bool
                 let valueFormat: WidgetValueFormat
                 let refreshInterval: WidgetUpdateInterval
-                // accentColor may be missing in legacy format
+                let accentColor: String?
                 private enum CodingKeys: String, CodingKey {
                     case id, type, isEnabled, position, displayMode
-                    case showLabel, valueFormat, refreshInterval
+                    case showLabel, valueFormat, refreshInterval, accentColor
                 }
             }
 
             let legacyConfigs = try JSONDecoder().decode([LegacyConfig].self, from: data)
 
-            // Migrate to current format with default accentColor
+            // Migrate to current format; legacy chroma is intentionally ignored.
             let migratedConfigs = legacyConfigs.map { legacy -> WidgetConfiguration in
                 WidgetConfiguration(
                     id: legacy.id,
@@ -167,8 +166,7 @@ final class WidgetStore {
                     displayMode: legacy.displayMode,
                     showLabel: legacy.showLabel,
                     valueFormat: legacy.valueFormat,
-                    refreshInterval: legacy.refreshInterval,
-                    accentColor: .system  // New field with default value
+                    refreshInterval: legacy.refreshInterval
                 )
             }
 

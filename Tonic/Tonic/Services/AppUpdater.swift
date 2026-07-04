@@ -10,6 +10,23 @@ import SwiftData
 
 // MARK: - App Update Models
 
+/// Where an app's updates come from, which determines how Tonic can apply them.
+enum UpdateSource: String, Sendable, Codable {
+    case sparkle
+    case macAppStore
+    case homebrewCask
+    case unknown
+
+    var displayName: String {
+        switch self {
+        case .sparkle: return "Sparkle"
+        case .macAppStore: return "App Store"
+        case .homebrewCask: return "Homebrew"
+        case .unknown: return "Unknown"
+        }
+    }
+}
+
 /// Represents an available update for an installed app
 struct AppUpdate: Identifiable, Sendable, Codable {
     let id: UUID
@@ -22,6 +39,12 @@ struct AppUpdate: Identifiable, Sendable, Codable {
     let updateURL: URL?
     let releaseNotes: String?
     let lastChecked: Date
+    let source: UpdateSource
+    let minimumSystemVersion: String?
+    let enclosureLength: Int64?
+    let edSignature: String?
+    /// App Store track identifier, used for `macappstore://` deep links.
+    let trackId: Int?
 
     public init(
         bundleIdentifier: String,
@@ -32,7 +55,12 @@ struct AppUpdate: Identifiable, Sendable, Codable {
         updateAvailable: Bool,
         updateURL: URL? = nil,
         releaseNotes: String? = nil,
-        lastChecked: Date = Date()
+        lastChecked: Date = Date(),
+        source: UpdateSource = .unknown,
+        minimumSystemVersion: String? = nil,
+        enclosureLength: Int64? = nil,
+        edSignature: String? = nil,
+        trackId: Int? = nil
     ) {
         self.id = UUID()
         self.bundleIdentifier = bundleIdentifier
@@ -44,6 +72,11 @@ struct AppUpdate: Identifiable, Sendable, Codable {
         self.updateURL = updateURL
         self.releaseNotes = releaseNotes
         self.lastChecked = lastChecked
+        self.source = source
+        self.minimumSystemVersion = minimumSystemVersion
+        self.enclosureLength = enclosureLength
+        self.edSignature = edSignature
+        self.trackId = trackId
     }
 
     /// Version comparison result
@@ -54,40 +87,15 @@ struct AppUpdate: Identifiable, Sendable, Codable {
         case unknown       // Cannot compare
     }
 
-    /// Compare two version strings
+    /// Compare two version strings using semantic ordering (see SemanticVersion).
     static func compareVersions(_ current: String?, _ latest: String) -> VersionComparison {
-        guard let current = current else {
-            return .unknown
-        }
-
-        let currentComponents = parseVersion(current)
-        let latestComponents = parseVersion(latest)
-
-        // Pad the shorter array with zeros
-        let maxLength = max(currentComponents.count, latestComponents.count)
-        let paddedCurrent = currentComponents + [Int](repeating: 0, count: maxLength - currentComponents.count)
-        let paddedLatest = latestComponents + [Int](repeating: 0, count: maxLength - latestComponents.count)
-
-        for i in 0..<maxLength {
-            if paddedCurrent[i] < paddedLatest[i] {
-                return .updateAvailable
-            } else if paddedCurrent[i] > paddedLatest[i] {
-                return .beta
-            }
-        }
-
+        guard let current, !current.isEmpty else { return .unknown }
+        let currentVersion = SemanticVersion(current)
+        let latestVersion = SemanticVersion(latest)
+        guard !currentVersion.isEmpty, !latestVersion.isEmpty else { return .unknown }
+        if currentVersion < latestVersion { return .updateAvailable }
+        if latestVersion < currentVersion { return .beta }
         return .upToDate
-    }
-
-    /// Parse semantic version string into components
-    private static func parseVersion(_ version: String) -> [Int] {
-        // Remove "v" prefix if present
-        let cleaned = version.hasPrefix("v") ? String(version.dropFirst()) : version
-
-        // Split by non-digit characters (., -, _, etc.)
-        let components = cleaned.components(separatedBy: CharacterSet(charactersIn: "0123456789").inverted)
-
-        return components.compactMap { Int($0) }
     }
 }
 
@@ -105,21 +113,34 @@ struct UpdateCheckResult: Sendable {
 }
 
 /// Error during update checking
-struct UpdateCheckError: Sendable, Error, LocalizedError {
+struct UpdateCheckError: Sendable, Error, LocalizedError, Identifiable {
+    let id = UUID()
     let bundleIdentifier: String
+    let appName: String?
     let errorType: ErrorType
     let underlyingError: String?
+
+    init(bundleIdentifier: String, appName: String? = nil, errorType: ErrorType, underlyingError: String? = nil) {
+        self.bundleIdentifier = bundleIdentifier
+        self.appName = appName
+        self.errorType = errorType
+        self.underlyingError = underlyingError
+    }
 
     public enum ErrorType: String, Sendable {
         case noBundleFound = "App Not Found"
         case noVersionInfo = "No Version Info"
         case networkError = "Network Error"
         case parseError = "Parse Error"
+        case feedUnreachable = "Update Feed Unreachable"
+        case badFeed = "Malformed Update Feed"
+        case masLookupFailed = "App Store Lookup Failed"
+        case rateLimited = "Rate Limited"
         case unknown = "Unknown Error"
     }
 
     var errorDescription: String? {
-        var description = "\(errorType.rawValue): \(bundleIdentifier)"
+        var description = "\(errorType.rawValue): \(appName ?? bundleIdentifier)"
         if let underlying = underlyingError {
             description += " - \(underlying)"
         }
@@ -138,6 +159,17 @@ final class AppUpdater: @unchecked Sendable {
 
     private let fileManager = FileManager.default
     private let lock = NSLock()
+
+    private let urlSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 15
+        return URLSession(configuration: config)
+    }()
+
+    private static let userAgent: String = {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        return "Tonic/\(version)"
+    }()
 
     private var _updates: [AppUpdate] = []
     private var _isChecking = false
@@ -200,43 +232,77 @@ final class AppUpdater: @unchecked Sendable {
 
     // MARK: - Update Checking
 
-    /// Check for updates for a specific app
-    /// - Parameters:
-    ///   - bundleIdentifier: The app's bundle identifier
-    ///   - currentVersion: The current installed version
-    ///   - appPath: Path to the app bundle
-    /// - Returns: AppUpdate if information is available
-    func checkUpdate(for bundleIdentifier: String, currentVersion: String?, appPath: URL) async -> AppUpdate? {
-        // Try multiple methods to get update information
-        if let update = await checkViaSparkleFramework(appPath: appPath, bundleIdentifier: bundleIdentifier, currentVersion: currentVersion) {
-            return update
+    /// Check for updates for a specific app.
+    ///
+    /// Detection order: Mac App Store receipt (local, cheap) → Sparkle feed →
+    /// unknown source. Throws `UpdateCheckError` when a source exists but the
+    /// check fails; returns a non-updatable record when no source is known.
+    func checkUpdate(for bundleIdentifier: String, currentVersion: String?, appPath: URL) async throws -> AppUpdate {
+        let appName = displayName(forAppAt: appPath)
+
+        if hasMASReceipt(appPath: appPath) {
+            if let update = try await checkViaAppStore(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                currentVersion: currentVersion,
+                appPath: appPath
+            ) {
+                return update
+            }
+            // Delisted from the store: fall through to other sources.
         }
 
-        if let update = await checkViaAppStore(bundleIdentifier: bundleIdentifier, currentVersion: currentVersion, appPath: appPath) {
-            return update
+        if let feedURL = sparkleFeedURL(forAppAt: appPath) {
+            return try await checkViaSparkleFeed(
+                feedURL: feedURL,
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                currentVersion: currentVersion,
+                appPath: appPath
+            )
         }
 
-        // Fallback: create update record with current version
+        #if !TONIC_STORE
+        // No receipt, no appcast — Homebrew's cask index may still know it.
+        if let cask = HomebrewService.shared.cask(forAppAt: appPath) {
+            let installed = currentVersion ?? cask.installedVersion
+            let latest = cask.latestVersion ?? installed ?? "Unknown"
+            let comparison = AppUpdate.compareVersions(installed, latest)
+            return AppUpdate(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                currentVersion: installed,
+                latestVersion: latest,
+                appPath: appPath,
+                updateAvailable: cask.outdated || comparison == .updateAvailable,
+                source: .homebrewCask
+            )
+        }
+        #endif
+
         return AppUpdate(
             bundleIdentifier: bundleIdentifier,
-            appName: appPath.deletingPathExtension().lastPathComponent,
+            appName: appName,
             currentVersion: currentVersion,
             latestVersion: currentVersion ?? "Unknown",
             appPath: appPath,
-            updateAvailable: false
+            updateAvailable: false,
+            source: .unknown
         )
     }
 
     /// Check for updates for multiple apps
     /// - Parameter apps: Array of app metadata to check
-    /// - Returns: UpdateCheckResult with all updates found
+    /// - Returns: UpdateCheckResult with all updates found and every check failure
     func checkUpdates(for apps: [AppMetadata]) async -> UpdateCheckResult {
         let startTime = Date()
         isChecking = true
+        defer { isChecking = false }
+
         var allUpdates: [AppUpdate] = []
         var errors: [UpdateCheckError] = []
 
-        // Check updates in batches to limit concurrent operations
+        // Check updates in batches to limit concurrent network requests
         let batchSize = 5
         var index = 0
 
@@ -244,32 +310,35 @@ final class AppUpdater: @unchecked Sendable {
             let batch = Array(apps[index..<min(index + batchSize, apps.count)])
             index += batchSize
 
-            await withTaskGroup(of: (AppUpdate?, UpdateCheckError?).self) { group in
+            await withTaskGroup(of: Result<AppUpdate, UpdateCheckError>.self) { group in
                 for app in batch {
                     group.addTask {
                         do {
-                            if let update = await self.checkUpdate(
+                            let update = try await self.checkUpdate(
                                 for: app.bundleIdentifier,
                                 currentVersion: app.version,
                                 appPath: app.path
-                            ) {
-                                return (update, nil)
-                            }
-                            return (nil, UpdateCheckError(
+                            )
+                            return .success(update)
+                        } catch let error as UpdateCheckError {
+                            return .failure(error)
+                        } catch {
+                            return .failure(UpdateCheckError(
                                 bundleIdentifier: app.bundleIdentifier,
-                                errorType: .noVersionInfo,
-                                underlyingError: nil
+                                appName: app.appName,
+                                errorType: .unknown,
+                                underlyingError: error.localizedDescription
                             ))
                         }
                     }
+                }
 
-                    for await (update, error) in group {
-                        if let update = update {
-                            allUpdates.append(update)
-                        }
-                        if let error = error {
-                            errors.append(error)
-                        }
+                for await result in group {
+                    switch result {
+                    case .success(let update):
+                        allUpdates.append(update)
+                    case .failure(let error):
+                        errors.append(error)
                     }
                 }
             }
@@ -280,7 +349,6 @@ final class AppUpdater: @unchecked Sendable {
 
         updates = allUpdates
         lastCheckDate = Date()
-        isChecking = false
 
         let availableCount = allUpdates.filter { $0.updateAvailable }.count
 
@@ -295,117 +363,199 @@ final class AppUpdater: @unchecked Sendable {
 
     // MARK: - Update Detection Methods
 
-    /// Check for updates via Sparkle framework (common for Mac apps)
-    private func checkViaSparkleFramework(appPath: URL, bundleIdentifier: String, currentVersion: String?) async -> AppUpdate? {
-        let bundle = Bundle(url: appPath)
-        guard let bundle = bundle else { return nil }
-
-        // Check for SUFeedURL - Sparkle's update feed URL
-        if let feedURLString = bundle.infoDictionary?["SUFeedURL"] as? String,
-           let feedURL = URL(string: feedURLString) {
-
-            // Check for current version
-            let currentVersion = currentVersion ?? bundle.infoDictionary?["CFBundleShortVersionString"] as? String
-
-            // For now, create a placeholder update record
-            // In a full implementation, you would fetch and parse the appcast feed
-            let appName = (bundle.infoDictionary?["CFBundleDisplayName"] as? String) ??
-                         (bundle.infoDictionary?["CFBundleName"] as? String) ??
-                         appPath.deletingPathExtension().lastPathComponent
-            return await parseSparkleFeed(feedURL: feedURL, bundleIdentifier: bundleIdentifier, appName: appName, currentVersion: currentVersion, appPath: appPath)
+    private func displayName(forAppAt appPath: URL) -> String {
+        if let bundle = Bundle(url: appPath) {
+            if let name = bundle.infoDictionary?["CFBundleDisplayName"] as? String { return name }
+            if let name = bundle.infoDictionary?["CFBundleName"] as? String { return name }
         }
-
-        return nil
+        return appPath.deletingPathExtension().lastPathComponent
     }
 
-    /// Parse Sparkle appcast feed for update information
-    private func parseSparkleFeed(feedURL: URL, bundleIdentifier: String, appName: String, currentVersion: String?, appPath: URL) async -> AppUpdate? {
+    /// Mac App Store apps carry a receipt inside the bundle.
+    func hasMASReceipt(appPath: URL) -> Bool {
+        fileManager.fileExists(atPath: appPath.appendingPathComponent("Contents/_MASReceipt/receipt").path)
+    }
+
+    /// The app's Sparkle appcast URL, if it publishes one.
+    func sparkleFeedURL(forAppAt appPath: URL) -> URL? {
+        guard let bundle = Bundle(url: appPath),
+              let feedURLString = bundle.infoDictionary?["SUFeedURL"] as? String,
+              let feedURL = URL(string: feedURLString.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = feedURL.scheme?.lowercased(),
+              scheme == "https" || scheme == "http"
+        else { return nil }
+        return feedURL
+    }
+
+    /// Fetch and parse a Sparkle appcast, comparing against the installed version.
+    private func checkViaSparkleFeed(
+        feedURL: URL,
+        bundleIdentifier: String,
+        appName: String,
+        currentVersion: String?,
+        appPath: URL
+    ) async throws -> AppUpdate {
+        let installedVersion = currentVersion
+            ?? Bundle(url: appPath)?.infoDictionary?["CFBundleShortVersionString"] as? String
+
+        guard let installedVersion else {
+            throw UpdateCheckError(bundleIdentifier: bundleIdentifier, appName: appName, errorType: .noVersionInfo)
+        }
+
+        var request = URLRequest(url: feedURL, timeoutInterval: 15)
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+
+        let data: Data
         do {
-            // Try to fetch the appcast feed
-            // Note: This is a simplified implementation - production code would handle
-            // XML parsing of the Sparkle appcast format properly
-            let (data, _) = try await URLSession.shared.data(from: feedURL)
-
-            // Parse the appcast XML to find the latest version
-            // This is a simplified regex-based approach - proper implementation would use XMLParser
-            let xmlString = String(data: data, encoding: .utf8) ?? ""
-
-            // Extract version using regex patterns common in Sparkle feeds
-            let latestVersion = extractLatestVersionFromSparkleFeed(xmlString)
-
-            if let latest = latestVersion, let current = currentVersion {
-                let comparison = AppUpdate.compareVersions(current, latest)
-
-                return AppUpdate(
+            let (body, response) = try await urlSession.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                throw UpdateCheckError(
                     bundleIdentifier: bundleIdentifier,
                     appName: appName,
-                    currentVersion: current,
-                    latestVersion: latest,
-                    appPath: appPath,
-                    updateAvailable: comparison == .updateAvailable,
-                    updateURL: extractDownloadURLFromSparkleFeed(xmlString),
-                    releaseNotes: extractReleaseNotesFromSparkleFeed(xmlString)
+                    errorType: .feedUnreachable,
+                    underlyingError: "HTTP \(http.statusCode)"
                 )
             }
+            data = body
+        } catch let error as UpdateCheckError {
+            throw error
         } catch {
-            // Network or parse error - fall through to return nil
+            throw UpdateCheckError(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                errorType: .feedUnreachable,
+                underlyingError: error.localizedDescription
+            )
         }
 
-        return nil
+        let best: AppcastItem
+        do {
+            best = try SparkleAppcastParser.bestItem(from: data)
+        } catch {
+            throw UpdateCheckError(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                errorType: .badFeed,
+                underlyingError: String(describing: error)
+            )
+        }
+
+        let latestVersion = best.displayVersion ?? installedVersion
+        let comparison = AppUpdate.compareVersions(installedVersion, latestVersion)
+
+        return AppUpdate(
+            bundleIdentifier: bundleIdentifier,
+            appName: appName,
+            currentVersion: installedVersion,
+            latestVersion: latestVersion,
+            appPath: appPath,
+            updateAvailable: comparison == .updateAvailable,
+            updateURL: best.enclosureURL,
+            releaseNotes: best.releaseNotesLink ?? best.descriptionHTML,
+            source: .sparkle,
+            minimumSystemVersion: best.minimumSystemVersion,
+            enclosureLength: best.enclosureLength,
+            edSignature: best.edSignature
+        )
     }
 
-    /// Extract version from Sparkle appcast XML
-    private func extractLatestVersionFromSparkleFeed(_ xml: String) -> String? {
-        // Look for sparkle:version attribute in the first item
-        let pattern = #"<item[^>]*>.*?<sparkle:version[^>]*>([^<]+)</ sparkle:version>"#
-        if let regex = try? NSRegularExpression(pattern: pattern.replacingOccurrences(of: " ", with: ""), options: [.dotMatchesLineSeparators]),
-           let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
-           match.numberOfRanges > 1 {
-            return String(xml[Range(match.range(at: 1), in: xml)!])
-        }
+    // MARK: - Mac App Store Lookup
 
-        // Fallback: look for version attribute
-        let fallbackPattern = #"version="([^"]+)""#
-        if let regex = try? NSRegularExpression(pattern: fallbackPattern),
-           let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
-           match.numberOfRanges > 1 {
-            return String(xml[Range(match.range(at: 1), in: xml)!])
-        }
-
-        return nil
+    struct ITunesLookupApp: Decodable, Sendable {
+        let version: String
+        let trackId: Int?
+        let trackViewUrl: String?
+        let minimumOsVersion: String?
+        let releaseNotes: String?
     }
 
-    /// Extract download URL from Sparkle appcast XML
-    private func extractDownloadURLFromSparkleFeed(_ xml: String) -> URL? {
-        let pattern = #"<enclosure[^>]*url="([^"]+)""#
-        if let regex = try? NSRegularExpression(pattern: pattern),
-           let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
-           match.numberOfRanges > 1,
-           let urlRange = Range(match.range(at: 1), in: xml) {
-            return URL(string: String(xml[urlRange]))
-        }
-        return nil
+    private struct ITunesLookupResponse: Decodable {
+        let resultCount: Int
+        let results: [ITunesLookupApp]
     }
 
-    /// Extract release notes from Sparkle appcast XML
-    private func extractReleaseNotesFromSparkleFeed(_ xml: String) -> String? {
-        let pattern = #"<sparkle:releaseNotesLink[^>]*>([^<]+)</ sparkle:releaseNotesLink>"#
-        if let regex = try? NSRegularExpression(pattern: pattern.replacingOccurrences(of: " ", with: "")),
-           let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
-           match.numberOfRanges > 1,
-           let range = Range(match.range(at: 1), in: xml) {
-            return String(xml[range])
+    /// In-memory cache of iTunes lookups to stay clear of rate limits.
+    private var masLookupCache: [String: (date: Date, app: ITunesLookupApp?)] = [:]
+    private static let masLookupTTL: TimeInterval = 6 * 60 * 60
+
+    /// Query the iTunes lookup API for the store version of a MAS-installed app.
+    /// Returns nil when the app is no longer listed (caller falls through).
+    private func checkViaAppStore(
+        bundleIdentifier: String,
+        appName: String,
+        currentVersion: String?,
+        appPath: URL
+    ) async throws -> AppUpdate? {
+        let storeApp: ITunesLookupApp?
+        if let cached = masLookupCache[bundleIdentifier], Date().timeIntervalSince(cached.date) < Self.masLookupTTL {
+            storeApp = cached.app
+        } else {
+            storeApp = try await lookupMASApp(bundleIdentifier: bundleIdentifier, appName: appName)
+            masLookupCache[bundleIdentifier] = (Date(), storeApp)
         }
-        return nil
+
+        guard let storeApp else { return nil }
+
+        let comparison = AppUpdate.compareVersions(currentVersion, storeApp.version)
+        return AppUpdate(
+            bundleIdentifier: bundleIdentifier,
+            appName: appName,
+            currentVersion: currentVersion,
+            latestVersion: storeApp.version,
+            appPath: appPath,
+            updateAvailable: comparison == .updateAvailable,
+            updateURL: storeApp.trackViewUrl.flatMap(URL.init(string:)),
+            releaseNotes: storeApp.releaseNotes,
+            source: .macAppStore,
+            minimumSystemVersion: storeApp.minimumOsVersion,
+            trackId: storeApp.trackId
+        )
     }
 
-    /// Check for updates via Mac App Store
-    private func checkViaAppStore(bundleIdentifier: String, currentVersion: String?, appPath: URL) async -> AppUpdate? {
-        // For App Store apps, we would need to query the App Store API
-        // This is a placeholder for future implementation
-        // Currently returns nil to fall back to default behavior
+    private func lookupMASApp(bundleIdentifier: String, appName: String) async throws -> ITunesLookupApp? {
+        var components = URLComponents(string: "https://itunes.apple.com/lookup")!
+        components.queryItems = [
+            URLQueryItem(name: "bundleId", value: bundleIdentifier),
+            URLQueryItem(name: "country", value: Locale.current.region?.identifier ?? "US"),
+        ]
 
-        return nil
+        var request = URLRequest(url: components.url!, timeoutInterval: 15)
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await urlSession.data(for: request)
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 403 || http.statusCode == 429 {
+                    throw UpdateCheckError(bundleIdentifier: bundleIdentifier, appName: appName, errorType: .rateLimited)
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    throw UpdateCheckError(
+                        bundleIdentifier: bundleIdentifier,
+                        appName: appName,
+                        errorType: .masLookupFailed,
+                        underlyingError: "HTTP \(http.statusCode)"
+                    )
+                }
+            }
+            let decoded = try JSONDecoder().decode(ITunesLookupResponse.self, from: data)
+            return decoded.results.first
+        } catch let error as UpdateCheckError {
+            throw error
+        } catch let error as DecodingError {
+            throw UpdateCheckError(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                errorType: .masLookupFailed,
+                underlyingError: String(describing: error)
+            )
+        } catch {
+            throw UpdateCheckError(
+                bundleIdentifier: bundleIdentifier,
+                appName: appName,
+                errorType: .networkError,
+                underlyingError: error.localizedDescription
+            )
+        }
     }
 
     // MARK: - App Bundle Analysis

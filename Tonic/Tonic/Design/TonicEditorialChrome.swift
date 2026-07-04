@@ -1,0 +1,432 @@
+//
+//  TonicEditorialChrome.swift
+//  Tonic
+//
+//  Higher-level editorial chrome built on TonicDS + TonicEditorialComponents:
+//  tab bars, bento grids, gauge/chart data cards, toasts, and sheet chrome.
+//  The app shell/sidebar, console panel, and settings scaffold are built in their
+//  consuming phases so they match real routing/renderer needs.
+//
+
+import SwiftUI
+
+// MARK: - Tab bar
+
+/// Horizontal segmented control built from FilterPills (Clean tabs, Monitor scopes).
+struct TonicTabBar<Tab: Hashable>: View {
+    let tabs: [Tab]
+    @Binding var selection: Tab
+    let title: (Tab) -> String
+
+    var body: some View {
+        HStack(spacing: TonicDS.Space.xs) {
+            ForEach(tabs, id: \.self) { tab in
+                FilterPill(title: title(tab), isActive: tab == selection) {
+                    withAnimation(TonicDS.Motion.present) { selection = tab }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Bento grid
+
+/// Adaptive editorial grid: 1 / 2 / 3 columns by available width. Tiles size
+/// themselves (typically `DataCard`s). For the staggered reveal, apply
+/// `.tonicAppear(_:index:reduceMotion:)` to each tile with ascending indices.
+struct TonicBentoGrid<Content: View>: View {
+    var minTileWidth: CGFloat = 260
+    var spacing: CGFloat = TonicDS.Space.md
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: minTileWidth), spacing: spacing, alignment: .top)],
+            alignment: .leading,
+            spacing: spacing
+        ) {
+            content()
+        }
+    }
+}
+
+// MARK: - Gauge / chart data cards (wrap the kept renderers; status color = the media)
+
+enum GaugeCardMetricMode: Equatable {
+    /// Use the provided display string and optional unit.
+    case preformatted
+    /// Render the fraction as a rounded integer percentage.
+    case percent
+}
+
+enum GaugeCardMetricFormatter {
+    static func value(displayValue: String, fraction: Double, mode: GaugeCardMetricMode) -> String {
+        switch mode {
+        case .preformatted:
+            return displayValue
+        case .percent:
+            let normalized = max(0, min(1, fraction))
+            return "\(Int((normalized * 100).rounded()))"
+        }
+    }
+
+    static func unit(providedUnit: String?, mode: GaugeCardMetricMode) -> String? {
+        switch mode {
+        case .preformatted:
+            return providedUnit
+        case .percent:
+            return providedUnit ?? "%"
+        }
+    }
+}
+
+/// A compact data card whose body is a single mono readout + optional sparkline +
+/// thin status bar. `fraction` (0...1) drives the status color; data carries color.
+struct GaugeCard: View {
+    let label: String
+    let fraction: Double
+    let displayValue: String
+    var unit: String?
+    var metricMode: GaugeCardMetricMode = .preformatted
+    var supportingText: String?
+    var history: [Double]?
+    var onTap: (() -> Void)?
+    var accessibilityLabel: String?
+
+    private var status: Color { TonicDS.status(forFraction: fraction) }
+    private var normalizedFraction: Double { max(0, min(1, fraction)) }
+    private var metricValue: String {
+        GaugeCardMetricFormatter.value(displayValue: displayValue, fraction: fraction, mode: metricMode)
+    }
+    private var metricUnit: String? {
+        GaugeCardMetricFormatter.unit(providedUnit: unit, mode: metricMode)
+    }
+
+    var body: some View {
+        Group {
+            if let onTap {
+                Button(action: onTap) {
+                    content
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isButton)
+                .tonicPointerCursor()
+            } else {
+                content
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel ?? "\(label), \(metricValue)\(metricUnit ?? "")")
+        .accessibilityHint(onTap == nil ? "" : "Open Monitor")
+    }
+
+    private var content: some View {
+        DataCard(hoverLift: onTap != nil) {
+            VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                HStack(alignment: .firstTextBaseline) {
+                    MonoLabel(label)
+                    Spacer(minLength: TonicDS.Space.xs)
+                    Metric(metricValue, unit: metricUnit, color: status)
+                }
+                if let supportingText {
+                    Text(supportingText)
+                        .tonicType(.caption)
+                        .foregroundStyle(TonicDS.Colors.textMuted)
+                        .lineLimit(1)
+                }
+                if let history, !history.isEmpty {
+                    NetworkSparklineChart(data: history, color: status, height: 42, showArea: true, lineWidth: 1.5)
+                        .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
+                }
+                TonicProgressBar(fraction: normalizedFraction, color: status, height: 4,
+                                 thresholdTick: 0.75)
+            }
+        }
+    }
+}
+
+/// A data card whose body is a full-width history sparkline + headline metric.
+struct ChartCard: View {
+    let label: String
+    let displayValue: String
+    var unit: String?
+    let history: [Double]
+    /// 0...1 fraction used only to pick the status color of the stroke.
+    var fraction: Double = 0
+
+    private var status: Color { TonicDS.status(forFraction: fraction) }
+
+    var body: some View {
+        DataCard {
+            VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                HStack(alignment: .firstTextBaseline) {
+                    MonoLabel(label)
+                    Spacer(minLength: TonicDS.Space.xs)
+                    Metric(displayValue, unit: unit, color: status)
+                }
+                NetworkSparklineChart(data: history, color: status, height: 56, showArea: true, lineWidth: 1.5)
+                    .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.xs, style: .continuous))
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Toast
+
+struct ToastData: Equatable {
+    let message: String
+    var actionTitle: String?
+    // Note: closures aren't Equatable; identity via message + a token.
+    var token: UUID = UUID()
+    var action: (() -> Void)?
+
+    static func == (lhs: ToastData, rhs: ToastData) -> Bool { lhs.token == rhs.token }
+}
+
+private struct ToastModifier: ViewModifier {
+    @Binding var toast: ToastData?
+    var autoDismiss: TimeInterval = 5
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var workItem: DispatchWorkItem?
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottom) {
+            if let toast {
+                HStack(spacing: TonicDS.Space.sm) {
+                    Text(toast.message).tonicType(.body).foregroundStyle(TonicDS.Colors.onDark)
+                    if let title = toast.actionTitle, let action = toast.action {
+                        Button {
+                            action()
+                            dismiss()
+                        } label: {
+                            Text(title).tonicType(.button).foregroundStyle(TonicDS.Colors.onDark)
+                                .underline()
+                        }
+                        .buttonStyle(.plain)
+                        .tonicPointerCursor()
+                    }
+                }
+                .padding(.horizontal, TonicDS.Space.lg)
+                .padding(.vertical, TonicDS.Space.sm)
+                .background(TonicDS.Colors.console, in: Capsule(style: .continuous))
+                .padding(.bottom, TonicDS.Space.lg)
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                .onAppear { schedule() }
+            }
+        }
+        .animation(TonicDS.Motion.present, value: toast)
+    }
+
+    private func schedule() {
+        workItem?.cancel()
+        let item = DispatchWorkItem { dismiss() }
+        workItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + autoDismiss, execute: item)
+    }
+
+    private func dismiss() {
+        withAnimation(TonicDS.Motion.present) { toast = nil }
+    }
+}
+
+extension View {
+    /// Present a bottom-center editorial toast (console capsule + optional undo).
+    func tonicToast(_ toast: Binding<ToastData?>, autoDismiss: TimeInterval = 5) -> some View {
+        modifier(ToastModifier(toast: toast, autoDismiss: autoDismiss))
+    }
+}
+
+// MARK: - Sheet chrome
+
+/// Standard modal scaffold: header (title + close), scrollable content, footer pill row.
+struct SheetChrome<Content: View, Footer: View>: View {
+    let title: String
+    var onClose: (() -> Void)?
+    @ViewBuilder var content: () -> Content
+    @ViewBuilder var footer: () -> Footer
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).tonicType(.cardHeading).foregroundStyle(TonicDS.Colors.textPrimary)
+                Spacer()
+                if let onClose {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark").font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(TonicDS.Colors.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    .keyboardShortcut(.cancelAction)
+                    .tonicPointerCursor()
+                }
+            }
+            .padding(TonicDS.Space.lg)
+
+            TonicHairline()
+
+            ScrollView { content().padding(TonicDS.Space.lg) }
+
+            let footerContent = footer()
+            if !(footerContent is EmptyView) {
+                TonicHairline()
+                HStack(spacing: TonicDS.Space.sm) { footerContent }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(TonicDS.Space.lg)
+            }
+        }
+        .background(TonicDS.Colors.canvas)
+    }
+}
+
+extension SheetChrome where Footer == EmptyView {
+    init(title: String, onClose: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.init(title: title, onClose: onClose, content: content, footer: { EmptyView() })
+    }
+}
+
+// MARK: - Console visualization atoms
+//
+// Shared building blocks for the near-black console surfaces (Monitor detail wall
+// and the menu-bar popover consoles) so both families speak one chart grammar.
+
+/// Mono-labeled group for the near-black console. Use it inside `MonitoringConsole`
+/// when a panel needs several related live readouts.
+struct ConsoleSection<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+            MonoLabel(title, color: TonicDS.Colors.onDarkMuted)
+            TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            content()
+        }
+    }
+}
+
+/// A single console readout row. Status/category color belongs only to the value
+/// or dot; labels and rules stay on the muted on-dark scale.
+struct ConsoleMetricRow: View {
+    let label: String
+    let value: String
+    var color: Color = TonicDS.Colors.onDark
+    var level: TonicDS.StatusLevel?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TonicDS.Space.sm) {
+            if level != nil {
+                StatusDot(color)
+            }
+            Text(label)
+                .tonicType(.body)
+                .foregroundStyle(TonicDS.Colors.onDarkMuted)
+            Spacer(minLength: TonicDS.Space.xs)
+            Text(value)
+                .tonicType(.monoLabel)
+                .monospacedDigit()
+                .foregroundStyle(color)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        if let level {
+            return "\(label), \(value), \(level.word)"
+        }
+        return "\(label), \(value)"
+    }
+}
+
+/// A row of vertical mini-bars for a core cluster. Category-colored (E vs P), never
+/// a status hue — the cluster identity is the datum, not utilization.
+struct ConsoleCoreBars: View {
+    let values: [Double] // 0...100
+    let color: Color
+    private let maxHeight: CGFloat = 24
+    private let spacing: CGFloat = 3
+
+    var body: some View {
+        // Width-aware: derive bar width from available space so a 16-core cluster never
+        // clips or wraps in a narrow console column.
+        GeometryReader { geo in
+            let n = max(1, values.count)
+            let raw = (geo.size.width - spacing * CGFloat(n - 1)) / CGFloat(n)
+            let barWidth = min(6, max(2, raw))
+            HStack(alignment: .bottom, spacing: spacing) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(color)
+                        .frame(width: barWidth, height: max(2, CGFloat(min(100, max(0, v)) / 100) * maxHeight))
+                }
+            }
+            .frame(width: geo.size.width, height: maxHeight, alignment: .bottomLeading)
+        }
+        .frame(height: maxHeight)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A thin stacked breakdown bar (memory composition, etc.). Segments are data-series colors.
+struct ConsoleBreakdownBar: View {
+    struct Segment: Identifiable {
+        let id = UUID()
+        let fraction: Double
+        let color: Color
+    }
+    let segments: [Segment]
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 1) {
+                ForEach(segments) { seg in
+                    Rectangle().fill(seg.color)
+                        .frame(width: max(0, geo.size.width * min(1, max(0, seg.fraction))))
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(height: 6)
+        .clipShape(Capsule())
+        .accessibilityHidden(true)
+    }
+}
+
+/// Small legend for a breakdown bar — mono labels with a colored dot and optional value.
+struct ConsoleLegend: View {
+    struct Item: Identifiable {
+        let id = UUID()
+        let label: String
+        var value: String?
+        let color: Color
+
+        init(label: String, value: String? = nil, color: Color) {
+            self.label = label
+            self.value = value
+            self.color = color
+        }
+    }
+    let items: [Item]
+
+    var body: some View {
+        HStack(spacing: TonicDS.Space.md) {
+            ForEach(items) { item in
+                HStack(spacing: TonicDS.Space.xxs) {
+                    StatusDot(item.color)
+                    Text(item.label.uppercased())
+                        .tonicType(.monoLabel)
+                        .foregroundStyle(TonicDS.Colors.onDarkMuted)
+                    if let value = item.value {
+                        Text(value)
+                            .tonicType(.monoLabel).monospacedDigit()
+                            .foregroundStyle(TonicDS.Colors.onDark)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
