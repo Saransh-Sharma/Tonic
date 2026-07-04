@@ -113,6 +113,7 @@ struct ProcessExplorerView: View {
             }
             .buttonStyle(.plain)
             .frame(width: 40)
+            .help("Ask \(process.name) to quit")
             .accessibilityLabel("Quit \(process.name)")
         }
         .tonicType(.monoLabel)

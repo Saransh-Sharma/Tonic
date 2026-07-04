@@ -32,59 +32,7 @@ struct MonitorView: View {
                 TonicPageHeader("Monitor", subtitle: "Live system readout")
                     .tonicAppear(appeared, index: 0, reduceMotion: reduceMotion)
 
-                rangePicker
-                    .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
-
-                if selectedRange != .live && !hasMonitorSamples {
-                    historyEmptyNotice
-                        .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
-                } else {
-                    metricsGrid
-                        .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
-                }
-
-                if selectedRange == .live && !hasMonitorSamples {
-                    liveStartupCard
-                        .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
-                }
-
-                if hasMonitorSamples {
-                    NetworkTrafficCard(
-                        label: "Network",
-                        downRate: rate(networkDownloadValue),
-                        upRate: rate(networkUploadValue),
-                        downloadHistory: networkDownloadSeries,
-                        uploadHistory: networkUploadSeries,
-                        context: networkTrafficCardContext
-                    )
-                        .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
-                }
-
-                if selectedRange != .live, hasMonitorSamples {
-                    rangeSummary
-                        .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
-                    TextAction("Export CSV", systemImage: "square.and.arrow.up",
-                               color: TonicDS.Colors.linkBlue) {
-                        MetricsExporter.exportWithPanel(
-                            samples: WidgetHistoryStore.shared.samples(for: selectedRange),
-                            rangeName: String(describing: selectedRange)
-                        )
-                    }
-                    .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
-                }
-
-                ProcessExplorerView()
-                    .padding(.top, TonicDS.Space.sm)
-                    .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
-
-                alertHistory
-                    .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
-
-                MonoLabel("Detail")
-                    .padding(.top, TonicDS.Space.sm)
-                    .tonicAppear(appeared, index: 8, reduceMotion: reduceMotion)
-
-                detailConsoles
+                dashboardContent
             }
             .frame(maxWidth: TonicDS.Layout.maxContentWidth)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -112,6 +60,70 @@ struct MonitorView: View {
                 ensureLiveMonitoring("MonitorView live selected")
             }
         }
+    }
+
+    @ViewBuilder
+    private var dashboardContent: some View {
+        rangePicker
+            .tonicAppear(appeared, index: 1, reduceMotion: reduceMotion)
+
+        if selectedRange != .live && !hasMonitorSamples {
+            historyEmptyNotice
+                .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+        } else {
+            metricsGrid
+                .tonicAppear(appeared, index: 2, reduceMotion: reduceMotion)
+        }
+
+        if selectedRange == .live && !hasMonitorSamples {
+            liveStartupCard
+                .tonicAppear(appeared, index: 3, reduceMotion: reduceMotion)
+        }
+
+        if hasMonitorSamples {
+            NetworkTrafficCard(
+                label: "Network",
+                downRate: rate(networkDownloadValue),
+                upRate: rate(networkUploadValue),
+                downloadHistory: networkDownloadSeries,
+                uploadHistory: networkUploadSeries,
+                context: networkTrafficCardContext
+            )
+                .tonicAppear(appeared, index: 4, reduceMotion: reduceMotion)
+        }
+
+        if selectedRange != .live, hasMonitorSamples {
+            rangeSummary
+                .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+            TextAction("Export CSV", systemImage: "square.and.arrow.up",
+                       color: TonicDS.Colors.linkBlue) {
+                MetricsExporter.exportWithPanel(
+                    samples: WidgetHistoryStore.shared.samples(for: selectedRange),
+                    rangeName: String(describing: selectedRange)
+                )
+            }
+            .tonicAppear(appeared, index: 5, reduceMotion: reduceMotion)
+        }
+
+        ProcessExplorerView()
+            .padding(.top, TonicDS.Space.sm)
+            .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
+
+        #if !TONIC_STORE
+        if NetworkPerProcessSampler.shared.isAvailable {
+            NetworkByAppView()
+                .tonicAppear(appeared, index: 6, reduceMotion: reduceMotion)
+        }
+        #endif
+
+        alertHistory
+            .tonicAppear(appeared, index: 7, reduceMotion: reduceMotion)
+
+        MonoLabel("Detail")
+            .padding(.top, TonicDS.Space.sm)
+            .tonicAppear(appeared, index: 8, reduceMotion: reduceMotion)
+
+        detailConsoles
     }
 
     /// GPU/Battery/Sensors readers are `popupOnly` in WidgetDataManager (they only sample while a
