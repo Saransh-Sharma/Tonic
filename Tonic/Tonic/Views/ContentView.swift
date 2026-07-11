@@ -16,21 +16,20 @@ private struct FolderScanTarget: Identifiable {
 }
 
 struct ContentView: View {
-    @State private var selectedDestination: NavigationDestination = .dashboard
+    @Environment(\.accessibilityReduceMotion) private var systemReducesMotion
+    @State private var route: TonicRoute = .hub(.home)
     @State private var folderScanTarget: FolderScanTarget?
-    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showOnboarding = false
     @State private var showPermissionPrompt = false
     @State private var missingPermissionFor: PermissionManager.Feature?
-    @State private var featureFlagsRefreshID = UUID()
     @Binding var showCommandPalette: Bool
+    @AppStorage(RailPinPreference.key) private var isRailPinned = false
 
     @State private var permissionManager = PermissionManager.shared
     @State private var appUpdater = AppUpdater.shared
     @State private var dismissedBanners: Set<String> = []
     @State private var hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
     @StateObject private var smartCareSession = SmartCareSessionStore()
-    @StateObject private var dashboardScanSession = SmartScanManager()
 
     var hasSeenOnboarding: Bool {
         get { hasSeenOnboardingValue }
@@ -46,20 +45,56 @@ struct ContentView: View {
         let action: () -> Void
     }
 
+    /// Banner + routed detail — the app's content column, shared by both shells.
+    private var mainColumn: some View {
+        VStack(spacing: 0) {
+            // Spec §alert-banner: thin near-black strip for global system states.
+            if let banner = activeBanner {
+                AlertBanner(
+                    message: banner.message,
+                    actionTitle: banner.actionTitle,
+                    onAction: banner.action,
+                    onDismiss: { dismissedBanners.insert(banner.id) }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            DetailView(
+                route: $route,
+                onPermissionNeeded: { feature in
+                    missingPermissionFor = feature
+                    showPermissionPrompt = true
+                },
+                smartCareSession: smartCareSession
+            )
+            .padding(.leading, isRailPinned ? TonicDS.Glass.Shell.pinnedContentInset : 0)
+            .animation(TonicMotionPolicy(reduceMotion: systemReducesMotion).layout,
+                       value: isRailPinned)
+        }
+        .animation(TonicDS.Motion.present, value: activeBanner?.id)
+    }
+
+    /// One transparent host window with two visually independent surfaces. The
+    /// geometry never changes under Reduce Transparency; only materials resolve
+    /// from adaptive glass to solid accessibility fills.
+    private var shell: some View {
+        ZStack(alignment: .leading) {
+            Color.clear.ignoresSafeArea()
+
+            TonicGlassSlab {
+                mainColumn
+            }
+            .padding(.leading, TonicDS.Glass.Shell.slabLeadingInset)
+            .padding([.top, .trailing, .bottom], TonicDS.Glass.Shell.outerInset)
+
+            FloatingRailView(route: $route, isPinned: $isRailPinned) {
+                showCommandPalette = true
+            }
+            .padding(.leading, TonicDS.Glass.Shell.railLeadingInset)
+        }
+    }
+
     /// Highest-priority global system state, or nil. Dismissible per session.
     private var activeBanner: GlobalBanner? {
-        if !BuildCapabilities.current.requiresScopeAccess,
-           !permissionManager.hasFullDiskAccess,
-           !dismissedBanners.contains("fda") {
-            return GlobalBanner(
-                id: "fda",
-                message: "Full Disk Access required to scan and manage apps.",
-                actionTitle: "Grant"
-            ) {
-                missingPermissionFor = nil
-                showPermissionPrompt = true
-            }
-        }
         if appUpdater.updateCount > 0, !dismissedBanners.contains("updates") {
             let n = appUpdater.updateCount
             return GlobalBanner(
@@ -67,7 +102,7 @@ struct ContentView: View {
                 message: "\(n) app update\(n == 1 ? "" : "s") available.",
                 actionTitle: "Review"
             ) {
-                selectedDestination = .appManager
+                route = .tool(.apps)
             }
         }
         return nil
@@ -75,40 +110,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Editorial: a flat canvas / obsidian field. No ambient world canvas.
-            TonicDS.Colors.canvas
-                .ignoresSafeArea()
-
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                SidebarView(selectedDestination: $selectedDestination)
-                    .id(featureFlagsRefreshID)
-            } detail: {
-                VStack(spacing: 0) {
-                    // Spec §alert-banner: thin near-black strip for global system states.
-                    if let banner = activeBanner {
-                        AlertBanner(
-                            message: banner.message,
-                            actionTitle: banner.actionTitle,
-                            onAction: banner.action,
-                            onDismiss: { dismissedBanners.insert(banner.id) }
-                        )
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    DetailView(
-                        selectedDestination: $selectedDestination,
-                        onPermissionNeeded: { feature in
-                            missingPermissionFor = feature
-                            showPermissionPrompt = true
-                        },
-                        smartCareSession: smartCareSession,
-                        dashboardScanSession: dashboardScanSession
-                    )
-                }
-                .animation(TonicDS.Motion.present, value: activeBanner?.id)
-            }
+            shell
             .navigationTitle("Tonic")
-            .frame(minWidth: 800, minHeight: 500)
-            .animation(TonicDS.Motion.present, value: selectedDestination)
+            .frame(minWidth: 920, minHeight: 620)
+            .animation(TonicDS.Motion.present, value: route)
+            // Transparent NSWindow so the behind-window blur reaches the desktop.
+            .background(WindowConfigurator())
+            // In-app Light/Dark/System selector — load-bearing under glass.
+            .preferredColorScheme(AppearancePreferences.shared.themeMode.colorScheme)
             .sheet(isPresented: $showOnboarding) {
                 UnifiedOnboardingView(isPresented: $showOnboarding)
             }
@@ -119,8 +128,7 @@ struct ContentView: View {
                 )
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowWidgetCustomization"))) { _ in
-                // Open preferences to Widgets tab
-                selectedDestination = .settings
+                route = .tool(.widgets)
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: .openSettingsSection,
@@ -130,21 +138,26 @@ struct ContentView: View {
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .openAppManagerFromStorageHub)) { _ in
-                selectedDestination = .appManager
+                route = .tool(.apps)
             }
             .onReceive(NotificationCenter.default.publisher(for: .openLiveMonitor)) { _ in
-                selectedDestination = .liveMonitoring
+                route = .tool(.systemMonitor)
             }
             .onReceive(NotificationCenter.default.publisher(for: .openMenuBarManagement)) { _ in
-                selectedDestination = .menuBarManager
+                route = .tool(.menuBar)
             }
             .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { note in
                 guard let raw = note.userInfo?["destination"] as? String,
                       let destination = NavigationDestination(rawValue: raw) else { return }
-                selectedDestination = destination
+                route = route(for: destination)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToTonicHub)) { note in
+                guard let raw = note.userInfo?["hub"] as? String,
+                      let hub = TonicHub(rawValue: raw) else { return }
+                route = .hub(hub)
             }
             .onReceive(NotificationCenter.default.publisher(for: .runSmartScanCommand)) { _ in
-                selectedDestination = .systemCleanup
+                route = .tool(.smartCare)
                 smartCareSession.startScan()
             }
             .onReceive(NotificationCenter.default.publisher(for: .scanFolderCommand)) { note in
@@ -161,18 +174,20 @@ struct ContentView: View {
                 guard url.scheme == "tonic" else { return }
                 switch url.host?.lowercased() {
                 case "scan":
-                    selectedDestination = .systemCleanup
+                    route = .tool(.smartCare)
                     smartCareSession.startScan()
                 case "clean":
-                    selectedDestination = .systemCleanup
+                    route = .tool(.smartCare)
                 case "apps", "updates":
-                    selectedDestination = .appManager
+                    route = .tool(.apps)
                 case "monitor":
-                    selectedDestination = .liveMonitoring
+                    route = .tool(.systemMonitor)
                 case "menubar":
-                    selectedDestination = .menuBarManager
+                    route = .tool(.menuBar)
+                case "windows":
+                    route = .tool(.windows)
                 case "settings":
-                    selectedDestination = .settings
+                    route = .settings
                 default:
                     break
                 }
@@ -183,8 +198,7 @@ struct ContentView: View {
                     return
                 }
 
-                // Navigate to Settings in the main window
-                selectedDestination = .settings
+                route = .tool(.widgets)
 
                 // After navigation completes, post the module selection notifications
                 DispatchQueue.main.async {
@@ -209,18 +223,7 @@ struct ContentView: View {
                 hasSeenOnboardingValue = UserDefaults.standard.bool(forKey: "hasSeenOnboarding")
                 showOnboarding = true
             }
-            .onReceive(NotificationCenter.default.publisher(for: .featureFlagsDidChange)) { _ in
-                featureFlagsRefreshID = UUID()
-                selectedDestination = NavigationDestination.sanitize(selectedDestination)
-            }
-            .onChange(of: selectedDestination) { _, newValue in
-                let sanitized = NavigationDestination.sanitize(newValue)
-                if sanitized != newValue {
-                    selectedDestination = sanitized
-                }
-            }
             .onAppear {
-                selectedDestination = NavigationDestination.sanitize(selectedDestination)
                 checkFirstLaunch()
             }
 
@@ -228,7 +231,7 @@ struct ContentView: View {
             if showCommandPalette {
                 CommandPaletteView(
                     isPresented: $showCommandPalette,
-                    selectedDestination: $selectedDestination
+                    route: $route
                 )
             }
         }
@@ -244,21 +247,29 @@ struct ContentView: View {
             await permissionManager.checkAllPermissions()
         }
     }
+
+    private func route(for destination: NavigationDestination) -> TonicRoute {
+        switch destination {
+        case .dashboard: .hub(.home)
+        case .systemCleanup: .tool(.smartCare)
+        case .appManager: .tool(.apps)
+        case .diskAnalysis: .tool(.storage)
+        case .recentlyCleaned: .tool(.actionHistory)
+        case .liveMonitoring: .tool(.systemMonitor)
+        case .menuBarManager: .tool(.menuBar)
+        case .menuBarWidgets: .tool(.widgets)
+        case .developerTools, .designSandbox, .settings: .settings
+        }
+    }
 }
 
 struct DetailView: View {
-    @Binding var selectedDestination: NavigationDestination
+    @Binding var route: TonicRoute
     let onPermissionNeeded: (PermissionManager.Feature) -> Void
     @ObservedObject var smartCareSession: SmartCareSessionStore
-    @ObservedObject var dashboardScanSession: SmartScanManager
 
     @State private var permissionManager = PermissionManager.shared
     @State private var checkedPermissions = false
-    /// Destinations that have been visited at least once. They stay mounted in a
-    /// keep-alive ZStack so each screen preserves its state (scroll position,
-    /// in-progress work) instead of being torn down and re-initialized on every
-    /// navigation. Heavy screens pause their work via `isActive` when not selected.
-    @State private var visited: Set<NavigationDestination> = []
 
     var body: some View {
         Group {
@@ -272,67 +283,38 @@ struct DetailView: View {
                         checkedPermissions = true
                     }
             } else {
-                keepAliveContainer
+                destinationView
+                    .id(route)
+                    .transition(.opacity)
             }
         }
         .background(Color.clear)
-        .onAppear { visited.insert(selectedDestination) }
-        .onChange(of: selectedDestination) { _, newValue in
-            visited.insert(newValue)
-        }
-    }
-
-    /// Keeps every visited destination mounted; only the selected one is visible
-    /// and interactive. Lazy: a screen isn't built until first visited.
-    private var keepAliveContainer: some View {
-        ZStack {
-            ForEach(NavigationDestination.allCases.filter { visited.contains($0) }, id: \.self) { dest in
-                destinationView(dest)
-                    .opacity(dest == selectedDestination ? 1 : 0)
-                    .allowsHitTesting(dest == selectedDestination)
-                    .accessibilityHidden(dest != selectedDestination)
-                    .zIndex(dest == selectedDestination ? 1 : 0)
-            }
-        }
-        .animation(TonicDS.Motion.present, value: selectedDestination)
+        .animation(TonicDS.Motion.present, value: route)
     }
 
     @ViewBuilder
-    private func destinationView(_ destination: NavigationDestination) -> some View {
-        switch destination {
-        case .dashboard:
-            HomeView(scanManager: dashboardScanSession, selectedDestination: $selectedDestination)
-        case .systemCleanup:
-            CleanView(session: smartCareSession)
-        case .appManager:
-            if BuildCapabilities.current.requiresScopeAccess || permissionManager.hasFullDiskAccess {
-                AppsView()
-            } else {
-                PermissionRequiredView(
-                    icon: "externaldrive.fill",
-                    title: "Full Disk Access Required",
-                    description: "App Manager needs Full Disk Access to scan all installed applications and their support files.",
-                    onGrantPermission: {
-                        onPermissionNeeded(.appManager)
-                    }
-                )
-            }
-        case .diskAnalysis:
-            CleanView(session: smartCareSession, initialTab: .storage)
-        case .recentlyCleaned:
-            CleanView(session: smartCareSession, initialTab: .history)
-        case .liveMonitoring:
-            MonitorView(isActive: destination == selectedDestination)
-        case .menuBarManager:
-            MenuBarDashboardView(isActive: destination == selectedDestination)
-        case .menuBarWidgets:
-            SettingsView(initialSection: .modules)
-        case .developerTools:
-            DeveloperToolsView()
-        case .designSandbox:
-            DesignGalleryView()
+    private var destinationView: some View {
+        switch route {
+        case .hub(.home), .tool(.actionHistory):
+            TonicHomeView(route: $route)
+        case .hub(.care):
+            CareHubView(smartCareSession: smartCareSession, onPermissionNeeded: onPermissionNeeded)
+        case .tool(let tool) where tool.hub == .care:
+            CareHubView(initialTool: tool, smartCareSession: smartCareSession, onPermissionNeeded: onPermissionNeeded)
+        case .hub(.organize):
+            OrganizeHubView()
+        case .tool(let tool) where tool.hub == .organize:
+            OrganizeHubView(initialTool: tool)
+        case .hub(.monitor):
+            MonitorHubView()
+        case .tool(let tool) where tool.hub == .monitor:
+            MonitorHubView(initialTool: tool)
+        case .hub(.automate), .tool(.automations):
+            AutomationHubView()
         case .settings:
             SettingsView()
+        default:
+            TonicHomeView(route: $route)
         }
     }
 }
@@ -389,7 +371,7 @@ struct PermissionPromptView: View {
         .padding(TonicDS.Space.lg)
         .frame(minWidth: 360, idealWidth: 500, maxWidth: 560,
                minHeight: 340, idealHeight: 400, maxHeight: 460)
-        .background(TonicDS.Colors.surface, in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)).overlay(RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous).strokeBorder(TonicDS.Colors.hairline, lineWidth: 1))
+        .tonicSheetBackground()
     }
 
     private var messageText: String {
@@ -573,7 +555,7 @@ struct DeveloperToolsView: View {
             .padding(.vertical, TonicDS.Space.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
     }
 
     private func actionRow(_ title: String, _ icon: String, showsDivider: Bool = true, action: @escaping () -> Void) -> some View {
@@ -602,25 +584,36 @@ struct DeveloperToolsView: View {
 /// - Works from any screen in the app
 struct CommandPaletteView: View {
     @Binding var isPresented: Bool
-    @Binding var selectedDestination: NavigationDestination
+    @Binding var route: TonicRoute
 
     @State private var searchText = ""
     @State private var selectedIndex: Int = 0
     @FocusState private var isSearchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var allDestinations: [NavigationDestination] {
-        NavigationDestination.allCases.filter(FeatureFlags.isEnabled)
+    private var allCommands: [CommandDescriptor] {
+        let hubCommands = TonicHub.allCases.map { hub in
+            CommandDescriptor(
+                id: "open.hub.\(hub.rawValue)",
+                title: "Open \(hub.title)",
+                subtitle: "Hub",
+                symbol: hub.symbol,
+                route: .hub(hub),
+                aliases: []
+            )
+        }
+        return CommandDescriptor.windowCommands + CommandDescriptor.toolCommands + hubCommands
     }
 
-    /// Filter destinations based on fuzzy search
-    private var filteredDestinations: [NavigationDestination] {
+    private var filteredCommands: [CommandDescriptor] {
         if searchText.isEmpty {
-            return allDestinations
+            return allCommands
         }
 
-        return allDestinations.filter { destination in
-            fuzzyMatch(searchText.lowercased(), in: destination.displayName.lowercased())
+        let query = searchText.lowercased()
+        return allCommands.filter { command in
+            fuzzyMatch(query, in: command.title.lowercased())
+                || command.aliases.contains { fuzzyMatch(query, in: $0.lowercased()) }
         }
     }
 
@@ -656,7 +649,7 @@ struct CommandPaletteView: View {
                     // Handle arrow keys for navigation (no movement under Reduce Motion)
                     if press.key == .downArrow {
                         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.1)) {
-                            if selectedIndex < filteredDestinations.count - 1 {
+                            if selectedIndex < filteredCommands.count - 1 {
                                 selectedIndex += 1
                             }
                         }
@@ -680,7 +673,7 @@ struct CommandPaletteView: View {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(TonicDS.Colors.textMuted)
 
-                    TextField("Search screens…", text: $searchText)
+                    TextField("Run an action or open a tool…", text: $searchText)
                         .tonicType(.bodyLarge)
                         .textFieldStyle(.plain)
                         .focused($isSearchFocused)
@@ -708,15 +701,15 @@ struct CommandPaletteView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 2) {
-                            if filteredDestinations.isEmpty {
-                                Text("No screens match \u{201C}\(searchText)\u{201D}")
+                            if filteredCommands.isEmpty {
+                                Text("No actions match \u{201C}\(searchText)\u{201D}")
                                     .tonicType(.caption)
                                     .foregroundStyle(TonicDS.Colors.textMuted)
                                     .frame(maxWidth: .infinity, alignment: .center)
                                     .padding(.vertical, TonicDS.Space.lg)
                             } else {
-                                ForEach(Array(filteredDestinations.enumerated()), id: \.offset) { index, destination in
-                                    paletteRow(index: index, destination: destination)
+                                ForEach(Array(filteredCommands.enumerated()), id: \.offset) { index, command in
+                                    paletteRow(index: index, command: command)
                                         .id(index)
                                 }
                             }
@@ -724,14 +717,14 @@ struct CommandPaletteView: View {
                         .padding(TonicDS.Space.xs)
                     }
                     .onChange(of: selectedIndex) { _, newValue in
-                        guard filteredDestinations.indices.contains(newValue) else { return }
+                        guard filteredCommands.indices.contains(newValue) else { return }
                         scrollProxy.scrollTo(newValue, anchor: .center)
                     }
                 }
 
                 TonicHairline()
                 HStack {
-                    MonoLabel("\(filteredDestinations.count) result\(filteredDestinations.count == 1 ? "" : "s")")
+                    MonoLabel("\(filteredCommands.count) result\(filteredCommands.count == 1 ? "" : "s")")
                     Spacer()
                     MonoLabel("↑↓ Navigate · ↵ Open · Esc Close")
                 }
@@ -740,17 +733,15 @@ struct CommandPaletteView: View {
             }
             .frame(minWidth: 320, idealWidth: 500, maxWidth: 560,
                    minHeight: 280, idealHeight: 450, maxHeight: 500)
-            .background(TonicDS.Colors.surface,
-                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)
-                    .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
-            )
+            .tonicSurface(.overlay,
+                          in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous),
+                          flatFill: TonicDS.Colors.surface,
+                          flatStroke: TonicDS.Colors.hairline)
             .onAppear {
                 isSearchFocused = true
                 selectedIndex = 0
             }
-            .onChange(of: filteredDestinations.count) { _, newCount in
+            .onChange(of: filteredCommands.count) { _, newCount in
                 if newCount == 0 {
                     selectedIndex = 0
                 } else if selectedIndex >= newCount {
@@ -762,21 +753,26 @@ struct CommandPaletteView: View {
 
 
     @ViewBuilder
-    private func paletteRow(index: Int, destination: NavigationDestination) -> some View {
+    private func paletteRow(index: Int, command: CommandDescriptor) -> some View {
         let isSelected = index == selectedIndex
         Button {
             selectedIndex = index
             navigateToSelected()
         } label: {
             HStack(spacing: TonicDS.Space.sm) {
-                Image(systemName: destination.systemImage)
+                Image(systemName: command.symbol)
                     .font(.system(size: 14, weight: .regular))
                     .frame(width: 20)
                     .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
 
-                Text(destination.sidebarDisplayName)
-                    .tonicType(.body)
-                    .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(command.title)
+                        .tonicType(.body)
+                        .foregroundStyle(isSelected ? TonicDS.Colors.textPrimary : TonicDS.Colors.textMuted)
+                    Text(command.subtitle)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(TonicDS.Colors.textMuted)
+                }
 
                 Spacer()
 
@@ -800,11 +796,15 @@ struct CommandPaletteView: View {
     }
 
     private func navigateToSelected() {
-        guard !filteredDestinations.isEmpty && selectedIndex < filteredDestinations.count else {
+        guard !filteredCommands.isEmpty && selectedIndex < filteredCommands.count else {
             return
         }
 
-        selectedDestination = filteredDestinations[selectedIndex]
+        let command = filteredCommands[selectedIndex]
+        if let action = command.windowAction {
+            WindowManagementService.shared.perform(action)
+        }
+        route = command.route
         dismiss()
     }
 
