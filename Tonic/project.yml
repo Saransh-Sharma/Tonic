@@ -2,8 +2,8 @@ name: Tonic
 options:
   bundleIdPrefix: com.tonic
   deploymentTarget:
-    macOS: "14.0"
-  xcodeVersion: "15.0"
+    macOS: "26.0"
+  xcodeVersion: "26.0"
 
 targets:
   Tonic:
@@ -30,8 +30,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic
         INFOPLIST_FILE: Tonic/Info.plist
         CODE_SIGN_ENTITLEMENTS: Tonic/Tonic.entitlements
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
-        SWIFT_VERSION: "5.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
         DEVELOPMENT_TEAM: CJ43UNM3AR
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
@@ -73,8 +74,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic.store
         INFOPLIST_FILE: Tonic/Info-Store.plist
         CODE_SIGN_ENTITLEMENTS: Tonic/TonicStore.entitlements
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
-        SWIFT_VERSION: "5.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
         DEVELOPMENT_TEAM: CJ43UNM3AR
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
@@ -101,6 +103,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tonic.TonicTests
         GENERATE_INFOPLIST_FILE: YES
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
         # Must match the host app's team or the hardened-runtime app
         # refuses to dlopen the test bundle (different Team IDs).
         DEVELOPMENT_TEAM: CJ43UNM3AR

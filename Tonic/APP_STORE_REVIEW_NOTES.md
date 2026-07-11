@@ -8,19 +8,19 @@
 
 ## Access model
 - Tonic Store Edition uses user-granted scopes (security-scoped bookmarks).
-- Users can grant access by choosing folders/disks in onboarding or in Settings > Permissions.
+- Users can grant access by choosing folders/disks in onboarding or in Settings > Access.
 - Access is persisted and revalidated; stale or disconnected scopes are surfaced and re-authorizable.
 
 ## Demo script for review
 1. Launch `TonicStore`.
-2. In onboarding step 6, click **Add Scope** and authorize Home and Applications.
-3. Click **Enable Full Mac Scan** and select startup disk (e.g. Macintosh HD).
-4. Open Dashboard and verify coverage indicator updates.
-5. Run Storage Intelligence Hub scan.
-6. Run Smart Scan and verify scoped recommendations plus `Needs access`/limited messaging where applicable.
-7. Open Deep Clean and verify category states: Ready / Needs access / Limited by macOS.
-8. Execute cleanup preview and show Collector Bin restore flow.
+2. Select **Reclaim storage** or **Manage apps**, then try the permission-free preview.
+3. On **Enable selected capabilities**, choose a folder or volume. Skipping is supported.
+4. Open Home and verify that the live status narrative does not claim access outside the chosen scope.
+5. Open Care > Storage and run a scoped scan.
+6. Open Care > Smart Care and verify `Needs access`/limited messaging where applicable.
+7. Open Settings > Access to add, inspect, or remove an authorized location.
+8. Execute a cleanup preview and show the recoverable action receipt where supported.
 
 ## Reviewer tips
-- If a scope becomes stale/disconnected, use Settings > Permissions > Re-authorize.
+- If a scope becomes stale/disconnected, use Settings > Access to repair or replace it.
 - Store edition intentionally scopes cleanup to authorized locations.
