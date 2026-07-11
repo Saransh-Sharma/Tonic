@@ -104,6 +104,9 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
         // deallocation, causing EXC_BAD_ACCESS in objc_release.
         popover?.animates = false
         popover?.delegate = self
+        // Smoked-glass consoles: the popover's own material renders dark and
+        // shows through the console wash (see `.tonicPopoverConsole()`).
+        popover?.appearance = NSAppearance(named: .darkAqua)
 
         // Content will be set by subclasses
     }
@@ -481,7 +484,7 @@ private struct EditorialWidgetPopoverView: View {
         }
         .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth)
         .frame(maxHeight: TonicDS.Layout.MenuBar.maxHeight)
-        .background(TonicDS.Colors.console)
+        .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
     }
 
@@ -635,7 +638,7 @@ private struct WidgetDetailViewPlaceholder: View {
         }
         .padding(TonicDS.Space.md)
         .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth, alignment: .leading)
-        .background(TonicDS.Colors.console)
+        .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
     }
 }
@@ -717,12 +720,13 @@ public final class WidgetCoordinator: ObservableObject {
     /// Handle configuration change notification
     /// Performance optimization: Debounce rapid configuration changes
     private nonisolated func handleConfigurationChange(_ notification: Notification) {
+        // Copy only the Sendable payload before crossing to the main actor.
+        let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
+
         // Invalidate existing debounce timer
         Task { @MainActor [weak self] in
             self?.configChangeDebounceTimer?.invalidate()
 
-            // Extract widget type early to avoid Sendable issues
-            let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
             let widgetType = widgetTypeRaw.flatMap { WidgetType(rawValue: $0) }
 
             // Schedule debounced refresh (100ms delay to batch rapid changes)
@@ -922,10 +926,4 @@ public final class WidgetCoordinator: ObservableObject {
         activeWidgets[type]
     }
 
-    deinit {
-        // Clean up observer
-        if let observer = configChangeObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-    }
 }

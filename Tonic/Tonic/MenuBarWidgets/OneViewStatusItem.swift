@@ -127,7 +127,7 @@ private struct OneViewDetailView: View {
             quickActionsFooter
         }
         .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth, height: TonicDS.Layout.MenuBar.maxHeight)
-        .background(TonicDS.Colors.console)
+        .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
     }
 

@@ -85,7 +85,10 @@ final class MenuBarItemActivator {
 
     static func ensureTrust() -> Bool {
         if AXIsProcessTrusted() { return true }
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        // The exported ApplicationServices global is imported as mutable state,
+        // which makes it unavailable from Swift 6 isolation domains. Its public
+        // CFString value is stable and documented by the Accessibility API.
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
