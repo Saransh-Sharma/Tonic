@@ -919,13 +919,15 @@ public final class WidgetDataManager {
     /// Background queue for heavy data fetching work to avoid blocking the main thread
     private let monitoringQueue = DispatchQueue(label: "com.tonic.widgetdata.monitoring", qos: .utility)
 
-    private struct MonitoringReader {
+    /// Reader descriptors are immutable. Their state mutations are main-actor
+    /// isolated; collectors can move behind actors without exposing races to SwiftUI.
+    private struct MonitoringReader: Sendable {
         let id: String
         let module: WidgetType
         let intervalKey: String
         let defaultInterval: TimeInterval
         let popupOnly: Bool
-        let action: (WidgetDataManager) -> Void
+        let action: @MainActor @Sendable (WidgetDataManager) -> Void
     }
 
     private var readerTimers: [String: DispatchSourceTimer] = [:]
@@ -1128,10 +1130,7 @@ public final class WidgetDataManager {
 
         guard isVisible, isMonitoring else { return }
         for reader in monitoringReaders where reader.popupOnly && reader.module == widgetType {
-            monitoringQueue.async { [weak self] in
-                guard let self = self else { return }
-                reader.action(self)
-            }
+            reader.action(self)
         }
     }
 
@@ -1188,18 +1187,23 @@ public final class WidgetDataManager {
 
         for reader in monitoringReaders {
             let interval = moduleInterval(reader: reader)
-            let timer = DispatchSource.makeTimerSource(queue: monitoringQueue)
+            // Reader actions mutate observable state and are main-actor isolated.
+            // Scheduling on the main queue preserves that contract; heavy collectors
+            // should do their own actor-isolated work before publishing a sample.
+            let timer = DispatchSource.makeTimerSource(queue: .main)
             timer.schedule(
                 deadline: .now() + .milliseconds(100),
                 repeating: dispatchInterval(seconds: interval),
                 leeway: .milliseconds(100)
             )
             timer.setEventHandler { [weak self] in
-                guard let self = self else { return }
-                if reader.popupOnly && !self.popupVisibleModules.contains(reader.module) {
-                    return
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    if reader.popupOnly && !self.popupVisibleModules.contains(reader.module) {
+                        return
+                    }
+                    reader.action(self)
                 }
-                reader.action(self)
             }
             timer.resume()
             readerTimers[reader.id] = timer
@@ -1208,10 +1212,7 @@ public final class WidgetDataManager {
 
     private func triggerImmediateReaderPass() {
         for reader in monitoringReaders where !reader.popupOnly {
-            monitoringQueue.async { [weak self] in
-                guard let self = self else { return }
-                reader.action(self)
-            }
+            reader.action(self)
         }
     }
 
@@ -1775,7 +1776,9 @@ public final class WidgetDataManager {
             return
         }
 
-        let pageSize = UInt64(vm_kernel_page_size)
+        var kernelPageSize: vm_size_t = 0
+        host_page_size(mach_host_self(), &kernelPageSize)
+        let pageSize = UInt64(kernelPageSize)
 
         // Calculate memory usage
         let used = (UInt64(stats.active_count) + UInt64(stats.wire_count)) * pageSize
@@ -2638,7 +2641,8 @@ public final class WidgetDataManager {
                                             &hostname, socklen_t(hostname.count),
                                             nil, socklen_t(0), NI_NUMERICHOST)
                     if result == 0 {
-                        address = String(decodingCString: hostname.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                        let bytes = hostname.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+                        address = String(decoding: bytes, as: UTF8.self)
                     }
                 }
             }

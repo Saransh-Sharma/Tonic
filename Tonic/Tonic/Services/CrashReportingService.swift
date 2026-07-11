@@ -10,12 +10,10 @@ import Foundation
 // MARK: - Global Exception Handler Context
 
 /// Global reference to the crash reporting service for C function pointer callback
-private var crashReportingServiceInstance: CrashReportingService?
-
-/// Shared instance accessor for exception handler
-private final class CrashReportingSharedInstance {
-    static weak var shared: CrashReportingService?
-}
+// NSSetUncaughtExceptionHandler requires a C callback and therefore cannot carry
+// actor context. Access is confined to handler registration and process-crash
+// delivery, where normal synchronization is no longer meaningful.
+nonisolated(unsafe) private var crashReportingServiceInstance: CrashReportingService?
 
 /// C function pointer for uncaught exception handler
 private func CrashReportingExceptionHandler(_ exception: NSException) {
@@ -29,7 +27,7 @@ private func CrashReportingExceptionHandler(_ exception: NSException) {
 }
 
 /// Storage for previous exception handler (file-scoped for C function access)
-private var previousExceptionHandlerPointer: (@convention(c) (NSException) -> Swift.Void)?
+nonisolated(unsafe) private var previousExceptionHandlerPointer: (@convention(c) (NSException) -> Swift.Void)?
 
 // MARK: - Crash Report
 

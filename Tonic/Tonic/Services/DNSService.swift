@@ -11,6 +11,29 @@ import Network
 import os
 import SystemConfiguration
 
+private final class DNSLookupContinuation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didResume = false
+    private let connection: NWConnection
+    private let continuation: CheckedContinuation<TimeInterval?, Never>
+
+    init(connection: NWConnection, continuation: CheckedContinuation<TimeInterval?, Never>) {
+        self.connection = connection
+        self.continuation = continuation
+    }
+
+    func resume(returning result: TimeInterval?) {
+        let shouldResume = lock.withLock {
+            guard !didResume else { return false }
+            didResume = true
+            return true
+        }
+        guard shouldResume else { return }
+        connection.cancel()
+        continuation.resume(returning: result)
+    }
+}
+
 // MARK: - DNS Service
 
 /// Service for DNS configuration and performance testing
@@ -106,7 +129,7 @@ public final class DNSService {
         var servers: [String] = []
 
         guard let _ = "/etc/resolv.conf".cString(using: .utf8),
-              let resolvConf = try? String(contentsOfFile: "/etc/resolv.conf") else {
+              let resolvConf = try? String(contentsOfFile: "/etc/resolv.conf", encoding: .utf8) else {
             return servers
         }
 
@@ -218,22 +241,16 @@ public final class DNSService {
                 using: .tls
             )
 
-            var hasResumed = false
-            let resumeOnce = { (result: TimeInterval?) in
-                guard !hasResumed else { return }
-                hasResumed = true
-                connection.cancel()
-                continuation.resume(returning: result)
-            }
+            let lookup = DNSLookupContinuation(connection: connection, continuation: continuation)
 
             connection.stateUpdateHandler = { state in
                 switch state {
                 case .ready, .preparing:
                     // DNS resolution happened
                     let elapsed = Date().timeIntervalSince(startTime)
-                    resumeOnce(elapsed)
+                    lookup.resume(returning: elapsed)
                 case .failed:
-                    resumeOnce(nil)
+                    lookup.resume(returning: nil)
                 default:
                     break
                 }
@@ -244,7 +261,7 @@ public final class DNSService {
             // Timeout after 2 seconds
             Task {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                resumeOnce(nil)
+                lookup.resume(returning: nil)
             }
         }
     }

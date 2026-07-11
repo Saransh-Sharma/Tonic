@@ -167,7 +167,8 @@ private enum Sysctl {
         guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
         var data = [CChar](repeating: 0, count: Int(size))
         guard sysctlbyname(name, &data, &size, nil, 0) == 0 else { return nil }
-        return String(cString: data)
+        let bytes = data.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     static func int(_ name: String) -> Int? {

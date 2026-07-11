@@ -114,7 +114,7 @@ public final class NotificationManager: Sendable {
 
     /// Request notification permission from the user
     /// - Parameter completionHandler: Optional callback with the result
-    public func requestPermission(completionHandler: ((Bool) -> Void)? = nil) {
+    public func requestPermission(completionHandler: (@MainActor @Sendable (Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             Task { @MainActor in
                 self.hasPermission = granted

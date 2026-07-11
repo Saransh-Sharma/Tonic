@@ -91,6 +91,7 @@ final class AccessBroker: @unchecked Sendable {
         return scope
     }
 
+    @MainActor
     func addScopeUsingOpenPanel(
         title: String = "Grant Access",
         message: String = "Choose a folder or volume for Tonic to scan."
@@ -117,6 +118,7 @@ final class AccessBroker: @unchecked Sendable {
         }
     }
 
+    @MainActor
     func addStartupDiskScope() -> AccessScope? {
         addScopeUsingOpenPanel(
             title: "Enable Full Mac Scan",
@@ -130,6 +132,7 @@ final class AccessBroker: @unchecked Sendable {
         refreshStatuses()
     }
 
+    @MainActor
     func reauthorizeScope(id: UUID) -> Bool {
         guard let index = scopes.firstIndex(where: { $0.id == id }) else { return false }
         let old = scopes[index]

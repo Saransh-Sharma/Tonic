@@ -23,7 +23,7 @@ struct ScopedPathFilterResult: Sendable {
     let blocked: [String: ScopeBlockedReason]
 }
 
-final class ScopedFileSystem {
+final class ScopedFileSystem: @unchecked Sendable {
     static let shared = ScopedFileSystem()
 
     private let fileManager = FileManager.default
