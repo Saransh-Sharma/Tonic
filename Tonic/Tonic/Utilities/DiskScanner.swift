@@ -74,7 +74,7 @@ final class DiskScanner: @unchecked Sendable {
         _ path: String,
         mode: StorageScanMode = .quick,
         policy: ScanPerformancePolicy = .adaptiveDefault,
-        progress: @escaping (DiskScanProgress) -> Void
+        progress: @escaping @MainActor @Sendable (DiskScanProgress) -> Void
     ) async throws -> DiskScanResult {
         guard !isScanning else {
             throw DiskScanError.cancelled
@@ -108,7 +108,7 @@ final class DiskScanner: @unchecked Sendable {
         path: String,
         mode: StorageScanMode,
         policy: ScanPerformancePolicy,
-        progress: @escaping (DiskScanProgress) -> Void
+        progress: @escaping @MainActor @Sendable (DiskScanProgress) -> Void
     ) async throws -> DiskScanResult {
         isScanning = true
         defer { isScanning = false }
@@ -188,7 +188,7 @@ final class DiskScanner: @unchecked Sendable {
                         bytesScanned: aggregate.bytes,
                         currentPath: result.currentPath
                     )
-                    progress(snapshot)
+                    await progress(snapshot)
                     currentProgress = snapshot
                     lastEmittedItems = processedItems
                     lastEmittedAt = Date()
@@ -202,7 +202,7 @@ final class DiskScanner: @unchecked Sendable {
                 bytesScanned: aggregate.bytes,
                 currentPath: path
             )
-            progress(finalSnapshot)
+            await progress(finalSnapshot)
             currentProgress = finalSnapshot
 
             // Deduplicate by path while preserving largest encountered size for stable results.
@@ -245,7 +245,10 @@ final class DiskScanner: @unchecked Sendable {
     }
 
     /// Get overview sizes for system directories
-    func getOverviewSizes(for paths: [String], progress: @escaping (String, Int64) -> Void) async throws -> [DirectoryOverviewEntry] {
+    func getOverviewSizes(
+        for paths: [String],
+        progress: @escaping @Sendable (String, Int64) -> Void
+    ) async throws -> [DirectoryOverviewEntry] {
         var entries: [DirectoryOverviewEntry] = []
 
         for path in paths {
@@ -715,9 +718,9 @@ final class DiskScanner: @unchecked Sendable {
     // MARK: - Timeout Helper
 
     /// Execute an async operation with a timeout
-    private func withTimeout<T>(
+    private func withTimeout<T: Sendable>(
         seconds: TimeInterval,
-        operation: @escaping () async throws -> T
+        operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
@@ -1028,6 +1031,7 @@ final class StorageIntelligenceEngine {
     private var measuredProcessProvider = MeasuredProcessIOMonitorProvider()
     private var fallbackProcessProvider = PathDeltaFallbackProvider()
     private var scanPolicy: ScanPerformancePolicy = .adaptiveDefault
+    private var lastScanProgressEmission = Date.distantPast
     @ObservationIgnored
     private let scanWorker: ScanWorkerActor
 
@@ -1570,7 +1574,7 @@ final class StorageIntelligenceEngine {
         var stageDurations: [String: TimeInterval] = [:]
         var activePhase = "Preparing"
         var phaseStartedAt = Date()
-        var lastProgressEmission = Date.distantPast
+        lastScanProgressEmission = .distantPast
 
         var cumulativeFiles: Int64 = 0
         var cumulativeItems: Int64 = 0
@@ -1592,22 +1596,6 @@ final class StorageIntelligenceEngine {
             updateSessionStageDurations(stageDurations)
         }
 
-        func emitProgress(_ snapshot: ScanProgressSnapshot, force: Bool = false) {
-            let now = Date()
-            guard force || now.timeIntervalSince(lastProgressEmission) >= policy.progressEmitInterval else { return }
-            updateSessionProgress(files: snapshot.scannedItems, bytes: snapshot.scannedBytes)
-            updateSessionIndexing(
-                indexedDirectories: snapshot.indexedDirectories,
-                indexedNodes: snapshot.indexedNodes
-            )
-            continuation.yield(.progress(
-                filesScanned: snapshot.scannedItems,
-                bytesScanned: snapshot.scannedBytes,
-                currentPath: snapshot.currentPath
-            ))
-            lastProgressEmission = now
-        }
-
         continuation.yield(.phaseStarted(activePhase))
         updateSession(status: .preparing)
         updateSessionStageDurations(stageDurations)
@@ -1624,17 +1612,23 @@ final class StorageIntelligenceEngine {
                 }
 
                 if mode == .quick {
+                    let baseItems = cumulativeItems
+                    let baseBytes = cumulativeBytes
+                    let baseIndexedDirectories = cumulativeIndexedDirectories
+                    let baseIndexedNodes = cumulativeIndexedNodes
                     let rootScanResult = try await scanner.scanPath(scanRoot, mode: .quick, policy: policy) { progress in
-                        let mergedItems = cumulativeItems + progress.filesScanned + progress.dirsScanned
-                        let mergedBytes = cumulativeBytes + progress.bytesScanned
-                        emitProgress(
+                        let mergedItems = baseItems + progress.filesScanned + progress.dirsScanned
+                        let mergedBytes = baseBytes + progress.bytesScanned
+                        self.emitScanProgress(
                             ScanProgressSnapshot(
                                 scannedItems: mergedItems,
                                 scannedBytes: mergedBytes,
-                                indexedDirectories: cumulativeIndexedDirectories,
-                                indexedNodes: cumulativeIndexedNodes,
+                                indexedDirectories: baseIndexedDirectories,
+                                indexedNodes: baseIndexedNodes,
                                 currentPath: progress.currentPath
-                            )
+                            ),
+                            policy: policy,
+                            continuation: continuation
                         )
                     }
 
@@ -1673,7 +1667,7 @@ final class StorageIntelligenceEngine {
                         largeFileMap[large.path] = large
                     }
 
-                    emitProgress(
+                    emitScanProgress(
                         ScanProgressSnapshot(
                             scannedItems: cumulativeItems,
                             scannedBytes: cumulativeBytes,
@@ -1681,7 +1675,9 @@ final class StorageIntelligenceEngine {
                             indexedNodes: cumulativeIndexedNodes,
                             currentPath: scanRoot
                         ),
-                        force: true
+                        force: true,
+                        policy: policy,
+                        continuation: continuation
                     )
                 } else {
                     let rootEntries = await scanWorker.listImmediateChildren(at: scanRoot)
@@ -1725,7 +1721,7 @@ final class StorageIntelligenceEngine {
                         largeFileMap[node.path] = LargeFile(name: node.name, path: node.path, size: node.logicalBytes)
                     }
 
-                    emitProgress(
+                    emitScanProgress(
                         ScanProgressSnapshot(
                             scannedItems: cumulativeItems,
                             scannedBytes: cumulativeBytes,
@@ -1733,9 +1729,15 @@ final class StorageIntelligenceEngine {
                             indexedNodes: cumulativeIndexedNodes,
                             currentPath: scanRoot
                         ),
-                        force: true
+                        force: true,
+                        policy: policy,
+                        continuation: continuation
                     )
 
+                    let baseItems = cumulativeItems
+                    let baseBytes = cumulativeBytes
+                    let baseIndexedDirectories = cumulativeIndexedDirectories
+                    let baseIndexedNodes = cumulativeIndexedNodes
                     let indexingSnapshot = await recursivelyIndexDirectories(
                         from: rootNodes.filter(\.isDirectory),
                         continuation: continuation,
@@ -1743,16 +1745,16 @@ final class StorageIntelligenceEngine {
                         resolveResourceMetadata: resolveStrictMetadata
                     ) { snapshot in
                         let mergedSnapshot = ScanProgressSnapshot(
-                            scannedItems: cumulativeItems + snapshot.indexedNodes,
-                            scannedBytes: cumulativeBytes + snapshot.indexedBytesEstimate,
-                            indexedDirectories: cumulativeIndexedDirectories + snapshot.indexedDirectories,
-                            indexedNodes: cumulativeIndexedNodes + snapshot.indexedNodes,
+                            scannedItems: baseItems + snapshot.indexedNodes,
+                            scannedBytes: baseBytes + snapshot.indexedBytesEstimate,
+                            indexedDirectories: baseIndexedDirectories + snapshot.indexedDirectories,
+                            indexedNodes: baseIndexedNodes + snapshot.indexedNodes,
                             currentPath: snapshot.currentPath
                         )
                         for large in snapshot.newLargeFiles {
                             largeFileMap[large.path] = large
                         }
-                        emitProgress(mergedSnapshot)
+                        self.emitScanProgress(mergedSnapshot, policy: policy, continuation: continuation)
                     }
 
                     cumulativeFiles += indexingSnapshot.indexedFiles
@@ -1765,7 +1767,7 @@ final class StorageIntelligenceEngine {
 
                     _ = materializeDirectoryRollups(from: scanRoot)
 
-                    emitProgress(
+                    emitScanProgress(
                         ScanProgressSnapshot(
                             scannedItems: cumulativeItems,
                             scannedBytes: cumulativeBytes,
@@ -1773,7 +1775,9 @@ final class StorageIntelligenceEngine {
                             indexedNodes: cumulativeIndexedNodes,
                             currentPath: scanRoot
                         ),
-                        force: true
+                        force: true,
+                        policy: policy,
+                        continuation: continuation
                     )
                 }
             }
@@ -2542,7 +2546,7 @@ final class StorageIntelligenceEngine {
         continuation: AsyncStream<ScanEvent>.Continuation,
         policy: ScanPerformancePolicy,
         resolveResourceMetadata: Bool,
-        onProgress: @escaping (IndexingProgressSnapshot) -> Void
+        onProgress: (IndexingProgressSnapshot) -> Void
     ) async -> IndexingProgressSnapshot {
         let coordinator = ScanIndexCoordinatorActor(initialDirectories: directories, scanWorker: scanWorker)
         var indexedDirectories: Int64 = 0
@@ -3091,6 +3095,27 @@ final class StorageIntelligenceEngine {
         session.scannedItems = files
         session.scannedBytes = bytes
         self.session = session
+    }
+
+    private func emitScanProgress(
+        _ snapshot: ScanProgressSnapshot,
+        force: Bool = false,
+        policy: ScanPerformancePolicy,
+        continuation: AsyncStream<ScanEvent>.Continuation
+    ) {
+        let now = Date()
+        guard force || now.timeIntervalSince(lastScanProgressEmission) >= policy.progressEmitInterval else { return }
+        updateSessionProgress(files: snapshot.scannedItems, bytes: snapshot.scannedBytes)
+        updateSessionIndexing(
+            indexedDirectories: snapshot.indexedDirectories,
+            indexedNodes: snapshot.indexedNodes
+        )
+        continuation.yield(.progress(
+            filesScanned: snapshot.scannedItems,
+            bytesScanned: snapshot.scannedBytes,
+            currentPath: snapshot.currentPath
+        ))
+        lastScanProgressEmission = now
     }
 
     private func updateSessionIndexing(indexedDirectories: Int64, indexedNodes: Int64) {
