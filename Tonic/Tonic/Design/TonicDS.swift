@@ -115,11 +115,19 @@ enum TonicDS {
         static let cardBorder = Color.tonic("f2f2f2", dark: "23232b")
         /// Hairline on a dark/console surface.
         static let hairlineOnDark = Color.tonicConstant("ffffff", alpha: 0.10)
+        /// Hairline on a glass surface — ink-based in light, white in dark, so the
+        /// rim reads against whatever the desktop shows through the material.
+        static let glassStroke = Color.tonic("17171c", dark: "ffffff",
+                                             lightAlpha: 0.10, darkAlpha: 0.14)
 
         // -- Brand accents (RESERVED — editorial/brand only, NEVER on data) ----
-        /// The one branded interactive accent — category-filter chips, brand marks.
-        static let accentCoral = Color.tonicConstant("ff7759")
-        static let accentCoralSoft = Color.tonicConstant("ffad9b")
+        /// Tonic's mineral-green brand accent. It is reserved for primary actions,
+        /// focus, and identity; measured machine state continues to use status colors.
+        static let brandAccent = Color.tonic("176b58", dark: "5cc7a7")
+        static let brandAccentSoft = Color.tonic("dcefe8", dark: "14352c")
+        // Compatibility aliases while legacy consumers migrate to the semantic names.
+        static let accentCoral = brandAccent
+        static let accentCoralSoft = brandAccentSoft
         /// Inline navigation links, pagination, "learn more". Never on data.
         static let linkBlue = Color.tonic("1863dc", dark: "5b93ff")
         /// Keyboard focus ring.
@@ -298,6 +306,23 @@ enum TonicDS {
         static let areaOpacity: Double = 0.18
         /// Bottom stop of a sparkline/area gradient (near-transparent).
         static let areaSoftOpacity: Double = 0.04
+
+        // -- Categorical map palette (DATA ONLY) --------------------------------
+        // Muted editorial hues for many-category visualizations (disk map
+        // segments). Deliberately distinct from the status scale — a segment's
+        // color identifies *which* directory, never how healthy it is.
+        static let categorical: [Color] = [
+            Color.tonicConstant("4f7f8c"),  // slate teal
+            Color.tonicConstant("5b6cc4"),  // indigo
+            Color.tonicConstant("8c6d4f"),  // ochre
+            Color.tonicConstant("7d5b8c"),  // plum
+            Color.tonicConstant("4f8c5f"),  // moss
+            Color.tonicConstant("8c4f5e"),  // rosewood
+            Color.tonicConstant("5f8c86"),  // sea
+            Color.tonicConstant("8c7a4f"),  // brass
+            Color.tonicConstant("64648c"),  // dusk
+            Color.tonicConstant("6d8c4f")   // olive
+        ]
     }
 
     // MARK: Bands
@@ -384,14 +409,21 @@ enum TonicDS {
     // MARK: Motion
 
     enum Motion {
-        static let fast: Double = 0.15
-        static let normal: Double = 0.25
-        static let slow: Double = 0.35
+        static let instant: Double = 0.10
+        static let feedback: Double = 0.14
+        static let transition: Double = 0.21
+        static let layout: Double = 0.27
+        static let proof: Double = 0.39
 
-        static var appear: Animation { .easeOut(duration: normal) }
-        static var press: Animation { .easeOut(duration: fast) }
-        static var numeric: Animation { .easeInOut(duration: fast) }
-        static var present: Animation { .easeInOut(duration: normal) }
+        static let fast = feedback
+        static let normal = transition
+        static let slow = proof
+
+        static var appear: Animation { .easeOut(duration: transition) }
+        static var press: Animation { .easeOut(duration: feedback) }
+        static var numeric: Animation { .easeOut(duration: feedback) }
+        static var present: Animation { .easeOut(duration: transition) }
+        static var settle: Animation { .easeOut(duration: layout) }
         /// Per-index delay for staggered list/bento reveals.
         static let stagger: Double = 0.05
 
@@ -415,6 +447,76 @@ enum TonicDS {
                 : (Color.black.opacity(0.07), 12, 4)
         }
     }
+
+    // MARK: Glass (Liquid Tonic material model — see TonicDesign.md §Materials)
+    //
+    // The Z-model: Z0 desktop light (behind-window blur + canvas wash) → Z1 surfaces
+    // (Material + color wash) → Z2 overlays (thicker material + scrim) → Z3 chrome
+    // (true Liquid Glass, ≤3 elements per window). Glass is chrome, never meaning:
+    // status color is never a glass tint, and every layer degrades to the flat
+    // editorial fill when transparency is reduced (`TonicGlassPolicy`).
+
+    enum Glass {
+        /// Geometry and interaction timing for the two-surface application shell.
+        /// The collapsed rail ends 20pt before the slab; expansion grows rightward
+        /// over the slab without moving the host window.
+        enum Shell {
+            static let outerInset: CGFloat = 8
+            static let slabLeadingInset: CGFloat = 88
+            static let slabCornerRadius: CGFloat = 28
+
+            static let railLeadingInset: CGFloat = 12
+            static let railCollapsedWidth: CGFloat = 56
+            static let railExpandedWidth: CGFloat = 208
+            static let railToSlabGap: CGFloat = 20
+            static let railCornerRadius: CGFloat = 28
+            static let railHoverCorridor: CGFloat = 10
+            static let pinnedContentInset: CGFloat = 148
+
+            static let hoverOpenDelay: Double = 0.12
+            static let hoverCloseDelay: Double = 0.28
+            static let trafficLightLeadingInset: CGFloat = 16
+            static let trafficLightContentClearance: CGFloat = 78
+        }
+
+        /// Semantic surface layer. Components declare a layer; `.tonicSurface(_:in:)`
+        /// resolves it to glass or the exact legacy flat fill.
+        enum Layer {
+            /// Z3 — floating rail, top bar, docks, toasts. The only true
+            /// `glassEffect` tier; keep at most ~3 visible per window.
+            case chrome
+            /// Z2 — sheets, command palette, modal panels.
+            case overlay
+            /// Z1 — data cards, settings panels, list containers, fields.
+            case surface
+            /// Z1-dark — the monitoring console family. Smoke wash never drops
+            /// below `smokedWash`: status readouts need a near-black field.
+            case smoked
+            /// Z1-brand — deep-green / navy module bands as colored glass.
+            case band(TonicDS.Band)
+        }
+
+        // -- Wash opacities (color over material) -------------------------------
+        /// Z1 surface wash over thin material.
+        static let surfaceWash: Double = 0.55
+        /// Z1 smoke wash over ultra-thin material. 0.60 is the non-negotiable
+        /// floor — status colors at 11pt mono require a near-black backdrop.
+        static let smokedWash: Double = 0.65
+        /// Z1 band tint — bands are brand identity and must read as colored glass.
+        static let bandWash: Double = 0.85
+        /// Z2 overlay wash over thick material.
+        static let overlayWash: Double = 0.70
+
+        /// Z0 canvas wash over the behind-window blur, per intensity + scheme.
+        /// Light mode runs milkier so content never sits on a glaring backdrop.
+        static func canvasWash(_ intensity: GlassIntensity, scheme: ColorScheme) -> Double {
+            switch intensity {
+            case .regular: return scheme == .dark ? 0.22 : 0.42
+            case .subtle: return scheme == .dark ? 0.55 : 0.68
+            case .off: return 1.0
+            }
+        }
+    }
 }
 
 // MARK: - Typography
@@ -430,10 +532,10 @@ extension TonicDS {
 
         var size: CGFloat {
             switch self {
-            case .heroDisplay: return 64
-            case .sectionDisplay: return 44
-            case .cardHeading: return 28
-            case .featureHeading: return 20
+            case .heroDisplay: return 40
+            case .sectionDisplay: return 28
+            case .cardHeading: return 17
+            case .featureHeading: return 17
             case .bodyLarge: return 16
             case .body: return 14
             case .button: return 13
@@ -464,9 +566,9 @@ extension TonicDS {
         /// Tracking in points.
         var tracking: CGFloat {
             switch self {
-            case .heroDisplay: return -1.28
-            case .sectionDisplay: return -0.88
-            case .cardHeading: return -0.40
+            case .heroDisplay: return -0.70
+            case .sectionDisplay: return -0.35
+            case .cardHeading: return -0.10
             case .monoLabel: return 0.50
             default: return 0
             }
