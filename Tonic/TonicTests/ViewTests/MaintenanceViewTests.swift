@@ -286,7 +286,7 @@ final class MaintenanceViewTests: XCTestCase {
     // MARK: - Integration Tests
 
     func testScanToCleanFlow() {
-        var scanResults: [(String, String)] = [
+        let scanResults: [(String, String)] = [
             ("Cache", "2.5 GB"),
             ("Logs", "500 MB"),
         ]
@@ -307,7 +307,7 @@ final class MaintenanceViewTests: XCTestCase {
 
         // 2. Complete scan
         isScanning = false
-        var scanComplete = true
+        let scanComplete = true
         XCTAssertTrue(scanComplete)
 
         // 3. Start cleaning
@@ -319,7 +319,7 @@ final class MaintenanceViewTests: XCTestCase {
 
         // 4. Complete cleaning
         isCleaning = false
-        var cleanComplete = true
+        let cleanComplete = true
         XCTAssertTrue(cleanComplete)
     }
 }

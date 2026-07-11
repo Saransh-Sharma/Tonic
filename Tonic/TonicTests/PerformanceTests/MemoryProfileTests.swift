@@ -130,7 +130,7 @@ final class MemoryProfileTests: PerformanceTestBase {
     func testShortStringMemoryUsage() {
         let memoryUsed = measureMemoryUsage {
             var strings = [String]()
-            for i in 0..<10000 {
+            for _ in 0..<10000 {
                 strings.append("Item")
             }
             _ = strings
@@ -203,7 +203,7 @@ final class MemoryProfileTests: PerformanceTestBase {
         try? "Test content".write(to: tempFile, atomically: true, encoding: .utf8)
 
         let memoryUsed = measureMemoryUsage {
-            if let content = try? String(contentsOf: tempFile) {
+            if let content = try? String(contentsOf: tempFile, encoding: .utf8) {
                 _ = content
             }
         }
@@ -229,16 +229,12 @@ final class MemoryProfileTests: PerformanceTestBase {
             }
         }
 
-        let initialMemory = measureMemoryUsage { }
-
         let memoryUsedInOperation = measureMemoryUsage {
-            var node = Node(value: "Start")
+            let node = Node(value: "Start")
             let next = Node(value: "End")
             node.next = next
             _ = node
         }
-
-        let finalMemory = measureMemoryUsage { }
 
         // Memory should be released after operation
         XCTAssertLessThan(memoryUsedInOperation, 1_000_000)

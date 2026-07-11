@@ -26,19 +26,21 @@ final class EditorialComponentsTests: XCTestCase {
     }
 
     func testTonicDSMotionTimingMatchesDesignSpec() {
-        XCTAssertEqual(TonicDS.Motion.fast, 0.15)
-        XCTAssertEqual(TonicDS.Motion.normal, 0.25)
-        XCTAssertEqual(TonicDS.Motion.slow, 0.35)
+        XCTAssertEqual(TonicDS.Motion.instant, 0.10)
+        XCTAssertEqual(TonicDS.Motion.feedback, 0.14)
+        XCTAssertEqual(TonicDS.Motion.transition, 0.21)
+        XCTAssertEqual(TonicDS.Motion.layout, 0.27)
+        XCTAssertEqual(TonicDS.Motion.proof, 0.39)
         XCTAssertEqual(TonicDS.Motion.stagger, 0.05)
     }
 
     func testTonicDSTypographyMatchesDesignSpecTracking() {
-        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.size, 64)
-        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.size, 44)
-        XCTAssertEqual(TonicDS.TypeRole.cardHeading.size, 28)
-        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.tracking, -1.28, accuracy: 0.001)
-        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.tracking, -0.88, accuracy: 0.001)
-        XCTAssertEqual(TonicDS.TypeRole.cardHeading.tracking, -0.40, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.size, 40)
+        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.size, 28)
+        XCTAssertEqual(TonicDS.TypeRole.cardHeading.size, 17)
+        XCTAssertEqual(TonicDS.TypeRole.heroDisplay.tracking, -0.70, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.sectionDisplay.tracking, -0.35, accuracy: 0.001)
+        XCTAssertEqual(TonicDS.TypeRole.cardHeading.tracking, -0.10, accuracy: 0.001)
         XCTAssertEqual(TonicDS.TypeRole.monoLabel.tracking, 0.50, accuracy: 0.001)
     }
 

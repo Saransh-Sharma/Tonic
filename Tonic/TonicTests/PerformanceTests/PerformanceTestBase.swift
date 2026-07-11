@@ -14,7 +14,7 @@ class PerformanceTestBase: XCTestCase {
     // MARK: - Performance Metrics
 
     /// Stores performance measurement results
-    struct PerformanceResult {
+    struct PerformanceResult: Sendable {
         let testName: String
         let duration: TimeInterval
         let memoryUsed: Int64?
@@ -24,7 +24,22 @@ class PerformanceTestBase: XCTestCase {
         let target: TimeInterval?
     }
 
-    static var performanceResults: [PerformanceResult] = []
+    private final class PerformanceResultStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [PerformanceResult] = []
+
+        func append(_ result: PerformanceResult) {
+            lock.withLock {
+                storage.append(result)
+            }
+        }
+
+        func snapshot() -> [PerformanceResult] {
+            lock.withLock { storage }
+        }
+    }
+
+    private static let performanceResultStore = PerformanceResultStore()
 
     // MARK: - Setup & Teardown
 
@@ -185,7 +200,7 @@ class PerformanceTestBase: XCTestCase {
     /// Assert operation completes within specified time
     func XCTAssertCompletes(
         within timeout: TimeInterval,
-        operation: @escaping () -> Void,
+        operation: @escaping @Sendable () -> Void,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -224,11 +239,12 @@ class PerformanceTestBase: XCTestCase {
             passed: passed,
             target: target
         )
-        performanceResults.append(result)
+        performanceResultStore.append(result)
     }
 
     /// Generate performance report
     static func generatePerformanceReport() -> String {
+        let performanceResults = performanceResultStore.snapshot()
         var report = "\n=== Performance Test Results ===\n"
         report += String(format: "Total Tests: %d\n", performanceResults.count)
 

@@ -39,4 +39,89 @@ final class AppearancePreferencesTests: XCTestCase {
 
         XCTAssertNil(UserDefaults.standard.object(forKey: legacyPaletteKey))
     }
+
+    // MARK: - Liquid shell policy
+
+    func testRailPresentationStatePrioritizesPinOverHover() {
+        XCTAssertEqual(
+            RailPresentationState.resolve(isPointerInside: false, isPinned: false),
+            .collapsed
+        )
+        XCTAssertEqual(
+            RailPresentationState.resolve(isPointerInside: true, isPinned: false),
+            .hoverExpanded
+        )
+        XCTAssertEqual(
+            RailPresentationState.resolve(isPointerInside: false, isPinned: true),
+            .pinnedExpanded
+        )
+        XCTAssertEqual(
+            RailPresentationState.resolve(isPointerInside: true, isPinned: true),
+            .pinnedExpanded
+        )
+    }
+
+    func testRailPinPreferencePersists() throws {
+        let suiteName = "AppearancePreferencesTests.rail.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(RailPinPreference.isPinned(in: defaults))
+        RailPinPreference.setPinned(true, in: defaults)
+        XCTAssertTrue(RailPinPreference.isPinned(in: defaults))
+        RailPinPreference.setPinned(false, in: defaults)
+        XCTAssertFalse(RailPinPreference.isPinned(in: defaults))
+    }
+
+    func testGlassPolicyAnyReductionWins() {
+        XCTAssertTrue(TonicGlassPolicy.resolvesGlass(
+            systemReducesTransparency: false,
+            appReducesTransparency: false,
+            intensity: .regular
+        ))
+        XCTAssertFalse(TonicGlassPolicy.resolvesGlass(
+            systemReducesTransparency: true,
+            appReducesTransparency: false,
+            intensity: .regular
+        ))
+        XCTAssertFalse(TonicGlassPolicy.resolvesGlass(
+            systemReducesTransparency: false,
+            appReducesTransparency: true,
+            intensity: .regular
+        ))
+        XCTAssertFalse(TonicGlassPolicy.resolvesGlass(
+            systemReducesTransparency: false,
+            appReducesTransparency: false,
+            intensity: .off
+        ))
+    }
+
+    func testMotionPolicyCombinesSystemAndAppPreferences() {
+        XCTAssertFalse(TonicMotionPolicy.shouldReduceMotion(
+            systemReducesMotion: false,
+            appReducesMotion: false
+        ))
+        XCTAssertTrue(TonicMotionPolicy.shouldReduceMotion(
+            systemReducesMotion: true,
+            appReducesMotion: false
+        ))
+        XCTAssertTrue(TonicMotionPolicy.shouldReduceMotion(
+            systemReducesMotion: false,
+            appReducesMotion: true
+        ))
+    }
+
+    func testCollapsedRailHasReferenceGapBeforeSlab() {
+        let railTrailing = TonicDS.Glass.Shell.railLeadingInset
+            + TonicDS.Glass.Shell.railCollapsedWidth
+        XCTAssertEqual(
+            TonicDS.Glass.Shell.slabLeadingInset - railTrailing,
+            TonicDS.Glass.Shell.railToSlabGap,
+            accuracy: 0.001
+        )
+        XCTAssertGreaterThan(
+            TonicDS.Glass.Shell.railExpandedWidth,
+            TonicDS.Glass.Shell.slabLeadingInset - TonicDS.Glass.Shell.railLeadingInset
+        )
+    }
 }

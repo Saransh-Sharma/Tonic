@@ -2,7 +2,6 @@ import Foundation
 import XCTest
 @testable import Tonic
 
-@MainActor
 final class WidgetHistoryStoreTests: XCTestCase {
     private var tempRoot: URL!
 
@@ -16,7 +15,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempRoot)
     }
 
-    func testRecordingSamplesPopulatesLiveSessionHistory() {
+    @MainActor func testRecordingSamplesPopulatesLiveSessionHistory() {
         let store = makeStore()
         let sample = makeSample(cpu: 42, memory: 64, download: 2_048)
 
@@ -27,7 +26,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(store.chartSeries(for: .networkDownloadBytesPerSecond, range: .live), [2_048])
     }
 
-    func testMinuteBucketsCoalesceSamplesInSameMinute() {
+    @MainActor func testMinuteBucketsCoalesceSamplesInSameMinute() {
         let store = makeStore()
         let base = ResourceMetricCalculators.minuteBucketTimestamp(for: Date()).addingTimeInterval(10)
 
@@ -41,7 +40,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(historical.first?.networkDownloadBytesPerSecond ?? 0, 2_000, accuracy: 0.001)
     }
 
-    func testSamplesOlderThanTwentyFourHoursArePruned() {
+    @MainActor func testSamplesOlderThanTwentyFourHoursArePruned() {
         let store = makeStore()
 
         store.record(makeSample(date: Date().addingTimeInterval(-25 * 60 * 60), cpu: 10, memory: 10))
@@ -52,7 +51,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(historical.first?.cpuPercent, 90)
     }
 
-    func testHistoryPersistsAndReloads() {
+    @MainActor func testHistoryPersistsAndReloads() {
         let url = tempRoot.appendingPathComponent("history.json")
         let first = makeStore(storageURL: url)
         first.record(makeSample(cpu: 50, memory: 75, upload: 512, download: 4_096))
@@ -67,7 +66,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(historical.first?.networkDownloadBytesPerSecond, 4_096)
     }
 
-    func testRestartWeightsNewSampleBySavedBucketCountNotFiftyFifty() {
+    @MainActor func testRestartWeightsNewSampleBySavedBucketCountNotFiftyFifty() {
         let url = tempRoot.appendingPathComponent("history.json")
         let base = ResourceMetricCalculators.minuteBucketTimestamp(for: Date()).addingTimeInterval(5)
 
@@ -88,7 +87,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(historical.first?.memoryPercent ?? 0, 50, accuracy: 0.001)
     }
 
-    func testSummaryReturnsLatestAverageAndPeak() {
+    @MainActor func testSummaryReturnsLatestAverageAndPeak() {
         let store = makeStore()
         let now = Date()
         store.record(makeSample(date: now.addingTimeInterval(-120), cpu: 20, memory: 20))
@@ -102,7 +101,7 @@ final class WidgetHistoryStoreTests: XCTestCase {
         XCTAssertEqual(summary.peak, 60, accuracy: 0.001)
     }
 
-    private func makeStore(storageURL: URL? = nil) -> WidgetHistoryStore {
+    @MainActor private func makeStore(storageURL: URL? = nil) -> WidgetHistoryStore {
         WidgetHistoryStore(
             storageURL: storageURL ?? tempRoot.appendingPathComponent("history.json"),
             liveCapacity: 180,
