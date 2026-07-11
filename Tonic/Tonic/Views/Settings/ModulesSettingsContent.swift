@@ -20,7 +20,7 @@ struct ModulesSettingsContent: View {
             detail
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .onReceive(NotificationCenter.default.publisher(for: .openModuleSettings)) { notification in
             guard let rawModule = notification.userInfo?[SettingsDeepLinkUserInfoKey.module] as? String,
                   let module = WidgetType(rawValue: rawModule),

@@ -52,7 +52,7 @@ struct CleanView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .tonicScreenHPadding()
         .padding(.vertical, TonicDS.Space.xxl)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         // Undo toasts hold longer than informational ones — the undo window is a promise.
         .tonicToast($toast, autoDismiss: 10)
         .onAppear {
@@ -344,6 +344,9 @@ struct CleanView: View {
                     whatGrewCard
                         .padding(.horizontal, TonicDS.Space.md)
                         .padding(.bottom, TonicDS.Space.md)
+                    DiskMapCard()
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.bottom, TonicDS.Space.md)
                     if let report = result.hiddenSpaceReport, report.hasDiscrepancy {
                         hiddenSpaceCard(report)
                             .padding(.horizontal, TonicDS.Space.md)
@@ -377,13 +380,22 @@ struct CleanView: View {
             }
             .accessibilityLabel("Scanning storage")
         } else {
-            TonicEmptyState(
-                systemImage: "externaldrive",
-                title: "Nothing to explore yet",
-                message: "Run a Smart Scan to explore recoverable storage by size.",
-                actionTitle: "Run Smart Scan",
-                onAction: { tab = .smartScan; session.startScan() }
-            )
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                    DiskMapCard()
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.top, TonicDS.Space.md)
+                    TonicEmptyState(
+                        systemImage: "externaldrive",
+                        title: "Nothing to explore yet",
+                        message: "Run a Smart Scan to explore recoverable storage by size.",
+                        actionTitle: "Run Smart Scan",
+                        onAction: { tab = .smartScan; session.startScan() }
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, TonicDS.Space.xl)
+                }
+            }
         }
     }
 

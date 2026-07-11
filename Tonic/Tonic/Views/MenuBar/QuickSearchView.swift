@@ -55,12 +55,11 @@ struct QuickSearchView: View {
             resultsList
         }
         .frame(width: 480, height: 420)
-        .background(TonicDS.Colors.console)
         .clipShape(RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)
-                .strokeBorder(TonicDS.Colors.hairlineOnDark, lineWidth: 1)
-        )
+        .tonicSurface(.chrome,
+                      in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous),
+                      flatFill: TonicDS.Colors.console,
+                      flatStroke: TonicDS.Colors.hairlineOnDark)
         .environment(\.colorScheme, .dark)
         .onAppear { searchFocused = true }
     }

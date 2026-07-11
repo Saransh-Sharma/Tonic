@@ -80,7 +80,7 @@ struct MenuBarDashboardView: View {
             .padding(.vertical, TonicDS.Space.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .tonicToast($toast)
         .sheet(item: $editingTrigger) { context in
             TriggerEditorSheet(editing: context.trigger, seedItemKey: context.seedItemKey)

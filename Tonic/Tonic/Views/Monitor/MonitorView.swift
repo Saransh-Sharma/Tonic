@@ -40,7 +40,7 @@ struct MonitorView: View {
             .padding(.vertical, TonicDS.Space.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .onAppear {
             ensureLiveMonitoring("MonitorView.onAppear")
             setMonitorPopupVisibility(true)

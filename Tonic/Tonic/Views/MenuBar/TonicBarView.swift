@@ -34,14 +34,10 @@ struct TonicBarView: View {
         }
         .padding(.horizontal, TonicDS.Space.sm)
         .frame(maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
-                .fill(TonicDS.Colors.console)
-                .overlay(
-                    RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
-                        .strokeBorder(TonicDS.Colors.hairlineOnDark, lineWidth: 1)
-                )
-        )
+        .tonicSurface(.chrome,
+                      in: RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous),
+                      flatFill: TonicDS.Colors.console,
+                      flatStroke: TonicDS.Colors.hairlineOnDark)
         .environment(\.colorScheme, .dark)
     }
 

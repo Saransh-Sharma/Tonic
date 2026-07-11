@@ -14,12 +14,16 @@ struct SettingsView: View {
 
     @State private var section: SettingsSection = .general
     @State private var didInit = false
-    @State private var appearance = AppearancePreferences.shared
     @State private var permissions = PermissionManager.shared
+    @State private var accessBroker = AccessBroker.shared
     @State private var scheduler = MaintenanceScheduler.shared
+    @State private var appearance = AppearancePreferences.shared
     @State private var powerUser = UserDefaults.standard.bool(forKey: TonicUserDefaultsKey.powerUserModeEnabled)
     /// Bumped when a Labs flag changes so the toggles re-read FeatureFlags.
     @State private var labsRevision = 0
+    @AppStorage("tonic.general.compactDensity") private var compactDensity = false
+    @AppStorage("tonic.general.metricUnits") private var metricUnits = true
+    @AppStorage("tonic.general.retentionDays") private var retentionDays = 7
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -38,7 +42,7 @@ struct SettingsView: View {
         }
         .animation(reduceMotion ? nil : TonicDS.Motion.present, value: section)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .onAppear {
             if !didInit { section = initialSection; didInit = true }
             Task { await permissions.checkAllPermissions() }
@@ -65,7 +69,7 @@ struct SettingsView: View {
         }
         .padding(TonicDS.Space.md)
         .frame(width: 220, alignment: .topLeading)
-        .background(TonicDS.Colors.canvasSoft)
+        .tonicCanvas(flatFill: TonicDS.Colors.canvasSoft)
     }
 
     private func railRow(_ s: SettingsSection) -> some View {
@@ -105,9 +109,13 @@ struct SettingsView: View {
         switch section {
         case .general: generalSection
         case .modules: widgetsSection
+        case .shortcuts: shortcutsSection
         case .maintenance: maintenanceSection
+        case .notifications: notificationsSection
         case .permissions: permissionsSection
+        case .licensing: licensingSection
         case .updates: updatesSection
+        case .advanced: advancedSection
         case .about: aboutSection
         }
     }
@@ -187,26 +195,59 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
-            sectionTitle("General", "Customize how Tonic looks and behaves")
+            sectionTitle("General", "Behavior, units, and local data")
 
-            SettingsPanel(title: "Appearance") {
-                TonicPreferenceRow(title: "Theme", description: "Match the system or force light/dark.") {
+            SettingsPanel(title: "Interface") {
+                TonicPreferenceRow(title: "Appearance", description: "Follow macOS or force a fixed appearance.") {
                     HStack(spacing: TonicDS.Space.xs) {
                         ForEach(ThemeMode.allCases) { mode in
-                            FilterPill(title: mode.rawValue, isActive: appearance.themeMode == mode) {
+                            FilterPill(title: mode.rawValue,
+                                       isActive: appearance.themeMode == mode) {
                                 appearance.setThemeMode(mode)
-                                NotificationCenter.default.post(name: NSNotification.Name("TonicThemeDidChange"), object: nil)
                             }
                         }
                     }
                 }
-                TonicToggleRow(title: "Reduce transparency", description: "Replace transparency with solid colors.",
-                               isOn: Binding(get: { appearance.reduceTransparency }, set: { appearance.setReduceTransparency($0) }))
-                TonicToggleRow(title: "Reduce motion", description: "Minimize animation effects.", showsDivider: false,
-                               isOn: Binding(get: { appearance.reduceMotion }, set: { appearance.setReduceMotion($0) }))
+                TonicPreferenceRow(title: "Window glass",
+                                   description: appearance.glassIntensity.caption) {
+                    HStack(spacing: TonicDS.Space.xs) {
+                        ForEach(GlassIntensity.allCases) { intensity in
+                            FilterPill(title: intensity.rawValue,
+                                       isActive: appearance.glassIntensity == intensity) {
+                                appearance.setGlassIntensity(intensity)
+                            }
+                        }
+                    }
+                }
+                TonicToggleRow(title: "Reduce transparency",
+                               description: "Render solid surfaces everywhere, matching the macOS accessibility setting.",
+                               isOn: Binding(get: { appearance.reduceTransparency },
+                                             set: { appearance.setReduceTransparency($0) }))
+                TonicToggleRow(title: "Compact data density", description: "Use tighter rows in tables and inspectors.", showsDivider: false,
+                               isOn: $compactDensity)
             }
 
-            SettingsPanel(title: "Advanced") {
+            SettingsPanel(title: "Measurements") {
+                TonicToggleRow(title: "Metric units", description: "Use GB, °C, and metric network units.",
+                               isOn: $metricUnits)
+                TonicPreferenceRow(title: "Metric history", description: "Local rolling history used by Monitor charts.", showsDivider: false) {
+                    Picker("Retention", selection: $retentionDays) {
+                        Text("1 day").tag(1)
+                        Text("7 days").tag(7)
+                        Text("30 days").tag(30)
+                    }
+                    .labelsHidden()
+                    .frame(width: 110)
+                }
+            }
+        }
+    }
+
+    private var advancedSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Advanced", "Expert controls and diagnostics")
+
+            SettingsPanel(title: "Expert controls") {
                 TonicToggleRow(title: "Power User mode",
                                description: "Reveals developer caches, path-level detail, and advanced scan context.",
                                showsDivider: false,
@@ -223,6 +264,67 @@ struct SettingsView: View {
                 labsToggle(.storageHub,
                            description: "Deep storage exploration with treemap and guided cleanup.",
                            showsDivider: false)
+            }
+        }
+    }
+
+    private var shortcutsSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Shortcuts", "Keyboard access to daily controls")
+            SettingsPanel(title: "Global") {
+                ForEach(Array(HotkeyAction.allCases.enumerated()), id: \.element.rawValue) { index, action in
+                    TonicPreferenceRow(title: action.title, description: action.subtitle, showsDivider: index < HotkeyAction.allCases.count - 1) {
+                        Text(HotkeySettingsStore.shared.spec(for: action)?.displayString ?? "Not set")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(TonicDS.Colors.textMuted)
+                    }
+                }
+            }
+            Text("Record or change menu-bar shortcuts from Organize → Menu Bar. ⌘K is always reserved for All Tools.")
+                .font(.system(size: 12))
+                .foregroundStyle(TonicDS.Colors.textMuted)
+        }
+    }
+
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Notifications", "Alerts are quiet until you configure them")
+            SettingsPanel(title: "Delivery") {
+                TonicPreferenceRow(title: "System permission", description: "Required only for alerts and automation run notices.") {
+                    let granted = permissions.permissionStatuses[.notifications] == .authorized
+                    if granted {
+                        StatusChip("Granted", level: .success)
+                    } else {
+                        Button("Allow") { NotificationManager.shared.requestPermission() }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                TonicToggleRow(
+                    title: "Bundle threshold alerts",
+                    description: "Collect non-urgent metric alerts into a digest.",
+                    showsDivider: false,
+                    isOn: Binding(get: { NotificationManager.shared.digestEnabled }, set: { NotificationManager.shared.digestEnabled = $0 })
+                )
+            }
+        }
+    }
+
+    private var licensingSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Licensing", "Your edition and verified entitlement")
+            SettingsPanel(title: "Installed product") {
+                TonicPreferenceRow(
+                    title: DistributionEdition.current == .direct ? "Tonic Direct" : "Tonic for the Mac App Store",
+                    description: DistributionEdition.current == .direct
+                        ? "Includes direct updates and supported capabilities outside App Sandbox."
+                        : "Sandboxed edition with scoped file access and App Store updates.",
+                    showsDivider: true
+                ) {
+                    StatusChip(DistributionEdition.current == .direct ? "Direct" : "Store", level: .info)
+                }
+                TonicPreferenceRow(title: "License", description: "Purchasing controls appear only after a signed entitlement is available.", showsDivider: false) {
+                    StatusChip(LicenseManager.shared.currentTier.rawValue, level: .info)
+                }
             }
         }
     }
@@ -254,10 +356,27 @@ struct SettingsView: View {
 
     private var permissionsSection: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
-            sectionTitle("Permissions", "System access Tonic needs to work")
-            SettingsPanel(title: "Access") {
+            sectionTitle("Access", "Purpose, current state, and recovery in one place")
+            SettingsPanel(title: "Capabilities") {
                 ForEach(Array(TonicPermission.allCases.enumerated()), id: \.element) { idx, perm in
                     permissionRow(perm, showsDivider: idx < TonicPermission.allCases.count - 1)
+                }
+            }
+            if BuildCapabilities.current.requiresScopeAccess {
+                SettingsPanel(title: "Authorized locations") {
+                    if accessBroker.scopes.isEmpty {
+                        TonicPreferenceRow(title: "No locations authorized", description: "Care continues with basic system information until you choose a folder or volume.", showsDivider: false) {
+                            Button("Add") { _ = accessBroker.addScopeUsingOpenPanel() }
+                                .buttonStyle(.borderless)
+                        }
+                    } else {
+                        ForEach(Array(accessBroker.scopes.enumerated()), id: \.element.id) { index, scope in
+                            TonicPreferenceRow(title: scope.displayName, description: scope.rootPath, showsDivider: index < accessBroker.scopes.count - 1) {
+                                Button("Remove") { accessBroker.removeScope(id: scope.id) }
+                                    .buttonStyle(.borderless)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -268,14 +387,24 @@ struct SettingsView: View {
         let granted = status == .authorized
         // Symmetric rows: every permission states its status; only ungranted ones
         // add the action. No row looks like it still needs attention once granted.
-        return TonicPreferenceRow(title: perm.rawValue, description: perm.description, showsDivider: showsDivider) {
+        let purpose: String
+        switch perm {
+        case .fullDiskAccess: purpose = BuildCapabilities.current.requiresScopeAccess ? "Inspect only the folders and volumes you choose." : "Build complete storage and app evidence."
+        case .accessibility: purpose = "Arrange windows and manage supported menu-bar items."
+        case .notifications: purpose = "Deliver alerts and automation run notices you configure."
+        }
+        return TonicPreferenceRow(title: perm.rawValue, description: "\(purpose) Checked this session.", showsDivider: showsDivider) {
             HStack(spacing: TonicDS.Space.sm) {
                 if granted {
                     StatusChip("Granted", level: .success)
                 } else {
                     StatusChip("Required", level: .warning)
                     Button {
-                        if perm == .fullDiskAccess { _ = permissions.requestFullDiskAccess() }
+                        switch perm {
+                        case .fullDiskAccess: _ = permissions.requestFullDiskAccess()
+                        case .accessibility: _ = permissions.requestAccessibility()
+                        case .notifications: NotificationManager.shared.requestPermission()
+                        }
                         Task { await permissions.checkAllPermissions() }
                     } label: {
                         Text("Grant").tonicType(.button).foregroundStyle(TonicDS.Colors.linkBlue)

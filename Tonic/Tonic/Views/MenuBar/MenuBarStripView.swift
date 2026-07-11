@@ -95,7 +95,7 @@ struct MenuBarStripView: View {
                     .fill(TonicDS.Colors.onDark.opacity(0.04))
             )
             .dropDestination(for: String.self) { keys, _ in
-                handleDrop(keys: keys, to: section)
+                _ = handleDrop(keys: keys, to: section)
             }
         }
         .frame(maxWidth: fillRemaining ? .infinity : nil, alignment: .leading)

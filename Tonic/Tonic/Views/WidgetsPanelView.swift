@@ -147,7 +147,7 @@ public struct WidgetsPanelView: View {
             }
             .padding(TonicDS.Space.xl)
         }
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .navigationTitle("Menu Bar Widgets")
         .sheet(isPresented: $viewModel.showingAddSheet) {
             AddWidgetSheet(viewModel: viewModel)
