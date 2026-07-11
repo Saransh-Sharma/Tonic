@@ -100,7 +100,7 @@ struct TonicScreenScaffold<Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
     }
 
     private var contentColumn: some View {
@@ -186,7 +186,7 @@ extension EnvironmentValues {
 }
 
 private struct TonicScreenWidthPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = TonicDS.Layout.maxContentWidth
+    static let defaultValue: CGFloat = TonicDS.Layout.maxContentWidth
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
@@ -589,12 +589,8 @@ struct DataCard<Content: View>: View {
         content()
             .padding(TonicDS.Space.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TonicDS.Colors.surface,
-                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TonicDS.Radius.card, style: .continuous)
-                    .strokeBorder(TonicDS.Colors.cardBorder, lineWidth: 1)
-            )
+            .tonicSurface(.surface,
+                          in: RoundedRectangle(cornerRadius: TonicDS.Radius.card, style: .continuous))
             .scaleEffect(active ? 1.01 : 1)
             // One shadow only — it deepens on hover; it is never stacked.
             .shadow(color: lift ? elev.color : .clear,
@@ -629,8 +625,8 @@ struct MonitoringConsole<Content: View>: View {
         content()
             .padding(TonicDS.Space.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TonicDS.Colors.console,
-                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous))
+            .tonicSurface(.smoked,
+                          in: RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous))
             .environment(\.colorScheme, .dark) // children read as on-dark by default
     }
 }
@@ -646,8 +642,8 @@ struct ModuleBand<Content: View>: View {
         content()
             .padding(contentPadding ?? (TonicDS.Layout.isCompact(layoutWidth) ? TonicDS.Space.lg : TonicDS.Space.xxxl))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TonicDS.bandFill(band),
-                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
+            .tonicSurface(.band(band),
+                          in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
             .environment(\.colorScheme, .dark)
     }
 }
@@ -661,8 +657,11 @@ struct ScanCategoryCard<Content: View>: View {
         content()
             .padding(TonicDS.Space.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(TonicDS.Colors.softStone,
-                        in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous))
+            .tonicSurface(.surface,
+                          in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous),
+                          tint: TonicDS.Colors.softStone,
+                          flatFill: TonicDS.Colors.softStone,
+                          flatStroke: .clear)
             .tonicHoverLift(enabled: hoverLift, radius: TonicDS.Radius.sm)
     }
 }
@@ -675,12 +674,9 @@ struct SettingsPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
             if let title { MonoLabel(title) }
             VStack(spacing: 0) { content() }
-                .background(TonicDS.Colors.surface,
-                            in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous)
-                        .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
-                )
+                .tonicSurface(.surface,
+                              in: RoundedRectangle(cornerRadius: TonicDS.Radius.lg, style: .continuous),
+                              flatStroke: TonicDS.Colors.hairline)
         }
     }
 }
@@ -860,12 +856,9 @@ struct TonicSearchField: View {
         }
         .padding(.horizontal, TonicDS.Space.sm)
         .frame(height: TonicDS.Layout.inputHeight)
-        .background(TonicDS.Colors.surface,
-                    in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
-                .strokeBorder(TonicDS.Colors.hairline, lineWidth: 1)
-        )
+        .tonicSurface(.surface,
+                      in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous),
+                      flatStroke: TonicDS.Colors.hairline)
         .tonicFocusRing(focused, radius: TonicDS.Radius.sm)
     }
 

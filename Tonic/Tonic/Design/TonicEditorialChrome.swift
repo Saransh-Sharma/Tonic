@@ -209,7 +209,7 @@ private struct ToastModifier: ViewModifier {
                 }
                 .padding(.horizontal, TonicDS.Space.lg)
                 .padding(.vertical, TonicDS.Space.sm)
-                .background(TonicDS.Colors.console, in: Capsule(style: .continuous))
+                .tonicSurface(.smoked, in: Capsule(style: .continuous))
                 .padding(.bottom, TonicDS.Space.lg)
                 .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                 .onAppear { schedule() }
@@ -276,7 +276,7 @@ struct SheetChrome<Content: View, Footer: View>: View {
                     .padding(TonicDS.Space.lg)
             }
         }
-        .background(TonicDS.Colors.canvas)
+        .tonicSheetBackground()
     }
 }
 
