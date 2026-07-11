@@ -21,11 +21,11 @@ struct TonicApp: App {
             // sidebar-driven native Mac app.
             CommandGroup(after: .sidebar) {
                 Divider()
-                navigationCommand("Home", .dashboard, "1")
-                navigationCommand("Clean", .systemCleanup, "2")
-                navigationCommand("Apps", .appManager, "3")
-                navigationCommand("Monitor", .liveMonitoring, "4")
-                navigationCommand("Settings", .settings, "5")
+                navigationCommand(.home, "1")
+                navigationCommand(.care, "2")
+                navigationCommand(.organize, "3")
+                navigationCommand(.monitor, "4")
+                navigationCommand(.automate, "5")
             }
 
             CommandMenu("Tools") {
@@ -61,14 +61,6 @@ struct TonicApp: App {
                 }
             }
 
-            // Replace default Preferences menu item
-            CommandGroup(replacing: .appSettings) {
-                Button("Preferences...") {
-                    appDelegate.showPreferences()
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
-
             // Add application-specific commands
             CommandMenu("Help") {
                 Divider()
@@ -86,14 +78,19 @@ struct TonicApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultPosition(.center)
+        .defaultSize(width: 1180, height: 760)
+
+        Settings {
+            SettingsView()
+                .frame(minWidth: 760, minHeight: 560)
+        }
     }
 
-    private func navigationCommand(_ title: String, _ destination: NavigationDestination,
-                                   _ key: KeyEquivalent) -> some View {
-        Button(title) {
+    private func navigationCommand(_ hub: TonicHub, _ key: KeyEquivalent) -> some View {
+        Button(hub.title) {
             NotificationCenter.default.post(
-                name: .navigateToDestination, object: nil,
-                userInfo: ["destination": destination.rawValue]
+                name: .navigateToTonicHub, object: nil,
+                userInfo: ["hub": hub.rawValue]
             )
         }
         .keyboardShortcut(key, modifiers: .command)
@@ -130,38 +127,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationDelegate.shared.install()
         MaintenanceScheduler.shared.start()
 
-        // Apply saved theme preference
-        applyThemePreference()
-
         // Start widget system after a brief delay to allow the UI to appear first
         // This prevents blocking the main thread during app launch
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.startWidgetSystem()
         }
 
-        // Listen for theme changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(themeDidChange),
-            name: NSNotification.Name("TonicThemeDidChange"),
-            object: nil
-        )
-    }
+        // Drag-to-edge window snapping (no-op without Accessibility or when
+        // the preference is off; re-checked when either changes).
+        SnapDragController.shared.refresh()
 
-    @objc func themeDidChange() {
-        applyThemePreference()
-    }
+        // Cross-tool automations (reads the store each tick; enabling an
+        // automation needs no engine restart).
+        AutomationEngine.shared.start()
 
-    private func applyThemePreference() {
-        let mode = AppearancePreferences.shared.themeMode
-        switch mode {
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .system:
-            NSApp.appearance = nil
-        }
+        // Appearance is owned by macOS. Tonic does not override the user's system choice.
+        NSApp.appearance = nil
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
