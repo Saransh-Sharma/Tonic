@@ -104,6 +104,12 @@ final class MenuBarControlItem {
         statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
     }
 
+    func updateBadge(unseenCount: Int) {
+        guard kind == .toggle else { return }
+        statusItem.button?.title = unseenCount > 0 ? " \(unseenCount)" : ""
+        statusItem.button?.setAccessibilityValue(unseenCount > 0 ? "\(unseenCount) unseen updates" : "No unseen updates")
+    }
+
     func remove() {
         NSStatusBar.system.removeStatusItem(statusItem)
     }
@@ -144,7 +150,7 @@ final class MenuBarControlItem {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        let peek = NSMenuItem(title: "Show Always-Hidden Items", action: #selector(menuToggleAlwaysHidden), keyEquivalent: "")
+        let peek = NSMenuItem(title: "Show Quiet Items", action: #selector(menuToggleAlwaysHidden), keyEquivalent: "")
         peek.target = self
         menu.addItem(peek)
 

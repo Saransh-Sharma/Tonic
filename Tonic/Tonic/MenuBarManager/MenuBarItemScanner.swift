@@ -24,6 +24,7 @@ public final class MenuBarItemScanner {
     /// Injected by `MenuBarManager` so classification can compare against the
     /// live separator window positions.
     var classify: (([MenuBarItemInfo]) -> [MenuBarItemInfo])?
+    var onItemsChanged: (([MenuBarItemInfo]) -> Void)?
 
     private var timer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -37,12 +38,16 @@ public final class MenuBarItemScanner {
             timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
                 Task { @MainActor [weak self] in self?.scanNow() }
             }
-            observeWorkspaceIfNeeded()
         } else {
             timer?.invalidate()
             timer = nil
-            removeWorkspaceObservers()
         }
+    }
+
+    /// Launch/termination observation is tied to management, not to whether
+    /// an editor happens to be visible. Polling remains editor-only.
+    public func setManagementEnabled(_ enabled: Bool) {
+        enabled ? observeWorkspaceIfNeeded() : removeWorkspaceObservers()
     }
 
     public func scanNow() {
@@ -68,6 +73,7 @@ public final class MenuBarItemScanner {
         lastScanDate = Date()
         if parsed != items {
             items = parsed
+            onItemsChanged?(parsed)
             logger.debug("Menu bar scan: \(parsed.count) items")
         }
     }

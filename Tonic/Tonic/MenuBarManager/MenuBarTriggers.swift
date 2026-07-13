@@ -41,6 +41,8 @@ public enum TriggerAction: Codable, Equatable, Sendable {
     case revealItem(stableKey: String)
     case expand
     case collapse
+    case selectManualContext(UUID?)
+    case runReviewedScript(UUID)
 
     public var summary: String {
         switch self {
@@ -48,6 +50,8 @@ public enum TriggerAction: Codable, Equatable, Sendable {
         case .revealItem(let key): return "Reveal \(key)"
         case .expand: return "Reveal hidden items"
         case .collapse: return "Hide items"
+        case .selectManualContext: return "Select manual context"
+        case .runReviewedScript: return "Run reviewed script"
         }
     }
 }

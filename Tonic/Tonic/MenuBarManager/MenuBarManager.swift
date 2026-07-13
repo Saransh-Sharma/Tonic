@@ -38,14 +38,16 @@ public final class MenuBarManager {
     private var alwaysHiddenItem: MenuBarControlItem?
     private var eventMonitor: MenuBarEventMonitor?
     private var rehideTimer: Timer?
+    private var temporaryRevealTimer: Timer?
     private var settingsObserver: NSObjectProtocol?
     private var focusObserver: NSObjectProtocol?
+    private var liveReapplyTask: Task<Void, Never>?
 
     #if !TONIC_STORE
     private let mover = MenuBarItemMover()
     private let activator = MenuBarItemActivator()
-    private let triggerEngine = MenuBarTriggerEngine()
     #endif
+    private let triggerEngine = MenuBarTriggerEngine()
 
     /// Last user-facing move/activate failure — the dashboard shows it as a toast.
     public var lastActionError: String?
@@ -56,6 +58,7 @@ public final class MenuBarManager {
 
     private init() {
         scanner.classify = { [weak self] in self?.classified($0) ?? $0 }
+        scanner.onItemsChanged = { [weak self] items in self?.itemsDidChange(items) }
         settingsObserver = NotificationCenter.default.addObserver(
             forName: .menuBarManagerSettingsDidChange, object: nil, queue: .main
         ) { _ in
@@ -67,7 +70,16 @@ public final class MenuBarManager {
 
     /// Called at app launch; a no-op until the user enables management.
     public func start() {
+        _ = MenuBarOwnedItemCoordinator.shared.apply(MenuBarWorkspaceStore.shared.envelope.committed)
+        MenuBarProfileCoordinator.shared.start()
+        TonicRemoteProviderStore.shared.registerPersisted()
+        #if !TONIC_STORE
+        TonicExecutableProviderStore.shared.registerPersisted()
+        ScriptExecutionCoordinator.shared.startSchedules()
+        #endif
+        Task { await TonicBuiltInProviderBootstrap.registerAll() }
         applySettings()
+        MenuBarUpdateWatcherCoordinator.shared.refresh()
     }
 
     /// The management UI drives the scanner's 3-second poll.
@@ -123,25 +135,26 @@ public final class MenuBarManager {
         }
 
         isActive = true
+        scanner.setManagementEnabled(true)
         eventMonitor = MenuBarEventMonitor(manager: self)
         eventMonitor?.apply(settings)
         observeFocusChanges()
         collapse()
 
-        #if !TONIC_STORE
         triggerEngine.start()
-        #endif
     }
 
     private func deactivate() {
         logger.info("Deactivating menu bar management")
-        #if !TONIC_STORE
         triggerEngine.stop()
+        #if !TONIC_STORE
         MenuBarStyleOverlayController.shared.apply(MenuBarStyling(isEnabled: false))
         TonicBarPanelController.shared.hide()
         #endif
         rehideTimer?.invalidate()
         rehideTimer = nil
+        temporaryRevealTimer?.invalidate()
+        temporaryRevealTimer = nil
         eventMonitor?.stop()
         eventMonitor = nil
         if let observer = focusObserver {
@@ -154,6 +167,9 @@ public final class MenuBarManager {
         separatorItem = nil
         alwaysHiddenItem = nil
         isActive = false
+        scanner.setManagementEnabled(false)
+        liveReapplyTask?.cancel()
+        liveReapplyTask = nil
         isExpanded = false
         isShowingAlwaysHidden = false
         rescanSoon()
@@ -168,7 +184,6 @@ public final class MenuBarManager {
     public func expand(showAlwaysHidden: Bool = false) {
         guard isActive else { return }
 
-        #if !TONIC_STORE
         // Tonic Bar reveal mode: show the floating icon strip instead of
         // sliding hidden items back onto the menu bar. Always-hidden peek
         // (⌥-click) still uses the real bar so the actual items are reachable.
@@ -177,30 +192,42 @@ public final class MenuBarManager {
             scheduleRehide()
             return
         }
-        #endif
 
         separatorItem?.setExpanded(true)
         alwaysHiddenItem?.setExpanded(showAlwaysHidden)
         isExpanded = true
         isShowingAlwaysHidden = showAlwaysHidden
         toggleItem?.updateToggleIcon(isExpanded: true)
+        refreshUpdateBadge()
         scheduleRehide()
         rescanSoon()
     }
 
     public func collapse() {
         guard isActive else { return }
-        #if !TONIC_STORE
         TonicBarPanelController.shared.hide()
-        #endif
         separatorItem?.setExpanded(false)
         alwaysHiddenItem?.setExpanded(false)
         isExpanded = false
         isShowingAlwaysHidden = false
         toggleItem?.updateToggleIcon(isExpanded: false)
+        refreshUpdateBadge()
         rehideTimer?.invalidate()
         rehideTimer = nil
         rescanSoon()
+    }
+
+    /// Reveals an item long enough to inspect an update, then restores the
+    /// prior collapsed state. Used by update watching and automation triggers.
+    public func temporarilyReveal(_ stableKey: String, duration: TimeInterval = 8) {
+        guard items.contains(where: { $0.stableKey == stableKey }) else { return }
+        temporaryRevealTimer?.invalidate()
+        expand(showAlwaysHidden: true)
+        temporaryRevealTimer = Timer.scheduledTimer(
+            withTimeInterval: min(max(duration, 2), 30), repeats: false
+        ) { _ in
+            Task { @MainActor in MenuBarManager.shared.collapse() }
+        }
     }
 
     private func toggleAlwaysHiddenPeek() {
@@ -276,6 +303,7 @@ public final class MenuBarManager {
         #if !TONIC_STORE
         do {
             try await activator.activate(item)
+            MenuBarUpdateWatchStore.shared.acknowledge(item.stableKey)
             lastActionError = nil
         } catch {
             lastActionError = error.localizedDescription
@@ -286,6 +314,13 @@ public final class MenuBarManager {
     /// Apply a stableKey → section layout (preset apply). Returns overall success.
     @discardableResult
     public func applyLayout(_ layout: [String: MenuBarSection]) async -> Bool {
+        let results = await applyLayoutDetailed(layout)
+        return results.values.allSatisfy { $0 }
+    }
+
+    /// Per-item result used by the staged editor so successful foreign moves
+    /// commit even when a later item fails and remains dirty for retry.
+    public func applyLayoutDetailed(_ layout: [String: MenuBarSection]) async -> [String: Bool] {
         #if !TONIC_STORE
         isPerformingMove = true
         defer { isPerformingMove = false }
@@ -296,9 +331,9 @@ public final class MenuBarManager {
         } else {
             lastActionError = nil
         }
-        return failed == 0
+        return results
         #else
-        return false
+        return Dictionary(uniqueKeysWithValues: layout.keys.map { ($0, false) })
         #endif
     }
 
@@ -324,6 +359,25 @@ public final class MenuBarManager {
             separatorMinX: separatorItem?.windowMinX,
             alwaysHiddenMinX: alwaysHiddenItem?.windowMinX
         )
+    }
+
+    func refreshUpdateBadge() {
+        toggleItem?.updateBadge(unseenCount: MenuBarUpdateWatchStore.shared.unseenCount)
+    }
+
+    private func itemsDidChange(_ items: [MenuBarItemInfo]) {
+        guard isActive, MenuBarWorkspaceStore.shared.layoutMode == .live,
+              MenuBarCapabilities.current.canMoveForeignItems else { return }
+        liveReapplyTask?.cancel()
+        liveReapplyTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled, let self else { return }
+            let knownKeys = Set(items.map(\.stableKey))
+            let layout = MenuBarWorkspaceStore.shared.envelope.committed.foreignAssignments
+                .filter { knownKeys.contains($0.key) }
+            guard !layout.isEmpty else { return }
+            _ = await self.applyLayout(layout)
+        }
     }
 
     /// Status item lengths animate over a run-loop tick; scan after they settle.
