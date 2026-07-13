@@ -2,9 +2,10 @@
 //  TonicEditorialComponents.swift
 //  Tonic
 //
-//  The signature native surfaces of the editorial "Command Center" language
-//  (see TonicDesign.md §Components). Every component is flat: hairlines, surface
-//  alternation, and one permitted soft card lift do the work — no glass, no glow.
+//  The signature native surfaces of the Liquid Tonic language (see TonicDesign.md
+//  §Components). Components resolve their own layer via `.tonicSurface(_:in:)` —
+//  washed glass when the policy allows, the flat editorial fill otherwise. Call
+//  sites never pick materials; hairlines and one soft card lift do the depth work.
 //
 
 import SwiftUI
@@ -16,10 +17,16 @@ import AppKit
 /// Collapses to no movement under Reduce Motion.
 struct TonicPressStyle: ButtonStyle {
     var pressedScale: CGFloat = 0.97
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReducesMotion
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        // Fold in the app-level toggle, not just the system setting.
+        let reduceMotion = TonicMotionPolicy.shouldReduceMotion(
+            systemReducesMotion: systemReducesMotion,
+            appReducesMotion: AppearancePreferences.shared.reduceMotion
+        )
+        return configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? pressedScale : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
             .animation(reduceMotion ? nil : TonicDS.Motion.press, value: configuration.isPressed)
             .contentShape(Rectangle())
     }

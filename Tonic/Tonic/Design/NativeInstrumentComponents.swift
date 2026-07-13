@@ -26,16 +26,31 @@ struct TonicMotionPolicy {
     var transition: Animation? { reduceMotion ? nil : .easeOut(duration: TonicDS.Motion.transition) }
     var layout: Animation? { reduceMotion ? nil : .easeOut(duration: TonicDS.Motion.layout) }
     var proof: Animation? { reduceMotion ? nil : .easeOut(duration: TonicDS.Motion.proof) }
+    /// Springy chrome growth (rail flyout, palette). Nil under Reduce Motion.
+    var flyout: Animation? { reduceMotion ? nil : TonicDS.Motion.flyout }
+    /// Structural glass changes preserve velocity when interrupted.
+    var morph: Animation? { reduceMotion ? nil : TonicDS.Motion.morph }
+    /// Confirmation ripples are deliberately slower than ordinary feedback.
+    var ripple: Animation? { reduceMotion ? nil : TonicDS.Motion.ripple }
+    /// Rare discovery/completion particles. Never use for routine row changes.
+    var particles: Animation? { reduceMotion ? nil : TonicDS.Motion.particles }
 }
 
 @MainActor
 enum TonicFeedback {
     static func alignment() {
+        guard allowsMotionFeedback else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
     static func levelChange() {
+        guard allowsMotionFeedback else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    }
+
+    private static var allowsMotionFeedback: Bool {
+        !AppearancePreferences.shared.reduceMotion
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 }
 

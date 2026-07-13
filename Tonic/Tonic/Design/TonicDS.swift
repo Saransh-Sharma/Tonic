@@ -2,13 +2,15 @@
 //  TonicDS.swift
 //  Tonic
 //
-//  Editorial "Command Center" design system — the single source of truth for the
-//  redesigned UI layer (see TonicDesign.md). This is the only token namespace for
-//  editorial palette, carved type, spacing/radius grid, data color, and restrained motion.
+//  Liquid Tonic design system — the single source of truth for the glass UI layer
+//  (see TonicDesign.md). This is the only token namespace for palette, carved type,
+//  spacing/radius grid, data color, glass washes, and restrained motion.
 //
-//  One rule governs everything: THE DATA IS THE MEDIA. The shell stays austere; all
-//  color and energy come from the readout. Status color is data-only; brand coral is
-//  brand-only. Never put a status color on chrome, never put coral/link-blue on data.
+//  Two rules govern everything. THE DATA IS THE MEDIA: the shell stays quiet; all
+//  color and energy come from the readout. GLASS IS CHROME, NEVER MEANING: materials
+//  carry no semantics — status color (green→red) is data-only, the mineral-green
+//  brand accent is brand-only, and neither ever tints a glass surface. Never put a
+//  status color on chrome, never put brand-accent/link-blue on data.
 //
 
 import SwiftUI
@@ -424,6 +426,12 @@ enum TonicDS {
         static var numeric: Animation { .easeOut(duration: feedback) }
         static var present: Animation { .easeOut(duration: transition) }
         static var settle: Animation { .easeOut(duration: layout) }
+        /// Springy growth for Z3 chrome that expands in place (rail flyout,
+        /// command palette). The only sanctioned spring — everything else eases.
+        static var flyout: Animation { .spring(response: 0.32, dampingFraction: 0.85) }
+        static var morph: Animation { .spring(response: 0.42, dampingFraction: 0.82) }
+        static var ripple: Animation { .easeOut(duration: 0.55) }
+        static var particles: Animation { .spring(response: 0.52, dampingFraction: 0.72) }
         /// Per-index delay for staggered list/bento reveals.
         static let stagger: Double = 0.05
 
@@ -625,7 +633,8 @@ extension View {
     /// Fade + rise on appear, respecting Reduce Motion (collapses to opacity).
     @ViewBuilder
     func tonicAppear(_ isVisible: Bool, index: Int = 0, reduceMotion: Bool) -> some View {
-        if reduceMotion {
+        let effectiveReduceMotion = TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion
+        if effectiveReduceMotion {
             self.opacity(isVisible ? 1 : 0)
         } else {
             self
@@ -634,5 +643,127 @@ extension View {
                 .animation(TonicDS.Motion.appear.delay(Double(index) * TonicDS.Motion.stagger),
                            value: isVisible)
         }
+    }
+
+    /// Live numeric readouts tick digit-by-digit as `value` changes; collapses to
+    /// a plain swap under Reduce Motion. Apply to the Text holding the number.
+    @ViewBuilder
+    func tonicNumericTicker(value: some Equatable, reduceMotion: Bool) -> some View {
+        if TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion {
+            self
+        } else {
+            self
+                .contentTransition(.numericText())
+                .animation(TonicDS.Motion.numeric, value: value)
+        }
+    }
+
+    /// One-shot top-to-bottom entrance used by flyouts and compact result lists.
+    func tonicAppearStagger(index: Int, reduceMotion: Bool) -> some View {
+        modifier(TonicStaggerAppearModifier(index: index,
+            reduceMotion: TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion))
+    }
+
+    /// Branded structural motion for chrome that changes size in place.
+    func tonicGlassMorph(isExpanded: Bool, reduceMotion: Bool) -> some View {
+        let effectiveReduceMotion = TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion
+        return self
+            .scaleEffect(effectiveReduceMotion ? 1 : (isExpanded ? 1 : 0.985), anchor: .leading)
+            .opacity(isExpanded || effectiveReduceMotion ? 1 : 0.96)
+            .animation(TonicMotionPolicy(reduceMotion: effectiveReduceMotion).morph, value: isExpanded)
+    }
+
+    /// Local confirmation ripple. The trigger should be a receipt/action identifier.
+    func tonicMineralRipple(trigger: some Hashable, reduceMotion: Bool) -> some View {
+        modifier(TonicMineralRippleModifier(trigger: AnyHashable(trigger),
+            reduceMotion: TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion))
+    }
+
+    /// Rare completion/discovery flourish. Keep disabled for routine mutations.
+    func tonicOrbitalParticles(trigger: some Hashable, reduceMotion: Bool) -> some View {
+        modifier(TonicOrbitalParticlesModifier(trigger: AnyHashable(trigger),
+            reduceMotion: TonicMotionPolicy(reduceMotion: reduceMotion).reduceMotion))
+    }
+}
+
+private struct TonicStaggerAppearModifier: ViewModifier {
+    let index: Int
+    let reduceMotion: Bool
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: reduceMotion || appeared ? 0 : 8)
+            .onAppear {
+                withAnimation(reduceMotion ? nil : TonicDS.Motion.appear.delay(Double(index) * TonicDS.Motion.stagger)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+private struct TonicMineralRippleModifier: ViewModifier {
+    let trigger: AnyHashable
+    let reduceMotion: Bool
+    @State private var isActive = false
+    @State private var hasObservedInitialTrigger = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isActive && !reduceMotion {
+                    Circle()
+                        .stroke(TonicDS.Colors.brandAccent.opacity(0.42), lineWidth: 1.5)
+                        .scaleEffect(isActive ? 1.5 : 0.25)
+                        .opacity(isActive ? 0 : 0.8)
+                        .allowsHitTesting(false)
+                }
+            }
+            .task(id: trigger) {
+                guard hasObservedInitialTrigger else { hasObservedInitialTrigger = true; return }
+                guard !reduceMotion else { return }
+                isActive = false
+                await Task.yield()
+                withAnimation(TonicDS.Motion.ripple) { isActive = true }
+                try? await Task.sleep(for: .milliseconds(560))
+                isActive = false
+            }
+    }
+}
+
+private struct TonicOrbitalParticlesModifier: ViewModifier {
+    let trigger: AnyHashable
+    let reduceMotion: Bool
+    @State private var isActive = false
+    @State private var hasObservedInitialTrigger = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isActive && !reduceMotion {
+                    ZStack {
+                        ForEach(0..<5, id: \.self) { index in
+                            Circle()
+                                .fill(TonicDS.Colors.brandAccent.opacity(0.62 - Double(index) * 0.07))
+                                .frame(width: 4, height: 4)
+                                .offset(y: -22 - CGFloat(index % 2) * 5)
+                                .rotationEffect(.degrees(Double(index) * 72 + (isActive ? 120 : 0)))
+                        }
+                    }
+                    .scaleEffect(isActive ? 1.18 : 0.72)
+                    .opacity(isActive ? 0 : 1)
+                    .allowsHitTesting(false)
+                }
+            }
+            .task(id: trigger) {
+                guard hasObservedInitialTrigger else { hasObservedInitialTrigger = true; return }
+                guard !reduceMotion else { return }
+                isActive = false
+                await Task.yield()
+                withAnimation(TonicDS.Motion.particles) { isActive = true }
+                try? await Task.sleep(for: .milliseconds(620))
+                isActive = false
+            }
     }
 }
