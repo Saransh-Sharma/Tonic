@@ -76,18 +76,23 @@ public enum TriggerEvaluator {
     }
 }
 
-#if !TONIC_STORE
-
 /// Adapter: samples the environment, evaluates enabled triggers on an interval
 /// and on app launch/quit, and applies actions edge-triggered.
 @MainActor
 final class MenuBarTriggerEngine {
 
+    private struct RestoreSnapshot {
+        var layout: [String: MenuBarSection]
+        var settings: MenuBarManagerSettings
+        var groups: [MenuBarItemGroup]
+        var contextID: UUID?
+    }
+
     private var timer: Timer?
     private var workspaceObservers: [NSObjectProtocol] = []
     private var satisfied: Set<UUID> = []
     /// Layout captured just before a reverting trigger fired, keyed by trigger id.
-    private var revertSnapshots: [UUID: [String: MenuBarSection]] = [:]
+    private var revertSnapshots: [UUID: RestoreSnapshot] = [:]
     private var lastActionAt: [UUID: Date] = [:]
 
     func start() {
@@ -158,29 +163,46 @@ final class MenuBarTriggerEngine {
 
     private func apply(_ trigger: MenuBarTrigger, manager: MenuBarManager) {
         if trigger.revertsWhenCleared {
-            revertSnapshots[trigger.id] = currentLayout(manager)
+            revertSnapshots[trigger.id] = RestoreSnapshot(
+                layout: currentLayout(manager), settings: MenuBarManagerSettingsStore.shared.settings,
+                groups: MenuBarWorkspaceStore.shared.groups,
+                contextID: MenuBarProfileStore.shared.selectedManualContextID)
         }
         Task { @MainActor in
             switch trigger.action {
             case .applyPreset(let presetID):
                 guard let preset = MenuBarPresetStore.shared.presets.first(where: { $0.id == presetID }) else { return }
-                await manager.applyLayout(preset.layout)
+                await MenuBarPresetApplicator.apply(preset, manager: manager)
             case .revealItem(let key):
                 if manager.items.contains(where: { $0.stableKey == key }) {
-                    manager.expand(showAlwaysHidden: true)
+                    manager.temporarilyReveal(key)
                 }
             case .expand:
                 manager.expand()
             case .collapse:
                 manager.collapse()
+            case .selectManualContext(let id):
+                MenuBarProfileStore.shared.selectContext(id)
+                NotificationCenter.default.post(name: .menuBarPresentationContextDidChange, object: nil)
+            case .runReviewedScript(let id):
+                #if !TONIC_STORE
+                _ = await ScriptExecutionCoordinator.shared.executeReviewed(scriptID: id)
+                #endif
             }
         }
     }
 
     private func revert(triggerID: UUID, manager: MenuBarManager) {
         guard let snapshot = revertSnapshots.removeValue(forKey: triggerID) else { return }
+        MenuBarProfileStore.shared.selectContext(snapshot.contextID)
+        MenuBarManagerSettingsStore.shared.settings = snapshot.settings
+        let workspace = MenuBarWorkspaceStore.shared
+        workspace.groups = snapshot.groups
+        _ = MenuBarOwnedItemCoordinator.shared.apply(workspace.envelope.draft)
+        workspace.commit(successfulForeignKeys: [], commitOwnedItems: true)
+        NotificationCenter.default.post(name: .menuBarPresentationContextDidChange, object: nil)
         Task { @MainActor in
-            await manager.applyLayout(snapshot)
+            if MenuBarCapabilities.current.canMoveForeignItems { await manager.applyLayout(snapshot.layout) }
         }
     }
 
@@ -192,5 +214,3 @@ final class MenuBarTriggerEngine {
         return layout
     }
 }
-
-#endif

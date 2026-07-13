@@ -13,11 +13,35 @@ import os
 import Combine
 import SwiftUI
 
+private final class SpeedTestPingContinuation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumed = false
+    private let connection: NWConnection
+    private let continuation: CheckedContinuation<Bool, Never>
+
+    init(connection: NWConnection, continuation: CheckedContinuation<Bool, Never>) {
+        self.connection = connection
+        self.continuation = continuation
+    }
+
+    func resume(returning result: Bool) {
+        let shouldResume = lock.withLock {
+            guard !resumed else { return false }
+            resumed = true
+            return true
+        }
+        guard shouldResume else { return }
+        connection.cancel()
+        continuation.resume(returning: result)
+    }
+}
+
 // MARK: - Speed Test Service
 
 /// Service for performing network speed tests
 /// Optimized to run off main thread with minimal UI updates
 @Observable
+@MainActor
 public final class SpeedTestService {
     public static let shared = SpeedTestService()
 
@@ -388,20 +412,14 @@ public final class SpeedTestService {
                 using: .tls
             )
 
-            var hasResumed = false
-            let resumeOnce = { (result: Bool) in
-                guard !hasResumed else { return }
-                hasResumed = true
-                connection.cancel()
-                continuation.resume(returning: result)
-            }
+            let resumeOnce = SpeedTestPingContinuation(connection: connection, continuation: continuation)
 
             connection.stateUpdateHandler = { state in
                 switch state {
                 case .ready:
-                    resumeOnce(true)
+                    resumeOnce.resume(returning: true)
                 case .failed, .waiting:
-                    resumeOnce(false)
+                    resumeOnce.resume(returning: false)
                 default:
                     break
                 }
@@ -412,7 +430,7 @@ public final class SpeedTestService {
             // Timeout after 2 seconds
             Task {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                resumeOnce(false)
+                resumeOnce.resume(returning: false)
             }
         }
     }

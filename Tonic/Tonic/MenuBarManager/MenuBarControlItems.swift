@@ -104,6 +104,12 @@ final class MenuBarControlItem {
         statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
     }
 
+    func updateBadge(unseenCount: Int) {
+        guard kind == .toggle else { return }
+        statusItem.button?.title = unseenCount > 0 ? " \(unseenCount)" : ""
+        statusItem.button?.setAccessibilityValue(unseenCount > 0 ? "\(unseenCount) unseen updates" : "No unseen updates")
+    }
+
     func remove() {
         NSStatusBar.system.removeStatusItem(statusItem)
     }
@@ -144,13 +150,17 @@ final class MenuBarControlItem {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        let peek = NSMenuItem(title: "Show Always-Hidden Items", action: #selector(menuToggleAlwaysHidden), keyEquivalent: "")
+        let peek = NSMenuItem(title: "Show Quiet Items", action: #selector(menuToggleAlwaysHidden), keyEquivalent: "")
         peek.target = self
         menu.addItem(peek)
 
         let search = NSMenuItem(title: "Quick Search…", action: #selector(menuQuickSearch), keyEquivalent: "")
         search.target = self
         menu.addItem(search)
+
+        let topShelf = NSMenuItem(title: "Top Shelf", action: #selector(menuTopShelf), keyEquivalent: "")
+        topShelf.target = self
+        menu.addItem(topShelf)
 
         menu.addItem(.separator())
 
@@ -172,6 +182,7 @@ final class MenuBarControlItem {
     @objc private func menuOpenSettings() { onOpenSettings?() }
     @objc private func menuDisable() { onDisable?() }
     @objc private func menuQuickSearch() { QuickSearchPanelController.shared.show() }
+    @objc private func menuTopShelf() { TopShelfCoordinator.shared.deliberateOpen() }
 
     private static func separatorImage() -> NSImage {
         let image = NSImage(size: NSSize(width: 8, height: 16), flipped: false) { rect in

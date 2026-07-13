@@ -79,7 +79,7 @@ struct AppsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .tonicScreenHPadding()
         .padding(.vertical, TonicDS.Space.xxl)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         // Invisible command targets: ⌘F focuses search; ⌘A selects every visible
         // app (suppressed while the search field owns the keyboard).
         .background {

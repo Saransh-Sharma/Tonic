@@ -19,7 +19,6 @@ struct ResetConfirmationSheet: View {
     @State private var confirmationText = ""
     @State private var phase: ResetPhase = .confirm
     @State private var countdown = 2
-    @State private var countdownTimer: Timer?
     @State private var isResetting = false
 
     private enum ResetPhase {
@@ -38,7 +37,7 @@ struct ResetConfirmationSheet: View {
         }
         .frame(width: 480)
         .frame(minHeight: 320)
-        .background(TonicDS.Colors.canvas)
+        .tonicSheetBackground()
         .animation(reduceMotion ? nil : TonicDS.Motion.present, value: phase)
     }
 
@@ -232,16 +231,18 @@ struct ResetConfirmationSheet: View {
     }
 
     private func startCountdown() {
-        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            Task { @MainActor in
-                if countdown > 1 {
-                    withAnimation(reduceMotion ? nil : TonicDS.Motion.numeric) { countdown -= 1 }
-                } else {
-                    timer.invalidate()
-                    countdownTimer = nil
-                    finishReset()
+        Task { @MainActor in
+            while countdown > 1 {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : TonicDS.Motion.numeric) {
+                    countdown -= 1
                 }
             }
+
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            finishReset()
         }
     }
 

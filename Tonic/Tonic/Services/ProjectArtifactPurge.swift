@@ -483,9 +483,7 @@ public final class ProjectArtifactPurge: @unchecked Sendable {
     }
 
     private func scanGoProject(_ path: String) async -> [Artifact] {
-        var artifacts: [Artifact] = []
-
-        return artifacts
+        []
     }
 
     private func scanRustProject(_ path: String) async -> [Artifact] {

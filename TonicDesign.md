@@ -1,29 +1,34 @@
 ---
-version: alpha
+version: 3.0
 name: Tonic-design
-description: Tonic's design language is a calm native macOS command center for system health — stark editorial canvases in white or obsidian, deep enterprise-green and dark-navy module bands, near-black monitoring consoles, soft mineral surfaces, rounded data cards, and a research-lab type split between a tight carved display face, precise SF Pro UI text, and SF Mono technical labels. The shell stays quiet; the live system data carries all the color.
+description: Tonic's design language — "Liquid Tonic" — is a calm native macOS command center rendered as layered glass over the desktop. A floating icon rail and translucent surfaces let the wallpaper glow through as the light source, while the readout keeps every drop of color: near-black smoked-glass monitoring consoles, deep enterprise-green and dark-navy band glass, rounded data cards, and a research-lab type split between SF Pro display/body text and SF Mono technical labels. The shell is glass; the data is the media.
 
 colors:
   # Anchors (dual light/dark)
   ink: "#17171c"
   ink-pure: "#0a0a0f"
   canvas: "#ffffff"
+  canvas-dark: "#0a0a0f"
   canvas-soft: "#f6f4ef"
-  obsidian: "#0a0a0f"
-  obsidian-soft: "#121318"
-  # Brand bands & console
+  canvas-soft-dark: "#121318"
+  # Brand bands & console (constant across appearances)
   console: "#17171c"
+  console-elevated: "#1d1d24"
   deep-green: "#003c33"
   deep-green-soft: "#0b1f1b"
   dark-navy: "#071829"
   dark-navy-soft: "#0c1a2b"
   # Warm neutral surface
   soft-stone: "#eeece7"
+  soft-stone-dark: "#16161c"
   pale-green: "#edfce9"
   pale-blue: "#f1f5ff"
   # Rules & borders
   hairline: "#d9d9dd"
   hairline-dark: "#2a2a32"
+  hairline-on-dark: "#ffffff @ 0.10"
+  glass-stroke-light: "#17171c @ 0.10"
+  glass-stroke-dark: "#ffffff @ 0.14"
   border-light: "#e5e7eb"
   card-border: "#f2f2f2"
   # Text
@@ -31,98 +36,55 @@ colors:
   text-primary-dark: "#f4f3ef"
   text-muted-light: "#75758a"
   text-muted-dark: "#93939f"
-  # Brand accent (reserved — editorial/brand only, never on data)
-  accent-coral: "#ff7759"
-  accent-coral-soft: "#ffad9b"
-  link-blue: "#1863dc"
-  # Status scale (DATA ONLY — never used as brand or chrome)
-  # -dark variants are WCAG-AA contrast lifts for the near-black console.
+  # Brand accent (RESERVED — brand/identity only, never on data)
+  brand-accent: "#176b58"          # mineral green; dark-mode lift #5cc7a7
+  brand-accent-soft: "#dcefe8"     # dark-mode #14352c
+  link-blue: "#1863dc"             # dark-mode #5b93ff
+  # Status scale (DATA ONLY — never brand, surface tint, or chrome)
   status-success: "#1f9d57"
   status-warning: "#e0a32c"
   status-caution: "#e07b39"
-  status-critical: "#d14b4b"
-  status-critical-dark: "#e05252"
-  status-info: "#3a78d6"
-  status-info-dark: "#5b93ff"
+  status-critical: "#d14b4b"       # dark-mode lift #e05252
+  status-info: "#3a78d6"           # dark-mode lift #5b93ff
   # Semantic
   focus: "#4c6ee6"
   on-dark: "#ffffff"
   on-light: "#17171c"
+  overlay-dim: "#000000 @ 0.30"
+
+glass:
+  # Z0 canvas wash over the behind-window blur, per user intensity
+  canvas-wash-regular: "0.50 dark / 0.65 light"
+  canvas-wash-subtle: "0.78"
+  canvas-wash-off: "1.00 (flat editorial fallback)"
+  # Z1 washes over SwiftUI Material
+  surface-wash: 0.55        # thin material + surface (or component tint)
+  smoked-wash: 0.65         # ultra-thin material + console; 0.60 is the FLOOR
+  band-wash: 0.85           # thin material + deep-green/navy
+  overlay-wash: 0.70        # thick material + canvas (sheets, palette)
 
 typography:
-  hero-display:
-    fontFamily: TonicDisplay
-    fontSize: 64pt
-    fontWeight: 500
-    lineHeight: 1.02
-    letterSpacing: -1.28pt
-  section-display:
-    fontFamily: TonicDisplay
-    fontSize: 44pt
-    fontWeight: 500
-    lineHeight: 1.05
-    letterSpacing: -0.88pt
-  card-heading:
-    fontFamily: TonicDisplay
-    fontSize: 28pt
-    fontWeight: 500
-    lineHeight: 1.15
-    letterSpacing: -0.4pt
-  feature-heading:
-    fontFamily: SF Pro Display
-    fontSize: 20pt
-    fontWeight: 600
-    lineHeight: 1.25
-    letterSpacing: 0pt
-  body-large:
-    fontFamily: SF Pro Text
-    fontSize: 16pt
-    fontWeight: 400
-    lineHeight: 1.45
-    letterSpacing: 0pt
-  body:
-    fontFamily: SF Pro Text
-    fontSize: 14pt
-    fontWeight: 400
-    lineHeight: 1.5
-    letterSpacing: 0pt
-  button:
-    fontFamily: SF Pro Text
-    fontSize: 13pt
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: 0pt
-  caption:
-    fontFamily: SF Pro Text
-    fontSize: 12pt
-    fontWeight: 400
-    lineHeight: 1.4
-    letterSpacing: 0pt
-  mono-label:
-    fontFamily: SF Mono
-    fontSize: 11pt
-    fontWeight: 500
-    lineHeight: 1.3
-    letterSpacing: 0.5pt
-  metric:
-    fontFamily: SF Mono
-    fontSize: 28pt
-    fontWeight: 500
-    lineHeight: 1.0
-    letterSpacing: 0pt
-  micro:
-    fontFamily: SF Pro Text
-    fontSize: 11pt
-    fontWeight: 400
-    lineHeight: 1.35
-    letterSpacing: 0pt
+  # Shipped native scale (TonicDS.TypeRole). Display face is SF Pro Display
+  # fallback until TonicDisplay is bundled. Line heights via .tonicType(_:).
+  hero-display:    { size: 40pt, weight: 500, tracking: -0.70pt, lineHeight: 1.02 }
+  section-display: { size: 28pt, weight: 500, tracking: -0.35pt, lineHeight: 1.05 }
+  card-heading:    { size: 17pt, weight: 500, tracking: -0.10pt, lineHeight: 1.15 }
+  feature-heading: { size: 17pt, weight: 600, tracking: 0,      lineHeight: 1.25 }
+  body-large:      { size: 16pt, weight: 400, tracking: 0,      lineHeight: 1.45 }
+  body:            { size: 14pt, weight: 400, tracking: 0,      lineHeight: 1.50 }
+  button:          { size: 13pt, weight: 600, tracking: 0,      lineHeight: 1.20 }
+  caption:         { size: 12pt, weight: 400, tracking: 0,      lineHeight: 1.40 }
+  mono-label:      { family: SF Mono, size: 11pt, weight: 500, tracking: 0.50pt, lineHeight: 1.30 }
+  metric:          { family: SF Mono, size: 28pt, weight: 500, lineHeight: 1.00 }
+  metric-small:    { family: SF Mono, size: 20pt, weight: 500, lineHeight: 1.00 }
+  micro:           { size: 11pt, weight: 400, lineHeight: 1.35 }
 
 rounded:
   xs: 4pt
   sm: 8pt
-  md: 12pt
-  lg: 16pt
-  card: 22pt
+  md: 12pt          # console / list panels
+  lg: 16pt          # module bands / settings panels
+  card: 22pt        # signature data-card radius
   pill: 32pt
   full: 9999pt
 
@@ -137,378 +99,228 @@ spacing:
   xxxl: 48pt
   section: 64pt
 
-components:
-  primary-pill:
-    backgroundColor: "{colors.ink}"
-    textColor: "{colors.on-dark}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: 10pt 22pt
-  text-action:
-    backgroundColor: transparent
-    textColor: "{colors.text-primary-light}"
-    typography: "{typography.body}"
-    rounded: "{rounded.xs}"
-    padding: 6pt 0
-  filter-pill:
-    backgroundColor: transparent
-    textColor: "{colors.text-primary-light}"
-    typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: 6pt 14pt
-  category-filter-chip:
-    backgroundColor: transparent
-    textColor: "{colors.accent-coral}"
-    typography: "{typography.card-heading}"
-    rounded: "{rounded.sm}"
-    padding: 8pt 14pt
-  alert-banner:
-    backgroundColor: "{colors.ink-pure}"
-    textColor: "{colors.on-dark}"
-    typography: "{typography.micro}"
-    height: 32pt
-  dashboard-hero:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.text-primary-light}"
-    typography: "{typography.hero-display}"
-  monitoring-console:
-    backgroundColor: "{colors.console}"
-    textColor: "{colors.on-dark}"
-    rounded: "{rounded.md}"
-    padding: 16pt
-  data-card:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.text-primary-light}"
-    rounded: "{rounded.card}"
-    padding: 20pt
-  module-band:
-    backgroundColor: "{colors.deep-green}"
-    textColor: "{colors.on-dark}"
-    rounded: "{rounded.lg}"
-    padding: 48pt
-  scan-category-card:
-    backgroundColor: "{colors.soft-stone}"
-    textColor: "{colors.text-primary-light}"
-    rounded: "{rounded.sm}"
-    padding: 24pt
-  system-identity-strip:
-    backgroundColor: transparent
-    textColor: "{colors.text-muted-light}"
-    typography: "{typography.mono-label}"
-  system-list-row:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.text-primary-light}"
-    typography: "{typography.body}"
-  settings-panel:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.text-primary-light}"
-    rounded: "{rounded.lg}"
-    padding: 24pt
-  status-chip:
-    backgroundColor: transparent
-    textColor: "{colors.status-info}"
-    typography: "{typography.mono-label}"
-    rounded: "{rounded.full}"
-    padding: 3pt 8pt
+motion:
+  # Shipped TonicDS.Motion values plus contextual flagship recipes.
+  instant: 0.10s
+  feedback: 0.14s   # press, numeric transitions
+  transition: 0.21s # appear, present
+  layout: 0.27s     # settle
+  proof: 0.39s
+  stagger: 0.05s per index
+  glass-morph: "layout curve; structural expansion only"
+  mineral-ripple: "brief activation/apply/restore proof"
+  orbital-particles: "rare discovery or completion moments only"
 ---
 
 ## Overview
 
-Tonic is a native macOS command center for system health. Its design language treats the interface like a calm, precise instrument: a quiet editorial shell that gets out of the way so the live readout of the machine — disk space, CPU load, memory pressure, temperatures, fans, network — can speak with total clarity. The home surface opens on a single monumental status declaration over an open canvas, then alternates editorial white (or obsidian, in dark mode) with deep enterprise-green and dark-navy module bands and near-black monitoring consoles. Cards are rounded but never cute. Type is large, tight, and almost mechanical in spirit, with monospaced technical labels giving every panel a research-lab cadence.
+Tonic is a native macOS command center for system health. **Liquid Tonic** renders that instrument as layered glass floating over the desktop: the window is a translucent sheet (behind-window blur pulls the wallpaper in as the light source), navigation lives in a floating icon capsule detached from the window edges, and content sits on washed glass panels separated by hairlines. The shell is luminous but quiet — all color and energy still come from the readout itself: gauges, charts, sparklines, status arcs, and the smoked-glass consoles that render live metrics in mono type.
 
-What makes the system distinctive is one rule applied everywhere: **the data is the media.** The chrome is austere — flat surfaces, thin hairline rules, generous space, no decorative gradients or glass. All color and energy come from the readout itself: gauges, charts, sparklines, status arcs, and the dark console panels that render live metrics in mono type. The shell never competes with the numbers. A reserved coral accent and an editorial blue link appear only for brand and navigation moments — never on a gauge, never as a surface fill.
+Two rules govern everything:
 
-This language supersedes Tonic's earlier glass / world-colored "luxury" system (translucent surfaces, per-feature color worlds, breathing/bloom motion). Where the old system layered decorative depth and chroma onto the chrome, this one strips the chrome back to editorial neutrals and lets the instrument carry the expression.
+1. **The data is the media.** Status color (green→yellow→orange→red) belongs to measured machine state only. The brand mineral-green accent belongs to brand and primary actions only. Neither ever crosses over. Chrome never competes with the numbers.
+2. **Glass is chrome, never meaning.** Translucency is the shell's material, not a signal. No reading, state, or category is ever communicated by glass vs. flat, and every glass layer degrades to the flat editorial fill (the previous shipped design) when transparency is reduced.
 
-**Key Characteristics:**
-- One monumental display declaration per screen, with tight line height and negative tracking; everything else settles into restrained 12–20pt UI text.
-- White (light) or obsidian (dark) editorial canvases interrupted by deep-green, dark-navy, and near-black console bands.
-- The near-black **monitoring console** — mono labels, small status chips, device integration badges, live readouts — as the signature surface.
-- Rounded **data cards** (22pt) whose content is a gauge, chart, or sparkline rather than imagery.
-- Flat depth: surface alternation, hairline rules, and rounded cards do the work; no heavy shadows, no glass, no glow.
-- SF Mono technical labels and metrics everywhere — the research-lab voice that fits a system monitor.
-- Status color (green→yellow→orange→red) reserved strictly for data; brand coral reserved strictly for brand.
+This language supersedes the flat "editorial command center" system as the default presentation — but keeps it, byte-for-byte, as the reduced-transparency tier. The palette, typography, spacing grid, radius scale, and status discipline carry over unchanged.
+
+Version 3.0 retains the Wave 4 hybrid workspace language and adds three flagship instruments: Recovery Center for evidence-led repair, Top Shelf for deliberate context, and the curated provider marketplace. The design remains calm under denial and failure: an unavailable private adapter never erases its public fallback, a report-only Store action never impersonates execution, and every disruptive recovery step stays visible and removable before confirmation.
+
+## Wave 5 product posture
+
+Tonic 5 is fully unlocked in both editions. Production UI contains no tier chip, paywall, trial, purchase limit, or license activation. Dormant commerce code compiles only under `TONIC_COMMERCE`; legacy license preferences remain untouched. Edition language describes macOS capability boundaries rather than commercial value.
+
+Recovery Center is the canonical `Clean` recovery workspace. Diagnostics are read-only and evidence-led. A plan is ordered, editable, interruption-aware, and explicit about disruption, duration, privilege, and recovery behavior. Each disruptive step receives focused confirmation, execution stops at the first failure, and proof consists of a per-step receipt, measured post-check, and aggregate receipt.
+
+Top Shelf is an active-display `NSPanel` with a calm capsule state and an expanded instrument state. Cached modules appear immediately while actors refresh. Status item, hotkey, Quick Search, and an optional gesture are equivalent entry points. Ambient Now Playing, next-event, and actionable health content requires one explicit set-level confirmation and independent module switches thereafter. Calendar access is contextual; Clipboard is read only after deliberate opening and is never persisted. Ambient presentation never steals keyboard focus.
+
+The marketplace visually separates publisher identity, permissions, endpoint and refresh behavior, compatibility, health, and release provenance. Signature, revocation, permission expansion, unsupported schema, and host incompatibility are first-class states. Installation and update proof never relies on color alone.
+
+Automatic Space contexts and foreign menu proxying are direct-only compatibility layers, not foundations. The settings surface always states the current signed compatibility decision and preserves manual contexts and ordinary Quick Shelf behavior. Foreign menu sessions are ephemeral, bounded, keyboard accessible, and fall back to the original item whenever mapping is ambiguous.
+
+Per-app window rules use the existing placement vocabulary and receipt language. Matching evidence, deterministic priority, delay, cooldown, and restore are visible. Store users can build and preview the same rules without a false claim of automatic movement.
+
+All Wave 5 user-facing copy is prepared for English, Spanish, German, French, Japanese, and Simplified Chinese String Catalogs. Layout tolerates pseudolocalization, German expansion, CJK line breaking, larger accessibility text, keyboard order, and VoiceOver without fixed-height clipping.
+
+## Motion and accessibility
+
+Motion communicates cause and effect. Glass morphs explain structural expansion; mineral ripples confirm deliberate Apply, restore, alignment, and success; orbital particles are reserved for first discovery and rare completion. Shared recipes are governed by `TonicMotionPolicy`, never authored ad hoc in feature rows.
+
+- Reduce Motion removes displacement, particles, morphing, and motion-implying haptics. Pressed controls retain opacity feedback without scale.
+- Reduce Transparency resolves every glass surface to a semantic flat fill and stroke.
+- Increased Contrast strengthens boundaries without changing information hierarchy.
+- Every drag action has keyboard and context-menu equivalents; every gesture has a button equivalent.
+- Numeric updates use restrained ticker transitions and remain fully readable by VoiceOver.
+
+## Menu Bar flagship workspace
+
+Organize → Menu Bar is the canonical destination. Its top-level sections are Layout, Reveal, Automations, and Appearance. Setup is a compact trust-first journey: choose On-Demand (recommended) or Live enforcement, grant only contextual access, review a conservative draft, then Apply once. Accessibility is requested only by the direct build; Screen Recording remains optional and is used only for richer ephemeral item imagery and explicitly opted-in update watching.
+
+The layout editor uses stable persisted sections while presenting them as **Visible**, **On Demand**, and **Quiet**. Dragging edits only a local draft. A sticky footer summarizes changes and offers Apply Layout or Discard. Apply produces a moved/failure receipt and one-step Undo. System essentials are never recommended for hiding, and Quiet is never recommended automatically.
+
+Quick Shelf is the user-facing name for the legacy Tonic Bar implementation. Its global presentation is Compact Icons, Labeled Grid, or Searchable List; groups may override it. Groups live in Quick Shelf by default and may be pinned with an SF Symbol and accessible accent. Tonic-owned spacers, groups, and custom items are created from the Layout palette.
+
+Reveal supports collapse-control click, menu-bar dwell, empty-space click, and scroll/two-finger swipe. It is throttled, active-display aware, auto-rehides, and suppresses surprise presentation in full-screen contexts. Offscreen or notch-obscured items surface in Quick Shelf Overflow without rewriting saved placement.
+
+Update watching is explicitly enabled per item. Screen imagery is processed locally and remains ephemeral; persistence contains only a nonreversible digest, unseen state, and the minimum display asset. Activating the real item from the bar, Quick Shelf, group, or Quick Search acknowledges the update.
+
+Custom provider items use one versioned async interface for built-in, reviewed HTTPS, and direct executable sources. Remote sources expose their URL, interval, private-network policy, and response bound at review; secret material lives only in the data-protection Keychain. Direct `.tonicprovider` bundles run as the user with bounded line-delimited Codable I/O, require Developer ID signing in production, and allow immutable-hash approval only in Advanced mode. Provider snapshots are display-only and can never invoke actions or the helper.
+
+Presentation profiles resolve global → attached display → manual named context. Display overrides may change appearance, reveal behavior, Quick Shelf target/presentation, overflow, and inactive-display presentation. Manual Work/Home/Recording-style contexts are selectable directly or by reversible triggers. Foreign-item physical placement remains one global layout because macOS exposes no supported per-display ordering API; active-Space notifications refresh wallpaper and supported triggers but no undocumented Space identifier is stored.
+
+Appearance begins with Clear, Mineral Glass, Obsidian, and Match Wallpaper presets. Real-bar preview is temporary and always has Apply and Cancel/rollback. Advanced controls cover two-stop gradients, border, shadow, opacity, corner radius, and capsule/full-width layout. The migrated global appearance remains the default; public-API display profiles and manual named contexts may override presentation without claiming per-display foreign-item placement.
+
+## Custom items and execution safety
+
+The safe custom-item builder supports SF Symbols or user-selected images; static and formatted date/time, battery, processor, memory, network, and weather data; and multiple actions that open an app, file, URL, Tonic destination, or Apple Shortcut. Store builds receive this safe model and editor.
+
+Direct builds may additionally define scripts with an explicit shell/executable, argument array, security-scoped file or working-directory selections, environment allowlist, and timeout. Scripts never cross the privileged-helper boundary. Click, reviewed schedules, and automation-triggered runs share one policy: unattended runs require a full command-and-condition review, overlapping executions are rejected, three consecutive failures pause the action until an explicit review, output is independently truncated and sanitized, optional mapped labels are bounded to one line, and every run creates a structured receipt.
+
+## History and privileged maintenance
+
+Monitor cards share Live / 1h / 24h / 7d / 30d controls. `WidgetHistoryStore` owns live and short presentation history; `LongTermMetricsStore` owns local minute/hour/day weighted rollups, retention, atomic persistence, import, Disable, Clear, and storage-size reporting. Disabled history performs no long-term writes while live monitoring continues. Unsupported GPU or temperature series are omitted with capability copy rather than zero-filled charts.
+
+The direct build installs `TonicHelper` only when a privileged operation is chosen. Every run begins with a review sheet. The XPC contract is a closed, versioned Codable allowlist with no caller-provided privileged paths or commands. Client and helper verify team and identifier requirements reciprocally; malformed, oversized, unauthorized, or version-incompatible requests are rejected before dispatch. Fixed-tool output is collected asynchronously with strict bounds and a timeout so cleanup cannot block watchdog heartbeats. Fan control uses a heartbeat watchdog that restores Automatic on quit, crash, disconnect, or renewal loss. Store builds omit every helper/client/write source and retain report-only explanations.
+
+**Key characteristics:**
+- The whole window is a glass slab; the desktop glows through at a user-set intensity (Regular / Subtle / Off).
+- A floating 56pt icon capsule rail (Z3 Liquid Glass) replaces the docked sidebar; labels surface as hover flyouts.
+- The near-black **monitoring console** becomes **smoked glass** — an ultra-thin material under a `#17171c` wash that never drops below 0.60 opacity, so status readouts always sit on a near-black field.
+- Deep-green / navy module bands read as **colored glass** (0.85 wash) — brand identity, translucent but unmistakable.
+- Rounded data cards (22pt), pill controls, SF Mono metrics, hairline structure — all unchanged from the editorial system.
+- One oversized display voice per screen; restrained motion; Reduce Motion and Reduce Transparency are first-class tiers, not afterthoughts.
 
 ## Colors
 
-Tonic carries one disciplined palette that resolves into both light and dark appearances. The brand identity — ink/canvas anchors, deep-green and navy bands, soft-stone warmth, a single reserved accent — is constant across both; only the neutral stack inverts.
+The palette is unchanged from the editorial system. Brand identity (ink/canvas anchors, deep-green and navy bands, soft-stone warmth, the reserved mineral-green accent) is constant across light/dark; only the neutral stack inverts.
 
 ### Brand & Band
+- **Ink** (`#17171c`): primary CTAs, high-contrast text on light. The brand anchor.
+- **Ink Pure** (`#0a0a0f`): alert banner; deepest obsidian base.
+- **Deep Enterprise Green** (`#003c33`) / **Dark Navy** (`#071829`): module band tints — healthy/cleanup vs. protection/security.
+- **Brand Accent — Mineral Green** (`#176b58`, dark lift `#5cc7a7`): **reserved** for primary actions, selection, focusable identity (e.g. the rail's selected icon). Never a gauge color, never a glass tint. (The former coral accent is retired; `accentCoral` remains only as a code alias to this green.)
+- **Link Blue** (`#1863dc` / `#5b93ff`): inline navigation links only.
 
-- **Ink** (`#17171c`): Primary CTAs, console panels, high-contrast text on light. The brand anchor.
-- **Ink Pure** (`#0a0a0f`): Alert banner and the deepest obsidian base in dark mode.
-- **Deep Enterprise Green** (`#003c33`): Module bands for healthy / cleanup / optimized surfaces (Smart Scan, Storage). Tonic's primary brand band.
-- **Dark Navy** (`#071829`): Module bands for protection / security / permissions surfaces.
-- **Accent Coral** (`#ff7759`): **Reserved** for brand and editorial taxonomy only — category-filter chips, warm brand markers. Never a gauge color, never a broad surface fill.
-- **Soft Coral** (`#ffad9b`): Pale chip borders and segmented label details.
-- **Link Blue** (`#1863dc`): Inline navigation links, pagination, "learn more" affordances.
+### Status Scale — DATA ONLY
+`status-success #1f9d57` (0–50%) → `status-warning #e0a32c` (50–75%) → `status-caution #e07b39` (75–90%) → `status-critical #d14b4b/#e05252` (90–100%), plus `status-info` for neutral/charging. Resolved exclusively through `TonicDS.statusLevel(forFraction:/forTempC:/forBattery:)`; every status color pairs with a status word ("Healthy/Elevated/High/Critical") for VoiceOver and chips. Categorical series colors (E/P-core, read/write, memory composition) derive from these hues.
 
-### Surface & Background
+### Tint & Wash table (glass mode)
 
-- **Canvas White** (`#ffffff`): Default light surface and the base for data cards, lists, and forms.
-- **Canvas Soft** (`#f6f4ef`): Warm off-white page base, an alternate to pure white for large fields.
-- **Obsidian** (`#0a0a0f`) / **Obsidian Soft** (`#121318`): Default dark-mode page and elevated surfaces.
-- **Soft Stone** (`#eeece7`): Warm neutral cards — scan categories, cleanup-result summaries, quiet proof blocks.
-- **Pale Green Wash** (`#edfce9`) / **Pale Blue Wash** (`#f1f5ff`): Occasional section backdrops behind stacked dark panels.
-- **Card Border** (`#f2f2f2`): Softest containment line on light surfaces.
-
-### Text & Rules
-
-- **Text Primary** — Light `#212121` / Dark `#f4f3ef`: Default body and most link text.
-- **Text Muted** — Light `#75758a` / Dark `#93939f`: Metadata, dates, de-emphasized labels, footer links.
-- **Hairline** — Light `#d9d9dd` / Dark `#2a2a32`: Standard list rules and section dividers.
-- **Border Light** (`#e5e7eb`): Secondary utility rule on light surfaces.
-
-### Status Scale — Data Only
-
-These colors describe machine state and appear **exclusively** on gauges, charts, arcs, status chips, and value text. They are never used as brand color, surface fill, or decorative chrome — and the brand accent never substitutes for them.
-
-| Token | Light | Dark (contrast lift) | Meaning |
+| Layer | Material | Wash | Stroke |
 |---|---|---|---|
-| `status-success` | `#1f9d57` | `#1f9d57` | Healthy / safe / low utilization (0–50%) |
-| `status-warning` | `#e0a32c` | `#e0a32c` | Elevated / attention (50–75%) |
-| `status-caution` | `#e07b39` | `#e07b39` | High / approaching limit (75–90%) |
-| `status-critical` | `#d14b4b` | `#e05252` | Critical / over threshold (90–100%) |
-| `status-info` | `#3a78d6` | `#5b93ff` | Neutral informational state (e.g. charging) |
+| Z0 window | behind-window blur (AppKit) | `canvas` @ 0.50 dark / 0.65 light (Regular); 0.78 (Subtle) | — |
+| Z1 `.surface` | `.thinMaterial` | `surface` (or component tint: soft-stone, canvas-soft) @ 0.55 | `glass-stroke` |
+| Z1 `.smoked` | `.ultraThinMaterial` | `console #17171c` @ 0.65 — **0.60 floor, non-negotiable** | `hairline-on-dark` |
+| Z1 `.band` | `.thinMaterial` | `deep-green` / `dark-navy` @ 0.85 | none |
+| Z2 `.overlay` | `.thickMaterial` | `canvas` @ 0.70 | `glass-stroke` |
+| Z3 `.chrome` | Liquid Glass (`glassEffect`) | none — system rim | system |
 
-The dark values for `status-critical` and `status-info` are deliberately lifted from the
-light hexes so small mono readouts on the near-black console meet WCAG AA — these are the
-shipped values in `TonicDS.Colors`, verified by `TonicDSPolishTests`. Every status color
-also carries a **status word** (`Healthy / Elevated / High / Critical / Info` via
-`TonicDS.StatusLevel`) so color is never the only carrier of meaning — chips and console
-rows voice the word to VoiceOver.
-
-### Light ↔ Dark Mapping
-
-| Role | Light | Dark |
-|---|---|---|
-| Page canvas | `canvas` / `canvas-soft` | `obsidian` |
-| Elevated surface | `canvas` | `obsidian-soft` |
-| Console panel | `console` (#17171c) | `console` (#17171c) — constant |
-| Warm card | `soft-stone` | `obsidian-soft` + hairline |
-| Primary text | `#212121` | `#f4f3ef` |
-| Muted text | `#75758a` | `#93939f` |
-| Hairline rule | `#d9d9dd` | `#2a2a32` |
-| Brand band (green/navy) | as defined — constant | as defined — constant |
-
-### Gradient & Chroma Policy
-
-Tonic does not use gradients as generic UI fill. UI surfaces are flat. Chroma is reserved for the data layer only: gauge arcs, chart strokes and fills, sparklines, and the console readout. Module bands (deep-green, navy) are solid, not gradient. If a band needs depth, use a single very-subtle tonal step, never a saturated gradient.
+The smoke floor exists because status colors at 11pt mono only meet contrast on a near-black field; 0.60 keeps the worst-case composite dark even over a white wallpaper.
 
 ## Typography
 
-### Font Families
+Unchanged. Three voices: a tight display face (SF Pro Display fallback for the unbundled `TonicDisplay`), SF Pro Text for UI/body, and **SF Mono for every technical label, unit, and metric**. One oversized display voice per screen. Measured values additionally use `.monospacedDigit()`. Roles and exact values are in the frontmatter and `TonicDS.TypeRole`.
 
-- **Display**: `TonicDisplay` (a tight, carved, geometric face with a near-monospaced spirit), falling back to `SF Pro Display`, `ui-sans-serif`, `system-ui`. Until `TonicDisplay` is bundled, `SF Pro Display` at the documented weights/tracking is the production face.
-- **UI / Body**: `SF Pro Text` / `SF Pro Display` (system), the native macOS voice.
-- **Technical labels & metrics**: `SF Mono`, falling back to `ui-monospaced`, `Menlo`. Used for every measured value, unit, and system marker.
+## Materials & Elevation — the Z-model
 
-### Hierarchy
+Depth is layered light, not shadow stacking. Four Z-tiers, each with a single resolution point in code (`.tonicSurface(_:in:)`, `.tonicCanvas()`, `.tonicSheetBackground()`, `.tonicPopoverConsole()` in `Design/TonicGlass.swift`, governed by `TonicGlassPolicy`):
 
-| Role | Family | Size | Weight | Line Height | Tracking | Use |
-|---|---|---:|---:|---:|---:|---|
-| Hero Display | TonicDisplay | 64pt | 500 | 1.02 | -1.28pt | Dashboard status declaration — one per screen. |
-| Section Display | TonicDisplay | 44pt | 500 | 1.05 | -0.88pt | Module-band and large section headings. |
-| Card Heading | TonicDisplay | 28pt | 500 | 1.15 | -0.4pt | Data-card and list-section titles. |
-| Feature Heading | SF Pro Display | 20pt | 600 | 1.25 | 0 | Card subtitles, settings groups, panel titles. |
-| Body Large | SF Pro Text | 16pt | 400 | 1.45 | 0 | Lead copy and primary descriptions. |
-| Body | SF Pro Text | 14pt | 400 | 1.50 | 0 | Default UI copy and list text. |
-| Button | SF Pro Text | 13pt | 600 | 1.20 | 0 | CTA and control labels. |
-| Caption | SF Pro Text | 12pt | 400 | 1.40 | 0 | Metadata and small explanatory text. |
-| Mono Label | SF Mono | 11pt | 500 | 1.30 | 0.5pt | Uppercase technical labels (CPU, MEM, °C, RPM), units, system markers. |
-| Metric | SF Mono | 28pt | 500 | 1.00 | 0 | Large live readout numbers in consoles and data cards. |
-| Micro | SF Pro Text | 11pt | 400 | 1.35 | 0 | Banner, footnotes, tertiary links. |
+| Tier | What | Treatment | Examples |
+|---|---|---|---|
+| **Z0 — Desktop light** | The window floor | `NSVisualEffectView` behind-window blur + canvas wash at the user's glass intensity | `TonicWindowChrome` at the shell root |
+| **Z1 — Surfaces** | Content panels | SwiftUI `Material` + color wash + hairline | `DataCard`, `SettingsPanel`, `ScanCategoryCard`, search fields (`.surface`); `MonitoringConsole`, `MetricConsole`, toasts, widget popovers (`.smoked`); `ModuleBand` (`.band`) |
+| **Z2 — Overlays** | Modal layer | `.thickMaterial` + canvas wash + `overlay-dim` scrim behind | Sheets (`presentationBackground`), command palette, permission prompt, rail flyout labels |
+| **Z3 — Chrome** | Floating controls | True Liquid Glass (`glassEffect` in a `GlassEffectContainer`) | Floating rail, hub capsule bar, ActionDock, Tonic Bar, Quick Search panel |
 
-### Principles
-
-- **One oversized voice per screen.** A surface carries a single hero or section display; everything else stays in restrained 12–20pt UI type. Size and space, not weight, build the hierarchy.
-- **Keep display type tight and carved.** Negative tracking and near-1.0 line height make headlines feel machined, not airy.
-- **Mono is the technical voice.** Every measured value, unit, and system marker uses SF Mono — CPU/MEM/GPU labels, percentages, byte counts, temperatures, RPM, PIDs, timestamps. This is what gives Tonic its instrument cadence.
-- **Avoid heavy bold.** Display sits at medium (500); body emphasis tops out at semibold. Let surface contrast and the data layer provide emphasis.
-- **Numbers tabular and animated.** Live metrics use monospaced digits with numeric content transitions so readouts update without reflow.
+Rules:
+- **Z3 is the only `glassEffect` tier**, and at most ~3 chrome elements are visible per window. Z1 uses cheap `Material` — bento grids render many cards.
+- Text never sits directly on Z0; it always has a Z1+ surface (or the hero declaration sits on the washed canvas itself, which counts).
+- The shadow rule survives verbatim: **one** `cardLift` soft shadow to lift a card, dock, or rail — never stacked, never colored.
+- Smoked surfaces force the dark color scheme for their children regardless of window appearance, exactly as the flat consoles did.
+- Flat fallback: when `TonicGlassPolicy.isGlassEnabled == false` (app Reduce Transparency, system accessibility setting, or intensity Off), every layer resolves to the shipped editorial fill — `surface`+`card-border`, `console`, solid bands, flat canvas. That tier is the fully-QA'd previous design and must remain screenshot-perfect.
 
 ## Layout
 
-### Spacing System
+### Shell (two distinct floating surfaces in one transparent window)
+- **Glass slab** (`TonicGlassSlab`): the app content lives on a 26pt-radius glass sheet (behind-window blur + canvas wash + glass stroke) inset 56pt from the window's leading edge and 8pt from the other edges — the window itself is fully transparent, so the slab reads as its own floating pane over the desktop.
+- **Floating rail** (`FloatingRailView`): a vertically-centered 56pt glass capsule floating in the transparent leading gutter, **outside the slab and overlapping its left edge by ~10pt** — visibly a separate element, per the reference mockup. Contents: app glyph, five hub icons (44×44), hairline, All Tools (⌘K), Settings, edition dot. Selection = brand-accent icon on a quiet circle; labels via `.help()` tooltips + hover flyout capsules (0.4s delay). Keyboard: ⌘1–5 hubs, ⌘K palette; full focus-ring and VoiceOver support.
+- **Flat tier**: when glass is reduced, the shell reverts to the full-window canvas with the rail in a leading safe-area gutter (the shipped editorial layout).
+- **Hub bar**: each hub's tool switcher is a floating glass capsule (Z3) at the top of the slab, hugging its content, clear of the traffic lights.
+- **Window**: `hiddenTitleBar` + `fullSizeContentView`, transparent (`isOpaque = false`), movable by background. Content max width 1200pt, centered in wide windows.
+- The **alert banner** stays an opaque `ink-pure` strip across the top of the slab — global alerts are not translucent.
 
-An 8-pt base grid: `4`, `8`, `12`, `16`, `24`, `32`, `40`, `48`, with a `64pt` section interval for the dramatic vertical breathing room between status, proof, and action. Dense content (process lists, file lists, settings rows) packs tighter on the grid; marketing-weight surfaces (dashboard hero, module bands) hold wide intervals.
-
-### Grid & Container
-
-- **Shell**: `NavigationSplitView` — a ~220pt sidebar (grouped destinations) beside a detail pane. Content max width ~1200pt, centered in wide windows.
-- **Dashboard**: a centered hero declaration above an editorial bento grid of data cards (mixed large/wide/small), with a quiet system-identity strip below the hero.
-- **Module screens**: alternate centered hero blocks, full-bleed deep-green/navy bands, and 2–3 column card grids.
-- **List screens** (processes, files, apps, recently cleaned): full-width rule-separated rows with mono technical columns instead of decorative cards.
-- **Settings**: rounded panels with grouped preference rows, set on canvas or a quiet stone section.
-- **Menu-bar popovers**: fixed 280pt-wide consoles, scrollable to a max height.
-
-### Whitespace Philosophy
-
-Whitespace is a calm signal. Large empty intervals separate the system status, the proof (what was found / what state things are in), and the action (clean, optimize, configure). Density appears only where it serves the readout: console panels, list rows, and settings forms.
-
-## Elevation & Depth
-
-Tonic is flat. Depth comes from surface alternation, the contrast of console panels against canvas, hairline borders, and rounded data cards — never from drop shadows, glass, or glow. This explicitly **supersedes** the legacy glass/vignette/bloom depth model.
-
-| Level | Treatment | Use |
-|---|---|---|
-| Flat | No shadow; white/obsidian field | Hero copy, lists, editorial surfaces |
-| Bordered | 1pt hairline | List rows, settings panels, warm cards, dividers |
-| Surface alternation | Stone or wash block against canvas | Scan categories, proof blocks, section grouping |
-| Module band | Solid deep-green or navy full-bleed | Smart Scan, Storage, Protection, Permissions |
-| Console field | Near-black `#17171c` panel | Monitoring popovers, live readouts, agent-style panels |
-
-A single soft shadow (very low opacity, small offset) is permitted only to lift a data card or popover off canvas — never stacked, never colored.
+### Spacing, grid, whitespace
+Unchanged: 8-pt grid with a 64pt section interval; screens keep believing they own the full pane (the rail lives in the safe area, so `tonicScreenHPadding` breakpoints — compact <900, wide ≥1200 — reflow untouched). Whitespace separates status → proof → action; density appears only in consoles, lists, and forms.
 
 ## Shapes
 
-### Radius Scale
-
-| Token | Value | Role |
-|---|---:|---|
-| `xs` | 4pt | Inline chips, tiny utility elements, inner controls |
-| `sm` | 8pt | Scan-category cards, small media, filter chips, dialogs |
-| `md` | 12pt | Console panels, list cards, grouped blocks |
-| `lg` | 16pt | Module bands, settings panels |
-| `card` | 22pt | Signature radius for data cards and gauge cards |
-| `pill` | 32pt | Primary CTAs and filter pills |
-| `full` | 9999pt | Status dots and fully pill-shaped chips |
-
-### Visualization Treatment
-
-In place of photography, Tonic's "media" is the live visualization. Gauges, charts, and sparklines sit inside rounded data cards with visible corners — the dominant radii are 12pt (console/list) and 22pt (data cards). A gauge is itself circular; a chart fills its card edge-to-edge with the card's radius clipping it. Never frame a visualization in heavy chrome; let the card and a hairline contain it.
+Radius scale unchanged (see frontmatter); 22pt cards and 12pt consoles remain the dominant radii; the rail and pills are capsules. Visualizations fill their cards edge-to-edge, clipped by the card radius; never framed in heavy chrome.
 
 ## Components
 
-Every component is a real Tonic native surface. No marketing-web idioms survive un-translated.
+Layer assignments for the shipped component library (call sites don't choose materials — components resolve their own layer internally):
 
-### **`primary-pill`**
-
-Near-black (or white, on dark/band surfaces) pill CTA. 13pt SF Pro semibold, 10pt 22pt padding, 32pt radius. The single highest-priority action per surface — "Run Smart Clean", "Scan", "Apply".
-
-### **`text-action`**
-
-Text-only companion action, underlined or rule-aligned, no fill. Used for "Review", "Customize", "Learn more", and secondary hero actions.
-
-### **`filter-pill`**
-
-Lightweight outlined pill, transparent fill, 1pt border, 32pt radius. Used for list filters and monitoring scopes (All / System / Environment, sort modes, time ranges).
-
-### **`category-filter-chip`**
-
-Oversized taxonomy chip for scan/app/storage categories — a hero-level control. Active inverts to coral fill with dark text; inactive uses coral outline on pale fill. This is the one place the brand accent appears on an interactive control; it never migrates onto data.
-
-### **`alert-banner`**
-
-Thin (32pt) near-black strip at the top of the window for global system states — "Full Disk Access required", "Helper tool not installed", "Update available" — with an inline action link and a dismiss control.
-
-### **`dashboard-hero`**
-
-The opening surface: a single monumental status declaration ("All clear.", "12.4 GB to recover", "Running hot") at hero-display scale over the canvas, with a short supporting line and at most one primary action. The calm voice that sets the tone for the whole app.
-
-### **`monitoring-console`** — signature surface
-
-The near-black panel that renders live data, used for menu-bar popovers and Live Monitoring sections. Contents: mono section labels (CPU / MEM / GPU / NET), large mono metrics, small status chips, device integration badges (connected displays, AirPods, power adapter), and inline gauges/sparklines. White and muted text on `#17171c`; status color used only on the readout. This is where the "data is the media" thesis is most literal — the console has no decoration of its own; the numbers are the design.
-
-### **`data-card`**
-
-Rounded 22pt card whose body is a live visualization — a gauge, line chart, bar chart, or sparkline — with a mono label and metric. The card chrome is a hairline and the canvas; all expression is in the readout.
-
-### **`module-band`**
-
-Full-bleed deep-green (healthy/cleanup/optimized) or dark-navy (protection/security/permissions) section. White text, thin-line system glyphs, a section-display heading, and a primary-pill or text-action. Used as the hero surface for Smart Scan, Storage, Protection, and Permissions modules.
-
-### **`scan-category-card`**
-
-Warm soft-stone card summarizing a cleanup category or scan result. Typically 2–3 column, 8pt radius, generous padding, a divider, checkmark bullet rows, a size metric in mono, and a small pill action.
-
-### **`system-identity-strip`**
-
-A quiet, unboxed line of the user's actual hardware identity — "MacBook Pro · M3 Max · 36 GB · macOS Sonoma" — in mono labels with wide spacing, set below the dashboard hero. The honest, monochrome analog of a proof strip: no cards, no borders, just space.
-
-### **`system-list-row`**
-
-Rule-separated row for processes, files, apps, and the recently-cleaned log: title/icon left, status or taxonomy pills center, and a right-aligned mono technical column (size, %, PID, date). Tall, border-driven, white/obsidian. Filters above use `filter-pill`s.
-
-### **`status-chip`**
-
-Small pill carrying a single machine-state marker — a status-colored dot plus a mono label ("ACTIVE", "92°C", "THROTTLED"). Color drawn from the status scale, never brand.
-
-### **`settings-panel`**
-
-Rounded panel containing grouped preference rows (toggle / picker / button / threshold). Set on canvas or a quiet stone/dark section. Inputs are rectangular with thin borders and compact mono-or-body labels; the submit/primary control uses `primary-pill`.
-
-### Supporting surfaces
-
-- **`sidebar`** — grouped `NavigationSplitView` sidebar: section headers, icon+label rows, optional count badges. Quiet, monochrome, ~220pt.
-- **`page-header`** — title + optional subtitle + trailing actions / search, atop each detail screen.
-- **`gauge` family** — circular (full/segmented), half-circle, tachometer (needle), and pressure (3-zone arc) gauges; all status-colored, all the "media" of a data card.
-- **`chart-card`** — line/spark/bar history rendered edge-to-edge inside a data card.
-- **`search-field`** — text input with a leading glyph and clear control; thin border, body type.
-- **`empty-state`** — centered thin-line glyph, card-heading title, caption message, optional text-action.
+| Component | Layer | Notes |
+|---|---|---|
+| `floating-rail` | Z3 chrome | New shell navigation; replaces the docked sidebar spec |
+| `hub-bar` (tool switcher capsule) | Z3 chrome | Title + segmented tools in a floating capsule |
+| `ActionDock`, toasts | Z3 chrome / Z1 smoked | Toast keeps its dark console-capsule identity |
+| `DataCard`, `GaugeCard`, `ChartCard` | Z1 `.surface` | 22pt radius, glass stroke, one hover-deepened lift |
+| `SettingsPanel`, `TonicSearchField`, machine strip | Z1 `.surface` | Flat fallback keeps their hairline border |
+| `ScanCategoryCard` | Z1 `.surface` (soft-stone tint) | Warm glass; flat fallback is borderless soft-stone |
+| `MonitoringConsole`, `MetricConsole`, widget popovers, OneView | Z1 `.smoked` | Forced-dark children; status colors on near-black |
+| `ModuleBand` | Z1 `.band` | Deep-green/navy colored glass @ 0.85 |
+| `SheetChrome`, onboarding, reset/folder-scan sheets | Z2 overlay | Via `presentationBackground` thick material |
+| Command palette, permission prompt | Z2 overlay | Over the `overlay-dim` scrim |
+| Tonic Bar, Quick Search (floating NSPanels) | Z3 chrome | Real Liquid Glass; flat fallback = solid console |
+| `PrimaryPill`, `TextAction`, `FilterPill`, `StatusChip`, `MonoLabel`, `Metric`, hairlines, progress/arc, `SystemListRow`, empty states | unchanged | Ink pills on glass are the signature control look |
 
 ## Do's and Don'ts
 
 ### Do
-
-- Let gauges, charts, and the console carry all the color and energy; keep the shell editorial.
-- Keep the status scale (green→yellow→orange→red) strictly for data.
-- Use deep-green and navy as intentional full-bleed module bands, not as accidental accents.
-- Use SF Mono for every technical label, unit, and metric.
-- Hold one oversized display voice per screen and settle everything else into restrained UI type.
-- Use 22pt radius on data cards and 12pt on console/list panels.
-- Use the system-identity strip and quiet stone proof blocks instead of decorative filler.
+- Let gauges, charts, and consoles carry all color; keep the glass shell quiet and luminous.
+- Keep the status scale strictly on data, the mineral-green accent strictly on brand/selection.
+- Keep smoke ≥ 0.60 under any status-colored readout.
+- Use `Material` for content surfaces and reserve `glassEffect` for the ≤3 floating chrome elements.
+- Give light mode its milkier washes (0.65 canvas) and ink-based glass strokes; QA both schemes over bright *and* dark wallpapers.
+- Keep the flat fallback pixel-faithful to the editorial system — it is a design tier, not a degradation.
 
 ### Don't
-
-- Do not put the brand accent (coral) or link-blue on a gauge, arc, or status readout.
-- Do not reintroduce glass, vignette, inner-highlight, glow, or breathing/bloom chrome.
-- Do not add heavy or stacked drop shadows to cards.
-- Do not box every section; favor unframed rows, hairline rules, and open space.
-- Do not use saturated gradients as UI surface fills; keep bands solid and chroma in the data.
-- Do not introduce a second generic sans voice or drop the display/body/mono split.
-- Do not let chrome compete with the readout — if a panel's decoration draws the eye before the numbers, simplify it.
+- Don't put `glassEffect` on Z1 content surfaces (cards, consoles, panels).
+- Don't tint glass with a status color, and don't let glass vs. flat carry meaning.
+- Don't stack shadows, add glow/vignette, or animate blur radius (expensive and dizzy).
+- Don't place text directly on the Z0 desktop light.
+- Don't box every section; hairlines and space still do the structural work.
+- Don't reintroduce per-feature color worlds or decorative continuous animation.
 
 ## Motion
 
-Motion is restrained and editorial — a deliberate departure from the legacy breathing/bloom/sweep system. It clarifies state changes and live data, never decorates.
+Shipped scale (all easeOut): instant 0.10 / feedback 0.14 / transition 0.21 / layout 0.27 / proof 0.39, stagger 0.05s per index. Patterns: fade+rise on appear, staggered bento reveals, `.numericText()` metric transitions, subtle press scale (0.97), banner/overlay present.
 
-| Pattern | Use | Timing |
-|---|---|---|
-| Fade + rise on appear | Cards, panels, sections entering | normal (0.25s), easeOut |
-| Staggered reveal | List rows and bento tiles on load | per-index delay ~0.05s |
-| Numeric content transition | Live metrics updating in console/cards | fast (0.15s) |
-| Press feedback | Buttons, chips, rows | fast (0.15s), subtle scale |
-| Banner / overlay present | Alert banner, modals, popovers | normal (0.25s), ease |
-
-Timing tokens: **fast 0.15s**, **normal 0.25s**, **slow 0.35s**. All motion respects `accessibilityReduceMotion` — when reduced, transitions collapse to instant or simple opacity. Retire decorative continuous animation (breathing scale, glow pulse, diagonal sweep) entirely; the only "always-on" motion permitted is live-data redraw.
+Glass-specific rules: glass elements move with `settle` (0.27s); `glassEffectID` morphs only between elements inside one `GlassEffectContainer`; never animate material thickness or blur radius. All motion respects Reduce Motion (collapses to opacity/instant). The only always-on motion is live-data redraw.
 
 ## Adaptive Behavior
 
-Tonic adapts to macOS window size, not web breakpoints.
-
-| Window | Behavior |
+| Axis | Behavior |
 |---|---|
-| Compact (narrow) | Sidebar collapses to a toggle; bento grid → single column; module-band padding reduces; list rows stack metadata below the title. |
-| Regular | Sidebar visible; bento grid → 2 columns; standard padding. |
-| Wide | Full sidebar + detail; bento grid → 3 columns; content centered at ~1200pt with generous side gutters. |
-
-- **Menu-bar popovers** are a fixed 280pt console regardless of window state, scrollable to max height.
-- **Lists** preserve their rule-separated structure at every width; only the metadata layout reflows.
-- **Click/touch targets**: minimum 36pt for controls and pills, 44pt for list rows.
+| Window width | Compact <900: single-column bento, tighter gutters, stacked row metadata. Regular: 2-col. Wide ≥1200: 3-col, centered content. The rail gutter is constant. |
+| Glass intensity | **Regular** (default): desktop clearly glows through. **Subtle**: 0.78 wash — safe for screenshots/docs. **Off**: flat editorial. Settings › General › Interface. |
+| Reduce Transparency | App toggle **or** macOS accessibility setting → flat tier, everywhere including menu-bar surfaces (`TonicGlassPolicy` is the single authority). |
+| Appearance | Light and dark are both first-class; smoked/band surfaces are constant-dark in both. The in-app System/Light/Dark selector is applied at the shell root. |
+| Menu-bar popovers | Fixed-width smoked consoles (280pt default), max height 420pt, native popover chrome in `.darkAqua`. |
 
 ## Iteration Guide
 
-1. Start from a white/obsidian canvas or a full-bleed deep-green/navy band — never a mid-tone page background.
-2. Establish one oversized voice: a `dashboard-hero` declaration or a `section-display` band heading. Everything else stays restrained.
-3. Let a `monitoring-console` or a `data-card` gauge/chart supply the visual energy. Never invent data to fill a panel — use honest placeholder/skeleton states when data is loading.
-4. Use `primary-pill` for the single highest-priority action and `text-action` for its companion.
-5. For dense surfaces (processes, files, apps), combine `category-filter-chip`, `filter-pill`, and `system-list-row` instead of marketing cards.
-6. Keep status color on the data and brand coral on brand. If you reach for coral on a gauge, stop.
+1. Start from the Z0 washed canvas (or a `.band` hero) — never a mid-tone opaque page fill; use `.tonicCanvas()` for page roots.
+2. Establish one oversized voice (`hero-display` declaration or `section-display` band heading).
+3. Let a smoked console or data-card readout supply the energy; honest skeletons while loading.
+4. Compose surfaces through `.tonicSurface(_:in:)` — never hand-roll a material; pass `tint`/`flatFill`/`flatStroke` only to preserve a legacy component's flat identity.
+5. One `primary-pill` per surface; `text-action` as its companion; dense surfaces use filter pills + `system-list-row`.
+6. Before shipping a screen: check it at Regular/Subtle/Off × light/dark × Reduce Transparency, over a bright wallpaper.
 
 ## Known Gaps
 
-- The custom display face `TonicDisplay` is not yet bundled; `SF Pro Display` at the documented weights and tracking is the production fallback until it is.
-- Dark-mode status and brand colors must be validated for WCAG AA contrast on `obsidian` surfaces before release; values here are starting points.
-- This language **supersedes** the legacy glass / world-colored system (`TonicThemeTokens`, glass surfaces, `AtelierTokens`); migrating existing screens off that system is handled as separate redesign work, not by this document.
-- Menu-bar console layouts are documented from the existing 280pt popover structure; final per-widget console compositions will be refined during implementation.
+- `TonicDisplay` is still unbundled; SF Pro Display is the production fallback.
+- Contrast of `status-warning` on light-mode `.surface` glass over white wallpapers is the tightest case — audit before release; raise the surface wash locally if a readout fails AA.
+- The Monitor console wall renders many smoked materials at 1s cadence; if Instruments shows composite churn, fall back to one shared smoked backdrop behind the console grid.
+- Stage Manager / Mission Control snapshots and ⇧⌘4 captures include window transparency; use Subtle or Off for marketing captures.
+- The expandable labeled rail (pinned open) is a possible later enhancement; hover flyouts ship first.

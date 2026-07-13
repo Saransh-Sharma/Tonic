@@ -19,11 +19,15 @@ struct MenuBarStyleOverlayView: View {
         return TonicDS.Colors.darkNavy
     }
 
+    private var gradientEnd: Color {
+        styling.gradientEndHex.flatMap { Color(menuBarHex: $0) } ?? tint.opacity(0.55)
+    }
+
     var body: some View {
         Group {
             if styling.usesGradient {
                 LinearGradient(
-                    colors: [tint.opacity(styling.opacity), tint.opacity(styling.opacity * 0.55)],
+                    colors: [tint.opacity(styling.opacity), gradientEnd.opacity(styling.opacity)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -34,6 +38,12 @@ struct MenuBarStyleOverlayView: View {
         .clipShape(
             RoundedRectangle(cornerRadius: styling.cornerRadius, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: styling.cornerRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.28), lineWidth: styling.borderWidth)
+        }
+        .shadow(color: Color.black.opacity(styling.shadowStrength), radius: styling.shadowStrength * 8, y: 2)
+        .padding(.horizontal, styling.isFullWidth ? 0 : 8)
         .ignoresSafeArea()
     }
 }

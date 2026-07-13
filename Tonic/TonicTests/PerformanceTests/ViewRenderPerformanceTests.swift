@@ -249,14 +249,16 @@ final class ViewRenderPerformanceTests: PerformanceTestBase {
 
     func testStateUpdatePerformance() {
         let startTime = Date()
+        var state = (value: 0, isLoading: false, error: "")
 
         for _ in 0..<100 {
-            var state = (value: 0, isLoading: false, error: "")
             state.value = 42
             state.isLoading = true
         }
 
         let duration = Date().timeIntervalSince(startTime)
+        XCTAssertEqual(state.value, 42)
+        XCTAssertTrue(state.isLoading)
         XCTAssertLessThan(duration, 0.05, "State updates should be instant")
     }
 

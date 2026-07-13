@@ -52,7 +52,7 @@ struct HomeView: View {
             .padding(.bottom, TonicDS.Space.section)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         .tonicToast($toast)
         .onAppear {
             if !data.isMonitoring { data.startMonitoring() }

@@ -14,14 +14,51 @@ public struct MenuBarPreset: Codable, Identifiable, Equatable, Sendable {
     public var symbolName: String
     /// stableKey → section. Items absent from the map are left where they are.
     public var layout: [String: MenuBarSection]
+    public var groups: [MenuBarItemGroup]
+    public var capturesLayout: Bool
+    public var capturesGroups: Bool
+    public var appearance: MenuBarStyling?
+    public var revealBehavior: MenuBarRevealBehaviorSnapshot?
 
     public init(id: UUID = UUID(), name: String, symbolName: String = "rectangle.stack",
-                layout: [String: MenuBarSection]) {
+                layout: [String: MenuBarSection], groups: [MenuBarItemGroup] = [],
+                capturesLayout: Bool = true, capturesGroups: Bool = true,
+                appearance: MenuBarStyling? = nil, revealBehavior: MenuBarRevealBehaviorSnapshot? = nil) {
         self.id = id
         self.name = name
         self.symbolName = symbolName
         self.layout = layout
+        self.groups = groups
+        self.capturesLayout = capturesLayout
+        self.capturesGroups = capturesGroups
+        self.appearance = appearance
+        self.revealBehavior = revealBehavior
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, symbolName, layout, groups, capturesLayout, capturesGroups, appearance, revealBehavior
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+                  name: try container.decode(String.self, forKey: .name),
+                  symbolName: try container.decodeIfPresent(String.self, forKey: .symbolName) ?? "rectangle.stack",
+                  layout: try container.decodeIfPresent([String: MenuBarSection].self, forKey: .layout) ?? [:],
+                  groups: try container.decodeIfPresent([MenuBarItemGroup].self, forKey: .groups) ?? [],
+                  capturesLayout: try container.decodeIfPresent(Bool.self, forKey: .capturesLayout) ?? true,
+                  capturesGroups: try container.decodeIfPresent(Bool.self, forKey: .capturesGroups) ?? true,
+                  appearance: try container.decodeIfPresent(MenuBarStyling.self, forKey: .appearance),
+                  revealBehavior: try container.decodeIfPresent(MenuBarRevealBehaviorSnapshot.self, forKey: .revealBehavior))
+    }
+}
+
+public struct MenuBarRevealBehaviorSnapshot: Codable, Equatable, Sendable {
+    public var showOnHover: Bool
+    public var showOnClickEmptyMenuBar: Bool
+    public var showOnScroll: Bool
+    public var autoRehide: Bool
+    public var quickShelfPresentation: QuickShelfPresentation
 }
 
 public enum MenuBarPresetPlanner {
@@ -39,6 +76,32 @@ public enum MenuBarPresetPlanner {
     }
 }
 
+@MainActor
+public enum MenuBarPresetApplicator {
+    @discardableResult
+    public static func apply(_ preset: MenuBarPreset, manager: MenuBarManager = .shared) async -> Bool {
+        let workspace = MenuBarWorkspaceStore.shared
+        if preset.capturesGroups {
+            workspace.groups = preset.groups
+            let failures = MenuBarOwnedItemCoordinator.shared.apply(workspace.envelope.draft)
+            workspace.commit(successfulForeignKeys: [], commitOwnedItems: failures.isEmpty)
+        }
+        var settings = MenuBarManagerSettingsStore.shared.settings
+        if let appearance = preset.appearance { settings.styling = appearance }
+        if let reveal = preset.revealBehavior {
+            settings.showOnHover = reveal.showOnHover
+            settings.showOnClickEmptyMenuBar = reveal.showOnClickEmptyMenuBar
+            settings.showOnScroll = reveal.showOnScroll
+            settings.autoRehide = reveal.autoRehide
+            settings.quickShelfPresentation = reveal.quickShelfPresentation
+        }
+        MenuBarManagerSettingsStore.shared.settings = settings
+        guard preset.capturesLayout, !preset.layout.isEmpty else { return true }
+        guard MenuBarCapabilities.current.canMoveForeignItems else { return true }
+        return await manager.applyLayout(preset.layout)
+    }
+}
+
 @Observable
 public final class MenuBarPresetStore: @unchecked Sendable {
     public static let shared = MenuBarPresetStore()
@@ -53,20 +116,35 @@ public final class MenuBarPresetStore: @unchecked Sendable {
            let decoded = try? JSONDecoder().decode([MenuBarPreset].self, from: data) {
             presets = decoded
         } else {
-            presets = []
+            presets = [
+                MenuBarPreset(name: "Focus", symbolName: "scope", layout: [:]),
+                MenuBarPreset(name: "Everyday", symbolName: "sun.max", layout: [:]),
+                MenuBarPreset(name: "Everything Visible", symbolName: "eye", layout: [:])
+            ]
         }
     }
 
     /// Snapshot the current section of every discovered item into a new preset.
+    @MainActor
     public func captureCurrent(name: String, symbolName: String = "rectangle.stack",
-                               items: [MenuBarItemInfo]) -> MenuBarPreset {
+                               items: [MenuBarItemInfo], capturesLayout: Bool = true,
+                               capturesGroups: Bool = true, capturesAppearance: Bool = false,
+                               capturesRevealBehavior: Bool = false) -> MenuBarPreset {
         var layout: [String: MenuBarSection] = [:]
         for item in items where !item.isSystemControlled {
             if let section = item.section {
                 layout[item.stableKey] = section
             }
         }
-        let preset = MenuBarPreset(name: name, symbolName: symbolName, layout: layout)
+        let settings = MenuBarManagerSettingsStore.shared.settings
+        let preset = MenuBarPreset(name: name, symbolName: symbolName,
+            layout: capturesLayout ? layout : [:],
+            groups: capturesGroups ? MenuBarWorkspaceStore.shared.envelope.committed.groups : [],
+            capturesLayout: capturesLayout, capturesGroups: capturesGroups,
+            appearance: capturesAppearance ? settings.styling : nil,
+            revealBehavior: capturesRevealBehavior ? MenuBarRevealBehaviorSnapshot(showOnHover: settings.showOnHover,
+                showOnClickEmptyMenuBar: settings.showOnClickEmptyMenuBar, showOnScroll: settings.showOnScroll,
+                autoRehide: settings.autoRehide, quickShelfPresentation: settings.quickShelfPresentation) : nil)
         presets.append(preset)
         return preset
     }

@@ -37,12 +37,15 @@ final class SmartCareEngine: @unchecked Sendable {
     ) -> Void
 
     private actor ProgressEmitter {
-        private let update: (SmartCareScanUpdate) -> Void
+        private let update: @MainActor @Sendable (SmartCareScanUpdate) -> Void
         private let progressWeights: [SmartCareDomain: Double]
         private var progressByDomain: [SmartCareDomain: Double] = [:]
         private var counters = SmartScanLiveCounters.zero
 
-        init(update: @escaping (SmartCareScanUpdate) -> Void, progressWeights: [SmartCareDomain: Double]) {
+        init(
+            update: @escaping @MainActor @Sendable (SmartCareScanUpdate) -> Void,
+            progressWeights: [SmartCareDomain: Double]
+        ) {
             self.update = update
             self.progressWeights = progressWeights
         }
@@ -85,7 +88,9 @@ final class SmartCareEngine: @unchecked Sendable {
         }
     }
 
-    func runSmartCareScan(update: @escaping (SmartCareScanUpdate) -> Void) async -> SmartCareResult {
+    func runSmartCareScan(
+        update: @escaping @MainActor @Sendable (SmartCareScanUpdate) -> Void
+    ) async -> SmartCareResult {
         let start = Date()
         var domainResults: [SmartCareDomain: SmartCareDomainResult] = [:]
         let emitter = ProgressEmitter(update: update, progressWeights: progressWeights)
@@ -213,7 +218,7 @@ final class SmartCareEngine: @unchecked Sendable {
 
         domainResults[.applications] = applications
 
-        update(SmartCareScanUpdate(
+        await update(SmartCareScanUpdate(
             domain: .applications,
             title: "Scan complete",
             detail: "Preparing your Smart Scan results",

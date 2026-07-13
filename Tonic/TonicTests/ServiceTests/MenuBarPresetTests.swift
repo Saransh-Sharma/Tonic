@@ -36,4 +36,12 @@ final class MenuBarPresetTests: XCTestCase {
             XCTAssertEqual(decoded, section)
         }
     }
+
+    func testReviewedScriptTriggerRoundTrip() throws {
+        let id = UUID()
+        let trigger = MenuBarTrigger(name: "Refresh provider", condition: .charging,
+                                     action: .runReviewedScript(id))
+        XCTAssertEqual(try JSONDecoder().decode(MenuBarTrigger.self,
+            from: JSONEncoder().encode(trigger)), trigger)
+    }
 }

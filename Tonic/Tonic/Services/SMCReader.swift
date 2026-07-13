@@ -505,6 +505,8 @@ public final class SMCReader: @unchecked Sendable {
 
     // MARK: - Fan Control (Write Methods)
 
+    #if TONIC_HELPER
+
     /// Set the operating mode for a fan
     /// - Parameters:
     ///   - fanId: Fan index (0-based)
@@ -635,6 +637,7 @@ public final class SMCReader: @unchecked Sendable {
 
         return true
     }
+    #endif
 
     /// Read value from SMC
     private func read(_ value: inout SMCValue) -> kern_return_t {

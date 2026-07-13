@@ -470,7 +470,7 @@ final class AppInventoryViewTests: XCTestCase {
 
     func testSelectAndUninstall() {
         var installedApps = ["Safari", "Mail", "Finder"]
-        var selectedApps: Set<String> = ["Mail"]
+        let selectedApps: Set<String> = ["Mail"]
 
         installedApps = installedApps.filter { !selectedApps.contains($0) }
 

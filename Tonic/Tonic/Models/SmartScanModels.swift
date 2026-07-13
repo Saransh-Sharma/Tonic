@@ -10,7 +10,7 @@ import SwiftUI
 
 // MARK: - Scan Stage
 
-public enum ScanStage: String, CaseIterable, Identifiable {
+public enum ScanStage: String, CaseIterable, Identifiable, Sendable {
     case preparing = "Preparing"
     case scanningDisk = "Scanning Disk"
     case checkingApps = "Checking Apps"

@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class ScopeResolver {
+final class ScopeResolver: Sendable {
     static let shared = ScopeResolver()
 
     private init() {}

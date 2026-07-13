@@ -79,10 +79,9 @@ enum WIPFeature: String, CaseIterable {
 }
 
 enum FeatureFlags {
-    private static let defaults = UserDefaults.standard
-
     static func isEnabled(_ feature: WIPFeature) -> Bool {
         let key = key(for: feature)
+        let defaults = UserDefaults.standard
         if defaults.object(forKey: key) != nil {
             return defaults.bool(forKey: key)
         }
@@ -103,11 +102,11 @@ enum FeatureFlags {
 
     /// Persist a user's Labs toggle (or a DEBUG override).
     static func set(_ feature: WIPFeature, enabled: Bool) {
-        defaults.set(enabled, forKey: key(for: feature))
+        UserDefaults.standard.set(enabled, forKey: key(for: feature))
     }
 
     static func clearOverride(_ feature: WIPFeature) {
-        defaults.removeObject(forKey: key(for: feature))
+        UserDefaults.standard.removeObject(forKey: key(for: feature))
     }
 
     static func clearAllOverrides() {

@@ -90,7 +90,7 @@ struct FolderScanReportView: View {
         }
         .padding(TonicDS.Space.lg)
         .frame(width: 560, height: 480)
-        .background(TonicDS.Colors.canvas)
+        .tonicSheetBackground()
         .task(id: folderPath) { await scan() }
     }
 
@@ -148,7 +148,7 @@ struct FolderScanReportView: View {
                 options: [.skipsHiddenFiles]
             ) {
                 var visited = 0
-                for case let url as URL in enumerator {
+                while let url = enumerator.nextObject() as? URL {
                     visited += 1
                     if visited > 200_000 { break }
                     guard let values = try? url.resourceValues(

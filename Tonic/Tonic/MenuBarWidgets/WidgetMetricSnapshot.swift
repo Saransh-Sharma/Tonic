@@ -94,25 +94,31 @@ struct WidgetMetricSnapshot {
     let blocks: [WidgetPopoverBlock]
 
     @MainActor
-    init(widgetType: WidgetType, configuration: WidgetConfiguration, dataManager: WidgetDataManager) {
+    init(widgetType: WidgetType, configuration: WidgetConfiguration, dataManager: WidgetDataManager,
+         historyRange: ResourceHistoryRange = .live) {
         let usePercent = configuration.valueFormat == .percentage
         self.iconColor = TonicDS.Colors.textMuted
         // Chart history window from the persisted popover settings (~2s sample cadence
         // while a popover is open), so the Popup settings panel actually drives the chart.
         let keep = max(15, PopupSettingsStore.shared.settings.chartHistoryDuration / 2)
+        let longTerm = historyRange == .live ? [] : LongTermMetricsStore.shared.samples(for: historyRange)
 
         switch widgetType {
         case .network:
             traffic = WidgetTrafficHistory(
-                primary: Array(dataManager.networkDownloadHistory.suffix(keep)),
-                secondary: Array(dataManager.networkUploadHistory.suffix(keep)),
+                primary: historyRange == .live ? Array(dataManager.networkDownloadHistory.suffix(keep))
+                    : longTerm.map(\.networkDownloadBytesPerSecond),
+                secondary: historyRange == .live ? Array(dataManager.networkUploadHistory.suffix(keep))
+                    : longTerm.map(\.networkUploadBytesPerSecond),
                 primaryColor: TonicDS.Chart.download,
                 secondaryColor: TonicDS.Chart.upload
             )
         case .disk:
             traffic = WidgetTrafficHistory(
-                primary: Array(dataManager.diskReadHistory.suffix(keep)),
-                secondary: Array(dataManager.diskWriteHistory.suffix(keep)),
+                primary: historyRange == .live ? Array(dataManager.diskReadHistory.suffix(keep))
+                    : longTerm.map(\.diskReadBytesPerSecond),
+                secondary: historyRange == .live ? Array(dataManager.diskWriteHistory.suffix(keep))
+                    : longTerm.map(\.diskWriteBytesPerSecond),
                 primaryColor: TonicDS.Chart.read,
                 secondaryColor: TonicDS.Chart.write
             )
@@ -126,7 +132,7 @@ struct WidgetMetricSnapshot {
             let usage = cpu.totalUsage
             value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 3.0 * usage / 100)
             color = TonicDS.Chart.utilization(usage)
-            history = Array(dataManager.cpuHistory.suffix(keep))
+            history = historyRange == .live ? Array(dataManager.cpuHistory.suffix(keep)) : longTerm.map(\.cpuPercent)
 
             var built: [WidgetPopoverBlock] = [
                 .row("Total", "\(Int(usage))%", color: color,
@@ -177,7 +183,7 @@ struct WidgetMetricSnapshot {
             let usedGB = Double(memory.usedBytes) / 1_073_741_824
             value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGB", usedGB)
             color = TonicDS.Chart.utilization(usage)
-            history = Array(dataManager.memoryHistory.suffix(keep))
+            history = historyRange == .live ? Array(dataManager.memoryHistory.suffix(keep)) : longTerm.map(\.memoryPercent)
 
             // Composition over total: used-minus-compressed · compressed · free —
             // the same honest segments the Monitor console draws.
@@ -271,7 +277,8 @@ struct WidgetMetricSnapshot {
             color = network.isConnected
                 ? (uploadDominant ? TonicDS.Chart.upload : TonicDS.Chart.download)
                 : TonicDS.Colors.statusWarning
-            history = Array(dataManager.networkDownloadHistory.suffix(keep))
+            history = historyRange == .live ? Array(dataManager.networkDownloadHistory.suffix(keep))
+                : longTerm.map(\.networkDownloadBytesPerSecond)
 
             var built: [WidgetPopoverBlock] = [
                 .row("Down", network.downloadString, color: TonicDS.Chart.download),
@@ -313,7 +320,8 @@ struct WidgetMetricSnapshot {
             if let usage = gpu.usagePercentage {
                 value = usePercent ? "\(Int(usage))%" : String(format: "%.1fGHz", 1.0 + usage / 100)
                 color = TonicDS.Chart.utilization(usage)
-                history = Array(dataManager.gpuHistory.suffix(keep))
+                history = historyRange == .live ? Array(dataManager.gpuHistory.suffix(keep))
+                    : longTerm.compactMap(\.gpuPercent)
 
                 var built: [WidgetPopoverBlock] = [
                     .row("Utilization", "\(Int(usage))%", color: color,
@@ -347,7 +355,7 @@ struct WidgetMetricSnapshot {
                 blocks = built
             } else {
                 value = "--"; color = TonicDS.Colors.textMuted; history = []
-                blocks = [.row("GPU", "No live sample")]
+                blocks = [.row("GPU", "Unavailable on this hardware or build")]
             }
 
         case .weather:
@@ -467,7 +475,8 @@ struct WidgetMetricSnapshot {
                 value = "--"
                 color = TonicDS.Colors.textMuted
             }
-            history = Array(dataManager.sensorsHistory.suffix(keep))
+            history = historyRange == .live ? Array(dataManager.sensorsHistory.suffix(keep))
+                : longTerm.compactMap(\.temperatureC)
 
             var built: [WidgetPopoverBlock] = []
             let temps = sensors.temperatures.sorted { $0.value > $1.value }.prefix(8)
@@ -493,7 +502,7 @@ struct WidgetMetricSnapshot {
                 }
             }
             if built.isEmpty {
-                built.append(.row("Sensors", "No readings available"))
+                built.append(.row("Sensors", "Unavailable on this hardware or build"))
             }
             blocks = built
 

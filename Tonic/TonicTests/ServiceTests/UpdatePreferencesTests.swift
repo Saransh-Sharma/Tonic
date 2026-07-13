@@ -1,7 +1,6 @@
 import XCTest
 @testable import Tonic
 
-@MainActor
 final class UpdatePreferencesTests: XCTestCase {
 
     private var defaults: UserDefaults!
@@ -28,14 +27,14 @@ final class UpdatePreferencesTests: XCTestCase {
         )
     }
 
-    func testDefaultsAreDailyAndNotifying() {
+    @MainActor func testDefaultsAreDailyAndNotifying() {
         let prefs = UpdatePreferences(defaults: defaults)
         XCTAssertEqual(prefs.cadence, .daily)
         XCTAssertTrue(prefs.notifyOnUpdates)
         XCTAssertTrue(prefs.ignoredBundleIDs.isEmpty)
     }
 
-    func testIgnoredAppIsNotSurfaced() {
+    @MainActor func testIgnoredAppIsNotSurfaced() {
         let prefs = UpdatePreferences(defaults: defaults)
         let update = makeUpdate(bundleID: "com.test.a", latest: "2.0")
         XCTAssertTrue(prefs.shouldSurface(update))
@@ -45,7 +44,7 @@ final class UpdatePreferencesTests: XCTestCase {
         XCTAssertTrue(prefs.shouldSurface(update))
     }
 
-    func testSkippedVersionHidesOnlyThatVersion() {
+    @MainActor func testSkippedVersionHidesOnlyThatVersion() {
         let prefs = UpdatePreferences(defaults: defaults)
         prefs.skipVersion("2.0", for: "com.test.b")
         XCTAssertFalse(prefs.shouldSurface(makeUpdate(bundleID: "com.test.b", latest: "2.0")))
@@ -53,7 +52,7 @@ final class UpdatePreferencesTests: XCTestCase {
         XCTAssertTrue(prefs.shouldSurface(makeUpdate(bundleID: "com.test.b", latest: "2.1")))
     }
 
-    func testPreferencesPersistAcrossInstances() {
+    @MainActor func testPreferencesPersistAcrossInstances() {
         let prefs = UpdatePreferences(defaults: defaults)
         prefs.cadence = .weekly
         prefs.notifyOnUpdates = false
@@ -67,7 +66,7 @@ final class UpdatePreferencesTests: XCTestCase {
         XCTAssertFalse(reloaded.shouldSurface(makeUpdate(bundleID: "com.test.d", latest: "3.0")))
     }
 
-    func testAutoCheckDueLogic() {
+    @MainActor func testAutoCheckDueLogic() {
         let prefs = UpdatePreferences(defaults: defaults)
 
         prefs.cadence = .manual
@@ -92,7 +91,7 @@ final class UpdatePreferencesTests: XCTestCase {
 /// run with TONIC_LIVE_TESTS=1 in the environment.
 final class LiveUpdateCheckIntegrationTests: XCTestCase {
 
-    func testRealAppcastParsesToARealVersion() async throws {
+    @MainActor func testRealAppcastParsesToARealVersion() async throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["TONIC_LIVE_TESTS"] == "1",
             "live network test — set TONIC_LIVE_TESTS=1 to run"

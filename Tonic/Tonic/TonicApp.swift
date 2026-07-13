@@ -21,11 +21,11 @@ struct TonicApp: App {
             // sidebar-driven native Mac app.
             CommandGroup(after: .sidebar) {
                 Divider()
-                navigationCommand("Home", .dashboard, "1")
-                navigationCommand("Clean", .systemCleanup, "2")
-                navigationCommand("Apps", .appManager, "3")
-                navigationCommand("Monitor", .liveMonitoring, "4")
-                navigationCommand("Settings", .settings, "5")
+                navigationCommand(.home, "1")
+                navigationCommand(.care, "2")
+                navigationCommand(.organize, "3")
+                navigationCommand(.monitor, "4")
+                navigationCommand(.automate, "5")
             }
 
             CommandMenu("Tools") {
@@ -61,14 +61,6 @@ struct TonicApp: App {
                 }
             }
 
-            // Replace default Preferences menu item
-            CommandGroup(replacing: .appSettings) {
-                Button("Preferences...") {
-                    appDelegate.showPreferences()
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
-
             // Add application-specific commands
             CommandMenu("Help") {
                 Divider()
@@ -86,14 +78,19 @@ struct TonicApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultPosition(.center)
+        .defaultSize(width: 1180, height: 760)
+
+        Settings {
+            SettingsView()
+                .frame(minWidth: 760, minHeight: 560)
+        }
     }
 
-    private func navigationCommand(_ title: String, _ destination: NavigationDestination,
-                                   _ key: KeyEquivalent) -> some View {
-        Button(title) {
+    private func navigationCommand(_ hub: TonicHub, _ key: KeyEquivalent) -> some View {
+        Button(hub.title) {
             NotificationCenter.default.post(
-                name: .navigateToDestination, object: nil,
-                userInfo: ["destination": destination.rawValue]
+                name: .navigateToTonicHub, object: nil,
+                userInfo: ["hub": hub.rawValue]
             )
         }
         .keyboardShortcut(key, modifiers: .command)
@@ -103,6 +100,9 @@ struct TonicApp: App {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        prepareUITestStateIfRequested()
+        #endif
         // Set app activation policy to accessory for menu bar behavior
         // Use .regular for now to keep dock icon visible
         NSApp.setActivationPolicy(.regular)
@@ -130,39 +130,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationDelegate.shared.install()
         MaintenanceScheduler.shared.start()
 
-        // Apply saved theme preference
-        applyThemePreference()
-
         // Start widget system after a brief delay to allow the UI to appear first
         // This prevents blocking the main thread during app launch
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.startWidgetSystem()
         }
 
-        // Listen for theme changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(themeDidChange),
-            name: NSNotification.Name("TonicThemeDidChange"),
-            object: nil
-        )
+        // Drag-to-edge window snapping (no-op without Accessibility or when
+        // the preference is off; re-checked when either changes).
+        SnapDragController.shared.refresh()
+
+        // Cross-tool automations (reads the store each tick; enabling an
+        // automation needs no engine restart).
+        AutomationEngine.shared.start()
+        WindowRuleEngine.shared.start()
+        TopShelfAmbientMonitor.shared.start()
+        #if !TONIC_STORE
+        PrivateSpaceCoordinator.shared.start()
+        #endif
+
+        // Appearance is owned by macOS. Tonic does not override the user's system choice.
+        NSApp.appearance = nil
+
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-open-menu-bar") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NotificationCenter.default.post(name: .openMenuBarManagement, object: nil)
+            }
+        }
+        #endif
     }
 
-    @objc func themeDidChange() {
-        applyThemePreference()
-    }
-
-    private func applyThemePreference() {
-        let mode = AppearancePreferences.shared.themeMode
-        switch mode {
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .system:
-            NSApp.appearance = nil
+    #if DEBUG
+    private func prepareUITestStateIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--ui-test-open-menu-bar") else { return }
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "tonic.menuBarWorkspace.v2")
+        defaults.removeObject(forKey: "tonic.menuBarWorkspace.v1")
+        var settings = MenuBarManagerSettings.default
+        settings.isEnabled = true
+        defaults.set(try? JSONEncoder().encode(settings), forKey: "tonic.menuBarManager")
+        if arguments.contains("--ui-test-completed-menu-bar-setup") {
+            let envelope = MenuBarWorkspaceEnvelope(hasCompletedSetup: true, revealMigrationVersion: 2)
+            defaults.set(try? JSONEncoder().encode(envelope), forKey: "tonic.menuBarWorkspace.v2")
         }
     }
+    #endif
 
     func applicationDidBecomeActive(_ notification: Notification) {
         // Catch-up sample for instances that stay running across days.
@@ -189,6 +203,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep app running when window is closed (menu bar app behavior)
         return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        #if !TONIC_STORE
+        guard TonicHelperClient.shared.hasActiveFanSession else { return .terminateNow }
+        Task { @MainActor in
+            _ = await TonicHelperClient.shared.restoreAutomaticFanControl()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+        #else
+        return .terminateNow
+        #endif
     }
 
     @MainActor

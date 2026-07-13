@@ -67,6 +67,8 @@ public enum ResourceHistoryRange: String, CaseIterable, Codable, Sendable, Ident
     case live
     case oneHour
     case twentyFourHours
+    case sevenDays
+    case thirtyDays
 
     public var id: String { rawValue }
 
@@ -75,6 +77,8 @@ public enum ResourceHistoryRange: String, CaseIterable, Codable, Sendable, Ident
         case .live: return "Live"
         case .oneHour: return "1h"
         case .twentyFourHours: return "24h"
+        case .sevenDays: return "7d"
+        case .thirtyDays: return "30d"
         }
     }
 
@@ -83,7 +87,15 @@ public enum ResourceHistoryRange: String, CaseIterable, Codable, Sendable, Ident
         case .live: return nil
         case .oneHour: return 60 * 60
         case .twentyFourHours: return 24 * 60 * 60
+        case .sevenDays: return 7 * 24 * 60 * 60
+        case .thirtyDays: return 30 * 24 * 60 * 60
         }
+    }
+
+    /// Ranges longer than a day read the hour-bucketed tier instead of the
+    /// minute tier.
+    public var usesHourlyTier: Bool {
+        self == .sevenDays || self == .thirtyDays
     }
 }
 
@@ -258,6 +270,14 @@ public enum ResourceMetricCalculators {
 
     public static func minuteBucketTimestamp(for date: Date) -> Date {
         Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 / 60) * 60)
+    }
+
+    public static func hourBucketTimestamp(for date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 / 3600) * 3600)
+    }
+
+    public static func dayBucketTimestamp(for date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970 / 86_400) * 86_400)
     }
 
     public static func clampedPercent(_ value: Double) -> Double {

@@ -413,6 +413,7 @@ final class AccessibilityTests: XCTestCase {
         return renderer.nsImage ?? NSImage(size: NSSize(width: 1, height: 1))
     }
 
+    @MainActor
     private var editorialControlShowcase: some View {
         VStack(alignment: .leading, spacing: 16) {
             MonoLabel("Controls")

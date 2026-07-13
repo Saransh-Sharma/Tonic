@@ -104,6 +104,9 @@ public class WidgetStatusItem: NSObject, ObservableObject, NSPopoverDelegate {
         // deallocation, causing EXC_BAD_ACCESS in objc_release.
         popover?.animates = false
         popover?.delegate = self
+        // Smoked-glass consoles: the popover's own material renders dark and
+        // shows through the console wash (see `.tonicPopoverConsole()`).
+        popover?.appearance = NSAppearance(named: .darkAqua)
 
         // Content will be set by subclasses
     }
@@ -411,9 +414,11 @@ private struct EditorialWidgetPopoverView: View {
     let widgetType: WidgetType
     let configuration: WidgetConfiguration
     @State private var dataManager = WidgetDataManager.shared
+    @State private var selectedRange: ResourceHistoryRange = .live
 
     private var snapshot: WidgetMetricSnapshot {
-        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration,
+                             dataManager: dataManager, historyRange: selectedRange)
     }
 
     var body: some View {
@@ -435,6 +440,17 @@ private struct EditorialWidgetPopoverView: View {
 
             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
 
+            if supportsLongTermHistory {
+                Picker("History range", selection: $selectedRange) {
+                    ForEach(ResourceHistoryRange.allCases) { range in Text(range.displayName).tag(range) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, TonicDS.Space.md)
+                .padding(.vertical, TonicDS.Space.xs)
+                TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let traffic = snapshot.traffic {
@@ -450,7 +466,7 @@ private struct EditorialWidgetPopoverView: View {
                             )
                             .padding(TonicDS.Space.md)
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
-                        } else if widgetType.expectsHistory {
+                        } else if widgetType.expectsHistory && historyCapabilityAvailable {
                             popoverEmptyHistory
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
                         }
@@ -465,7 +481,7 @@ private struct EditorialWidgetPopoverView: View {
                             )
                             .padding(TonicDS.Space.md)
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
-                    } else if widgetType.expectsHistory {
+                    } else if widgetType.expectsHistory && historyCapabilityAvailable {
                         popoverEmptyHistory
                         TonicHairline(color: TonicDS.Colors.hairlineOnDark)
                     }
@@ -481,8 +497,24 @@ private struct EditorialWidgetPopoverView: View {
         }
         .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth)
         .frame(maxHeight: TonicDS.Layout.MenuBar.maxHeight)
-        .background(TonicDS.Colors.console)
+        .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
+    }
+
+    private var supportsLongTermHistory: Bool {
+        guard historyCapabilityAvailable else { return false }
+        return switch widgetType {
+        case .cpu, .memory, .network, .disk, .gpu, .sensors: true
+        default: false
+        }
+    }
+
+    private var historyCapabilityAvailable: Bool {
+        switch widgetType {
+        case .gpu: dataManager.gpuData.usagePercentage != nil
+        case .sensors: !dataManager.sensorsData.temperatures.isEmpty
+        default: true
+        }
     }
 
     @ViewBuilder
@@ -635,7 +667,7 @@ private struct WidgetDetailViewPlaceholder: View {
         }
         .padding(TonicDS.Space.md)
         .frame(width: PopupSettingsStore.shared.settings.resolvedPopoverWidth, alignment: .leading)
-        .background(TonicDS.Colors.console)
+        .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
     }
 }
@@ -717,12 +749,13 @@ public final class WidgetCoordinator: ObservableObject {
     /// Handle configuration change notification
     /// Performance optimization: Debounce rapid configuration changes
     private nonisolated func handleConfigurationChange(_ notification: Notification) {
+        // Copy only the Sendable payload before crossing to the main actor.
+        let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
+
         // Invalidate existing debounce timer
         Task { @MainActor [weak self] in
             self?.configChangeDebounceTimer?.invalidate()
 
-            // Extract widget type early to avoid Sendable issues
-            let widgetTypeRaw = notification.userInfo?["widgetType"] as? String
             let widgetType = widgetTypeRaw.flatMap { WidgetType(rawValue: $0) }
 
             // Schedule debounced refresh (100ms delay to batch rapid changes)
@@ -922,10 +955,4 @@ public final class WidgetCoordinator: ObservableObject {
         activeWidgets[type]
     }
 
-    deinit {
-        // Clean up observer
-        if let observer = configChangeObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-    }
 }

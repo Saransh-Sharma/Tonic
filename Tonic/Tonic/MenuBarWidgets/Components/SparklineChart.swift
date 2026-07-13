@@ -13,7 +13,7 @@ import SwiftUI
 
 /// Mini line chart for displaying metric history
 /// Optimized to avoid recalculating paths on every render
-public struct NetworkSparklineChart: View, Equatable {
+public struct NetworkSparklineChart: View {
 
     // MARK: - Properties
 
@@ -29,16 +29,6 @@ public struct NetworkSparklineChart: View, Equatable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// One-shot path draw-in on first appear; live data updates after stay instant.
     @State private var drawProgress: CGFloat = 0
-
-    // Performance: Equatable conformance for SwiftUI optimization
-    public static func == (lhs: NetworkSparklineChart, rhs: NetworkSparklineChart) -> Bool {
-        return lhs.data == rhs.data &&
-               lhs.color == rhs.color &&
-               lhs.height == rhs.height &&
-               lhs.showArea == rhs.showArea &&
-               lhs.lineWidth == rhs.lineWidth &&
-               lhs.fixedMax == rhs.fixedMax
-    }
 
     // MARK: - Initialization
 
@@ -252,7 +242,7 @@ public enum NetworkTrafficChartScale {
 }
 
 /// Directional traffic chart: download rises above the centerline, upload falls below it.
-public struct NetworkTrafficChart: View, Equatable {
+public struct NetworkTrafficChart: View {
     let downloadData: [Double]
     let uploadData: [Double]
     let height: CGFloat
@@ -265,16 +255,6 @@ public struct NetworkTrafficChart: View, Equatable {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var drawProgress: CGFloat = 0
-
-    public static func == (lhs: NetworkTrafficChart, rhs: NetworkTrafficChart) -> Bool {
-        lhs.downloadData == rhs.downloadData &&
-        lhs.uploadData == rhs.uploadData &&
-        lhs.height == rhs.height &&
-        lhs.mode == rhs.mode &&
-        lhs.lineWidth == rhs.lineWidth &&
-        lhs.downloadColor == rhs.downloadColor &&
-        lhs.uploadColor == rhs.uploadColor
-    }
 
     public init(
         downloadData: [Double],

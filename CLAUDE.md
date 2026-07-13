@@ -68,8 +68,8 @@ open Tonic/Tonic.xcodeproj
 ### Entry Points
 
 - **App Entry**: `Tonic/Tonic/TonicApp.swift` - Main app with `@main` attribute
-- **Navigation**: `Tonic/Tonic/Views/ContentView.swift` - NavigationSplitView container
-- **Sidebar**: `Tonic/Tonic/Views/SidebarView.swift` - Navigation destinations
+- **Navigation**: `Tonic/Tonic/Views/ContentView.swift` - Liquid-glass shell (no NavigationSplitView). Glass: transparent window holding a `TonicGlassSlab` (26pt rounded glass sheet, inset 56pt leading / 8pt elsewhere) with the rail floating OUTSIDE the slab in the transparent gutter, overlapping its edge. Flat tier: full-window `TonicWindowChrome` canvas + rail via `safeAreaInset(.leading)`.
+- **Rail**: `Tonic/Tonic/Views/FloatingRailView.swift` - Floating icon capsule (5 hubs + All Tools + Settings, hover flyout labels)
 
 ## Key Services (Singletons)
 
@@ -88,7 +88,44 @@ AppUpdateApplier.shared         // Applies detected updates (MAS deep link, laun
 HomebrewService.shared          // Cask inventory + streamed upgrades (direct build only, #if !TONIC_STORE)
 CleanupHistoryStore.shared      // 30-day recoverable cleanup history (Trash-backed undo)
 DiskUsageHistoryStore.shared    // Daily disk samples + storage forecast
+WindowManagementService.shared  // AX window placement + workspaces (capture/apply), cycling, snap placement
+WindowWorkspaceStore.shared     // Workspaces, display rules, window behavior prefs
+SnapDragController.shared       // Drag-to-edge snapping with glass zone overlay (global mouse monitors)
+AutomationStore.shared          // Cross-tool automations (TriggerCondition → AutomationAction steps)
+AutomationEngine.shared         // Evaluates automations (60s tick + app launch/quit), restore points, receipts
 ```
+
+### Windows v2 (`Services/WindowManagementService.swift` + friends)
+
+- **Workspaces**: `captureWorkspace(named:)` snapshots every regular app's standard
+  windows (frames normalized to each display's visible frame in `WorkspaceWindowSnapshot`);
+  `apply(_:)` re-places by exact-title match first, then order. Persisted in
+  `WindowWorkspaceStore` (UserDefaults JSON).
+- **Display rules**: `DisplayRule` auto-applies a workspace when a display (matched
+  by name) connects; evaluated on `didChangeScreenParametersNotification` with a 1.5s settle delay.
+- **Cycling**: repeat-press of left/right half steps ½ → ⅓ → ⅔ (`WindowAction.cycleFrames`),
+  gated by `WindowWorkspaceStore.cyclingEnabled`.
+- **Snap**: `SnapDragController` (global `.leftMouseDragged`/`.leftMouseUp` monitors,
+  requires Accessibility) confirms a window move via AX origin tracking, previews edge
+  zones in a glass overlay NSPanel, and places via `performSnap(_:window:on:)`.
+
+### Automations (`Services/AutomationEngine.swift`)
+
+Reuses the menu bar system's pure `TriggerCondition`/`TriggerEvaluator` (battery/Wi-Fi/
+app/time). `Automation` = condition + ordered `AutomationAction` steps
+(applyWorkspace / applyMenuBarPreset / collapse/expand menu bar [direct-only] /
+runMaintenance) + optional restore-on-clear (captures window arrangement + menu bar
+layout before firing). UI in `Views/Automate/AutomationsView.swift` (templates + editor
+sheet); engine started in `applicationDidFinishLaunching`. Every run/revert records an
+`ActionReceipt`.
+
+### Disk Map (`Services/DiskMapScanner.swift` + `Views/Clean/DiskMapView.swift`)
+
+DaisyDisk-style sunburst in Care › Storage: one enumeration pass aggregates allocated
+sizes into a 3-level path trie (top 14 children per node + "Other"), rendered as Canvas
+arc rings on smoked glass with hover readout, click-to-drill (rescans that root),
+Reveal in Finder. Read-only. Segment colors come from `TonicDS.Chart.categorical`
+(muted identity hues — never the status scale).
 
 ### App Update Architecture (`Services/AppUpdater.swift` + friends)
 
@@ -149,19 +186,30 @@ User Defaults wrapper:
 @AppStorage("launchAtLogin") private var launchAtLogin = false
 ```
 
-## Design System — TonicDS (Editorial "Command Center")
+## Design System — TonicDS ("Liquid Tonic" glass)
 
-The UI uses the editorial design language defined in `TonicDesign.md` (white/obsidian
-canvases, deep-green/navy module bands, near-black `#17171c` monitoring consoles, flat depth,
-display/body/mono type split). **The data is the media**: status colors (green→yellow→orange→red)
-are data-only; brand coral is brand-only.
+The UI uses the **Liquid Tonic** glass language defined in `TonicDesign.md`: the window is a
+translucent sheet over the desktop (behind-window blur + canvas wash), navigation is a floating
+glass icon rail, content sits on washed-glass surfaces (Z-model: Z0 desktop light → Z1
+surfaces/smoked consoles/bands → Z2 overlays → Z3 Liquid Glass chrome). **The data is the
+media; glass is chrome, never meaning**: status colors (green→yellow→orange→red) are
+data-only; the mineral-green brand accent (`brandAccent`, `#176b58`/`#5cc7a7` — `accentCoral`
+is a legacy alias) is brand-only; smoke wash under status readouts never drops below 0.60.
+Reduce Transparency (app or system) collapses every layer to the flat editorial fills.
 
 Located in `Tonic/Tonic/Design/`:
 
 - **TonicDS.swift** — the source of truth: `TonicDS.Colors` (canvas, surface, ink, console,
-  deepGreen, darkNavy, softStone, status scale, accentCoral, linkBlue), `TonicDS.TypeRole` +
+  deepGreen, darkNavy, softStone, status scale, brandAccent, linkBlue, glassStroke),
+  `TonicDS.Glass` (Layer enum + wash constants), `TonicDS.TypeRole` +
   `.tonicType(_:)` (carved tracking/line-height), `TonicDS.Space/Radius/Layout/Motion/Elevation`,
   and `TonicDS.status(forFraction:/forTempC:/forBattery:)`.
+- **TonicGlass.swift** — `TonicGlassPolicy` (single glass on/off authority; folds in the app
+  toggle, the macOS accessibility setting, and `GlassIntensity`) and the resolution modifiers:
+  `.tonicSurface(_:in:tint:flatFill:flatStroke:)`, `.tonicCanvas()`, `.tonicSheetBackground()`,
+  `.tonicPopoverConsole()`. Components resolve their own layer — call sites never pick materials.
+- **TonicWindowChrome.swift** — Z0: `TonicWindowChrome` (NSVisualEffectView behind-window blur +
+  canvas wash) and `WindowConfigurator` (transparent NSWindow setup).
 - **TonicEditorialComponents.swift** — `PrimaryPill`, `TextAction`, `FilterPill`,
   `CategoryFilterChip`, `StatusChip`, `AlertBanner`, `DataCard`, `MonitoringConsole`, `ModuleBand`,
   `ScanCategoryCard`, `SettingsPanel`, `SystemListRow`, `TonicPageHeader`, `TonicEmptyState`,
@@ -183,6 +231,8 @@ TonicDS.Space.md / .section          // 16pt / 64pt
 TonicDS.Radius.card / .pill          // 22pt / 32pt
 Text("CPU").tonicType(.monoLabel)    // carved/tracked type roles
 TonicDS.status(forFraction: 0.92)    // data status color
+view.tonicSurface(.smoked, in: RoundedRectangle(cornerRadius: TonicDS.Radius.md))
+view.tonicCanvas()                   // page root: clear under glass, canvas when flat
 ```
 
 ## Navigation Structure (reimagined IA — 5 primary + Advanced)
@@ -360,8 +410,12 @@ xcodebuild -scheme TonicStore -configuration Debug build
   SystemListRow, DataCard, MonitoringConsole, MonoLabel, Metric …) and
   `TonicEditorialChrome` (TonicTabBar, TonicBentoGrid, ChartCard, tonicToast).
 - Status colors (green→yellow→orange→red) are **data-only** and always pair
-  with a status word; brand coral never appears on gauges or readouts.
-- Menu-bar popovers are fixed 280pt consoles; dense rows keep 44pt targets.
+  with a status word; the brand accent never appears on gauges or readouts.
+- Glass rules: resolve surfaces via `.tonicSurface(_:in:)` / page roots via
+  `.tonicCanvas()` / sheet roots via `.tonicSheetBackground()` — never hand-roll
+  a `Material` or `glassEffect`. `glassEffect` is Z3 chrome only (≤3 per window).
+  Every glass branch must have a flat fallback identical to the legacy fill.
+- Menu-bar popovers are fixed-width smoked consoles; dense rows keep 44pt targets.
 
 ## Common Tasks
 

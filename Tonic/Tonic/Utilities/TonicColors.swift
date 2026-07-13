@@ -18,6 +18,7 @@ enum TonicBrandAssets {
         "Potion Thiings Collection Image"
     ]
 
+    @MainActor
     static func appImage() -> Image {
         if let image = appNSImage() {
             return Image(nsImage: image)
@@ -25,6 +26,7 @@ enum TonicBrandAssets {
         return Image(systemName: "app.fill")
     }
 
+    @MainActor
     static func appNSImage() -> NSImage? {
         for assetName in preferredAssetNames {
             if let image = NSImage(named: NSImage.Name(assetName)) {

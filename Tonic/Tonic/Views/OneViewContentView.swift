@@ -156,17 +156,17 @@ struct OneViewMenuBarPreview: View {
 #Preview("OneView Compact") {
     OneViewContentView()
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(TonicDS.Colors.canvas)
 }
 
 #Preview("OneView Grid Layout") {
     OneViewGridLayout()
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(TonicDS.Colors.canvas)
 }
 
 #Preview("OneView Menu Bar Simulation") {
     OneViewMenuBarPreview()
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(TonicDS.Colors.canvas)
 }

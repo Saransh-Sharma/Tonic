@@ -8,7 +8,7 @@
 import Foundation
 
 /// Metadata for an installed application
-public struct AppMetadata: Identifiable, Codable, Hashable {
+public struct AppMetadata: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     let bundleIdentifier: String
     let appName: String
@@ -90,7 +90,7 @@ public struct AppMetadata: Identifiable, Codable, Hashable {
         self.itemType = itemType
     }
 
-    enum AppCategory: String, CaseIterable, Codable {
+    enum AppCategory: String, CaseIterable, Codable, Sendable {
         case system = "System"
         case productivity = "Productivity"
         case creativity = "Creativity"

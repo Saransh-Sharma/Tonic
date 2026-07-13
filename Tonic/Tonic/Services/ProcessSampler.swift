@@ -194,14 +194,16 @@ final class ProcessSampler: @unchecked Sendable {
     private static func processName(for pid: pid_t) -> String {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         if proc_pidpath(pid, &buffer, UInt32(MAXPATHLEN)) > 0 {
-            let path = String(cString: buffer)
+            let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            let path = String(decoding: bytes, as: UTF8.self)
             if !path.isEmpty {
                 return (path as NSString).lastPathComponent
             }
         }
         var nameBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         if proc_name(pid, &nameBuffer, UInt32(MAXPATHLEN)) > 0 {
-            return String(cString: nameBuffer)
+            let bytes = nameBuffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            return String(decoding: bytes, as: UTF8.self)
         }
         return "pid \(pid)"
     }

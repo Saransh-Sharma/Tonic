@@ -1,0 +1,55 @@
+name: First-party provider release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable provider release tag
+        required: true
+        default: provider-remote.tonic-release-v1.0.0
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode and validate the remote descriptor
+        run: |
+          jq -e '
+            .manifest.id == "remote.tonic-release" and
+            .manifest.supportedSchemaRange.minimum <= 2 and
+            .manifest.supportedSchemaRange.maximum >= 1 and
+            (.endpoint | startswith("https://")) and
+            .allowsPrivateNetwork == false and
+            .refreshInterval >= 3600
+          ' Marketplace/Artifacts/remote.tonic-release-1.0.0.json
+      - name: Verify catalog digest matches the immutable artifact
+        run: |
+          expected="$(jq -r '.body.payload.entries[] | select(.id == "remote.tonic-release") | .releases[] | select(.version == "1.0.0") | .sha256' Marketplace/catalog-unsigned.json)"
+          actual="$(shasum -a 256 Marketplace/Artifacts/remote.tonic-release-1.0.0.json | awk '{print $1}')"
+          test "$expected" = "$actual"
+
+  publish:
+    needs: validate
+    runs-on: macos-15
+    environment: production-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require repository release immutability
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_ADMIN_TOKEN }}
+        run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')" = true
+      - name: Publish artifact through a draft, then lock it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.tag }}" \
+            Marketplace/Artifacts/remote.tonic-release-1.0.0.json \
+            --draft --target "$GITHUB_SHA" --title "Tonic provider ${{ inputs.tag }}"
+          gh release edit "${{ inputs.tag }}" --draft=false

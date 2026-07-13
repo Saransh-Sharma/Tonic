@@ -16,6 +16,7 @@ public struct KeyboardShortcutRecorder: View {
     @State private var store = HotkeySettingsStore.shared
     @State private var hotkeys = GlobalHotkeyManager.shared
     @State private var isRecording = false
+    @State private var conflictTitle: String?
     @State private var monitor = MonitorBox()
 
     /// Local-monitor token lives outside SwiftUI state diffing.
@@ -39,7 +40,11 @@ public struct KeyboardShortcutRecorder: View {
 
     public var body: some View {
         HStack(spacing: TonicDS.Space.sm) {
-            if registrationFailed {
+            if let conflictTitle {
+                Text("Used by \(conflictTitle)")
+                    .tonicType(.caption)
+                    .foregroundStyle(TonicDS.Colors.statusWarning)
+            } else if registrationFailed {
                 Text("In use by another app")
                     .tonicType(.caption)
                     .foregroundStyle(TonicDS.Colors.statusWarning)
@@ -103,12 +108,18 @@ public struct KeyboardShortcutRecorder: View {
             clearShortcut()
         default:
             guard let spec = ShortcutSpec(event: event) else { return }
+            if let taken = store.action(boundTo: spec, excluding: action) {
+                conflictTitle = taken.title
+                return
+            }
+            conflictTitle = nil
             store.setShortcut(spec, for: action)
             GlobalHotkeyManager.shared.applyAll()
         }
     }
 
     private func clearShortcut() {
+        conflictTitle = nil
         store.setShortcut(nil, for: action)
         GlobalHotkeyManager.shared.applyAll()
     }

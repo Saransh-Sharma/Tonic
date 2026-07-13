@@ -1,14 +1,15 @@
 import XCTest
 @testable import Tonic
 
-@MainActor
 final class WidgetDataManagerLiveMonitoringTests: XCTestCase {
-    override func tearDown() {
-        WidgetDataManager.shared.stopMonitoring()
+    nonisolated override func tearDown() {
+        MainActor.assumeIsolated {
+            WidgetDataManager.shared.stopMonitoring()
+        }
         super.tearDown()
     }
 
-    func testEnsureLiveMonitoringStartsWhenStopped() {
+    @MainActor func testEnsureLiveMonitoringStartsWhenStopped() {
         let manager = WidgetDataManager.shared
         manager.stopMonitoring()
 
@@ -18,7 +19,7 @@ final class WidgetDataManagerLiveMonitoringTests: XCTestCase {
         XCTAssertTrue(manager.activeReaderIDsForTesting.isSuperset(of: ["CPU.load", "RAM.load", "Disk.load", "Net.load"]))
     }
 
-    func testEnsureLiveMonitoringRestartsMissingRequiredReaders() {
+    @MainActor func testEnsureLiveMonitoringRestartsMissingRequiredReaders() {
         let manager = WidgetDataManager.shared
         manager.stopMonitoring()
         manager.startMonitoring()
@@ -32,7 +33,7 @@ final class WidgetDataManagerLiveMonitoringTests: XCTestCase {
         XCTAssertTrue(manager.activeReaderIDsForTesting.isSuperset(of: ["CPU.load", "RAM.load", "Disk.load", "Net.load"]))
     }
 
-    func testFirstLiveMetricSampleSetsHealthFields() {
+    @MainActor func testFirstLiveMetricSampleSetsHealthFields() {
         let manager = WidgetDataManager.shared
         manager.setLastLiveSampleAtForTesting(nil)
 
@@ -42,7 +43,7 @@ final class WidgetDataManagerLiveMonitoringTests: XCTestCase {
         XCTAssertNotNil(manager.lastLiveSampleAt)
     }
 
-    func testStaleLiveSampleTriggersReaderRepair() {
+    @MainActor func testStaleLiveSampleTriggersReaderRepair() {
         let manager = WidgetDataManager.shared
         manager.stopMonitoring()
         manager.startMonitoring()
@@ -55,7 +56,7 @@ final class WidgetDataManagerLiveMonitoringTests: XCTestCase {
         XCTAssertTrue(manager.activeReaderIDsForTesting.isSuperset(of: ["CPU.load", "RAM.load", "Disk.load", "Net.load"]))
     }
 
-    func testNetworkLiveSamplingDoesNotBlockOnSynchronousPing() throws {
+    @MainActor func testNetworkLiveSamplingDoesNotBlockOnSynchronousPing() throws {
         let source = try widgetDataManagerSource()
         guard let cpuRange = source.range(of: "private func updateCPUData()"),
               let cpuEndRange = source.range(of: "private func getCPUUsageSnapshot()"),

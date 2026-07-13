@@ -8,27 +8,25 @@
 import XCTest
 @testable import Tonic
 
-@MainActor
 final class ActivityLogStoreTests: XCTestCase {
     private let suiteName = "ActivityLogStoreTests"
     private var userDefaults: UserDefaults!
-    private var store: ActivityLogStore!
+    @MainActor private lazy var store = ActivityLogStore(userDefaults: userDefaults)
 
     override func setUp() {
         super.setUp()
-        userDefaults = UserDefaults(suiteName: suiteName)
-        userDefaults.removePersistentDomain(forName: suiteName)
-        store = ActivityLogStore(userDefaults: userDefaults)
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        userDefaults = defaults
     }
 
     override func tearDown() {
         userDefaults.removePersistentDomain(forName: suiteName)
-        store = nil
         userDefaults = nil
         super.tearDown()
     }
 
-    func testRecordPrependsAndPrunesTo200() {
+    @MainActor func testRecordPrependsAndPrunesTo200() {
         for index in 0..<210 {
             store.record(makeEvent(index))
         }
@@ -38,7 +36,7 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertEqual(store.entries.last?.title, "Event 10")
     }
 
-    func testPersistenceRoundTrip() {
+    @MainActor func testPersistenceRoundTrip() {
         store.record(makeEvent(1))
 
         let reloaded = ActivityLogStore(userDefaults: userDefaults)
@@ -46,7 +44,7 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.entries.first?.title, "Event 1")
     }
 
-    func testInstallLoggedOnce() {
+    @MainActor func testInstallLoggedOnce() {
         store.recordInstallIfNeeded(version: "1.0", build: "1")
         store.recordInstallIfNeeded(version: "1.0", build: "1")
 
@@ -54,7 +52,7 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertEqual(installEvents.count, 1)
     }
 
-    func testUpdateLoggedOnVersionChange() {
+    @MainActor func testUpdateLoggedOnVersionChange() {
         store.recordInstallIfNeeded(version: "1.0", build: "1")
         store.recordUpdateIfNeeded(version: "1.0", build: "1")
         XCTAssertEqual(store.entries.count, 1)
@@ -65,7 +63,7 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertTrue(store.entries.first?.detail.contains("From 1.0 (Build 1) -> 1.1 (Build 2)") ?? false)
     }
 
-    func testDecodeFailureClearsSafely() {
+    @MainActor func testDecodeFailureClearsSafely() {
         userDefaults.set(Data("bad".utf8), forKey: "tonic.activity.log")
 
         let reloaded = ActivityLogStore(userDefaults: userDefaults)

@@ -13,6 +13,7 @@ import SwiftUI
 enum CleanTab: String, CaseIterable, Hashable {
     case smartScan = "Smart Scan"
     case storage = "Storage"
+    case recovery = "Recovery"
     case history = "History"
 }
 
@@ -28,6 +29,9 @@ struct CleanView: View {
     @State private var appeared = false
     @State private var revealedRecoverableBytes: Int64 = 0
     @State private var showAllStorage = false
+    #if !TONIC_STORE
+    @State private var privilegedReview: PrivilegedOperationReview?
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
@@ -39,6 +43,7 @@ struct CleanView: View {
                 switch tab {
                 case .smartScan: smartScanTab
                 case .storage: storageTab
+                case .recovery: RecoveryCenterView()
                 case .history: historyTab
                 }
             }
@@ -52,7 +57,7 @@ struct CleanView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .tonicScreenHPadding()
         .padding(.vertical, TonicDS.Space.xxl)
-        .background(TonicDS.Colors.canvas)
+        .tonicCanvas()
         // Undo toasts hold longer than informational ones — the undo window is a promise.
         .tonicToast($toast, autoDismiss: 10)
         .onAppear {
@@ -62,6 +67,13 @@ struct CleanView: View {
         }
         .onChange(of: session.runSummary?.recoveryBatchID) { _, _ in handleRunSummary() }
         .sheet(isPresented: reviewBinding) { reviewSheet }
+        #if !TONIC_STORE
+        .sheet(item: $privilegedReview) { review in
+            PrivilegedOperationReviewSheet(review: review) { result in
+                if let result { toast = ToastData(message: result.detail) }
+            }
+        }
+        #endif
     }
 
     // MARK: - Header
@@ -87,6 +99,7 @@ struct CleanView: View {
         switch tab {
         case .smartScan: return "Review before cleaning · Runs locally · Restore supported"
         case .storage: return "Explore recoverable storage by size"
+        case .recovery: return "Diagnose first · Preserve configuration · Stop on failure"
         case .history: return "Restore items from past cleanups"
         }
     }
@@ -286,7 +299,9 @@ struct CleanView: View {
             return
         }
         revealedRecoverableBytes = 0
-        withAnimation(.easeOut(duration: 0.6)) { revealedRecoverableBytes = total }
+        withAnimation(TonicMotionPolicy(reduceMotion: reduceMotion).proof) {
+            revealedRecoverableBytes = total
+        }
     }
 
     private var resultsCards: some View {
@@ -344,6 +359,9 @@ struct CleanView: View {
                     whatGrewCard
                         .padding(.horizontal, TonicDS.Space.md)
                         .padding(.bottom, TonicDS.Space.md)
+                    DiskMapCard()
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.bottom, TonicDS.Space.md)
                     if let report = result.hiddenSpaceReport, report.hasDiscrepancy {
                         hiddenSpaceCard(report)
                             .padding(.horizontal, TonicDS.Space.md)
@@ -377,13 +395,22 @@ struct CleanView: View {
             }
             .accessibilityLabel("Scanning storage")
         } else {
-            TonicEmptyState(
-                systemImage: "externaldrive",
-                title: "Nothing to explore yet",
-                message: "Run a Smart Scan to explore recoverable storage by size.",
-                actionTitle: "Run Smart Scan",
-                onAction: { tab = .smartScan; session.startScan() }
-            )
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+                    DiskMapCard()
+                        .padding(.horizontal, TonicDS.Space.md)
+                        .padding(.top, TonicDS.Space.md)
+                    TonicEmptyState(
+                        systemImage: "externaldrive",
+                        title: "Nothing to explore yet",
+                        message: "Run a Smart Scan to explore recoverable storage by size.",
+                        actionTitle: "Run Smart Scan",
+                        onAction: { tab = .smartScan; session.startScan() }
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, TonicDS.Space.xl)
+                }
+            }
         }
     }
 
@@ -479,6 +506,21 @@ struct CleanView: View {
                             Spacer()
                             Text(cause.formattedSize).tonicType(.monoLabel).monospacedDigit()
                                 .foregroundStyle(TonicDS.Colors.textPrimary)
+                            if cause.name.localizedCaseInsensitiveContains("Time Machine") {
+                                #if !TONIC_STORE
+                                Button("Review Reclaim") {
+                                    privilegedReview = PrivilegedOperationReview(
+                                        title: "Reclaim local snapshots",
+                                        operation: .deleteLocalTimeMachineSnapshots,
+                                        scope: "Local Time Machine snapshots on the startup volume (/).",
+                                        impact: "macOS removes eligible local snapshots and may reclaim approximately \(cause.formattedSize).",
+                                        warning: "The helper accepts no caller-provided path or command. Time Machine backups on other disks are untouched."
+                                    )
+                                }.buttonStyle(.bordered)
+                                #else
+                                StatusChip("Direct build", level: .info)
+                                #endif
+                            }
                         }
                     }
                 }

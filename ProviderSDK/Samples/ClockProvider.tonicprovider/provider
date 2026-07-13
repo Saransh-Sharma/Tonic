@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+request="$(head -n 1)"
+request_id="$(printf '%s' "$request" | sed -E 's/.*"requestID":"([^"]+)".*/\1/')"
+generated="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+label="$(date '+%H:%M')"
+printf '{"schemaVersion":1,"requestID":"%s","label":"%s","accessibilityText":"Current time %s","generatedAt":"%s","status":"neutral"}\n' "$request_id" "$label" "$label" "$generated"

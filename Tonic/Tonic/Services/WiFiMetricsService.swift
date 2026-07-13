@@ -8,7 +8,7 @@
 //
 
 import Foundation
-import CoreWLAN
+@preconcurrency import CoreWLAN
 import os
 import SwiftUI
 

@@ -1,0 +1,11 @@
+{
+  "provider": {
+    "id": "com.example.tonic.clock",
+    "schemaVersion": 1,
+    "displayName": "Clock Sample",
+    "providerVersion": "1.0.0",
+    "minimumRefreshSeconds": 60,
+    "capabilities": ["label", "accessibilityText", "freshness"]
+  },
+  "executableRelativePath": "provider"
+}

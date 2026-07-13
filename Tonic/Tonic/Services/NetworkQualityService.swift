@@ -17,6 +17,7 @@ import SystemConfiguration
 /// Service for measuring network quality (ping, jitter, packet loss)
 /// Uses system ICMP ping for accurate latency measurements
 @Observable
+@MainActor
 public final class NetworkQualityService {
     public static let shared = NetworkQualityService()
 

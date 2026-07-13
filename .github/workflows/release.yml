@@ -1,0 +1,70 @@
+name: Tonic 5 release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Signed release tag (for example v5.0.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: cd Tonic && xcodegen generate
+      - name: Localization extraction and release-surface coverage
+        run: ./scripts/audit-localizations.sh
+      - name: Unit tests
+        run: cd Tonic && xcodebuild -project Tonic.xcodeproj -scheme Tonic test CODE_SIGNING_ALLOWED=NO
+      - name: Store build and exclusion audit
+        run: |
+          cd Tonic
+          xcodebuild -project Tonic.xcodeproj -scheme TonicStore -derivedDataPath "$RUNNER_TEMP/store" build CODE_SIGNING_ALLOWED=NO
+          ../scripts/audit-store-exclusions.sh "$RUNNER_TEMP/store/Build/Products/Debug/TonicStore.app"
+
+  distribute:
+    needs: verify
+    runs-on: macos-26
+    environment: production-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - name: Import protected signing identities
+        env:
+          DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          DEVELOPER_ID_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+        run: ./scripts/import-ci-signing-identity.sh
+      - name: Validate release trust roots
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+          TONIC_ARTIFACT_PUBLIC_KEY: ${{ secrets.TONIC_ARTIFACT_PUBLIC_KEY }}
+        run: ./scripts/validate-release-configuration.sh
+      - name: Archive, sign helper first, notarize, and staple
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+          TONIC_ARTIFACT_PUBLIC_KEY: ${{ secrets.TONIC_ARTIFACT_PUBLIC_KEY }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: ./scripts/archive-and-notarize.sh "${{ inputs.release_tag }}"
+      - name: Generate signed stable appcast and deltas
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: ./scripts/generate-appcast.sh Artifacts
+      - name: Store archive exclusion audit
+        run: ./scripts/audit-store-exclusions.sh Artifacts/TonicStore.xcarchive/Products/Applications/TonicStore.app
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: |
+            Artifacts/Tonic.dmg
+            Artifacts/Tonic.zip
+            Artifacts/TonicStore.xcarchive.zip
+            Artifacts/appcast.xml
