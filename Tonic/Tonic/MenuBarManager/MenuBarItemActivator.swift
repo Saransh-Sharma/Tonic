@@ -57,8 +57,18 @@ final class MenuBarItemActivator {
             ?? manager.items.first { $0.stableKey == item.stableKey }
             ?? item
 
-        let appElement = AXUIElementCreateApplication(fresh.ownerPID)
+        let child = try Self.statusElement(for: fresh)
 
+        guard AXUIElementPerformAction(child, kAXPressAction as CFString) == .success else {
+            throw ActivationError.pressFailed
+        }
+        logger.info("Activated menu bar item for \(fresh.ownerName)")
+    }
+
+    /// Resolves a foreign status item without activating it. The returned AX
+    /// element is used only on the main actor and is never persisted.
+    static func statusElement(for item: MenuBarItemInfo) throws -> AXUIElement {
+        let appElement = AXUIElementCreateApplication(item.ownerPID)
         var extrasRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, "AXExtrasMenuBar" as CFString, &extrasRef) == .success,
               let extras = extrasRef, CFGetTypeID(extras) == AXUIElementGetTypeID() else {
@@ -66,21 +76,37 @@ final class MenuBarItemActivator {
         }
         // swiftlint:disable:next force_cast
         let extrasBar = extras as! AXUIElement
+        let children = axChildren(extrasBar)
+        guard !children.isEmpty else { throw ActivationError.noMatch }
+        return children.count == 1 ? children[0]
+            : bestMatch(children: children, frame: item.frame) ?? children[0]
+    }
 
-        var childrenRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(extrasBar, kAXChildrenAttribute as CFString, &childrenRef) == .success,
-              let children = childrenRef as? [AXUIElement], !children.isEmpty else {
-            throw ActivationError.noMatch
+    /// Reads the currently open menu using Accessibility metadata only. Text
+    /// and element paths live for the proxy session and are never persisted.
+    static func openMenuItems(for item: MenuBarItemInfo) -> [ForeignMenuProxyItem] {
+        let application = AXUIElementCreateApplication(item.ownerPID)
+        guard let menu = firstDescendant(of: application, role: kAXMenuRole as String,
+                                         maximumDepth: 5) else { return [] }
+        var result: [ForeignMenuProxyItem] = []
+        collectMenuItems(menu, path: [], depth: 0, into: &result)
+        return Array(result.prefix(ForeignMenuProxySession.maximumItems))
+    }
+
+    /// Re-resolves the transient menu path immediately before forwarding a
+    /// deliberate activation. Ambiguous or changed trees fail closed.
+    static func performOpenMenuPath(for item: MenuBarItemInfo, path: [Int]) -> Bool {
+        let application = AXUIElementCreateApplication(item.ownerPID)
+        guard let menu = firstDescendant(of: application, role: kAXMenuRole as String,
+                                         maximumDepth: 5) else { return false }
+        var current = menu
+        for index in path {
+            let children = axChildren(current)
+            guard children.indices.contains(index) else { return false }
+            current = children[index]
         }
-
-        let child = children.count == 1
-            ? children[0]
-            : Self.bestMatch(children: children, frame: fresh.frame) ?? children[0]
-
-        guard AXUIElementPerformAction(child, kAXPressAction as CFString) == .success else {
-            throw ActivationError.pressFailed
-        }
-        logger.info("Activated menu bar item for \(fresh.ownerName)")
+        guard axBoolean(current, kAXEnabledAttribute as String) ?? true else { return false }
+        return AXUIElementPerformAction(current, kAXPressAction as CFString) == .success
     }
 
     static func ensureTrust() -> Bool {
@@ -108,6 +134,64 @@ final class MenuBarItemActivator {
             }
         }
         return best?.element
+    }
+
+    private static func axChildren(_ element: AXUIElement) -> [AXUIElement] {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &ref) == .success else {
+            return []
+        }
+        return ref as? [AXUIElement] ?? []
+    }
+
+    private static func axString(_ element: AXUIElement, _ attribute: String) -> String? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        return ref as? String
+    }
+
+    private static func axBoolean(_ element: AXUIElement, _ attribute: String) -> Bool? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &ref) == .success else { return nil }
+        return ref as? Bool
+    }
+
+    private static func firstDescendant(of element: AXUIElement, role: String,
+                                        maximumDepth: Int) -> AXUIElement? {
+        guard maximumDepth >= 0 else { return nil }
+        if axString(element, kAXRoleAttribute as String) == role { return element }
+        guard maximumDepth > 0 else { return nil }
+        for child in axChildren(element) {
+            if let match = firstDescendant(of: child, role: role, maximumDepth: maximumDepth - 1) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private static func collectMenuItems(_ element: AXUIElement, path: [Int], depth: Int,
+                                         into result: inout [ForeignMenuProxyItem]) {
+        guard depth <= 5, result.count < ForeignMenuProxySession.maximumItems else { return }
+        for (index, child) in axChildren(element).enumerated() {
+            guard result.count < ForeignMenuProxySession.maximumItems else { return }
+            let childPath = path + [index]
+            let role = axString(child, kAXRoleAttribute as String)
+            if role == (kAXMenuItemRole as String) {
+                let title = axString(child, kAXTitleAttribute as String)
+                    ?? axString(child, kAXDescriptionAttribute as String) ?? ""
+                if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let subrole = axString(child, kAXSubroleAttribute as String)?.lowercased() ?? ""
+                    let secure = subrole.contains("secure") || subrole.contains("password")
+                    result.append(ForeignMenuProxyItem(
+                        title: title,
+                        isEnabled: axBoolean(child, kAXEnabledAttribute as String) ?? true,
+                        isSecure: secure,
+                        path: childPath
+                    ))
+                }
+            }
+            collectMenuItems(child, path: childPath, depth: depth + 1, into: &result)
+        }
     }
 
     private static func axPoint(_ element: AXUIElement, _ attribute: CFString) -> CGPoint? {

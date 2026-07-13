@@ -276,7 +276,8 @@ public actor TonicRemoteJSONProvider: TonicDataSourceProvider {
         let object = try JSONSerialization.jsonObject(with: data)
         guard TonicRemoteProviderPolicy.validateJSONShape(object) else { throw TonicRemoteProviderError.excessiveDepth }
         let snapshot = try TonicProviderCoding.decoder().decode(TonicDataSourceSnapshot.self, from: data)
-        guard snapshot.schemaVersion == TonicDataSourceSnapshot.currentSchemaVersion else {
+        guard manifest.supportedSchemaRange.contains(snapshot.schemaVersion),
+              TonicProviderSchemaRange.hostSupported.contains(snapshot.schemaVersion) else {
             throw TonicRemoteProviderError.unsupportedSchema
         }
         return TonicDataSourceSnapshot(schemaVersion: snapshot.schemaVersion, requestID: request.requestID,

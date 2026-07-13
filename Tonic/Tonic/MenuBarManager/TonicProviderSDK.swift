@@ -13,22 +13,76 @@ public enum TonicProviderSemanticStatus: String, Codable, Sendable {
     case neutral, good, warning, critical, unavailable
 }
 
+public struct TonicProviderSchemaRange: Codable, Equatable, Hashable, Sendable {
+    public var minimum: Int
+    public var maximum: Int
+
+    public init(minimum: Int, maximum: Int) {
+        self.minimum = max(1, minimum)
+        self.maximum = max(self.minimum, maximum)
+    }
+
+    public func overlap(with other: Self) -> Self? {
+        let lower = max(minimum, other.minimum)
+        let upper = min(maximum, other.maximum)
+        return lower <= upper ? Self(minimum: lower, maximum: upper) : nil
+    }
+
+    public func contains(_ version: Int) -> Bool { (minimum...maximum).contains(version) }
+    public static let hostSupported = Self(minimum: 1, maximum: 2)
+    public static let versionOne = Self(minimum: 1, maximum: 1)
+}
+
 public struct TonicDataSourceManifest: Codable, Identifiable, Equatable, Sendable {
     public static let currentSchemaVersion = 1
     public var id: String
     public var schemaVersion: Int
+    public var supportedSchemaRange: TonicProviderSchemaRange
     public var displayName: String
     public var providerVersion: String
     public var minimumRefreshSeconds: Double
     public var capabilities: Set<TonicProviderCapability>
 
-    public init(id: String, schemaVersion: Int = Self.currentSchemaVersion, displayName: String,
+    public init(id: String, schemaVersion: Int = Self.currentSchemaVersion,
+                supportedSchemaRange: TonicProviderSchemaRange? = nil, displayName: String,
                 providerVersion: String, minimumRefreshSeconds: Double = 60,
                 capabilities: Set<TonicProviderCapability>) {
-        self.id = id; self.schemaVersion = schemaVersion; self.displayName = displayName
+        self.id = id; self.schemaVersion = schemaVersion
+        self.supportedSchemaRange = supportedSchemaRange ?? .init(minimum: schemaVersion, maximum: schemaVersion)
+        self.displayName = displayName
         self.providerVersion = providerVersion
         self.minimumRefreshSeconds = max(15, minimumRefreshSeconds)
         self.capabilities = capabilities
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, schemaVersion, supportedSchemaRange, displayName, providerVersion
+        case minimumRefreshSeconds, capabilities
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        supportedSchemaRange = try container.decodeIfPresent(TonicProviderSchemaRange.self,
+                                                               forKey: .supportedSchemaRange)
+            ?? .init(minimum: schemaVersion, maximum: schemaVersion)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        providerVersion = try container.decode(String.self, forKey: .providerVersion)
+        minimumRefreshSeconds = max(15, try container.decodeIfPresent(Double.self,
+                                                                       forKey: .minimumRefreshSeconds) ?? 60)
+        capabilities = try container.decode(Set<TonicProviderCapability>.self, forKey: .capabilities)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(supportedSchemaRange, forKey: .supportedSchemaRange)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(providerVersion, forKey: .providerVersion)
+        try container.encode(minimumRefreshSeconds, forKey: .minimumRefreshSeconds)
+        try container.encode(capabilities.sorted { $0.rawValue < $1.rawValue }, forKey: .capabilities)
     }
 }
 
@@ -91,12 +145,16 @@ public enum TonicProviderRegistryError: Error, Equatable {
 
 public enum TonicProviderManifestPolicy {
     public static func isValid(_ manifest: TonicDataSourceManifest) -> Bool {
-        guard manifest.schemaVersion == TonicDataSourceManifest.currentSchemaVersion,
+        guard manifest.supportedSchemaRange.overlap(with: .hostSupported) != nil,
               (1...128).contains(manifest.id.count), (1...80).contains(manifest.displayName.count),
               (1...64).contains(manifest.providerVersion.count), manifest.minimumRefreshSeconds >= 15,
               !manifest.capabilities.isEmpty else { return false }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+        let boundary = CharacterSet.alphanumerics
         return manifest.id.unicodeScalars.allSatisfy(allowed.contains)
+            && manifest.id.unicodeScalars.first.map(boundary.contains) == true
+            && manifest.id.unicodeScalars.last.map(boundary.contains) == true
+            && !manifest.id.contains("..")
     }
 }
 
@@ -125,7 +183,8 @@ public actor TonicProviderRegistry {
         guard failureCounts[providerID, default: 0] < 3 else {
             throw TonicProviderRegistryError.pausedAfterFailures
         }
-        guard request.schemaVersion == TonicDataSourceRequest.currentSchemaVersion,
+        guard provider.manifest.supportedSchemaRange.contains(request.schemaVersion),
+              TonicProviderSchemaRange.hostSupported.contains(request.schemaVersion),
               request.providerID == providerID else { throw TonicProviderRegistryError.invalidManifest }
         if let fetched = fetchedAt[providerID], let cached = cachedSnapshots[providerID],
            Date().timeIntervalSince(fetched) < provider.manifest.minimumRefreshSeconds {

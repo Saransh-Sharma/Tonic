@@ -78,6 +78,7 @@ public final class MenuBarManager {
         ScriptExecutionCoordinator.shared.startSchedules()
         #endif
         Task { await TonicBuiltInProviderBootstrap.registerAll() }
+        Task { await TonicMarketplaceRuntime.shared.start() }
         applySettings()
         MenuBarUpdateWatcherCoordinator.shared.refresh()
     }

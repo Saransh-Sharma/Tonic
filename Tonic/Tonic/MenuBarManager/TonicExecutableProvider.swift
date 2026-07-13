@@ -43,13 +43,15 @@ public final class TonicExecutableProviderStore {
         } ?? []
     }
 
-    public func add(bundleURL: URL, advancedDeveloperMode: Bool) async throws {
+    public func add(bundleURL: URL, advancedDeveloperMode: Bool,
+                    expectedTeamIdentifier: String? = nil) async throws {
         let bookmark = try bundleURL.bookmarkData(options: [.withSecurityScope],
                                                   includingResourceValuesForKeys: nil, relativeTo: nil)
         let scoped = bundleURL.startAccessingSecurityScopedResource()
         do {
             let provider = try await TonicExecutableProvider(bundleURL: bundleURL,
-                advancedDeveloperMode: advancedDeveloperMode, approvalStore: approvalStore)
+                advancedDeveloperMode: advancedDeveloperMode, approvalStore: approvalStore,
+                expectedTeamIdentifier: expectedTeamIdentifier)
             guard TonicProviderManifestPolicy.isValid(provider.manifest),
                   !provider.manifest.id.hasPrefix("tonic."), !provider.manifest.id.hasPrefix("remote.") else {
                 throw TonicExecutableProviderError.invalidBundle
@@ -168,6 +170,7 @@ public actor TonicExecutableProvider: TonicDataSourceProvider {
 
     public init(bundleURL: URL, advancedDeveloperMode: Bool = false,
                 approvalStore: TonicProviderApprovalStore? = nil,
+                expectedTeamIdentifier: String? = nil,
                 timeoutSeconds: Double = 15) async throws {
         guard bundleURL.pathExtension == "tonicprovider" else { throw TonicExecutableProviderError.invalidBundle }
         let manifestURL = bundleURL.appendingPathComponent("provider.json")
@@ -175,7 +178,7 @@ public actor TonicExecutableProvider: TonicDataSourceProvider {
         guard manifestSize > 0, manifestSize <= 64 * 1_024 else { throw TonicExecutableProviderError.invalidBundle }
         let data = try Data(contentsOf: manifestURL)
         let bundleManifest = try TonicProviderCoding.decoder().decode(TonicExecutableProviderBundleManifest.self, from: data)
-        guard bundleManifest.provider.schemaVersion == TonicDataSourceManifest.currentSchemaVersion,
+        guard bundleManifest.provider.supportedSchemaRange.overlap(with: .hostSupported) != nil,
               !bundleManifest.executableRelativePath.hasPrefix("/"),
               !bundleManifest.executableRelativePath.contains("..") else { throw TonicExecutableProviderError.invalidBundle }
         let bundleRoot = bundleURL.standardizedFileURL.resolvingSymlinksInPath()
@@ -184,7 +187,7 @@ public actor TonicExecutableProvider: TonicDataSourceProvider {
         guard executable.path.hasPrefix(bundleRoot.path + "/"),
               FileManager.default.isExecutableFile(atPath: executable.path) else { throw TonicExecutableProviderError.invalidBundle }
         let hash = try Self.hash(executable)
-        let signed = Self.hasDeveloperIDSignature(executable)
+        let signed = Self.hasDeveloperIDSignature(executable, expectedTeamIdentifier: expectedTeamIdentifier)
         if !signed {
             guard advancedDeveloperMode else { throw TonicExecutableProviderError.invalidSignature }
             let approved = await MainActor.run {
@@ -247,7 +250,8 @@ public actor TonicExecutableProvider: TonicDataSourceProvider {
             throw TonicExecutableProviderError.malformedResponse
         }
         let snapshot = try TonicProviderCoding.decoder().decode(TonicDataSourceSnapshot.self, from: Data(line))
-        guard snapshot.schemaVersion == TonicDataSourceSnapshot.currentSchemaVersion else {
+        guard manifest.supportedSchemaRange.contains(snapshot.schemaVersion),
+              TonicProviderSchemaRange.hostSupported.contains(snapshot.schemaVersion) else {
             throw TonicExecutableProviderError.malformedResponse
         }
         return TonicDataSourceSnapshot(schemaVersion: snapshot.schemaVersion, requestID: request.requestID,
@@ -261,11 +265,12 @@ public actor TonicExecutableProvider: TonicDataSourceProvider {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func hasDeveloperIDSignature(_ url: URL) -> Bool {
+    private static func hasDeveloperIDSignature(_ url: URL, expectedTeamIdentifier: String?) -> Bool {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code else { return false }
         var requirement: SecRequirement?
-        let text = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
+        let teamClause = expectedTeamIdentifier.map { " and certificate leaf[subject.OU] = \"\($0)\"" } ?? ""
+        let text = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists\(teamClause)"
         guard SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess,
               let requirement else { return false }
         return SecStaticCodeCheckValidity(code, [], requirement) == errSecSuccess

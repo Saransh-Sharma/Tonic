@@ -158,6 +158,10 @@ final class MenuBarControlItem {
         search.target = self
         menu.addItem(search)
 
+        let topShelf = NSMenuItem(title: "Top Shelf", action: #selector(menuTopShelf), keyEquivalent: "")
+        topShelf.target = self
+        menu.addItem(topShelf)
+
         menu.addItem(.separator())
 
         let settings = NSMenuItem(title: "Menu Bar Settings…", action: #selector(menuOpenSettings), keyEquivalent: "")
@@ -178,6 +182,7 @@ final class MenuBarControlItem {
     @objc private func menuOpenSettings() { onOpenSettings?() }
     @objc private func menuDisable() { onDisable?() }
     @objc private func menuQuickSearch() { QuickSearchPanelController.shared.show() }
+    @objc private func menuTopShelf() { TopShelfCoordinator.shared.deliberateOpen() }
 
     private static func separatorImage() -> NSImage {
         let image = NSImage(size: NSSize(width: 8, height: 16), flipped: false) { rect in
