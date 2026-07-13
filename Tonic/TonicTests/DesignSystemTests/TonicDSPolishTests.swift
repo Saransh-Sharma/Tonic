@@ -152,6 +152,46 @@ final class TonicDSPolishTests: XCTestCase {
         }
     }
 
+    // MARK: - Glass authority (materials resolve only through Design/)
+
+    func testHandRolledMaterialsStayInsideDesignLayer() throws {
+        let materialTokens = [".ultraThinMaterial", ".thinMaterial", ".thickMaterial", ".regularMaterial"]
+        let files = try swiftFiles(under: projectRoot.appendingPathComponent("Tonic/Tonic"))
+        for file in files {
+            let relative = file.path.replacingOccurrences(of: projectRoot.path + "/", with: "")
+            guard !relative.hasPrefix("Tonic/Tonic/Design/") else { continue }
+            let body = try String(contentsOf: file, encoding: .utf8)
+            for token in materialTokens {
+                XCTAssertFalse(body.contains(token),
+                               "\(relative) hand-rolls \(token); resolve via .tonicSurface instead")
+            }
+        }
+    }
+
+    // MARK: - Motion policy (system OR app toggle silences every recipe)
+
+    func testMotionPolicyNilsAllAnimationsWhenReduced() {
+        let reduced = TonicMotionPolicy(reduceMotion: true, appReducesMotion: false)
+        XCTAssertNil(reduced.feedback)
+        XCTAssertNil(reduced.transition)
+        XCTAssertNil(reduced.layout)
+        XCTAssertNil(reduced.proof)
+        XCTAssertNil(reduced.flyout)
+        XCTAssertNil(reduced.morph)
+        XCTAssertNil(reduced.ripple)
+        XCTAssertNil(reduced.particles)
+
+        let appReduced = TonicMotionPolicy(reduceMotion: false, appReducesMotion: true)
+        XCTAssertNil(appReduced.flyout, "app-level Reduce Motion must silence the flyout spring")
+
+        let live = TonicMotionPolicy(reduceMotion: false, appReducesMotion: false)
+        XCTAssertNotNil(live.feedback)
+        XCTAssertNotNil(live.flyout)
+        XCTAssertNotNil(live.morph)
+        XCTAssertNotNil(live.ripple)
+        XCTAssertNotNil(live.particles)
+    }
+
     // MARK: - Home hero arbitration (live health outranks scan bookkeeping)
 
     func testHeroArbiterPriorityLadder() {

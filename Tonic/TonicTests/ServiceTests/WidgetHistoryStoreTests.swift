@@ -131,3 +131,157 @@ final class WidgetHistoryStoreTests: XCTestCase {
         )
     }
 }
+
+final class LongTermMetricsStoreTests: XCTestCase {
+    private var root: URL!
+    private var defaults: UserDefaults!
+    private var defaultsSuite: String!
+    private let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+    override func setUpWithError() throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LongTermMetricsStoreTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defaultsSuite = "LongTermMetricsStoreTests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuite)
+    }
+
+    override func tearDownWithError() throws {
+        defaults.removePersistentDomain(forName: defaultsSuite)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    func testDeduplicatesReadingsInsideSixtySeconds() {
+        let store = makeStore()
+        XCTAssertTrue(store.record(sample(at: now.addingTimeInterval(-120), cpu: 20)))
+        XCTAssertFalse(store.record(sample(at: now.addingTimeInterval(-90), cpu: 80)))
+        XCTAssertTrue(store.record(sample(at: now.addingTimeInterval(-60), cpu: 60)))
+
+        let samples = store.samples(for: .twentyFourHours)
+        XCTAssertEqual(samples.count, 2)
+        XCTAssertEqual(samples.map(\.cpuPercent), [20, 60])
+    }
+
+    func testCreatesWeightedHourAndDayRollups() {
+        let store = makeStore()
+        store.record(sample(at: now.addingTimeInterval(-3_600), cpu: 20, count: 2))
+        store.record(sample(at: now, cpu: 80, count: 1))
+
+        let hours = store.samples(for: .sevenDays)
+        XCTAssertEqual(hours.count, 2)
+        XCTAssertEqual(hours.last?.cpuPercent ?? 0, 80, accuracy: 0.001)
+    }
+
+    func testDisabledStoreWritesNothing() {
+        let store = makeStore()
+        store.isEnabled = false
+        XCTAssertFalse(store.record(sample(at: now, cpu: 55)))
+        XCTAssertEqual(store.storageSizeBytes, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("minute.json").path))
+    }
+
+    func testPersistenceRoundTripIncludesOptionalMetrics() {
+        let first = makeStore()
+        first.record(sample(at: now, cpu: 42, gpu: 73, temperature: 61))
+        first.flush()
+
+        let second = makeStore()
+        let loaded = second.samples(for: .twentyFourHours)
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded.first?.gpuPercent, 73)
+        XCTAssertEqual(loaded.first?.temperatureC, 61)
+    }
+
+    func testClearRemovesEveryTier() {
+        let store = makeStore()
+        store.record(sample(at: now, cpu: 42))
+        XCTAssertGreaterThan(store.storageSizeBytes, 0)
+        store.clearAll()
+        XCTAssertEqual(store.storageSizeBytes, 0)
+        XCTAssertTrue(store.samples(for: .thirtyDays).isEmpty)
+    }
+
+    func testLegacyCombinedHistoryImportsOnlyOnceEvenAfterClear() throws {
+        let legacyURL = root.appendingPathComponent("legacy.json")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode([sample(at: now, cpu: 37).resourceSample])
+            .write(to: legacyURL, options: .atomic)
+
+        let imported = makeStore()
+        XCTAssertEqual(imported.samples(for: .twentyFourHours).map(\.cpuPercent), [37])
+        imported.clearAll()
+
+        let reopened = makeStore()
+        XCTAssertTrue(reopened.samples(for: .twentyFourHours).isEmpty,
+                      "clear must not resurrect the halfway implementation's legacy envelope")
+    }
+
+    func testCorruptTierIsIgnoredAndRecordingRecoversItAtomically() throws {
+        try Data("not-json".utf8).write(to: root.appendingPathComponent("minute.json"), options: .atomic)
+        let store = makeStore()
+        XCTAssertTrue(store.samples(for: .twentyFourHours).isEmpty)
+
+        XCTAssertTrue(store.record(sample(at: now, cpu: 64)))
+        store.flush()
+        let recovered = makeStore()
+        XCTAssertEqual(recovered.samples(for: .twentyFourHours).map(\.cpuPercent), [64])
+    }
+
+    func testPrunesMinuteHourAndDayTiersAtTheirIndependentRetentionLimits() throws {
+        let store = makeStore()
+        store.retentionDays = 7
+        XCTAssertTrue(store.record(sample(at: now.addingTimeInterval(-8 * 86_400), cpu: 10)))
+        XCTAssertTrue(store.record(sample(at: now.addingTimeInterval(-2 * 86_400), cpu: 20)))
+        XCTAssertTrue(store.record(sample(at: now, cpu: 30)))
+        store.flush()
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let minutes = try decoder.decode([LongTermMetricSample].self,
+            from: Data(contentsOf: root.appendingPathComponent("minute.json")))
+        let hours = try decoder.decode([LongTermMetricSample].self,
+            from: Data(contentsOf: root.appendingPathComponent("hour.json")))
+        let days = try decoder.decode([LongTermMetricSample].self,
+            from: Data(contentsOf: root.appendingPathComponent("day.json")))
+
+        XCTAssertEqual(minutes.map(\.cpuPercent), [30])
+        XCTAssertEqual(hours.map(\.cpuPercent), [20, 30])
+        XCTAssertEqual(days.map(\.cpuPercent), [10, 20, 30])
+    }
+
+    private func makeStore() -> LongTermMetricsStore {
+        let fixedNow = now
+        return LongTermMetricsStore(
+            storageDirectory: root,
+            legacyCombinedURL: root.appendingPathComponent("legacy.json"),
+            defaults: defaults,
+            minimumSaveInterval: 60,
+            now: { fixedNow }
+        )
+    }
+
+    private func sample(
+        at date: Date,
+        cpu: Double,
+        gpu: Double? = nil,
+        temperature: Double? = nil,
+        count: Int = 1
+    ) -> LongTermMetricSample {
+        LongTermMetricSample(
+            timestamp: date,
+            cpuPercent: cpu,
+            memoryPercent: 50,
+            memoryUsedBytes: 8_000,
+            memoryTotalBytes: 16_000,
+            networkUploadBytesPerSecond: 100,
+            networkDownloadBytesPerSecond: 200,
+            diskUsedPercent: 40,
+            diskReadBytesPerSecond: 300,
+            diskWriteBytesPerSecond: 400,
+            gpuPercent: gpu,
+            temperatureC: temperature,
+            sampleCount: count
+        )
+    }
+}

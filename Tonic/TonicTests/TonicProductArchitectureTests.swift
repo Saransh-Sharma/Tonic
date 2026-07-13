@@ -19,6 +19,14 @@ final class TonicProductArchitectureTests: XCTestCase {
         )
     }
 
+    func testWaveFiveCommercialAvailabilityIsAlwaysUnlocked() {
+        let authority = FeatureAvailabilityAuthority.current
+        for feature in TonicFeatureID.allCases {
+            XCTAssertEqual(authority.availability(of: feature), .unlocked)
+            XCTAssertTrue(authority.availability(of: feature).isUnlocked)
+        }
+    }
+
     func testWindowActionsStayInsideVisibleFrame() {
         let visibleFrame = CGRect(x: -1200, y: 40, width: 1200, height: 800)
 
