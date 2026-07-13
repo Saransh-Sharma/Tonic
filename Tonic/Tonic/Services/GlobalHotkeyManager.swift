@@ -226,6 +226,20 @@ public final class GlobalHotkeyManager {
             QuickSearchPanelController.shared.toggle()
         case .toggleMenuBar:
             MenuBarManager.shared.toggle()
+        case .window(let windowAction):
+            guard AXIsProcessTrusted() else {
+                // Without Accessibility the action can't run and there is no
+                // window to show feedback on — surface the grant flow instead.
+                NSApp.activate(ignoringOtherApps: true)
+                NotificationCenter.default.post(
+                    name: .navigateToTonicHub,
+                    object: nil,
+                    userInfo: ["hub": TonicHub.organize.rawValue]
+                )
+                WindowManagementService.shared.requestAccessibility()
+                return
+            }
+            WindowManagementService.shared.perform(windowAction)
         }
     }
 }

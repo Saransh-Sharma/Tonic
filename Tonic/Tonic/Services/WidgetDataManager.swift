@@ -4186,6 +4186,18 @@ public final class WidgetDataManager {
             diskWriteBytesPerSecond: primaryDisk?.writeBytesPerSecond ?? 0
         )
         WidgetHistoryStore.shared.record(sample)
+        #if TONIC_STORE
+        let longTermTemperature: Double? = nil
+        #else
+        let longTermTemperature = sensorsData.temperatures.map(\.value).max() ?? gpuData.temperature
+        #endif
+        LongTermMetricsStore.shared.record(
+            LongTermMetricSample(
+                resource: sample,
+                gpuPercent: gpuData.usagePercentage,
+                temperatureC: longTermTemperature
+            )
+        )
     }
 
     // MARK: - Bluetooth Monitoring
