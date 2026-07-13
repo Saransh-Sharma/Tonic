@@ -161,6 +161,38 @@ enum CapabilityAvailability: Equatable, Sendable {
     }
 }
 
+/// Commercial availability is intentionally independent from edition and
+/// permission capabilities. Wave 5 ships as a fully unlocked product; the
+/// dormant commerce implementation is compiled only with TONIC_COMMERCE.
+public enum FeatureAvailability: Equatable, Sendable {
+    case unlocked
+
+    public var isUnlocked: Bool { true }
+}
+
+public enum TonicFeatureID: String, CaseIterable, Codable, Sendable {
+    case smartCare
+    case storageIntelligence
+    case appManagement
+    case monitoring
+    case windowManagement
+    case menuBarManagement
+    case recoveryCenter
+    case topShelf
+    case providers
+    case automations
+}
+
+public struct FeatureAvailabilityAuthority: Sendable {
+    public static let current = FeatureAvailabilityAuthority()
+
+    public init() {}
+
+    public func availability(of feature: TonicFeatureID) -> FeatureAvailability {
+        .unlocked
+    }
+}
+
 struct CapabilityRegistry: Sendable {
     let edition: DistributionEdition
 

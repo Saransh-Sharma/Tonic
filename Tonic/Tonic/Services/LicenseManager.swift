@@ -2,6 +2,8 @@
 //  LicenseManager.swift
 //  Tonic
 //
+
+#if TONIC_COMMERCE
 //  Licensing and freemium logic
 //  Task ID: fn-1.30
 //
@@ -324,3 +326,5 @@ public enum Feature {
     case dockerCleanup
     case prioritySupport
 }
+
+#endif
