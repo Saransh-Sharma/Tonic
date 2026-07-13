@@ -1,7 +1,9 @@
 #if TONIC_HELPER
 
 import Foundation
+import Darwin
 import Security
+import SystemConfiguration
 
 private final class HelperBoundedCollector: @unchecked Sendable {
     private let lock = NSLock()
@@ -26,6 +28,11 @@ private final class HelperProcessState: @unchecked Sendable {
 }
 
 final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCProtocol, @unchecked Sendable {
+    private struct FixedToolInvocation: Sendable {
+        let executable: String
+        let arguments: [String]
+    }
+
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let queue = DispatchQueue(label: "com.saransh.tonic.helper.operations")
@@ -62,9 +69,8 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
                     send(TonicHelperResult(requestID: request.requestID, succeeded: false,
                                            detail: "The helper rejected this operation.", error: error),
                          to: replyBox)
-                } else if case .deleteLocalTimeMachineSnapshots = request.operation {
-                    runFixedTool(requestID: request.requestID, executable: "/usr/bin/tmutil",
-                                 arguments: ["deletelocalsnapshots", "/"]) { [weak self] result in
+                } else if let tools = fixedTools(for: request.operation) {
+                    runFixedTools(requestID: request.requestID, tools: tools) { [weak self] result in
                         self?.send(result, to: replyBox)
                     }
                 } else {
@@ -84,12 +90,15 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
 
     private func dispatch(_ request: TonicHelperRequest) -> TonicHelperResult {
         switch request.operation {
-        case .deleteLocalTimeMachineSnapshots:
+        case .deleteLocalTimeMachineSnapshots, .refreshDNS, .renewPrimaryNetworkService,
+             .rebuildSpotlight, .rebuildLaunchServices, .restartSystemService:
             return TonicHelperResult(requestID: request.requestID, succeeded: false,
-                                     detail: "The snapshot operation was dispatched incorrectly.",
+                                     detail: "The fixed operation was dispatched incorrectly.",
                                      error: .operationFailed)
         case .purgeStaleDocumentRevisions(let days):
             return purgeDocumentRevisions(requestID: request.requestID, minimumAgeDays: days)
+        case .purgeStaleSystemData(let domain, let days):
+            return purgeStaleSystemData(requestID: request.requestID, domain: domain, minimumAgeDays: days)
         case .setFanMode(let fanID, let automatic, let sessionID):
             guard acceptFanSession(sessionID) else { return staleSessionResult(request.requestID) }
             let ok = SMCReader.shared.setFanMode(fanID, mode: automatic ? .automatic : .forced)
@@ -123,6 +132,51 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
         }
     }
 
+    private func fixedTools(for operation: TonicPrivilegedOperation) -> [FixedToolInvocation]? {
+        switch operation {
+        case .deleteLocalTimeMachineSnapshots:
+            return [.init(executable: "/usr/bin/tmutil", arguments: ["deletelocalsnapshots", "/"])]
+        case .refreshDNS:
+            return [
+                .init(executable: "/usr/bin/dscacheutil", arguments: ["-flushcache"]),
+                .init(executable: "/usr/bin/killall", arguments: ["-HUP", "mDNSResponder"])
+            ]
+        case .renewPrimaryNetworkService:
+            guard let interface = primaryNetworkInterface() else { return [] }
+            return [.init(executable: "/usr/sbin/ipconfig", arguments: ["set", interface, "DHCP"])]
+        case .rebuildSpotlight(let scope):
+            guard scope == .startupDisk else { return [] }
+            return [.init(executable: "/usr/bin/mdutil", arguments: ["-E", "/"])]
+        case .rebuildLaunchServices:
+            return [.init(
+                executable: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
+                arguments: ["-kill", "-r", "-domain", "local", "-domain", "system", "-domain", "user"]
+            )]
+        case .restartSystemService(let service):
+            let label: String
+            switch service {
+            case .dnsResponder: label = "system/com.apple.mDNSResponder"
+            case .audio: label = "system/com.apple.audio.coreaudiod"
+            case .bluetooth: label = "system/com.apple.bluetoothd"
+            case .printing: label = "system/org.cups.cupsd"
+            case .timeMachine: label = "system/com.apple.backupd"
+            }
+            return [.init(executable: "/bin/launchctl", arguments: ["kickstart", "-k", label])]
+        case .purgeStaleDocumentRevisions, .purgeStaleSystemData,
+             .setFanMode, .setFanTargetRPM, .renewFanSession, .restoreAutomaticFanControl:
+            return nil
+        }
+    }
+
+    private func primaryNetworkInterface() -> String? {
+        guard let store = SCDynamicStoreCreate(nil, "com.saransh.tonic.helper" as CFString, nil, nil),
+              let value = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString)
+                as? [String: Any],
+              let interface = value["PrimaryInterface"] as? String,
+              interface.range(of: #"^en[0-9]+$"#, options: .regularExpression) != nil else { return nil }
+        return interface
+    }
+
     private func acceptFanSession(_ sessionID: UUID) -> Bool {
         if fanSessionID == nil { fanSessionID = sessionID }
         return fanSessionID == sessionID
@@ -136,6 +190,34 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
     /// Launch a closed, helper-owned executable without blocking the serial
     /// state queue. That keeps fan heartbeats and watchdog restoration
     /// responsive even if `tmutil` takes a long time.
+    private func runFixedTools(requestID: UUID, tools: [FixedToolInvocation],
+                               completion: @escaping @Sendable (TonicHelperResult) -> Void) {
+        guard !tools.isEmpty else {
+            completion(TonicHelperResult(requestID: requestID, succeeded: false,
+                                         detail: "The helper could not resolve a safe fixed target.",
+                                         error: .invalidArgument))
+            return
+        }
+        runFixedTools(requestID: requestID, tools: tools, index: 0, details: [], completion: completion)
+    }
+
+    private func runFixedTools(requestID: UUID, tools: [FixedToolInvocation], index: Int,
+                               details: [String], completion: @escaping @Sendable (TonicHelperResult) -> Void) {
+        guard index < tools.count else {
+            completion(TonicHelperResult(requestID: requestID, succeeded: true,
+                                         detail: details.filter { !$0.isEmpty }.joined(separator: "\n"),
+                                         affectedItems: tools.count))
+            return
+        }
+        let tool = tools[index]
+        runFixedTool(requestID: requestID, executable: tool.executable, arguments: tool.arguments) { [weak self] result in
+            guard let self else { return }
+            guard result.succeeded else { completion(result); return }
+            self.runFixedTools(requestID: requestID, tools: tools, index: index + 1,
+                               details: details + [result.detail], completion: completion)
+        }
+    }
+
     private func runFixedTool(requestID: UUID, executable: String, arguments: [String],
                               completion: @escaping @Sendable (TonicHelperResult) -> Void) {
         let process = Process()
@@ -181,11 +263,47 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
         }
     }
 
+    private func purgeStaleSystemData(requestID: UUID, domain: TonicCleanupDomain,
+                                      minimumAgeDays: Int) -> TonicHelperResult {
+        let root: URL
+        switch domain {
+        case .systemCaches: root = URL(fileURLWithPath: "/Library/Caches", isDirectory: true)
+        case .diagnosticReports: root = URL(fileURLWithPath: "/Library/Logs/DiagnosticReports", isDirectory: true)
+        case .packageUpdates: root = URL(fileURLWithPath: "/Library/Updates", isDirectory: true)
+        }
+        let standardizedRoot = root.standardizedFileURL
+        let cutoff = Date().addingTimeInterval(-Double(minimumAgeDays) * 86_400)
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isDirectoryKey,
+                                         .isSymbolicLinkKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: standardizedRoot,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsPackageDescendants]
+        ) else {
+            return TonicHelperResult(requestID: requestID, succeeded: false,
+                                     detail: "The fixed cleanup domain is unavailable.", error: .operationFailed)
+        }
+        var removed = 0
+        for case let url as URL in enumerator {
+            guard removed < 10_000 else { break }
+            let candidate = url.standardizedFileURL
+            guard candidate.path.hasPrefix(standardizedRoot.path + "/"),
+                  let values = try? candidate.resourceValues(forKeys: keys),
+                  values.isDirectory != true, values.isSymbolicLink != true,
+                  isOwnedByRoot(candidate),
+                  let modified = values.contentModificationDate, modified < cutoff else { continue }
+            if (try? FileManager.default.removeItem(at: candidate)) != nil { removed += 1 }
+        }
+        return TonicHelperResult(requestID: requestID, succeeded: true,
+                                 detail: "Removed \(removed) stale item\(removed == 1 ? "" : "s") from the fixed \(domain.rawValue) domain.",
+                                 affectedItems: removed)
+    }
+
     private func purgeDocumentRevisions(requestID: UUID, minimumAgeDays: Int) -> TonicHelperResult {
         let root = URL(fileURLWithPath: "/System/Volumes/Data/.DocumentRevisions-V100", isDirectory: true)
             .standardizedFileURL
         let cutoff = Date().addingTimeInterval(-Double(minimumAgeDays) * 86_400)
-        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isDirectoryKey]
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isDirectoryKey, .isSymbolicLinkKey]
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys),
                                                               options: [.skipsHiddenFiles]) else {
             return TonicHelperResult(requestID: requestID, succeeded: false,
@@ -196,13 +314,21 @@ final class TonicHelperService: NSObject, NSXPCListenerDelegate, TonicHelperXPCP
             let candidate = url.standardizedFileURL
             guard candidate.path.hasPrefix(root.path + "/"),
                   let values = try? candidate.resourceValues(forKeys: keys),
-                  values.isDirectory != true,
+                  values.isDirectory != true, values.isSymbolicLink != true,
                   let modified = values.contentModificationDate, modified < cutoff else { continue }
             if (try? FileManager.default.removeItem(at: candidate)) != nil { removed += 1 }
         }
         return TonicHelperResult(requestID: requestID, succeeded: true,
                                  detail: "Removed \(removed) stale revision file\(removed == 1 ? "" : "s").",
                                  affectedItems: removed)
+    }
+
+    private func isOwnedByRoot(_ url: URL) -> Bool {
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return false }
+            var information = stat()
+            return lstat(path, &information) == 0 && information.st_uid == 0
+        }
     }
 
     private func renewWatchdog() {

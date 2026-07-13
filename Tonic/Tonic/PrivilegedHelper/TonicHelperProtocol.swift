@@ -3,6 +3,12 @@ import Foundation
 public enum TonicPrivilegedOperation: Codable, Equatable, Sendable {
     case deleteLocalTimeMachineSnapshots
     case purgeStaleDocumentRevisions(minimumAgeDays: Int)
+    case refreshDNS
+    case renewPrimaryNetworkService
+    case rebuildSpotlight(scope: TonicVolumeScope)
+    case rebuildLaunchServices
+    case restartSystemService(service: TonicSystemService)
+    case purgeStaleSystemData(domain: TonicCleanupDomain, minimumAgeDays: Int)
     case setFanMode(fanID: Int, automatic: Bool, sessionID: UUID)
     case setFanTargetRPM(fanID: Int, rpm: Int, sessionID: UUID)
     case renewFanSession(sessionID: UUID)
@@ -10,7 +16,7 @@ public enum TonicPrivilegedOperation: Codable, Equatable, Sendable {
 }
 
 public struct TonicHelperRequest: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
     public var version: Int
     public var requestID: UUID
     public var operation: TonicPrivilegedOperation
@@ -63,6 +69,8 @@ public enum TonicHelperPolicy {
     public static let maximumRevisionAgeDays = 365
     public static let minimumFanRPM = 0
     public static let maximumFanRPM = 6_000
+    public static let minimumCleanupAgeDays = 7
+    public static let maximumCleanupAgeDays = 365
 
     public static func validated(_ request: TonicHelperRequest) -> TonicHelperError? {
         guard request.version == TonicHelperRequest.currentVersion else { return .unsupportedVersion }
@@ -73,7 +81,11 @@ public enum TonicHelperPolicy {
             guard (0...15).contains(fanID) else { return .invalidArgument }
         case .setFanTargetRPM(let fanID, let rpm, _):
             guard (0...15).contains(fanID), (minimumFanRPM...maximumFanRPM).contains(rpm) else { return .invalidArgument }
-        case .deleteLocalTimeMachineSnapshots, .renewFanSession, .restoreAutomaticFanControl:
+        case .purgeStaleSystemData(_, let days):
+            guard (minimumCleanupAgeDays...maximumCleanupAgeDays).contains(days) else { return .invalidArgument }
+        case .deleteLocalTimeMachineSnapshots, .refreshDNS, .renewPrimaryNetworkService,
+             .rebuildSpotlight, .rebuildLaunchServices, .restartSystemService,
+             .renewFanSession, .restoreAutomaticFanControl:
             break
         }
         return nil

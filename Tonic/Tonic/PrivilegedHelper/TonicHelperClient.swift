@@ -136,6 +136,12 @@ private extension TonicPrivilegedOperation {
         switch self {
         case .deleteLocalTimeMachineSnapshots: "deleteLocalSnapshots"
         case .purgeStaleDocumentRevisions: "purgeStaleDocumentRevisions"
+        case .refreshDNS: "refreshDNS"
+        case .renewPrimaryNetworkService: "renewPrimaryNetworkService"
+        case .rebuildSpotlight: "rebuildSpotlight"
+        case .rebuildLaunchServices: "rebuildLaunchServices"
+        case .restartSystemService(let service): "restartSystemService.\(service.rawValue)"
+        case .purgeStaleSystemData(let domain, _): "purgeStaleSystemData.\(domain.rawValue)"
         case .setFanMode: "setFanMode"
         case .setFanTargetRPM: "setFanTargetRPM"
         case .renewFanSession: "renewFanSession"
