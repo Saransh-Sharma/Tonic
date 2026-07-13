@@ -414,9 +414,11 @@ private struct EditorialWidgetPopoverView: View {
     let widgetType: WidgetType
     let configuration: WidgetConfiguration
     @State private var dataManager = WidgetDataManager.shared
+    @State private var selectedRange: ResourceHistoryRange = .live
 
     private var snapshot: WidgetMetricSnapshot {
-        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration, dataManager: dataManager)
+        WidgetMetricSnapshot(widgetType: widgetType, configuration: configuration,
+                             dataManager: dataManager, historyRange: selectedRange)
     }
 
     var body: some View {
@@ -438,6 +440,17 @@ private struct EditorialWidgetPopoverView: View {
 
             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
 
+            if supportsLongTermHistory {
+                Picker("History range", selection: $selectedRange) {
+                    ForEach(ResourceHistoryRange.allCases) { range in Text(range.displayName).tag(range) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, TonicDS.Space.md)
+                .padding(.vertical, TonicDS.Space.xs)
+                TonicHairline(color: TonicDS.Colors.hairlineOnDark)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let traffic = snapshot.traffic {
@@ -453,7 +466,7 @@ private struct EditorialWidgetPopoverView: View {
                             )
                             .padding(TonicDS.Space.md)
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
-                        } else if widgetType.expectsHistory {
+                        } else if widgetType.expectsHistory && historyCapabilityAvailable {
                             popoverEmptyHistory
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
                         }
@@ -468,7 +481,7 @@ private struct EditorialWidgetPopoverView: View {
                             )
                             .padding(TonicDS.Space.md)
                             TonicHairline(color: TonicDS.Colors.hairlineOnDark)
-                    } else if widgetType.expectsHistory {
+                    } else if widgetType.expectsHistory && historyCapabilityAvailable {
                         popoverEmptyHistory
                         TonicHairline(color: TonicDS.Colors.hairlineOnDark)
                     }
@@ -486,6 +499,22 @@ private struct EditorialWidgetPopoverView: View {
         .frame(maxHeight: TonicDS.Layout.MenuBar.maxHeight)
         .tonicPopoverConsole()
         .environment(\.colorScheme, .dark)
+    }
+
+    private var supportsLongTermHistory: Bool {
+        guard historyCapabilityAvailable else { return false }
+        return switch widgetType {
+        case .cpu, .memory, .network, .disk, .gpu, .sensors: true
+        default: false
+        }
+    }
+
+    private var historyCapabilityAvailable: Bool {
+        switch widgetType {
+        case .gpu: dataManager.gpuData.usagePercentage != nil
+        case .sensors: !dataManager.sensorsData.temperatures.isEmpty
+        default: true
+        }
     }
 
     @ViewBuilder
