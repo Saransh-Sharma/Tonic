@@ -26,7 +26,8 @@ final class HotkeySettingsStoreTests: XCTestCase {
 
     func testAllCasesCoverAppSlotsAndEveryWindowAction() {
         let cases = HotkeyAction.allCases
-        XCTAssertEqual(cases.count, 3 + WindowAction.allCases.count)
+        XCTAssertEqual(cases.count, 4 + WindowAction.allCases.count)
+        XCTAssertTrue(cases.contains(.topShelf), "missing Wave 5 Top Shelf hotkey slot")
         for action in WindowAction.allCases {
             XCTAssertTrue(cases.contains(.window(action)), "missing hotkey slot for \(action.rawValue)")
         }

@@ -192,6 +192,25 @@ final class TonicDSPolishTests: XCTestCase {
         XCTAssertNotNil(live.particles)
     }
 
+    func testWaveFiveReleaseCriticalCatalogEntriesCoverAllSupportedLocales() throws {
+        let catalogURL = projectRoot.appendingPathComponent("Tonic/Tonic/Localizable.xcstrings")
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        let strings = object?["strings"] as? [String: Any]
+        XCTAssertGreaterThanOrEqual(strings?.count ?? 0, 500,
+                                    "Swift localization extraction must remain enabled for both editions")
+        let supported = Set(["de", "es", "fr", "ja", "zh-Hans"])
+        for key in ["Recovery Center", "Top Shelf", "Curated catalog", "Support",
+                    "Automatic Space context", "Per-app window rules", "System Health",
+                    "Now Playing", "Clipboard", "Next Event", "Quick Notes", "Timers",
+                    "Files", "Shortcuts", "Provider Cards", "Refresh DNS resolution",
+                    "Reclaim local Time Machine snapshots", "App and OS", "Provider health"] {
+            let entry = strings?[key] as? [String: Any]
+            let localizations = entry?["localizations"] as? [String: Any]
+            XCTAssertEqual(Set(localizations?.map { $0.key } ?? []), supported,
+                           "missing release locale for \(key)")
+        }
+    }
+
     // MARK: - Home hero arbitration (live health outranks scan bookkeeping)
 
     func testHeroArbiterPriorityLadder() {
