@@ -86,11 +86,12 @@ struct FloatingRailView: View {
             .padding(.trailing, TonicDS.Glass.Shell.railHoverCorridor)
             .contentShape(Rectangle())
             .onHover(perform: scheduleHoverChange)
+            .tonicGlassMorph(isExpanded: presentation.isExpanded, reduceMotion: reduceMotion)
 
             Spacer(minLength: TonicDS.Space.md)
         }
         .frame(width: railWidth + TonicDS.Glass.Shell.railHoverCorridor)
-        .animation(reduceMotion ? .linear(duration: 0.10) : TonicDS.Motion.settle,
+        .animation(reduceMotion ? .linear(duration: 0.10) : TonicDS.Motion.flyout,
                    value: presentation)
         .onExitCommand {
             guard !isPinned else { return }
@@ -109,12 +110,14 @@ struct FloatingRailView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            ForEach(TonicHub.allCases) { hub in
+            ForEach(Array(TonicHub.allCases.enumerated()), id: \.element) { index, hub in
                 RailItem(
                     symbol: hub.symbol,
                     title: hub.title,
                     isSelected: route.hub == hub,
-                    isExpanded: presentation.isExpanded
+                    isExpanded: presentation.isExpanded,
+                    staggerIndex: index,
+                    reduceMotion: reduceMotion
                 ) {
                     route = .hub(hub)
                 }
@@ -177,6 +180,8 @@ struct FloatingRailView: View {
                 title: "All Tools",
                 isSelected: false,
                 isExpanded: true,
+                staggerIndex: TonicHub.allCases.count,
+                reduceMotion: reduceMotion,
                 shortcut: "⌘K",
                 action: openAllTools
             )
@@ -184,7 +189,9 @@ struct FloatingRailView: View {
                 symbol: "gearshape",
                 title: "Settings",
                 isSelected: route == .settings,
-                isExpanded: true
+                isExpanded: true,
+                staggerIndex: TonicHub.allCases.count + 1,
+                reduceMotion: reduceMotion
             ) {
                 route = .settings
             }
@@ -223,6 +230,8 @@ private struct RailItem: View {
     let title: String
     let isSelected: Bool
     let isExpanded: Bool
+    var staggerIndex: Int = 0
+    var reduceMotion: Bool = false
     var shortcut: String?
     let action: () -> Void
 
@@ -239,16 +248,20 @@ private struct RailItem: View {
                     .frame(width: 44, height: 40)
 
                 if isExpanded {
-                    Text(title)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                        .foregroundStyle(TonicDS.Colors.textPrimary)
-                        .lineLimit(1)
-                    Spacer(minLength: TonicDS.Space.xs)
-                    if let shortcut {
-                        Text(shortcut)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(TonicDS.Colors.textMuted)
+                    Group {
+                        Text(title)
+                            .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                            .foregroundStyle(TonicDS.Colors.textPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: TonicDS.Space.xs)
+                        if let shortcut {
+                            Text(shortcut)
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(TonicDS.Colors.textMuted)
+                        }
                     }
+                    .tonicAppearStagger(index: staggerIndex, reduceMotion: reduceMotion)
+                    .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)

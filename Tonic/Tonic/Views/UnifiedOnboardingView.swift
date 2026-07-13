@@ -210,7 +210,7 @@ struct UnifiedOnboardingView: View {
                 }
                 .padding(TonicDS.Space.md)
                 .background(TonicDS.Colors.canvasSoft, in: RoundedRectangle(cornerRadius: 10))
-                Text("In Tonic, items open a live gap as you drag them between Visible, Hidden, and Always Hidden.")
+                Text("In Tonic, edits are staged as you move items between Visible, On Demand, and Quiet, then applied once after review.")
                     .font(.system(size: 12)).foregroundStyle(TonicDS.Colors.textMuted)
             }
         } else {

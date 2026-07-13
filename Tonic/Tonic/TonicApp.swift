@@ -100,6 +100,9 @@ struct TonicApp: App {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        prepareUITestStateIfRequested()
+        #endif
         // Set app activation policy to accessory for menu bar behavior
         // Use .regular for now to keep dock icon visible
         NSApp.setActivationPolicy(.regular)
@@ -143,7 +146,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Appearance is owned by macOS. Tonic does not override the user's system choice.
         NSApp.appearance = nil
+
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-test-open-menu-bar") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NotificationCenter.default.post(name: .openMenuBarManagement, object: nil)
+            }
+        }
+        #endif
     }
+
+    #if DEBUG
+    private func prepareUITestStateIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--ui-test-open-menu-bar") else { return }
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "tonic.menuBarWorkspace.v2")
+        defaults.removeObject(forKey: "tonic.menuBarWorkspace.v1")
+        var settings = MenuBarManagerSettings.default
+        settings.isEnabled = true
+        defaults.set(try? JSONEncoder().encode(settings), forKey: "tonic.menuBarManager")
+        if arguments.contains("--ui-test-completed-menu-bar-setup") {
+            let envelope = MenuBarWorkspaceEnvelope(hasCompletedSetup: true, revealMigrationVersion: 2)
+            defaults.set(try? JSONEncoder().encode(envelope), forKey: "tonic.menuBarWorkspace.v2")
+        }
+    }
+    #endif
 
     func applicationDidBecomeActive(_ notification: Notification) {
         // Catch-up sample for instances that stay running across days.
@@ -170,6 +198,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Keep app running when window is closed (menu bar app behavior)
         return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        #if !TONIC_STORE
+        guard TonicHelperClient.shared.hasActiveFanSession else { return .terminateNow }
+        Task { @MainActor in
+            _ = await TonicHelperClient.shared.restoreAutomaticFanControl()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+        #else
+        return .terminateNow
+        #endif
     }
 
     @MainActor

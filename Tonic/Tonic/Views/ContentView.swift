@@ -146,6 +146,12 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openMenuBarManagement)) { _ in
                 route = .tool(.menuBar)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .openTonicDestination)) { note in
+                guard let raw = note.object as? String,
+                      let destination = CustomTonicDestination(rawValue: raw) else { return }
+                if destination == .settings { route = .settings }
+                else if let tool = TonicToolID(rawValue: destination.rawValue) { route = .tool(tool) }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .navigateToDestination)) { note in
                 guard let raw = note.userInfo?["destination"] as? String,
                       let destination = NavigationDestination(rawValue: raw) else { return }

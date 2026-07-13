@@ -20,11 +20,16 @@ struct MonitorView: View {
 
     @State private var data = WidgetDataManager.shared
     @State private var history = WidgetHistoryStore.shared
+    private let longTermHistory = LongTermMetricsStore.shared
     @State private var selectedRange: ResourceHistoryRange = Self.initialResourceHistoryRange
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
     @State private var liveStartupDate = Date()
     @State private var liveStartupStalled = false
+    #if !TONIC_STORE
+    @State private var privilegedReview: PrivilegedOperationReview?
+    @State private var helperMessage: String?
+    #endif
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -60,6 +65,11 @@ struct MonitorView: View {
                 ensureLiveMonitoring("MonitorView live selected")
             }
         }
+        #if !TONIC_STORE
+        .sheet(item: $privilegedReview) { review in
+            PrivilegedOperationReviewSheet(review: review) { result in helperMessage = result?.detail }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -98,7 +108,9 @@ struct MonitorView: View {
             TextAction("Export CSV", systemImage: "square.and.arrow.up",
                        color: TonicDS.Colors.linkBlue) {
                 MetricsExporter.exportWithPanel(
-                    samples: WidgetHistoryStore.shared.samples(for: selectedRange),
+                    samples: selectedRange == .live
+                        ? WidgetHistoryStore.shared.samples(for: selectedRange)
+                        : LongTermMetricsStore.shared.resourceSamples(for: selectedRange),
                     rangeName: String(describing: selectedRange)
                 )
             }
@@ -451,15 +463,49 @@ struct MonitorView: View {
                 }
                 if !data.sensorsData.fans.isEmpty {
                     TonicHairline(color: TonicDS.Colors.hairlineOnDark)
-                    ForEach(data.sensorsData.fans) { fan in
+                    ForEach(Array(data.sensorsData.fans.enumerated()), id: \.element.id) { index, fan in
                         let frac = (fan.speedPercentage ?? 0) / 100
-                        consoleRow(fan.name, "\(fan.rpm) RPM",
-                                   fan.maxRPM != nil ? TonicDS.status(forFraction: frac) : TonicDS.Colors.statusInfo)
+                        HStack {
+                            consoleRow(fan.name, "\(fan.rpm) RPM",
+                                       fan.maxRPM != nil ? TonicDS.status(forFraction: frac) : TonicDS.Colors.statusInfo)
+                            #if !TONIC_STORE
+                            Button("Auto") { reviewAutomaticFan(index: index, name: fan.name) }.buttonStyle(.bordered)
+                            if let maxRPM = fan.maxRPM {
+                                Button("Set \(Swift.min(Swift.max(fan.rpm + 500, 1_000), maxRPM))") {
+                                    reviewFanTarget(index: index, name: fan.name,
+                                                    rpm: Swift.min(Swift.max(fan.rpm + 500, 1_000), maxRPM))
+                                }.buttonStyle(.bordered)
+                            }
+                            #else
+                            StatusChip("Report only", level: .info)
+                            #endif
+                        }
                     }
+                    #if !TONIC_STORE
+                    if let helperMessage { Text(helperMessage).tonicType(.caption).foregroundStyle(TonicDS.Colors.onDarkMuted) }
+                    #endif
                 }
             }
         }
     }
+
+    #if !TONIC_STORE
+    private func reviewAutomaticFan(index: Int, name: String) {
+        privilegedReview = PrivilegedOperationReview(
+            title: "Restore \(name) to Auto", operation: .setFanMode(fanID: index, automatic: true, sessionID: UUID()),
+            scope: "SMC fan index \(index) only.", impact: "macOS resumes automatic thermal control immediately.",
+            warning: "Automatic mode is also restored by the helper watchdog if Tonic disconnects."
+        )
+    }
+
+    private func reviewFanTarget(index: Int, name: String, rpm: Int) {
+        privilegedReview = PrivilegedOperationReview(
+            title: "Set \(name) target", operation: .setFanTargetRPM(fanID: index, rpm: rpm, sessionID: UUID()),
+            scope: "SMC fan index \(index) only.", impact: "Sets a clamped target of \(rpm) RPM until restored or the watchdog fires.",
+            warning: "Tonic renews a unique session every five seconds; any interruption restores Auto."
+        )
+    }
+    #endif
 
     private var topTemperatures: [SensorReading] {
         data.sensorsData.temperatures.sorted { $0.value > $1.value }.prefix(5).map { $0 }
@@ -612,7 +658,9 @@ struct MonitorView: View {
         if selectedRange == .live {
             return data.hasLiveMetricSample
         }
-        return !history.samples(for: selectedRange).isEmpty
+        return selectedRange == .live
+            ? !history.samples(for: selectedRange).isEmpty
+            : !longTermHistory.samples(for: selectedRange).isEmpty
     }
 
     private func ensureLiveMonitoring(_ reason: String) {
@@ -621,27 +669,27 @@ struct MonitorView: View {
     }
 
     private var cpuSeries: [Double] {
-        selectedRange == .live ? data.cpuHistory : history.chartSeries(for: .cpuPercent, range: selectedRange)
+        selectedRange == .live ? data.cpuHistory : longTermHistory.chartSeries(for: .cpuPercent, range: selectedRange)
     }
 
     private var memorySeries: [Double] {
-        selectedRange == .live ? data.memoryHistory : history.chartSeries(for: .memoryPercent, range: selectedRange)
+        selectedRange == .live ? data.memoryHistory : longTermHistory.chartSeries(for: .memoryPercent, range: selectedRange)
     }
 
     private var diskSeries: [Double] {
-        selectedRange == .live ? data.diskHistory : history.chartSeries(for: .diskUsedPercent, range: selectedRange)
+        selectedRange == .live ? data.diskHistory : longTermHistory.chartSeries(for: .diskUsedPercent, range: selectedRange)
     }
 
     private var networkDownloadSeries: [Double] {
         selectedRange == .live
             ? data.networkDownloadHistory
-            : history.chartSeries(for: .networkDownloadBytesPerSecond, range: selectedRange)
+            : longTermHistory.chartSeries(for: .networkDownloadBytesPerSecond, range: selectedRange)
     }
 
     private var networkUploadSeries: [Double] {
         selectedRange == .live
             ? data.networkUploadHistory
-            : history.chartSeries(for: .networkUploadBytesPerSecond, range: selectedRange)
+            : longTermHistory.chartSeries(for: .networkUploadBytesPerSecond, range: selectedRange)
     }
 
     private var networkTrafficCardContext: NetworkTrafficCardContext {
@@ -651,7 +699,7 @@ struct MonitorView: View {
                 downTotal: bytes(data.totalDownloadBytes),
                 upTotal: bytes(data.totalUploadBytes)
             )
-        case .oneHour, .twentyFourHours:
+        case .oneHour, .twentyFourHours, .sevenDays, .thirtyDays:
             return .history(range: selectedRange)
         }
     }
@@ -703,7 +751,7 @@ struct MonitorView: View {
     }
 
     private func summary(_ metric: ResourceMetricKind) -> ResourceMetricSummary {
-        history.summary(for: metric, range: selectedRange)
+        longTermHistory.summary(for: metric, range: selectedRange)
     }
 
     private static func uptime(_ seconds: TimeInterval) -> String {

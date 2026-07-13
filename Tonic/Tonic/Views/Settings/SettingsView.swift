@@ -23,7 +23,12 @@ struct SettingsView: View {
     @State private var labsRevision = 0
     @AppStorage("tonic.general.compactDensity") private var compactDensity = false
     @AppStorage("tonic.general.metricUnits") private var metricUnits = true
-    @AppStorage("tonic.general.retentionDays") private var retentionDays = 7
+    @State private var longTermEnabled = LongTermMetricsStore.shared.isEnabled
+    @State private var retentionDays = LongTermMetricsStore.shared.retentionDays
+    #if !TONIC_STORE
+    @State private var helper = TonicHelperClient.shared
+    @State private var helperMessage: String?
+    #endif
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -45,6 +50,8 @@ struct SettingsView: View {
         .tonicCanvas()
         .onAppear {
             if !didInit { section = initialSection; didInit = true }
+            longTermEnabled = LongTermMetricsStore.shared.isEnabled
+            retentionDays = LongTermMetricsStore.shared.retentionDays
             Task { await permissions.checkAllPermissions() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openSettingsSection)) { note in
@@ -183,8 +190,88 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            #if !TONIC_STORE
+            helperPanel
+            #else
+            SettingsPanel(title: "Privileged maintenance") {
+                TonicPreferenceRow(
+                    title: "Report only",
+                    description: "The App Store edition explains snapshot reclaim and fan controls but never installs a privileged helper.",
+                    showsDivider: false
+                ) { StatusChip("Store-safe", level: .info) }
+            }
+            #endif
         }
     }
+
+    #if !TONIC_STORE
+    private var helperPanel: some View {
+        SettingsPanel(title: "Privileged helper") {
+            TonicPreferenceRow(
+                title: helperStatusTitle,
+                description: "Version \(TonicHelperRequest.currentVersion) · Installed only when snapshot reclaim or fan control is first chosen."
+            ) {
+                StatusChip(helperStatusChip, level: helper.status == .enabled ? .success : .info)
+            }
+            if let helperMessage {
+                TonicPreferenceRow(title: "Helper status", description: helperMessage) { EmptyView() }
+            }
+            TonicPreferenceRow(
+                title: "Administrator approval",
+                description: "macOS requires approval before the signed launch daemon can bootstrap.",
+                showsDivider: false
+            ) {
+                HStack(spacing: 8) {
+                    Button("Refresh") { helper.refreshStatus() }.buttonStyle(.bordered)
+                    if helper.status == .notRegistered || helper.status == .notFound {
+                        Button("Request Approval") {
+                            do {
+                                try helper.register()
+                                helperMessage = "Registration requested. Approve Tonic in Login Items if macOS asks."
+                            } catch {
+                                helperMessage = error.localizedDescription
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button("Remove") {
+                            Task {
+                                do {
+                                    try await helper.unregister()
+                                    helperMessage = "Privileged helper removed."
+                                } catch {
+                                    helperMessage = error.localizedDescription
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+        }
+    }
+
+    private var helperStatusTitle: String {
+        switch helper.status {
+        case .enabled: return "Helper ready"
+        case .requiresApproval: return "Approval required"
+        case .notRegistered: return "Not installed"
+        case .notFound: return "Embedded helper unavailable"
+        @unknown default: return "Unknown helper state"
+        }
+    }
+
+    private var helperStatusChip: String {
+        switch helper.status {
+        case .enabled: return "Ready"
+        case .requiresApproval: return "Approve"
+        case .notRegistered: return "On demand"
+        case .notFound: return "Unavailable"
+        @unknown default: return "Unknown"
+        }
+    }
+    #endif
 
     private static let maintenanceDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -230,17 +317,57 @@ struct SettingsView: View {
             SettingsPanel(title: "Measurements") {
                 TonicToggleRow(title: "Metric units", description: "Use GB, °C, and metric network units.",
                                isOn: $metricUnits)
-                TonicPreferenceRow(title: "Metric history", description: "Local rolling history used by Monitor charts.", showsDivider: false) {
-                    Picker("Retention", selection: $retentionDays) {
-                        Text("1 day").tag(1)
+                TonicToggleRow(
+                    title: "Long-term history",
+                    description: "Stored only on this Mac (\(longTermHistoryStorageSize)). Powers the 24h, 7d, and 30d Monitor charts.",
+                    isOn: longTermEnabledBinding
+                )
+                TonicPreferenceRow(title: "Metric history", description: "Local rolling history used by Monitor charts.") {
+                    Picker("Retention", selection: retentionDaysBinding) {
                         Text("7 days").tag(7)
                         Text("30 days").tag(30)
+                        Text("90 days").tag(90)
                     }
                     .labelsHidden()
                     .frame(width: 110)
                 }
+                TonicPreferenceRow(title: "Clear history",
+                                   description: "Deletes every stored resource sample. Charts start over.",
+                                   showsDivider: false) {
+                    TextAction("Clear", color: TonicDS.Colors.textMuted) {
+                        LongTermMetricsStore.shared.clearAll()
+                        WidgetHistoryStore.shared.clearHistory()
+                    }
+                }
             }
         }
+    }
+
+    private var longTermEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { longTermEnabled },
+            set: {
+                longTermEnabled = $0
+                LongTermMetricsStore.shared.isEnabled = $0
+            }
+        )
+    }
+
+    private var retentionDaysBinding: Binding<Int> {
+        Binding(
+            get: { retentionDays },
+            set: {
+                retentionDays = $0
+                LongTermMetricsStore.shared.retentionDays = $0
+            }
+        )
+    }
+
+    private var longTermHistoryStorageSize: String {
+        ByteCountFormatter.string(
+            fromByteCount: LongTermMetricsStore.shared.storageSizeBytes,
+            countStyle: .file
+        )
     }
 
     private var advancedSection: some View {
@@ -268,19 +395,50 @@ struct SettingsView: View {
         }
     }
 
+    private var appHotkeyActions: [HotkeyAction] { [.toggleConsole, .quickSearch, .toggleMenuBar] }
+
+    private var windowHotkeyActions: [HotkeyAction] {
+        WindowAction.allCases.map(HotkeyAction.window)
+    }
+
     private var shortcutsSection: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
             sectionTitle("Shortcuts", "Keyboard access to daily controls")
-            SettingsPanel(title: "Global") {
-                ForEach(Array(HotkeyAction.allCases.enumerated()), id: \.element.rawValue) { index, action in
-                    TonicPreferenceRow(title: action.title, description: action.subtitle, showsDivider: index < HotkeyAction.allCases.count - 1) {
-                        Text(HotkeySettingsStore.shared.spec(for: action)?.displayString ?? "Not set")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(TonicDS.Colors.textMuted)
+
+            SettingsPanel(title: "App") {
+                ForEach(Array(appHotkeyActions.enumerated()), id: \.element) { index, action in
+                    TonicPreferenceRow(title: action.title, description: action.subtitle,
+                                       showsDivider: index < appHotkeyActions.count - 1) {
+                        KeyboardShortcutRecorder(action: action)
                     }
                 }
             }
-            Text("Record or change menu-bar shortcuts from Organize → Menu Bar. ⌘K is always reserved for All Tools.")
+
+            SettingsPanel(title: "Window Management") {
+                TonicPreferenceRow(
+                    title: "Rectangle-style defaults",
+                    description: "Bind ⌃⌥ arrows, letters, and ⌃⌥⌘ display moves to every unassigned placement. Never overwrites a combo you set."
+                ) {
+                    HStack(spacing: TonicDS.Space.sm) {
+                        TextAction("Enable Defaults") {
+                            HotkeySettingsStore.shared.enableRecommendedWindowDefaults()
+                            GlobalHotkeyManager.shared.applyAll()
+                        }
+                        TextAction("Clear All", color: TonicDS.Colors.textMuted) {
+                            HotkeySettingsStore.shared.clearWindowShortcuts()
+                            GlobalHotkeyManager.shared.applyAll()
+                        }
+                    }
+                }
+                ForEach(Array(windowHotkeyActions.enumerated()), id: \.element) { index, action in
+                    TonicPreferenceRow(title: action.title, description: action.subtitle,
+                                       showsDivider: index < windowHotkeyActions.count - 1) {
+                        KeyboardShortcutRecorder(action: action)
+                    }
+                }
+            }
+
+            Text("Window shortcuts need Accessibility access to move windows. ⌘K is always reserved for All Tools.")
                 .font(.system(size: 12))
                 .foregroundStyle(TonicDS.Colors.textMuted)
         }
@@ -311,7 +469,7 @@ struct SettingsView: View {
 
     private var licensingSection: some View {
         VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
-            sectionTitle("Licensing", "Your edition and verified entitlement")
+            sectionTitle("Edition", "Distribution and capabilities")
             SettingsPanel(title: "Installed product") {
                 TonicPreferenceRow(
                     title: DistributionEdition.current == .direct ? "Tonic Direct" : "Tonic for the Mac App Store",
@@ -322,8 +480,8 @@ struct SettingsView: View {
                 ) {
                     StatusChip(DistributionEdition.current == .direct ? "Direct" : "Store", level: .info)
                 }
-                TonicPreferenceRow(title: "License", description: "Purchasing controls appear only after a signed entitlement is available.", showsDivider: false) {
-                    StatusChip(LicenseManager.shared.currentTier.rawValue, level: .info)
+                TonicPreferenceRow(title: "Access", description: "Tonic 5 includes the complete feature set for everyone.", showsDivider: false) {
+                    StatusChip("Full access", level: .success)
                 }
             }
         }
