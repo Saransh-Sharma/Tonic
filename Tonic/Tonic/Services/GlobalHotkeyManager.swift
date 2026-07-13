@@ -226,6 +226,8 @@ public final class GlobalHotkeyManager {
             QuickSearchPanelController.shared.toggle()
         case .toggleMenuBar:
             MenuBarManager.shared.toggle()
+        case .topShelf:
+            TopShelfPanelController.shared.toggle()
         case .window(let windowAction):
             guard AXIsProcessTrusted() else {
                 // Without Accessibility the action can't run and there is no

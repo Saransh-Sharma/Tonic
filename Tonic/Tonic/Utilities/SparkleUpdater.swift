@@ -12,8 +12,9 @@ import Sparkle
 #endif
 
 /// Sparkle updater manager
+@MainActor
 @Observable
-public final class SparkleUpdater: @unchecked Sendable {
+public final class SparkleUpdater {
 
     public static let shared = SparkleUpdater()
 

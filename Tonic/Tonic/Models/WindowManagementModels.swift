@@ -261,19 +261,181 @@ struct WindowLayout: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+enum WindowRuleContext: Hashable, Codable, Sendable {
+    case manual(UUID)
+    case automatic(String)
+}
+
+struct WindowRuleMatch: Hashable, Codable, Sendable {
+    var bundleIdentifier: String
+    var role: String?
+    var subrole: String?
+    var titlePattern: String?
+
+    init(bundleIdentifier: String, role: String? = nil, subrole: String? = nil,
+         titlePattern: String? = nil) {
+        self.bundleIdentifier = bundleIdentifier
+        self.role = role
+        self.subrole = subrole
+        self.titlePattern = titlePattern.flatMap { Self.isValidPattern($0) ? $0 : nil }
+    }
+
+    static func isValidPattern(_ pattern: String) -> Bool {
+        !pattern.isEmpty && pattern.count <= 160
+            && (try? NSRegularExpression(pattern: pattern)) != nil
+    }
+}
+
+struct WindowRuleCondition: Hashable, Codable, Sendable {
+    var display: DisplaySignature?
+    var context: WindowRuleContext?
+    var fullScreen: Bool?
+
+    init(display: DisplaySignature? = nil, context: WindowRuleContext? = nil,
+         fullScreen: Bool? = nil) {
+        self.display = display; self.context = context; self.fullScreen = fullScreen
+    }
+}
+
+struct WindowRuleAction: Hashable, Codable, Sendable {
+    var placement: WindowAction
+    var target: WindowTarget
+
+    init(placement: WindowAction, target: WindowTarget = .currentDisplay) {
+        self.placement = placement; self.target = target
+    }
+}
+
+struct WindowRulePolicy: Hashable, Codable, Sendable {
+    var applyWhenWindowAppears: Bool
+    var reapplyOnDisplayOrContextChange: Bool
+    var ignoreAfterUserAdjustment: Bool
+    var delaySeconds: Double
+    var cooldownSeconds: Double
+
+    init(applyWhenWindowAppears: Bool = true, reapplyOnDisplayOrContextChange: Bool = true,
+         ignoreAfterUserAdjustment: Bool = true, delaySeconds: Double = 0.3,
+         cooldownSeconds: Double = 3) {
+        self.applyWhenWindowAppears = applyWhenWindowAppears
+        self.reapplyOnDisplayOrContextChange = reapplyOnDisplayOrContextChange
+        self.ignoreAfterUserAdjustment = ignoreAfterUserAdjustment
+        self.delaySeconds = min(max(delaySeconds, 0), 10)
+        self.cooldownSeconds = min(max(cooldownSeconds, 1), 60)
+    }
+}
+
 struct WindowRule: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
-    var bundleIdentifier: String
-    var action: WindowAction
-    var target: WindowTarget
+    var match: WindowRuleMatch
+    var condition: WindowRuleCondition
+    var ruleAction: WindowRuleAction
+    var policy: WindowRulePolicy
+    var priority: Int
     var isEnabled: Bool
 
-    init(id: UUID = UUID(), bundleIdentifier: String, action: WindowAction, target: WindowTarget = .currentDisplay, isEnabled: Bool = true) {
+    var bundleIdentifier: String {
+        get { match.bundleIdentifier }
+        set { match.bundleIdentifier = newValue }
+    }
+    var action: WindowAction {
+        get { ruleAction.placement }
+        set { ruleAction.placement = newValue }
+    }
+    var target: WindowTarget {
+        get { ruleAction.target }
+        set { ruleAction.target = newValue }
+    }
+
+    init(id: UUID = UUID(), bundleIdentifier: String, action: WindowAction,
+         target: WindowTarget = .currentDisplay, isEnabled: Bool = true,
+         condition: WindowRuleCondition = .init(), policy: WindowRulePolicy = .init(), priority: Int = 0) {
         self.id = id
-        self.bundleIdentifier = bundleIdentifier
-        self.action = action
-        self.target = target
+        self.match = WindowRuleMatch(bundleIdentifier: bundleIdentifier)
+        self.condition = condition
+        self.ruleAction = WindowRuleAction(placement: action, target: target)
+        self.policy = policy
+        self.priority = min(max(priority, -1_000), 1_000)
         self.isEnabled = isEnabled
+    }
+
+    init(id: UUID = UUID(), match: WindowRuleMatch, condition: WindowRuleCondition = .init(),
+         action: WindowRuleAction, policy: WindowRulePolicy = .init(), priority: Int = 0,
+         isEnabled: Bool = true) {
+        self.id = id; self.match = match; self.condition = condition; self.ruleAction = action
+        self.policy = policy; self.priority = min(max(priority, -1_000), 1_000); self.isEnabled = isEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, match, condition, ruleAction, policy, priority, isEnabled
+        case bundleIdentifier, action, target
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        if let modern = try container.decodeIfPresent(WindowRuleMatch.self, forKey: .match) {
+            match = modern
+            condition = try container.decodeIfPresent(WindowRuleCondition.self, forKey: .condition) ?? .init()
+            ruleAction = try container.decode(WindowRuleAction.self, forKey: .ruleAction)
+            policy = try container.decodeIfPresent(WindowRulePolicy.self, forKey: .policy) ?? .init()
+            priority = min(max(try container.decodeIfPresent(Int.self, forKey: .priority) ?? 0, -1_000), 1_000)
+        } else {
+            match = WindowRuleMatch(bundleIdentifier: try container.decode(String.self, forKey: .bundleIdentifier))
+            condition = .init()
+            ruleAction = WindowRuleAction(
+                placement: try container.decode(WindowAction.self, forKey: .action),
+                target: try container.decodeIfPresent(WindowTarget.self, forKey: .target) ?? .currentDisplay)
+            policy = .init()
+            priority = 0
+        }
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(match, forKey: .match)
+        try container.encode(condition, forKey: .condition)
+        try container.encode(ruleAction, forKey: .ruleAction)
+        try container.encode(policy, forKey: .policy)
+        try container.encode(priority, forKey: .priority)
+        try container.encode(isEnabled, forKey: .isEnabled)
+    }
+}
+
+struct WindowRuleEvaluationContext: Sendable {
+    var bundleIdentifier: String
+    var role: String?
+    var subrole: String?
+    var title: String?
+    var display: DisplaySignature?
+    var context: WindowRuleContext?
+    var isFullScreen: Bool
+
+    init(bundleIdentifier: String, role: String? = nil, subrole: String? = nil,
+         title: String? = nil, display: DisplaySignature? = nil,
+         context: WindowRuleContext? = nil, isFullScreen: Bool = false) {
+        self.bundleIdentifier = bundleIdentifier; self.role = role; self.subrole = subrole
+        self.title = title; self.display = display; self.context = context
+        self.isFullScreen = isFullScreen
+    }
+}
+
+struct WindowRuleReceipt: Identifiable, Codable, Sendable {
+    var id: UUID
+    var ruleID: UUID
+    var matchedReason: String
+    var originalFrame: CGRect?
+    var appliedFrame: CGRect?
+    var failure: String?
+    var createdAt: Date
+
+    init(id: UUID = UUID(), ruleID: UUID, matchedReason: String,
+         originalFrame: CGRect? = nil, appliedFrame: CGRect? = nil,
+         failure: String? = nil, createdAt: Date = Date()) {
+        self.id = id; self.ruleID = ruleID; self.matchedReason = matchedReason
+        self.originalFrame = originalFrame; self.appliedFrame = appliedFrame
+        self.failure = failure; self.createdAt = createdAt
     }
 }
 

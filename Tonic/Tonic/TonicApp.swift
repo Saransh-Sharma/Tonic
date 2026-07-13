@@ -143,6 +143,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Cross-tool automations (reads the store each tick; enabling an
         // automation needs no engine restart).
         AutomationEngine.shared.start()
+        WindowRuleEngine.shared.start()
+        TopShelfAmbientMonitor.shared.start()
+        #if !TONIC_STORE
+        PrivateSpaceCoordinator.shared.start()
+        #endif
 
         // Appearance is owned by macOS. Tonic does not override the user's system choice.
         NSApp.appearance = nil

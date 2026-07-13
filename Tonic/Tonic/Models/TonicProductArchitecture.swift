@@ -121,11 +121,11 @@ enum ToolPresentationState: String, Codable, Sendable {
     case failed
 }
 
-enum DistributionEdition: String, Codable, Sendable {
+public enum DistributionEdition: String, Codable, Sendable {
     case store
     case direct
 
-    static var current: DistributionEdition {
+    public static var current: DistributionEdition {
         BuildFlavor.current == .store ? .store : .direct
     }
 }

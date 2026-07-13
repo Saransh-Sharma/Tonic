@@ -16,10 +16,11 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
     case toggleConsole
     case quickSearch
     case toggleMenuBar
+    case topShelf
     case window(WindowAction)
 
     public static var allCases: [HotkeyAction] {
-        [.toggleConsole, .quickSearch, .toggleMenuBar]
+        [.toggleConsole, .quickSearch, .toggleMenuBar, .topShelf]
             + WindowAction.allCases.map(HotkeyAction.window)
     }
 
@@ -30,6 +31,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         case .toggleConsole: return "toggleConsole"
         case .quickSearch: return "quickSearch"
         case .toggleMenuBar: return "toggleMenuBar"
+        case .topShelf: return "topShelf"
         case .window(let action): return "window.\(action.rawValue)"
         }
     }
@@ -39,6 +41,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         case "toggleConsole": self = .toggleConsole
         case "quickSearch": self = .quickSearch
         case "toggleMenuBar": self = .toggleMenuBar
+        case "topShelf": self = .topShelf
         default:
             guard storageKey.hasPrefix("window."),
                   let action = WindowAction(rawValue: String(storageKey.dropFirst("window.".count)))
@@ -55,6 +58,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         case .toggleConsole: return 1
         case .quickSearch: return 2
         case .toggleMenuBar: return 3
+        case .topShelf: return 4
         case .window(let action): return Self.windowHotKeyIDs[action] ?? 0
         }
     }
@@ -74,6 +78,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         case .toggleConsole: return "Toggle Console"
         case .quickSearch: return "Quick Search"
         case .toggleMenuBar: return "Show/Hide Menu Bar Items"
+        case .topShelf: return "Show Top Shelf"
         case .window(let action): return action.title
         }
     }
@@ -83,6 +88,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         case .toggleConsole: return "Open the primary menu-bar widget console."
         case .quickSearch: return "Search and open any menu bar item from the keyboard."
         case .toggleMenuBar: return "Reveal or collapse hidden menu bar items."
+        case .topShelf: return "Open the contextual Top Shelf on the active display."
         case .window(let action):
             return action.isDisplayMove
                 ? "Send the focused window to the \(action == .nextDisplay ? "next" : "previous") display."
@@ -96,7 +102,7 @@ public enum HotkeyAction: Hashable, CaseIterable, Codable, Sendable {
         let controlOption = UInt32(controlKey) | UInt32(optionKey)
         let controlOptionCommand = controlOption | UInt32(cmdKey)
         switch self {
-        case .toggleConsole, .quickSearch, .toggleMenuBar:
+        case .toggleConsole, .quickSearch, .toggleMenuBar, .topShelf:
             return nil
         case .window(let action):
             switch action {
