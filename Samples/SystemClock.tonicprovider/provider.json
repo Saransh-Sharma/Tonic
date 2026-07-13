@@ -1,0 +1,12 @@
+{
+  "provider": {
+    "id": "sample.system-clock",
+    "schemaVersion": 1,
+    "supportedSchemaRange": { "minimum": 1, "maximum": 2 },
+    "displayName": "Sample System Clock",
+    "providerVersion": "1.0.0",
+    "minimumRefreshSeconds": 60,
+    "capabilities": ["accessibilityText", "freshness", "label", "semanticStatus", "symbol"]
+  },
+  "executableRelativePath": "provider.sh"
+}
