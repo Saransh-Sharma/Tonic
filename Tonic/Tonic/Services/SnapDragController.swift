@@ -189,19 +189,16 @@ final class SnapDragController {
 /// The glass zone preview: a quiet washed panel with a hairline rim — chrome,
 /// not data, so no status or brand color.
 private struct SnapZoneHighlight: View {
-    var body: some View {
+    private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
+    }
+
+    var body: some View {
+        shape
             .fill(TonicDS.Colors.rowHover(0.12))
-            .overlay(
-                RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
-                    .strokeBorder(TonicDS.Colors.glassStroke, lineWidth: 1.5)
-            )
-            .background(
-                TonicGlassPolicy.shared.isGlassEnabled
-                    ? AnyView(RoundedRectangle(cornerRadius: TonicDS.Radius.md, style: .continuous)
-                        .fill(.ultraThinMaterial))
-                    : AnyView(EmptyView())
-            )
+            .tonicSurface(.overlay, in: shape,
+                          flatFill: .clear,
+                          flatStroke: TonicDS.Colors.glassStroke)
             .ignoresSafeArea()
     }
 }

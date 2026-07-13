@@ -18,7 +18,11 @@ public final class WindowWorkspaceStore: @unchecked Sendable {
         static let displayRules = "tonic.windows.displayRules"
         static let cyclingEnabled = "tonic.windows.cyclingEnabled"
         static let snapEnabled = "tonic.windows.snapEnabled"
+        static let windowGap = "tonic.windows.gap"
     }
+
+    /// The largest configurable gap between tiled windows, in points.
+    public static let maxWindowGap: Double = 24
 
     var workspaces: [WindowWorkspace] {
         didSet { persist(workspaces, key: Keys.workspaces) }
@@ -38,11 +42,21 @@ public final class WindowWorkspaceStore: @unchecked Sendable {
         didSet { UserDefaults.standard.set(snapEnabled, forKey: Keys.snapEnabled) }
     }
 
+    /// Gap between tiled windows in points (0 = flush, Magnet-style default).
+    var windowGap: Double {
+        didSet {
+            windowGap = min(max(windowGap, 0), Self.maxWindowGap)
+            UserDefaults.standard.set(windowGap, forKey: Keys.windowGap)
+        }
+    }
+
     private init() {
         workspaces = Self.load([WindowWorkspace].self, key: Keys.workspaces) ?? []
         displayRules = Self.load([DisplayRule].self, key: Keys.displayRules) ?? []
         cyclingEnabled = UserDefaults.standard.object(forKey: Keys.cyclingEnabled) as? Bool ?? true
         snapEnabled = UserDefaults.standard.object(forKey: Keys.snapEnabled) as? Bool ?? true
+        windowGap = min(max(UserDefaults.standard.object(forKey: Keys.windowGap) as? Double ?? 0, 0),
+                        Self.maxWindowGap)
     }
 
     // MARK: - Workspaces

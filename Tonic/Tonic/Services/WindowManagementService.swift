@@ -121,9 +121,16 @@ final class WindowManagementService {
             return
         }
 
+        if action.isDisplayMove {
+            moveToAdjacentDisplay(action, window: window, originalFrame: originalFrame, from: screen)
+            return
+        }
+
         // Repeat-press cycling: the same action on the same, unmoved window
         // advances through its frame variants (½ → ⅓ → ⅔ for the halves).
-        let variants = action.cycleFrames(in: screen.visibleFrame).map(\.integral)
+        let gap = tilingGap(for: action)
+        let variants = action.cycleFrames(in: screen.visibleFrame)
+            .map { WindowTilingGeometry.applyingGap($0, gap: gap, in: screen.visibleFrame).integral }
         var variantIndex = 0
         if WindowWorkspaceStore.shared.cyclingEnabled,
            variants.count > 1,
@@ -142,7 +149,17 @@ final class WindowManagementService {
         cycleState = CycleState(action: action, window: window,
                                 index: variantIndex, appliedFrame: targetFrame)
 
-        let variantSuffix = ["", " (⅓)", " (⅔)"][variantIndex]
+        let variantSuffix: String
+        switch action {
+        case .leftHalf, .rightHalf:
+            variantSuffix = ["", " (⅓)", " (⅔)"][variantIndex]
+        case .leftThird, .centerThird, .rightThird:
+            let columns = ["left", "center", "right"]
+            let start = [WindowAction.leftThird, .centerThird, .rightThird].firstIndex(of: action) ?? 0
+            variantSuffix = variantIndex == 0 ? "" : " (\(columns[(start + variantIndex) % 3]) column)"
+        default:
+            variantSuffix = ""
+        }
         let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Window"
         let receipt = ActionReceipt(
             tool: .windows,
@@ -191,6 +208,60 @@ final class WindowManagementService {
         focusedFrame = restore.frame
         restorableWindow = nil
         TonicFeedback.levelChange()
+    }
+
+    // MARK: - Display moves
+
+    /// The user's tiling gap, except for actions that never tile flush
+    /// (centered floats, display moves keep their relative frame).
+    private func tilingGap(for action: WindowAction) -> CGFloat {
+        guard action != .centered, !action.isDisplayMove else { return 0 }
+        return CGFloat(WindowWorkspaceStore.shared.windowGap)
+    }
+
+    /// Move the focused window to the next/previous display (ordered left to
+    /// right), preserving its frame relative to the source display's visible area.
+    private func moveToAdjacentDisplay(_ action: WindowAction, window: AXUIElement,
+                                       originalFrame: CGRect, from screen: NSScreen) {
+        let screens = NSScreen.screens.sorted { $0.frame.minX < $1.frame.minX }
+        guard screens.count > 1, let currentIndex = screens.firstIndex(of: screen) else {
+            lastError = "Only one display is connected."
+            return
+        }
+
+        let offset = action == .nextDisplay ? 1 : screens.count - 1
+        let target = screens[(currentIndex + offset) % screens.count]
+        let targetFrame = WindowTilingGeometry.projecting(
+            originalFrame,
+            from: screen.visibleFrame,
+            onto: target.visibleFrame
+        ).integral
+
+        guard writeFrame(targetFrame, to: window) else {
+            lastError = "The app did not allow Tonic to move this window."
+            return
+        }
+
+        let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Window"
+        let receipt = ActionReceipt(
+            tool: .windows,
+            title: "Moved \(appName)",
+            detail: "\(action.title): \(screen.localizedName) → \(target.localizedName)",
+            affectedItems: 1,
+            impact: dimensions(targetFrame),
+            undo: .available(token: UUID().uuidString, expiresAt: nil),
+            metadata: [
+                "before": frameDescription(originalFrame),
+                "after": frameDescription(targetFrame)
+            ]
+        )
+        restorableWindow = RestorableWindow(element: window, frame: originalFrame,
+                                            appName: appName, receiptID: receipt.id)
+        lastReceipt = receipt
+        cycleState = nil
+        focusedFrame = targetFrame
+        ActionReceiptStore.shared.record(receipt)
+        TonicFeedback.alignment()
     }
 
     // MARK: - Workspaces
@@ -365,7 +436,11 @@ final class WindowManagementService {
     func performSnap(_ action: WindowAction, window: AXUIElement, on screen: NSScreen) {
         guard AXIsProcessTrusted() else { return }
         guard let originalFrame = readFrame(of: window) else { return }
-        let targetFrame = action.frame(in: screen.visibleFrame).integral
+        let targetFrame = WindowTilingGeometry.applyingGap(
+            action.frame(in: screen.visibleFrame),
+            gap: tilingGap(for: action),
+            in: screen.visibleFrame
+        ).integral
         guard writeFrame(targetFrame, to: window) else { return }
 
         var appTitle = "Window"

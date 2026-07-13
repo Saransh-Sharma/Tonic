@@ -6,7 +6,7 @@
 import Foundation
 import CoreGraphics
 
-enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
+public enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
     case leftHalf
     case rightHalf
     case topHalf
@@ -19,8 +19,19 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
     case centered
     case leftTwoThirds
     case rightTwoThirds
+    case leftThird
+    case centerThird
+    case rightThird
+    case topLeftSixth
+    case topCenterSixth
+    case topRightSixth
+    case bottomLeftSixth
+    case bottomCenterSixth
+    case bottomRightSixth
+    case nextDisplay
+    case previousDisplay
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     var title: String {
         switch self {
@@ -36,6 +47,17 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
         case .centered: "Center"
         case .leftTwoThirds: "Left Two Thirds"
         case .rightTwoThirds: "Right Two Thirds"
+        case .leftThird: "Left Third"
+        case .centerThird: "Center Third"
+        case .rightThird: "Right Third"
+        case .topLeftSixth: "Top Left Sixth"
+        case .topCenterSixth: "Top Center Sixth"
+        case .topRightSixth: "Top Right Sixth"
+        case .bottomLeftSixth: "Bottom Left Sixth"
+        case .bottomCenterSixth: "Bottom Center Sixth"
+        case .bottomRightSixth: "Bottom Right Sixth"
+        case .nextDisplay: "Next Display"
+        case .previousDisplay: "Previous Display"
         }
     }
 
@@ -53,11 +75,24 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
         case .centered: "rectangle.center.inset.filled"
         case .leftTwoThirds: "rectangle.split.3x1.fill"
         case .rightTwoThirds: "rectangle.split.3x1.fill"
+        case .leftThird, .centerThird, .rightThird: "rectangle.split.3x1"
+        case .topLeftSixth, .topCenterSixth, .topRightSixth,
+             .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth: "rectangle.split.3x2"
+        case .nextDisplay: "arrow.right.square"
+        case .previousDisplay: "arrow.left.square"
         }
     }
 
+    /// Actions that move the window between displays rather than reframe it on
+    /// the current one. `WindowManagementService.perform` handles these before
+    /// the generic frame path.
+    var isDisplayMove: Bool {
+        self == .nextDisplay || self == .previousDisplay
+    }
+
     /// Frame variants for repeat-press cycling (Magnet/Rectangle-style):
-    /// left/right halves cycle ½ → ⅓ → ⅔; every other action has one frame.
+    /// left/right halves cycle ½ → ⅓ → ⅔, the thirds walk left → center → right
+    /// starting from their own column; every other action has one frame.
     func cycleFrames(in visibleFrame: CGRect) -> [CGRect] {
         let fractions: [CGFloat] = [1 / 2, 1 / 3, 2 / 3]
         switch self {
@@ -72,6 +107,12 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
                 return CGRect(x: visibleFrame.maxX - width, y: visibleFrame.minY,
                               width: width, height: visibleFrame.height)
             }
+        case .leftThird, .centerThird, .rightThird:
+            let columns: [WindowAction] = [.leftThird, .centerThird, .rightThird]
+            let start = columns.firstIndex(of: self) ?? 0
+            return (0..<columns.count).map { offset in
+                columns[(start + offset) % columns.count].frame(in: visibleFrame)
+            }
         default:
             return [frame(in: visibleFrame)]
         }
@@ -80,6 +121,7 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
     func frame(in visibleFrame: CGRect) -> CGRect {
         let halfWidth = visibleFrame.width / 2
         let halfHeight = visibleFrame.height / 2
+        let thirdWidth = visibleFrame.width / 3
         switch self {
         case .leftHalf:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY, width: halfWidth, height: visibleFrame.height)
@@ -108,7 +150,76 @@ enum WindowAction: String, CaseIterable, Identifiable, Codable, Sendable {
         case .rightTwoThirds:
             let width = visibleFrame.width * 2 / 3
             return CGRect(x: visibleFrame.maxX - width, y: visibleFrame.minY, width: width, height: visibleFrame.height)
+        case .leftThird:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY, width: thirdWidth, height: visibleFrame.height)
+        case .centerThird:
+            return CGRect(x: visibleFrame.minX + thirdWidth, y: visibleFrame.minY, width: thirdWidth, height: visibleFrame.height)
+        case .rightThird:
+            return CGRect(x: visibleFrame.maxX - thirdWidth, y: visibleFrame.minY, width: thirdWidth, height: visibleFrame.height)
+        case .topLeftSixth:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.midY, width: thirdWidth, height: halfHeight)
+        case .topCenterSixth:
+            return CGRect(x: visibleFrame.minX + thirdWidth, y: visibleFrame.midY, width: thirdWidth, height: halfHeight)
+        case .topRightSixth:
+            return CGRect(x: visibleFrame.maxX - thirdWidth, y: visibleFrame.midY, width: thirdWidth, height: halfHeight)
+        case .bottomLeftSixth:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY, width: thirdWidth, height: halfHeight)
+        case .bottomCenterSixth:
+            return CGRect(x: visibleFrame.minX + thirdWidth, y: visibleFrame.minY, width: thirdWidth, height: halfHeight)
+        case .bottomRightSixth:
+            return CGRect(x: visibleFrame.maxX - thirdWidth, y: visibleFrame.minY, width: thirdWidth, height: halfHeight)
+        case .nextDisplay, .previousDisplay:
+            // Display moves keep the window's relative frame; the generic frame
+            // path never runs for them (see `isDisplayMove`).
+            return visibleFrame
         }
+    }
+}
+
+// MARK: - Tiling geometry helpers
+
+enum WindowTilingGeometry {
+    /// Inset a tiled frame so adjacent tiles end up `gap` points apart and
+    /// screen-touching edges keep a full `gap` margin: edges on the visible-frame
+    /// boundary inset by `gap`, shared interior edges by `gap / 2`. Returns the
+    /// original frame when the gap is zero or would degenerate the frame.
+    static func applyingGap(_ rect: CGRect, gap: CGFloat, in visibleFrame: CGRect,
+                            tolerance: CGFloat = 1) -> CGRect {
+        guard gap > 0 else { return rect }
+
+        let leftInset = abs(rect.minX - visibleFrame.minX) <= tolerance ? gap : gap / 2
+        let rightInset = abs(rect.maxX - visibleFrame.maxX) <= tolerance ? gap : gap / 2
+        let bottomInset = abs(rect.minY - visibleFrame.minY) <= tolerance ? gap : gap / 2
+        let topInset = abs(rect.maxY - visibleFrame.maxY) <= tolerance ? gap : gap / 2
+
+        let result = CGRect(
+            x: rect.minX + leftInset,
+            y: rect.minY + bottomInset,
+            width: rect.width - leftInset - rightInset,
+            height: rect.height - bottomInset - topInset
+        )
+        guard result.width >= 40, result.height >= 40 else { return rect }
+        return result
+    }
+
+    /// Re-project a frame from one display's visible area onto another's,
+    /// preserving its relative position and size (the workspace-snapshot
+    /// normalization, as a pure function). Falls back to the destination frame
+    /// when the source is degenerate.
+    static func projecting(_ rect: CGRect, from source: CGRect, onto destination: CGRect) -> CGRect {
+        guard source.width > 0, source.height > 0 else { return destination }
+        let relative = CGRect(
+            x: (rect.minX - source.minX) / source.width,
+            y: (rect.minY - source.minY) / source.height,
+            width: rect.width / source.width,
+            height: rect.height / source.height
+        )
+        return CGRect(
+            x: destination.minX + relative.minX * destination.width,
+            y: destination.minY + relative.minY * destination.height,
+            width: relative.width * destination.width,
+            height: relative.height * destination.height
+        )
     }
 }
 

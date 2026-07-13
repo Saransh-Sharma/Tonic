@@ -8,15 +8,22 @@ import SwiftUI
 struct WindowManagementView: View {
     @State private var service = WindowManagementService.shared
     @State private var store = WindowWorkspaceStore.shared
+    @State private var hotkeyStore = HotkeySettingsStore.shared
     @State private var newWorkspaceName = ""
     @State private var ruleDisplayName: String?
     @State private var ruleWorkspaceID: UUID?
+    @State private var showsFinerSizes = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let quickActions: [WindowAction] = [
         .topLeft, .topHalf, .topRight,
         .leftHalf, .maximize, .rightHalf,
         .bottomLeft, .bottomHalf, .bottomRight
+    ]
+
+    private let sixthActions: [WindowAction] = [
+        .topLeftSixth, .topCenterSixth, .topRightSixth,
+        .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth
     ]
 
     var body: some View {
@@ -129,8 +136,45 @@ struct WindowManagementView: View {
                     layoutButton(.leftTwoThirds)
                     layoutButton(.rightTwoThirds)
                 }
+                HStack(spacing: TonicDS.Space.xs) {
+                    layoutButton(.leftThird)
+                    layoutButton(.centerThird)
+                    layoutButton(.rightThird)
+                }
+                if service.displays.count > 1 {
+                    HStack(spacing: TonicDS.Space.xs) {
+                        layoutButton(.previousDisplay)
+                        layoutButton(.nextDisplay)
+                    }
+                }
+
+                Button {
+                    showsFinerSizes.toggle()
+                } label: {
+                    HStack(spacing: TonicDS.Space.xxs) {
+                        Image(systemName: showsFinerSizes ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Sixths grid")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(TonicDS.Colors.textMuted)
+                }
+                .buttonStyle(.plain)
+                .tonicPointerCursor()
+                .accessibilityLabel(showsFinerSizes ? "Hide sixths grid" : "Show sixths grid")
+
+                if showsFinerSizes {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: TonicDS.Space.xs), count: 3),
+                              spacing: TonicDS.Space.xs) {
+                        ForEach(sixthActions) { action in
+                            layoutButton(action)
+                        }
+                    }
+                    .transition(.opacity)
+                }
             }
             .frame(maxWidth: 520)
+            .animation(TonicMotionPolicy(reduceMotion: reduceMotion).transition, value: showsFinerSizes)
 
             VStack(alignment: .leading, spacing: TonicDS.Space.md) {
                 MonoLabel("Focused window")
@@ -354,15 +398,72 @@ struct WindowManagementView: View {
                 TonicToggleRow(
                     title: "Snap by dragging to screen edges",
                     description: "Drag a window to an edge or corner to preview and place it in that zone.",
-                    showsDivider: false,
                     isOn: Binding(get: { store.snapEnabled },
                                   set: { enabled in
                                       store.snapEnabled = enabled
                                       SnapDragController.shared.refresh()
                                   })
                 )
+                TonicPreferenceRow(
+                    title: "Gap between windows",
+                    description: "Breathing room around tiled windows. Zero keeps them flush.",
+                    showsDivider: true
+                ) {
+                    HStack(spacing: TonicDS.Space.sm) {
+                        WindowGapPreview(gap: store.windowGap)
+                        Slider(
+                            value: windowGapBinding,
+                            in: 0...WindowWorkspaceStore.maxWindowGap,
+                            step: 2
+                        )
+                        .frame(width: 140)
+                        .accessibilityLabel("Gap between windows")
+                        Text("\(Int(store.windowGap)) pt")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(TonicDS.Colors.textMuted)
+                            .frame(width: 38, alignment: .trailing)
+                    }
+                }
+                if !hasAnyWindowShortcut {
+                    TonicPreferenceRow(
+                        title: "Recommended shortcuts",
+                        description: "Fill only unbound placements with the familiar ⌃⌥ layout. Existing shortcuts are never replaced."
+                    ) {
+                        TextAction("Enable") {
+                            HotkeySettingsStore.shared.enableRecommendedWindowDefaults()
+                            GlobalHotkeyManager.shared.applyAll()
+                            TonicFeedback.alignment()
+                        }
+                    }
+                }
+                TonicPreferenceRow(
+                    title: "Keyboard shortcuts",
+                    description: "Every placement is bindable. Record combos or enable the ⌃⌥ defaults in Settings → Shortcuts.",
+                    showsDivider: false
+                ) {
+                    TextAction("Open Shortcuts") {
+                        NotificationCenter.default.post(
+                            name: .navigateToDestination,
+                            object: nil,
+                            userInfo: ["destination": NavigationDestination.settings.rawValue]
+                        )
+                        NotificationCenter.default.post(
+                            name: .openSettingsSection,
+                            object: nil,
+                            userInfo: [SettingsDeepLinkUserInfoKey.section: SettingsSection.shortcuts.rawValue]
+                        )
+                    }
+                }
             }
         }
+    }
+
+    private var windowGapBinding: Binding<Double> {
+        Binding(get: { store.windowGap }, set: { store.windowGap = $0 })
+    }
+
+    private var hasAnyWindowShortcut: Bool {
+        WindowAction.allCases.contains { hotkeyStore.spec(for: .window($0)) != nil }
     }
 
     private func layoutButton(_ action: WindowAction) -> some View {
@@ -370,13 +471,18 @@ struct WindowManagementView: View {
         return Button {
             service.perform(action)
         } label: {
-            VStack(spacing: TonicDS.Space.xs) {
+            VStack(spacing: TonicDS.Space.xxs) {
                 Image(systemName: action.symbol)
                     .font(.system(size: 19, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
                 Text(action.title)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
+                if let shortcut = hotkeyStore.spec(for: .window(action))?.displayString {
+                    Text(shortcut)
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(isPreviewed ? TonicDS.Colors.onDarkMuted : TonicDS.Colors.textMuted)
+                }
             }
             .foregroundStyle(isPreviewed ? TonicDS.Colors.onDark : TonicDS.Colors.textPrimary)
             .frame(maxWidth: .infinity, minHeight: 72)
@@ -419,5 +525,36 @@ struct WindowManagementView: View {
                     .buttonStyle(.bordered)
             }
         }
+    }
+}
+
+private struct WindowGapPreview: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let gap: Double
+
+    private var scaledGap: CGFloat { CGFloat(gap) * 0.28 }
+
+    var body: some View {
+        HStack(spacing: scaledGap) {
+            previewPane
+            previewPane
+        }
+        .padding(scaledGap + 3)
+        .frame(width: 78, height: 46)
+        .background(TonicDS.Colors.console,
+                    in: RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: TonicDS.Radius.sm, style: .continuous)
+                .strokeBorder(TonicDS.Colors.hairlineOnDark)
+        }
+        .animation(TonicMotionPolicy(reduceMotion: reduceMotion).morph, value: gap)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Window gap preview, \(Int(gap)) points")
+    }
+
+    private var previewPane: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(TonicDS.Colors.brandAccent.opacity(0.72))
     }
 }
