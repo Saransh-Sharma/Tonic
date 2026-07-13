@@ -4,6 +4,9 @@ import SwiftUI
 struct MenuBarProfilesCard: View {
     @State private var store = MenuBarProfileStore.shared
     @State private var newContextName = ""
+    #if !TONIC_STORE
+    @State private var privateSpaces = PrivateSpaceCoordinator.shared
+    #endif
 
     var body: some View {
         SettingsPanel(title: "DISPLAY & CONTEXTS") {
@@ -20,6 +23,26 @@ struct MenuBarProfilesCard: View {
                         .buttonStyle(.borderless)
                 }
             }
+            #if !TONIC_STORE
+            TonicPreferenceRow(title: "Automatic Space context",
+                               description: privateSpaces.compatibilityStatus) {
+                HStack {
+                    Button("Check") { Task { await privateSpaces.refreshStatus() } }.buttonStyle(.bordered)
+                    if !store.manualContexts.isEmpty {
+                        Menu("Bind Current Space") {
+                            ForEach(store.manualContexts) { context in
+                                Button(context.name) { Task { await privateSpaces.bindCurrentSpace(to: context) } }
+                            }
+                        }
+                    }
+                }
+            }
+            #else
+            TonicPreferenceRow(title: "Automatic Space context",
+                               description: "Manual named contexts are available. App Sandbox excludes the private automatic Space adapter.") {
+                StatusChip("Manual", level: .info)
+            }
+            #endif
             if let contextID = store.selectedManualContextID,
                let context = store.manualContexts.first(where: { $0.id == contextID }) {
                 TonicPreferenceRow(title: "\(context.name) Quick Shelf",

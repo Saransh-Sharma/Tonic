@@ -1,8 +1,121 @@
 import SwiftUI
+import Observation
 import UniformTypeIdentifiers
+
+@MainActor
+@Observable
+private final class MarketplaceViewModel {
+    private(set) var entries: [TonicMarketplaceEntry] = []
+    private(set) var diagnostics: [TonicProviderDiagnostic] = []
+    private(set) var isRefreshing = false
+    private(set) var status: String?
+    private(set) var pendingEntry: TonicMarketplaceEntry?
+    private(set) var pendingPermissionNames: [String] = []
+    private(set) var rollbackProviderIDs = Set<String>()
+    private var service: TonicMarketplaceService?
+
+    init() {
+        guard let trust = TonicArtifactTrustConfiguration() else {
+            status = "This build has no release trust root. Marketplace networking is disabled."
+            return
+        }
+        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Tonic/Marketplace", isDirectory: true)
+        do {
+            service = try TonicMarketplaceService(publicKeyData: trust.publicKeyData,
+                stateURL: root.appendingPathComponent("state-v1.json"))
+        } catch {
+            status = "The marketplace trust root is invalid; catalog networking is disabled."
+        }
+    }
+
+    func refresh() {
+        guard let service, let trust = TonicArtifactTrustConfiguration() else { return }
+        isRefreshing = true
+        Task {
+            do {
+                await service.load()
+                try await service.refresh(from: trust.marketplaceCatalogURL)
+                entries = await service.visibleEntries()
+                diagnostics = await service.diagnostics()
+                rollbackProviderIDs = await service.rollbackProviderIDs()
+                status = entries.isEmpty ? "The signed catalog contains no compatible providers." : nil
+            } catch {
+                entries = await service.visibleEntries()
+                diagnostics = await service.diagnostics()
+                rollbackProviderIDs = await service.rollbackProviderIDs()
+                status = "Catalog refresh failed closed: \(error.localizedDescription)"
+            }
+            isRefreshing = false
+        }
+    }
+
+    var isReviewingPermissions: Bool { pendingEntry != nil }
+
+    func install(_ entry: TonicMarketplaceEntry, permissionsApproved: Bool = false) {
+        guard let service else { return }
+        isRefreshing = true
+        Task {
+            do {
+                let plan = try await service.installPlan(entryID: entry.id)
+                guard plan.permissionsToApprove.isEmpty || permissionsApproved else {
+                    pendingEntry = entry
+                    pendingPermissionNames = plan.permissionsToApprove.map(\.rawValue).sorted()
+                    status = nil
+                    isRefreshing = false
+                    return
+                }
+                let receipt: TonicProviderInstallReceipt
+                switch plan.release.kind {
+                case .remoteJSON:
+                    receipt = try await service.installRemote(plan)
+                case .executableBundle:
+                    #if TONIC_STORE
+                    throw TonicMarketplaceError.executableUnavailableInStore
+                    #else
+                    receipt = try await service.installExecutable(plan)
+                    #endif
+                }
+                status = receipt.detail
+                diagnostics = await service.diagnostics()
+            } catch {
+                status = "Provider installation failed: \(error.localizedDescription)"
+            }
+            isRefreshing = false
+        }
+    }
+
+    func approvePending() {
+        guard let entry = pendingEntry else { return }
+        pendingEntry = nil
+        pendingPermissionNames = []
+        install(entry, permissionsApproved: true)
+    }
+
+    func cancelPending() {
+        pendingEntry = nil
+        pendingPermissionNames = []
+    }
+
+    func rollback(_ providerID: String) {
+        guard let service else { return }
+        isRefreshing = true
+        Task {
+            if let release = await service.rollback(providerID: providerID) {
+                status = "Rolled back \(providerID) to \(release.version)."
+            } else {
+                status = "Rollback failed closed; the active provider was not replaced."
+            }
+            diagnostics = await service.diagnostics()
+            rollbackProviderIDs = await service.rollbackProviderIDs()
+            isRefreshing = false
+        }
+    }
+}
 
 struct MenuBarProvidersCard: View {
     @State private var store = TonicRemoteProviderStore.shared
+    @State private var marketplace = MarketplaceViewModel()
     @State private var showsBuilder = false
     @State private var reviewingRemote: TonicRemoteProviderConfiguration?
     #if !TONIC_STORE
@@ -17,6 +130,47 @@ struct MenuBarProvidersCard: View {
     #endif
 
     var body: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.md) {
+        SettingsPanel(title: "PROVIDER MARKETPLACE") {
+            TonicPreferenceRow(title: "Curated catalog",
+                description: "Signed catalog metadata from GitHub Pages; immutable artifacts come from GitHub Releases.") {
+                Button("Refresh") { marketplace.refresh() }.buttonStyle(.bordered)
+                    .disabled(marketplace.isRefreshing)
+            }
+            if marketplace.isRefreshing {
+                TonicPreferenceRow(title: "Checking signed catalog", description: "No provider launches before signature and compatibility validation.") {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            ForEach(marketplace.entries) { entry in
+                TonicPreferenceRow(title: entry.providerName,
+                    description: entry.localizedDescriptions[Locale.current.language.languageCode?.identifier ?? "en"]
+                        ?? entry.localizedDescriptions["en"] ?? "Reviewed Tonic data provider") {
+                    HStack {
+                        Text(entry.publisherName).font(.caption).foregroundStyle(.secondary)
+                        Button("Install") { marketplace.install(entry) }.buttonStyle(.bordered)
+                    }
+                }
+            }
+            ForEach(marketplace.diagnostics) { diagnostic in
+                TonicPreferenceRow(title: diagnostic.providerID,
+                    description: diagnostic.detail) {
+                    HStack {
+                        StatusChip(diagnostic.state.rawValue, level: diagnostic.state == .healthy ? .success : .warning)
+                        if marketplace.rollbackProviderIDs.contains(diagnostic.providerID) {
+                            Button("Rollback") { marketplace.rollback(diagnostic.providerID) }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+            if let status = marketplace.status {
+                TonicPreferenceRow(title: "Marketplace status", description: status, showsDivider: false) {
+                    StatusChip("Fail closed", level: .info)
+                }
+            }
+        }
+
         SettingsPanel(title: "CUSTOM PROVIDERS") {
             TonicPreferenceRow(title: "Remote JSON providers",
                                description: "Reviewed HTTPS data sources with bounded responses and Keychain secrets.") {
@@ -63,6 +217,17 @@ struct MenuBarProvidersCard: View {
                 }
             }
             #endif
+        }
+        }
+        .task { marketplace.refresh() }
+        .confirmationDialog("Review provider permissions", isPresented: Binding(
+            get: { marketplace.isReviewingPermissions },
+            set: { if !$0 { marketplace.cancelPending() } }
+        )) {
+            Button("Approve and Install") { marketplace.approvePending() }
+            Button("Cancel", role: .cancel) { marketplace.cancelPending() }
+        } message: {
+            Text("This provider requests: \(marketplace.pendingPermissionNames.joined(separator: ", ")). Installation remains bound to this signed identity, endpoint set, refresh policy, and permission set.")
         }
         .sheet(isPresented: $showsBuilder) { RemoteProviderBuilderSheet { try store.addReviewed($0) } }
         .sheet(item: $reviewingRemote) { configuration in

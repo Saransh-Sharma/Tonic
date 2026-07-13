@@ -9,10 +9,15 @@ struct WindowManagementView: View {
     @State private var service = WindowManagementService.shared
     @State private var store = WindowWorkspaceStore.shared
     @State private var hotkeyStore = HotkeySettingsStore.shared
+    @State private var windowRuleStore = WindowRuleStore.shared
+    @State private var windowRuleEngine = WindowRuleEngine.shared
     @State private var newWorkspaceName = ""
     @State private var ruleDisplayName: String?
     @State private var ruleWorkspaceID: UUID?
     @State private var showsFinerSizes = false
+    @State private var newRuleBundleIdentifier = ""
+    @State private var newRuleAction: WindowAction = .leftHalf
+    @State private var newRulePriority = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let quickActions: [WindowAction] = [
@@ -53,6 +58,7 @@ struct WindowManagementView: View {
                 workspace
                 workspacesCard
                 displayRulesCard
+                windowRulesCard
                 behaviorCard
             } else {
                 permissionJourney
@@ -381,6 +387,91 @@ struct WindowManagementView: View {
         ))
         ruleDisplayName = nil
         ruleWorkspaceID = nil
+    }
+
+    // MARK: - Per-app rules
+
+    private var windowRulesCard: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.sm) {
+            HStack {
+                MonoLabel("Per-app window rules")
+                Spacer()
+                StatusChip(DistributionEdition.current == .direct ? "Automatic" : "Preview only",
+                           level: DistributionEdition.current == .direct ? .success : .info)
+            }
+            SettingsPanel(title: nil) {
+                TonicPreferenceRow(title: "Add a placement rule",
+                    description: DistributionEdition.current == .direct
+                        ? "Tonic listens for Accessibility window notifications and applies one deterministic winning rule."
+                        : "Create and preview the same rules. App Sandbox prevents automatic foreign-window movement.") {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        HStack(spacing: 6) {
+                            TextField("com.example.app", text: $newRuleBundleIdentifier)
+                                .textFieldStyle(.roundedBorder).frame(width: 190)
+                            Picker("Placement", selection: $newRuleAction) {
+                                ForEach(WindowAction.allCases) { Text($0.title).tag($0) }
+                            }.labelsHidden().frame(width: 160)
+                            Stepper("Priority \(newRulePriority)", value: $newRulePriority, in: -1000...1000)
+                                .frame(width: 120)
+                            PrimaryPill(
+                                "Add Rule",
+                                systemImage: "plus",
+                                isDisabled: normalizedRuleBundleIdentifier == nil
+                            ) { addWindowRule() }
+                        }
+                        Text("Bundle identifier is required. Role, title, display, context, and full-screen conditions remain optional in the saved model.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                ForEach(Array(windowRuleStore.rules.enumerated()), id: \.element.id) { index, rule in
+                    TonicPreferenceRow(title: rule.match.bundleIdentifier,
+                        description: "\(rule.action.title) · priority \(rule.priority) · delay \(String(format: "%.1f", rule.policy.delaySeconds))s",
+                        showsDivider: index < windowRuleStore.rules.count - 1) {
+                        HStack(spacing: 8) {
+                            Toggle("Enabled", isOn: windowRuleEnabled(rule)).labelsHidden().toggleStyle(.switch)
+                            Button(role: .destructive) { windowRuleStore.remove(id: rule.id) } label: {
+                                Image(systemName: "trash")
+                            }.buttonStyle(.borderless).accessibilityLabel("Delete rule for \(rule.match.bundleIdentifier)")
+                        }
+                    }
+                }
+                if let receipt = windowRuleEngine.lastReceipt {
+                    TonicPreferenceRow(title: receipt.failure == nil ? "Rule applied" : "Rule failed",
+                        description: "\(receipt.matchedReason)\(receipt.failure.map { ": \($0)" } ?? "")",
+                        showsDivider: false) {
+                        StatusChip(receipt.failure == nil ? "Receipt" : "Failed",
+                                   level: receipt.failure == nil ? .success : .critical)
+                    }
+                }
+            }
+        }
+    }
+
+    private var normalizedRuleBundleIdentifier: String? {
+        let value = newRuleBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.count <= 255, value.contains("."),
+              value.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-")).contains($0) })
+        else { return nil }
+        return value
+    }
+
+    private func addWindowRule() {
+        guard let bundleID = normalizedRuleBundleIdentifier else { return }
+        windowRuleStore.add(WindowRule(bundleIdentifier: bundleID, action: newRuleAction,
+                                       priority: newRulePriority))
+        newRuleBundleIdentifier = ""
+        newRulePriority = 0
+        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) {
+            windowRuleEngine.observeApplication(app)
+        }
+    }
+
+    private func windowRuleEnabled(_ rule: WindowRule) -> Binding<Bool> {
+        Binding(get: { windowRuleStore.rules.first(where: { $0.id == rule.id })?.isEnabled ?? false }) { enabled in
+            var updated = rule
+            updated.isEnabled = enabled
+            windowRuleStore.update(updated)
+        }
     }
 
     // MARK: - Behavior

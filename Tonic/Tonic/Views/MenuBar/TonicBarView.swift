@@ -95,6 +95,19 @@ struct TonicBarView: View {
         .accessibilityLabel(updateStore.unseenKeys.contains(item.stableKey)
                             ? "\(item.displayName), updated" : item.displayName)
         .accessibilityHint(canActivate ? "Opens this menu bar item" : "Foreign-item activation requires the direct edition")
+        .contextMenu {
+            #if !TONIC_STORE
+            let enabled = ForeignMenuProxyPreferenceStore.shared.isEnabled(item.stableKey)
+            Button(enabled ? "Disable Menu Proxy" : "Enable Menu Proxy") {
+                ForeignMenuProxyPreferenceStore.shared.setEnabled(!enabled, for: item.stableKey)
+            }
+            if enabled {
+                Button("Open Accessible Proxy Menu") {
+                    ForeignMenuProxyCoordinator.shared.present(for: item)
+                }
+            }
+            #endif
+        }
     }
 
     @ViewBuilder

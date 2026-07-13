@@ -13,6 +13,7 @@ import SwiftUI
 enum CleanTab: String, CaseIterable, Hashable {
     case smartScan = "Smart Scan"
     case storage = "Storage"
+    case recovery = "Recovery"
     case history = "History"
 }
 
@@ -42,6 +43,7 @@ struct CleanView: View {
                 switch tab {
                 case .smartScan: smartScanTab
                 case .storage: storageTab
+                case .recovery: RecoveryCenterView()
                 case .history: historyTab
                 }
             }
@@ -97,6 +99,7 @@ struct CleanView: View {
         switch tab {
         case .smartScan: return "Review before cleaning · Runs locally · Restore supported"
         case .storage: return "Explore recoverable storage by size"
+        case .recovery: return "Diagnose first · Preserve configuration · Stop on failure"
         case .history: return "Restore items from past cleanups"
         }
     }

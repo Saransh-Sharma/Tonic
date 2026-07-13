@@ -7,7 +7,9 @@
 //  panel content, driven by the preserved preference managers.
 //
 
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     var initialSection: SettingsSection = .general
@@ -25,6 +27,12 @@ struct SettingsView: View {
     @AppStorage("tonic.general.metricUnits") private var metricUnits = true
     @State private var longTermEnabled = LongTermMetricsStore.shared.isEnabled
     @State private var retentionDays = LongTermMetricsStore.shared.retentionDays
+    @State private var topShelf = TopShelfStore.shared
+    @State private var topShelfCoordinator = TopShelfCoordinator.shared
+    @State private var supportCategories = Set(SupportBundleCategory.allCases)
+    @State private var supportPreview: SupportBundlePreview?
+    @State private var supportMessage: String?
+    @State private var showAmbientConfirmation = false
     #if !TONIC_STORE
     @State private var helper = TonicHelperClient.shared
     @State private var helperMessage: String?
@@ -67,8 +75,10 @@ struct SettingsView: View {
             Text("Settings").tonicType(.featureHeading).foregroundStyle(TonicDS.Colors.textPrimary)
                 .padding(.horizontal, TonicDS.Space.sm)
                 .padding(.bottom, TonicDS.Space.sm)
-            ForEach(SettingsSection.allCases) { s in
-                railRow(s)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: TonicDS.Space.xxs) {
+                    ForEach(SettingsSection.allCases) { s in railRow(s) }
+                }
             }
             Spacer()
             Text("Version \(Self.appVersion)").tonicType(.monoLabel).foregroundStyle(TonicDS.Colors.textMuted)
@@ -81,7 +91,7 @@ struct SettingsView: View {
 
     private func railRow(_ s: SettingsSection) -> some View {
         let isSel = s == section
-        let label = s == .modules ? "Widgets" : s.rawValue
+        let label = s == .modules ? "Widgets" : s.title
         return Button { section = s } label: {
             HStack(spacing: TonicDS.Space.sm) {
                 Image(systemName: s.icon).font(.system(size: 13)).frame(width: 18)
@@ -116,6 +126,7 @@ struct SettingsView: View {
         switch section {
         case .general: generalSection
         case .modules: widgetsSection
+        case .topShelf: topShelfSection
         case .shortcuts: shortcutsSection
         case .maintenance: maintenanceSection
         case .notifications: notificationsSection
@@ -123,7 +134,108 @@ struct SettingsView: View {
         case .licensing: licensingSection
         case .updates: updatesSection
         case .advanced: advancedSection
+        case .support: supportSection
         case .about: aboutSection
+        }
+    }
+
+    private var topShelfSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Top Shelf", "Choose the contextual modules that appear on deliberate open")
+            SettingsPanel(title: "Presentation") {
+                TonicPreferenceRow(title: "Open Top Shelf",
+                    description: "Shows cached content immediately, then refreshes enabled modules without blocking the panel.") {
+                    PrimaryPill("Open Now") { topShelfCoordinator.deliberateOpen() }
+                }
+                TonicPreferenceRow(title: "Layout", description: "Adaptive chooses a calm capsule or expanded instrument panel.") {
+                    Picker("Layout", selection: topShelfLayoutMode) {
+                        ForEach(TopShelfLayoutMode.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                    }.labelsHidden().frame(width: 120)
+                }
+                TonicPreferenceRow(title: "Recommended ambient set",
+                    description: topShelf.state.ambientPolicy.hasConfirmedRecommendedSet
+                        ? "Enabled only for the independently selected ambient modules below."
+                        : "Now Playing, next event, and actionable health warnings require one explicit confirmation.",
+                    showsDivider: false) {
+                    if topShelf.state.ambientPolicy.hasConfirmedRecommendedSet {
+                        StatusChip("Confirmed", level: .success)
+                    } else {
+                        Button("Review…") { showAmbientConfirmation = true }.buttonStyle(.bordered)
+                    }
+                }
+            }
+            SettingsPanel(title: "Modules") {
+                ForEach(Array(topShelfCoordinator.descriptors.enumerated()), id: \.element.id) { index, descriptor in
+                    TonicPreferenceRow(title: descriptor.title,
+                        description: topShelfModuleDescription(descriptor),
+                        showsDivider: index < topShelfCoordinator.descriptors.count - 1) {
+                        HStack(spacing: 8) {
+                            if descriptor.kind == .calendar,
+                               topShelf.state.enabledModuleIDs.contains(descriptor.id) == false {
+                                Button("Allow…") {
+                                    Task {
+                                        if await topShelfCoordinator.requestCalendarAccess() {
+                                            topShelf.setEnabled(true, moduleID: descriptor.id)
+                                        }
+                                    }
+                                }.buttonStyle(.bordered)
+                            }
+                            Toggle("Enabled", isOn: topShelfEnabled(descriptor.id))
+                                .labelsHidden().toggleStyle(.switch)
+                            Button("Earlier", systemImage: "chevron.up") { moveTopShelfModule(descriptor.id, offset: -1) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                            Button("Later", systemImage: "chevron.down") { moveTopShelfModule(descriptor.id, offset: 1) }
+                                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
+        }
+        .confirmationDialog("Enable recommended ambient modules?", isPresented: $showAmbientConfirmation) {
+            Button("Enable Recommended Set") { topShelf.confirmRecommendedAmbientSet() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Top Shelf may appear without taking focus for Now Playing, your next Calendar event, or an actionable health warning. Calendar still asks for access contextually. Clipboard and every other module remain excluded.")
+        }
+    }
+
+    private var supportSection: some View {
+        VStack(alignment: .leading, spacing: TonicDS.Space.lg) {
+            sectionTitle("Support", "Preview and export diagnostics without automatic upload")
+            SettingsPanel(title: "Bundle contents") {
+                ForEach(Array(SupportBundleCategory.allCases.enumerated()), id: \.element) { index, category in
+                    TonicToggleRow(title: supportCategoryTitle(category),
+                        description: supportCategoryDescription(category),
+                        showsDivider: index < SupportBundleCategory.allCases.count - 1,
+                        isOn: supportCategoryBinding(category))
+                }
+            }
+            SettingsPanel(title: "Privacy review") {
+                TonicPreferenceRow(title: "Always excluded",
+                    description: "Clipboard and Calendar content, notes, file names, secrets, script commands and output, captures, foreign menu text, and raw Space identifiers.") {
+                    StatusChip("Local only", level: .success)
+                }
+                if let supportPreview {
+                    TonicPreferenceRow(title: "Preview ready",
+                        description: supportPreview.categories.sorted { $0.key.rawValue < $1.key.rawValue }
+                            .map { "\(supportCategoryTitle($0.key)): \($0.value)" }.joined(separator: " · ")) {
+                        StatusChip("Reviewed", level: .info)
+                    }
+                }
+                if let supportMessage {
+                    TonicPreferenceRow(title: "Export status", description: supportMessage) { EmptyView() }
+                }
+                TonicPreferenceRow(title: "Create support bundle",
+                    description: "First preview category counts, then choose a local save location. Tonic never uploads it.",
+                    showsDivider: false) {
+                    HStack {
+                        Button("Preview") { previewSupportBundle() }.buttonStyle(.bordered)
+                        PrimaryPill("Export…", isDisabled: supportPreview == nil || supportCategories.isEmpty) {
+                            exportSupportBundle()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -395,7 +507,7 @@ struct SettingsView: View {
         }
     }
 
-    private var appHotkeyActions: [HotkeyAction] { [.toggleConsole, .quickSearch, .toggleMenuBar] }
+    private var appHotkeyActions: [HotkeyAction] { [.toggleConsole, .quickSearch, .toggleMenuBar, .topShelf] }
 
     private var windowHotkeyActions: [HotkeyAction] {
         WindowAction.allCases.map(HotkeyAction.window)
@@ -619,6 +731,167 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private var topShelfLayoutMode: Binding<TopShelfLayoutMode> {
+        Binding(
+            get: { topShelf.state.layout.mode },
+            set: { value in topShelf.update { $0.layout.mode = value } }
+        )
+    }
+
+    private func topShelfEnabled(_ moduleID: String) -> Binding<Bool> {
+        Binding(
+            get: { topShelf.state.enabledModuleIDs.contains(moduleID) },
+            set: { enabled in topShelf.setEnabled(enabled, moduleID: moduleID) }
+        )
+    }
+
+    private func moveTopShelfModule(_ moduleID: String, offset: Int) {
+        var order = topShelf.state.layout.orderedModuleIDs
+        let allIDs = topShelfCoordinator.descriptors.map(\.id)
+        if order.isEmpty { order = allIDs }
+        for id in allIDs where !order.contains(id) { order.append(id) }
+        guard let index = order.firstIndex(of: moduleID) else { return }
+        let destination = min(max(index + offset, 0), order.count - 1)
+        guard destination != index else { return }
+        order.move(fromOffsets: IndexSet(integer: index), toOffset: destination > index ? destination + 1 : destination)
+        topShelf.update { $0.layout.orderedModuleIDs = order }
+        TonicFeedback.alignment()
+    }
+
+    private func topShelfModuleDescription(_ descriptor: TopShelfModuleDescriptor) -> String {
+        switch descriptor.kind {
+        case .nowPlaying: String(localized: "Compatibility-gated playback context; never claims unsupported control.")
+        case .calendar: String(localized: "Reads the next event only after contextual EventKit permission.")
+        case .clipboard: String(localized: "Reads text only after a deliberate open and never persists it.")
+        case .weather: String(localized: "Uses the existing Tonic weather provider and refresh policy.")
+        case .systemHealth: String(localized: "Uses existing live and long-term metric services without duplicate polling.")
+        case .recommendations: String(localized: "Evidence-backed Recovery, monitoring, update, and permission suggestions.")
+        case .timers: String(localized: "Local timers stored with your Top Shelf layout.")
+        case .quickNotes: String(localized: "Short local notes; note content is excluded from support bundles.")
+        case .files: String(localized: "User-selected file actions with no background file history.")
+        case .shortcuts: String(localized: "Reviewed Apple Shortcut launchers.")
+        case .provider: String(localized: "Cards supplied by installed, reviewed data providers.")
+        }
+    }
+
+    private func supportCategoryBinding(_ category: SupportBundleCategory) -> Binding<Bool> {
+        Binding(
+            get: { supportCategories.contains(category) },
+            set: { included in
+                if included { supportCategories.insert(category) }
+                else { supportCategories.remove(category) }
+                supportPreview = nil
+            }
+        )
+    }
+
+    private func supportCategoryTitle(_ category: SupportBundleCategory) -> String {
+        switch category {
+        case .application: String(localized: "App and OS")
+        case .capabilities: String(localized: "Capability state")
+        case .receipts: String(localized: "Redacted action receipts")
+        case .helper: String(localized: "Helper status")
+        case .providers: String(localized: "Provider health")
+        case .compatibility: String(localized: "Compatibility decisions")
+        case .logs: String(localized: "Bounded recent logs")
+        }
+    }
+
+    private func supportCategoryDescription(_ category: SupportBundleCategory) -> String {
+        switch category {
+        case .application: String(localized: "Version, edition, macOS version, and architecture.")
+        case .capabilities: String(localized: "Whether a feature is available; never feature-use analytics.")
+        case .receipts: String(localized: "Results and errors with paths, URLs, and sensitive arguments redacted.")
+        case .helper: String(localized: "Registration and protocol status without privileged request payloads.")
+        case .providers: String(localized: "Provider identity, release, and health without secrets or payloads.")
+        case .compatibility: String(localized: "Local allow/deny decisions without raw private identifiers.")
+        case .logs: String(localized: "At most 200 local log lines after deterministic redaction.")
+        }
+    }
+
+    private func makeSupportBuilder() -> SupportBundleBuilder {
+        SupportBundleBuilder(
+            receipts: {
+                await MainActor.run {
+                    ActionReceiptStore.shared.receipts.map { receipt in
+                        ["tool": receipt.tool.rawValue, "title": receipt.title,
+                         "detail": receipt.detail, "status": receipt.status.rawValue,
+                         "completed": receipt.completedAt.ISO8601Format()]
+                    }
+                }
+            },
+            providers: {
+                let manifests = await TonicProviderRegistry.shared.manifests()
+                return manifests.map { ["id": $0.id, "name": $0.displayName,
+                                        "version": $0.providerVersion] }
+            },
+            helper: {
+                #if TONIC_STORE
+                return ["implementation": "physically excluded", "edition": "store"]
+                #else
+                return await MainActor.run {
+                    let client = TonicHelperClient.shared
+                    return ["implementation": "direct-only",
+                            "registration": String(describing: client.status),
+                            "fanSession": client.hasActiveFanSession ? "active" : "inactive",
+                            "lastError": client.lastError ?? "none"]
+                }
+                #endif
+            },
+            compatibility: {
+                #if TONIC_STORE
+                return TonicPrivateCapability.allCases.map {
+                    ["capability": $0.rawValue, "decision": "excluded from Store edition"]
+                }
+                #else
+                var rows: [[String: String]] = []
+                for capability in TonicPrivateCapability.allCases {
+                    let decision = await TonicCompatibilityAuthority.shared.decision(for: capability)
+                    switch decision {
+                    case .enabled(let ruleID):
+                        rows.append(["capability": capability.rawValue, "decision": "enabled",
+                                     "rule": ruleID])
+                    case .disabled(let reason):
+                        rows.append(["capability": capability.rawValue, "decision": "disabled",
+                                     "reason": reason])
+                    }
+                }
+                return rows
+                #endif
+            }
+        )
+    }
+
+    private func previewSupportBundle() {
+        let selected = supportCategories
+        Task {
+            let preview = await makeSupportBuilder().preview(categories: selected)
+            await MainActor.run {
+                supportPreview = preview
+                supportMessage = "Review complete. Nothing has been written or uploaded."
+            }
+        }
+    }
+
+    private func exportSupportBundle() {
+        let panel = NSSavePanel()
+        panel.title = "Export Tonic Support Bundle"
+        panel.nameFieldStringValue = "Tonic-Support-\(Date().ISO8601Format().prefix(10)).zip"
+        panel.allowedContentTypes = [.zip]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let selected = supportCategories
+        Task {
+            do {
+                let builder = makeSupportBuilder()
+                let payload = await builder.build(categories: selected)
+                try await builder.writeArchive(payload, to: url)
+                await MainActor.run { supportMessage = "Saved locally to the location you selected." }
+            } catch {
+                await MainActor.run { supportMessage = "Export failed: \(error.localizedDescription)" }
             }
         }
     }
