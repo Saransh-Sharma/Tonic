@@ -1,0 +1,41 @@
+name: Provider catalog
+
+on:
+  pull_request:
+    paths: ["Marketplace/**", "Tools/CatalogValidator.swift", ".github/workflows/catalog.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate catalog structure
+        run: swift Tools/CatalogValidator.swift Marketplace/catalog-unsigned.json
+      - name: Verify immutable release URLs
+        run: '! rg ''/releases/latest|/archive/refs/heads/'' Marketplace/catalog-unsigned.json'
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: macos-15
+    environment: production-release
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sign catalog and revocation metadata
+        env:
+          TONIC_ARTIFACT_PRIVATE_KEY: ${{ secrets.TONIC_ARTIFACT_PRIVATE_KEY }}
+        run: |
+          mkdir -p Marketplace/public
+          ./scripts/sign-artifacts.sh Marketplace/catalog-unsigned.json Marketplace/public/catalog.json
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: Marketplace/public
+      - uses: actions/deploy-pages@v4

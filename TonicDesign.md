@@ -1,5 +1,5 @@
 ---
-version: 2.0
+version: 3.0
 name: Tonic-design
 description: Tonic's design language — "Liquid Tonic" — is a calm native macOS command center rendered as layered glass over the desktop. A floating icon rail and translucent surfaces let the wallpaper glow through as the light source, while the readout keeps every drop of color: near-black smoked-glass monitoring consoles, deep enterprise-green and dark-navy band glass, rounded data cards, and a research-lab type split between SF Pro display/body text and SF Mono technical labels. The shell is glass; the data is the media.
 
@@ -123,7 +123,23 @@ Two rules govern everything:
 
 This language supersedes the flat "editorial command center" system as the default presentation — but keeps it, byte-for-byte, as the reduced-transparency tier. The palette, typography, spacing grid, radius scale, and status discipline carry over unchanged.
 
-Version 2.0 adds the hybrid flagship workspace language: calm, light-native workspaces carry comprehension and editing; Liquid Tonic glass, mineral color, and dark instrument previews carry interaction, proof, and personality. Overview and onboarding states are spacious. Editors, lists, histories, and inspectors use adaptive compact density.
+Version 3.0 retains the Wave 4 hybrid workspace language and adds three flagship instruments: Recovery Center for evidence-led repair, Top Shelf for deliberate context, and the curated provider marketplace. The design remains calm under denial and failure: an unavailable private adapter never erases its public fallback, a report-only Store action never impersonates execution, and every disruptive recovery step stays visible and removable before confirmation.
+
+## Wave 5 product posture
+
+Tonic 5 is fully unlocked in both editions. Production UI contains no tier chip, paywall, trial, purchase limit, or license activation. Dormant commerce code compiles only under `TONIC_COMMERCE`; legacy license preferences remain untouched. Edition language describes macOS capability boundaries rather than commercial value.
+
+Recovery Center is the canonical `Clean` recovery workspace. Diagnostics are read-only and evidence-led. A plan is ordered, editable, interruption-aware, and explicit about disruption, duration, privilege, and recovery behavior. Each disruptive step receives focused confirmation, execution stops at the first failure, and proof consists of a per-step receipt, measured post-check, and aggregate receipt.
+
+Top Shelf is an active-display `NSPanel` with a calm capsule state and an expanded instrument state. Cached modules appear immediately while actors refresh. Status item, hotkey, Quick Search, and an optional gesture are equivalent entry points. Ambient Now Playing, next-event, and actionable health content requires one explicit set-level confirmation and independent module switches thereafter. Calendar access is contextual; Clipboard is read only after deliberate opening and is never persisted. Ambient presentation never steals keyboard focus.
+
+The marketplace visually separates publisher identity, permissions, endpoint and refresh behavior, compatibility, health, and release provenance. Signature, revocation, permission expansion, unsupported schema, and host incompatibility are first-class states. Installation and update proof never relies on color alone.
+
+Automatic Space contexts and foreign menu proxying are direct-only compatibility layers, not foundations. The settings surface always states the current signed compatibility decision and preserves manual contexts and ordinary Quick Shelf behavior. Foreign menu sessions are ephemeral, bounded, keyboard accessible, and fall back to the original item whenever mapping is ambiguous.
+
+Per-app window rules use the existing placement vocabulary and receipt language. Matching evidence, deterministic priority, delay, cooldown, and restore are visible. Store users can build and preview the same rules without a false claim of automatic movement.
+
+All Wave 5 user-facing copy is prepared for English, Spanish, German, French, Japanese, and Simplified Chinese String Catalogs. Layout tolerates pseudolocalization, German expansion, CJK line breaking, larger accessibility text, keyboard order, and VoiceOver without fixed-height clipping.
 
 ## Motion and accessibility
 

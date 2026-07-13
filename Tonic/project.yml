@@ -1,9 +1,23 @@
 name: Tonic
 options:
   bundleIdPrefix: com.tonic
+  developmentLanguage: en
+  knownRegions:
+    - en
+    - es
+    - de
+    - fr
+    - ja
+    - zh-Hans
+    - Base
   deploymentTarget:
     macOS: "26.0"
   xcodeVersion: "26.0"
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.2
 
 targets:
   Tonic:
@@ -21,13 +35,12 @@ targets:
           - "build/**"
           - ".flow/**"
           - "Package.swift"
+          - "Frameworks/Sparkle.zip"
           - "PrivilegedHelper/TonicHelperMain.swift"
           - "PrivilegedHelper/TonicHelperService.swift"
           - "PrivilegedHelper/com.saransh.tonic.helper.plist"
       - path: Assets.xcassets
         buildPhase: resources
-    resources:
-      - path: Tonic/Frameworks/Sparkle.zip
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic
@@ -36,6 +49,7 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_EMIT_LOC_STRINGS: YES
         DEVELOPMENT_TEAM: CJ43UNM3AR
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
@@ -46,13 +60,16 @@ targets:
         ENABLE_APP_SANDBOX: NO
         ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
         ENABLE_INCOMING_NETWORK_CONNECTIONS: NO
-        MARKETING_VERSION: 0.1.0
-        CURRENT_PROJECT_VERSION: 10
+        MARKETING_VERSION: 5.0.0
+        CURRENT_PROJECT_VERSION: 500
+        SPARKLE_PUBLIC_ED_KEY: "$(inherited)"
+        TONIC_ARTIFACT_PUBLIC_KEY: "$(inherited)"
     entitlements:
       path: Tonic/Tonic.entitlements
     dependencies:
       - target: TonicHelper
         embed: false
+      - package: Sparkle
     postBuildScripts:
       - name: Embed hardened privileged helper
         script: |
@@ -82,6 +99,7 @@ targets:
           - "Utilities/SparkleUpdater.swift"
           - "Frameworks/Sparkle.zip"
           - "PrivilegedHelper/**"
+          - "PrivateIntegration/**"
           - "MenuBarManager/ScriptExecutionRuntime.swift"
           - "MenuBarManager/TonicExecutableProvider.swift"
       - path: Assets.xcassets
@@ -96,6 +114,7 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_EMIT_LOC_STRINGS: YES
         DEVELOPMENT_TEAM: CJ43UNM3AR
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
@@ -105,9 +124,10 @@ targets:
         ENABLE_USER_SELECTED_FILES: readwrite
         ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
         ENABLE_INCOMING_NETWORK_CONNECTIONS: NO
-        MARKETING_VERSION: 0.1.0
-        CURRENT_PROJECT_VERSION: 10
+        MARKETING_VERSION: 5.0.0
+        CURRENT_PROJECT_VERSION: 500
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) TONIC_STORE"
+        TONIC_ARTIFACT_PUBLIC_KEY: "$(inherited)"
     entitlements:
       path: Tonic/TonicStore.entitlements
 
@@ -121,6 +141,7 @@ targets:
           - "com.saransh.tonic.helper.plist"
       - path: Tonic/Services/SMCReader.swift
       - path: Tonic/Models/SensorsData.swift
+      - path: Tonic/Models/RecoverySharedTypes.swift
     settings:
       base:
         PRODUCT_NAME: com.saransh.tonic.helper
