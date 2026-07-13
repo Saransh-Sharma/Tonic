@@ -1,5 +1,5 @@
 ---
-version: 1.0-liquid
+version: 2.0
 name: Tonic-design
 description: Tonic's design language — "Liquid Tonic" — is a calm native macOS command center rendered as layered glass over the desktop. A floating icon rail and translucent surfaces let the wallpaper glow through as the light source, while the readout keeps every drop of color: near-black smoked-glass monitoring consoles, deep enterprise-green and dark-navy band glass, rounded data cards, and a research-lab type split between SF Pro display/body text and SF Mono technical labels. The shell is glass; the data is the media.
 
@@ -100,13 +100,16 @@ spacing:
   section: 64pt
 
 motion:
-  # Shipped TonicDS.Motion values; all curves easeOut.
+  # Shipped TonicDS.Motion values plus contextual flagship recipes.
   instant: 0.10s
   feedback: 0.14s   # press, numeric transitions
   transition: 0.21s # appear, present
   layout: 0.27s     # settle
   proof: 0.39s
   stagger: 0.05s per index
+  glass-morph: "layout curve; structural expansion only"
+  mineral-ripple: "brief activation/apply/restore proof"
+  orbital-particles: "rare discovery or completion moments only"
 ---
 
 ## Overview
@@ -119,6 +122,48 @@ Two rules govern everything:
 2. **Glass is chrome, never meaning.** Translucency is the shell's material, not a signal. No reading, state, or category is ever communicated by glass vs. flat, and every glass layer degrades to the flat editorial fill (the previous shipped design) when transparency is reduced.
 
 This language supersedes the flat "editorial command center" system as the default presentation — but keeps it, byte-for-byte, as the reduced-transparency tier. The palette, typography, spacing grid, radius scale, and status discipline carry over unchanged.
+
+Version 2.0 adds the hybrid flagship workspace language: calm, light-native workspaces carry comprehension and editing; Liquid Tonic glass, mineral color, and dark instrument previews carry interaction, proof, and personality. Overview and onboarding states are spacious. Editors, lists, histories, and inspectors use adaptive compact density.
+
+## Motion and accessibility
+
+Motion communicates cause and effect. Glass morphs explain structural expansion; mineral ripples confirm deliberate Apply, restore, alignment, and success; orbital particles are reserved for first discovery and rare completion. Shared recipes are governed by `TonicMotionPolicy`, never authored ad hoc in feature rows.
+
+- Reduce Motion removes displacement, particles, morphing, and motion-implying haptics. Pressed controls retain opacity feedback without scale.
+- Reduce Transparency resolves every glass surface to a semantic flat fill and stroke.
+- Increased Contrast strengthens boundaries without changing information hierarchy.
+- Every drag action has keyboard and context-menu equivalents; every gesture has a button equivalent.
+- Numeric updates use restrained ticker transitions and remain fully readable by VoiceOver.
+
+## Menu Bar flagship workspace
+
+Organize → Menu Bar is the canonical destination. Its top-level sections are Layout, Reveal, Automations, and Appearance. Setup is a compact trust-first journey: choose On-Demand (recommended) or Live enforcement, grant only contextual access, review a conservative draft, then Apply once. Accessibility is requested only by the direct build; Screen Recording remains optional and is used only for richer ephemeral item imagery and explicitly opted-in update watching.
+
+The layout editor uses stable persisted sections while presenting them as **Visible**, **On Demand**, and **Quiet**. Dragging edits only a local draft. A sticky footer summarizes changes and offers Apply Layout or Discard. Apply produces a moved/failure receipt and one-step Undo. System essentials are never recommended for hiding, and Quiet is never recommended automatically.
+
+Quick Shelf is the user-facing name for the legacy Tonic Bar implementation. Its global presentation is Compact Icons, Labeled Grid, or Searchable List; groups may override it. Groups live in Quick Shelf by default and may be pinned with an SF Symbol and accessible accent. Tonic-owned spacers, groups, and custom items are created from the Layout palette.
+
+Reveal supports collapse-control click, menu-bar dwell, empty-space click, and scroll/two-finger swipe. It is throttled, active-display aware, auto-rehides, and suppresses surprise presentation in full-screen contexts. Offscreen or notch-obscured items surface in Quick Shelf Overflow without rewriting saved placement.
+
+Update watching is explicitly enabled per item. Screen imagery is processed locally and remains ephemeral; persistence contains only a nonreversible digest, unseen state, and the minimum display asset. Activating the real item from the bar, Quick Shelf, group, or Quick Search acknowledges the update.
+
+Custom provider items use one versioned async interface for built-in, reviewed HTTPS, and direct executable sources. Remote sources expose their URL, interval, private-network policy, and response bound at review; secret material lives only in the data-protection Keychain. Direct `.tonicprovider` bundles run as the user with bounded line-delimited Codable I/O, require Developer ID signing in production, and allow immutable-hash approval only in Advanced mode. Provider snapshots are display-only and can never invoke actions or the helper.
+
+Presentation profiles resolve global → attached display → manual named context. Display overrides may change appearance, reveal behavior, Quick Shelf target/presentation, overflow, and inactive-display presentation. Manual Work/Home/Recording-style contexts are selectable directly or by reversible triggers. Foreign-item physical placement remains one global layout because macOS exposes no supported per-display ordering API; active-Space notifications refresh wallpaper and supported triggers but no undocumented Space identifier is stored.
+
+Appearance begins with Clear, Mineral Glass, Obsidian, and Match Wallpaper presets. Real-bar preview is temporary and always has Apply and Cancel/rollback. Advanced controls cover two-stop gradients, border, shadow, opacity, corner radius, and capsule/full-width layout. The migrated global appearance remains the default; public-API display profiles and manual named contexts may override presentation without claiming per-display foreign-item placement.
+
+## Custom items and execution safety
+
+The safe custom-item builder supports SF Symbols or user-selected images; static and formatted date/time, battery, processor, memory, network, and weather data; and multiple actions that open an app, file, URL, Tonic destination, or Apple Shortcut. Store builds receive this safe model and editor.
+
+Direct builds may additionally define scripts with an explicit shell/executable, argument array, security-scoped file or working-directory selections, environment allowlist, and timeout. Scripts never cross the privileged-helper boundary. Click, reviewed schedules, and automation-triggered runs share one policy: unattended runs require a full command-and-condition review, overlapping executions are rejected, three consecutive failures pause the action until an explicit review, output is independently truncated and sanitized, optional mapped labels are bounded to one line, and every run creates a structured receipt.
+
+## History and privileged maintenance
+
+Monitor cards share Live / 1h / 24h / 7d / 30d controls. `WidgetHistoryStore` owns live and short presentation history; `LongTermMetricsStore` owns local minute/hour/day weighted rollups, retention, atomic persistence, import, Disable, Clear, and storage-size reporting. Disabled history performs no long-term writes while live monitoring continues. Unsupported GPU or temperature series are omitted with capability copy rather than zero-filled charts.
+
+The direct build installs `TonicHelper` only when a privileged operation is chosen. Every run begins with a review sheet. The XPC contract is a closed, versioned Codable allowlist with no caller-provided privileged paths or commands. Client and helper verify team and identifier requirements reciprocally; malformed, oversized, unauthorized, or version-incompatible requests are rejected before dispatch. Fixed-tool output is collected asynchronously with strict bounds and a timeout so cleanup cannot block watchdog heartbeats. Fan control uses a heartbeat watchdog that restores Automatic on quit, crash, disconnect, or renewal loss. Store builds omit every helper/client/write source and retain report-only explanations.
 
 **Key characteristics:**
 - The whole window is a glass slab; the desktop glows through at a user-set intensity (Regular / Subtle / Off).

@@ -21,6 +21,9 @@ targets:
           - "build/**"
           - ".flow/**"
           - "Package.swift"
+          - "PrivilegedHelper/TonicHelperMain.swift"
+          - "PrivilegedHelper/TonicHelperService.swift"
+          - "PrivilegedHelper/com.saransh.tonic.helper.plist"
       - path: Assets.xcassets
         buildPhase: resources
     resources:
@@ -47,6 +50,19 @@ targets:
         CURRENT_PROJECT_VERSION: 10
     entitlements:
       path: Tonic/Tonic.entitlements
+    dependencies:
+      - target: TonicHelper
+        embed: false
+    postBuildScripts:
+      - name: Embed hardened privileged helper
+        script: |
+          set -euo pipefail
+          HELPER_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/HelperTools"
+          DAEMON_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchDaemons"
+          mkdir -p "$HELPER_DIR" "$DAEMON_DIR"
+          ditto "$BUILT_PRODUCTS_DIR/com.saransh.tonic.helper" "$HELPER_DIR/com.saransh.tonic.helper"
+          ditto "$SRCROOT/Tonic/PrivilegedHelper/com.saransh.tonic.helper.plist" "$DAEMON_DIR/com.saransh.tonic.helper.plist"
+        basedOnDependencyAnalysis: false
 
   TonicStore:
     type: application
@@ -65,6 +81,9 @@ targets:
           - "Package.swift"
           - "Utilities/SparkleUpdater.swift"
           - "Frameworks/Sparkle.zip"
+          - "PrivilegedHelper/**"
+          - "MenuBarManager/ScriptExecutionRuntime.swift"
+          - "MenuBarManager/TonicExecutableProvider.swift"
       - path: Assets.xcassets
         buildPhase: resources
     resources:
@@ -92,6 +111,30 @@ targets:
     entitlements:
       path: Tonic/TonicStore.entitlements
 
+  TonicHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tonic/PrivilegedHelper
+        excludes:
+          - "TonicHelperClient.swift"
+          - "com.saransh.tonic.helper.plist"
+      - path: Tonic/Services/SMCReader.swift
+      - path: Tonic/Models/SensorsData.swift
+    settings:
+      base:
+        PRODUCT_NAME: com.saransh.tonic.helper
+        PRODUCT_BUNDLE_IDENTIFIER: com.saransh.tonic.helper
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) TONIC_HELPER"
+        DEVELOPMENT_TEAM: CJ43UNM3AR
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        OTHER_CODE_SIGN_FLAGS: "--identifier com.saransh.tonic.helper"
+        ENABLE_HARDENED_RUNTIME: YES
+
   TonicTests:
     type: bundle.unit-test
     platform: macOS
@@ -111,3 +154,42 @@ targets:
         DEVELOPMENT_TEAM: CJ43UNM3AR
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
+
+  TonicUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: TonicUITests
+    dependencies:
+      - target: Tonic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tonic.TonicUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Tonic
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        SWIFT_VERSION: "6.0"
+        DEVELOPMENT_TEAM: CJ43UNM3AR
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+
+schemes:
+  Tonic:
+    build:
+      targets:
+        Tonic: all
+    test:
+      targets:
+        - TonicTests
+  TonicUI:
+    build:
+      targets:
+        Tonic: all
+        TonicUITests: [test]
+    test:
+      targets:
+        - TonicUITests
+  TonicStore:
+    build:
+      targets:
+        TonicStore: all
