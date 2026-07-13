@@ -12,6 +12,8 @@ import SwiftUI
 struct MenuBarItemListView: View {
     @State private var manager = MenuBarManager.shared
     @State private var store = MenuBarManagerSettingsStore.shared
+    @State private var updateStore = MenuBarUpdateWatchStore.shared
+    @State private var workspace = MenuBarWorkspaceStore.shared
 
     let onMove: (MenuBarItemInfo, MenuBarSection) -> Void
     let onActivate: (MenuBarItemInfo) -> Void
@@ -20,7 +22,7 @@ struct MenuBarItemListView: View {
     private var groups: [(section: MenuBarSection, items: [MenuBarItemInfo])] {
         let order: [MenuBarSection] = [.visible, .hidden, .alwaysHidden]
         return order.compactMap { section in
-            let matches = manager.items.filter { $0.section == section }
+            let matches = manager.items.filter { workspace.section(for: $0) == section }
             return matches.isEmpty ? nil : (section, matches)
         }
     }
@@ -104,18 +106,29 @@ struct MenuBarItemListView: View {
     private func trailing(_ item: MenuBarItemInfo) -> some View {
         if item.isSystemControlled {
             StatusChip("System", color: TonicDS.Colors.textMuted)
-        } else if manager.canControlItems {
+        } else {
             HStack(spacing: TonicDS.Space.xs) {
                 Menu {
-                    Button("Open") { onActivate(item) }
-                    Divider()
-                    if item.section != .visible { Button("Show") { onMove(item, .visible) } }
-                    if item.section != .hidden { Button("Hide") { onMove(item, .hidden) } }
-                    if store.settings.alwaysHiddenSectionEnabled, item.section != .alwaysHidden {
-                        Button("Always Hide") { onMove(item, .alwaysHidden) }
+                    if manager.canControlItems {
+                        Button("Open") { onActivate(item) }
+                        Divider()
+                        let draftSection = workspace.section(for: item)
+                        if draftSection != .visible { Button("Move to Visible") { onMove(item, .visible) } }
+                        if draftSection != .hidden { Button("Move to On Demand") { onMove(item, .hidden) } }
+                        if store.settings.alwaysHiddenSectionEnabled, draftSection != .alwaysHidden {
+                            Button("Move to Quiet") { onMove(item, .alwaysHidden) }
+                        }
+                        Divider()
+                    }
+                    Button("Create Trigger…") { onCreateTrigger(item) }
+                    Button(updateStore.watchedKeys.contains(item.stableKey) ? "Stop Watching for Updates" : "Watch for Updates") {
+                        let enables = !updateStore.watchedKeys.contains(item.stableKey)
+                        if enables { _ = CGRequestScreenCaptureAccess() }
+                        updateStore.setWatching(enables, key: item.stableKey)
                     }
                     Divider()
-                    Button("Create Trigger…") { onCreateTrigger(item) }
+                    Button("Move Earlier") { workspace.move(.foreign(stableKey: item.stableKey), by: -1) }
+                    Button("Move Later") { workspace.move(.foreign(stableKey: item.stableKey), by: 1) }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }

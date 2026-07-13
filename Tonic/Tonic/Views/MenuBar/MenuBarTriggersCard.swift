@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct MenuBarTriggersCard: View {
-    @State private var manager = MenuBarManager.shared
     @State private var store = MenuBarTriggerStore.shared
 
     let onEdit: (MenuBarTrigger?) -> Void
@@ -46,7 +45,6 @@ struct MenuBarTriggersCard: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .tint(TonicDS.Colors.ink)
-                .disabled(!manager.canControlItems)
 
                 Menu {
                     Button("Edit…") { onEdit(trigger) }

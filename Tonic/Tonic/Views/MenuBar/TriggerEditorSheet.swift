@@ -28,6 +28,10 @@ struct TriggerEditorSheet: View {
     @State private var actionKind: ActionKind = .applyPreset
     @State private var selectedPresetID: UUID?
     @State private var revealItemKey = ""
+    @State private var selectedContextID: UUID?
+    #if !TONIC_STORE
+    @State private var selectedScriptID: UUID?
+    #endif
     @State private var revertsWhenCleared = false
 
     enum ConditionKind: String, CaseIterable, Identifiable {
@@ -45,6 +49,10 @@ struct TriggerEditorSheet: View {
         case revealItem = "Reveal item"
         case expand = "Reveal all"
         case collapse = "Hide all"
+        case manualContext = "Select context"
+        #if !TONIC_STORE
+        case runScript = "Run reviewed script"
+        #endif
         var id: String { rawValue }
     }
 
@@ -69,7 +77,7 @@ struct TriggerEditorSheet: View {
             }
         } footer: {
             PrimaryPill(editing == nil ? "Add Trigger" : "Save", action: save)
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(!canSave)
             TextAction("Cancel") { dismiss() }
         }
         .frame(width: 460)
@@ -113,7 +121,8 @@ struct TriggerEditorSheet: View {
 
     private var actionPanel: some View {
         SettingsPanel(title: "DO") {
-            TonicPreferenceRow(title: "Action", showsDivider: actionKind == .applyPreset || actionKind == .revealItem) {
+            TonicPreferenceRow(title: "Action", showsDivider: actionKind == .applyPreset || actionKind == .revealItem || actionKind == .manualContext
+                               || isScriptAction) {
                 Picker("", selection: $actionKind) {
                     ForEach(ActionKind.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -132,6 +141,24 @@ struct TriggerEditorSheet: View {
                 TonicPreferenceRow(title: "Item key", showsDivider: false) {
                     TextField("bundle id", text: $revealItemKey).textFieldStyle(.roundedBorder).frame(width: 180)
                 }
+            case .manualContext:
+                TonicPreferenceRow(title: "Context", showsDivider: false) {
+                    Picker("", selection: $selectedContextID) {
+                        Text("Global").tag(UUID?.none)
+                        ForEach(MenuBarProfileStore.shared.manualContexts) { Text($0.name).tag(UUID?.some($0.id)) }
+                    }.labelsHidden().frame(width: 160)
+                }
+            #if !TONIC_STORE
+            case .runScript:
+                TonicPreferenceRow(title: "Reviewed script", showsDivider: false) {
+                    Picker("", selection: $selectedScriptID) {
+                        Text("None").tag(UUID?.none)
+                        ForEach(CustomItemScriptStore.shared.definitions) { script in
+                            Text(script.executable).tag(UUID?.some(script.id))
+                        }
+                    }.labelsHidden().frame(width: 180)
+                }
+            #endif
             case .expand, .collapse:
                 EmptyView()
             }
@@ -160,6 +187,13 @@ struct TriggerEditorSheet: View {
         case .revealItem(let key): actionKind = .revealItem; revealItemKey = key
         case .expand: actionKind = .expand
         case .collapse: actionKind = .collapse
+        case .selectManualContext(let id): actionKind = .manualContext; selectedContextID = id
+        case .runReviewedScript(let id):
+            #if !TONIC_STORE
+            actionKind = .runScript; selectedScriptID = id
+            #else
+            actionKind = .collapse
+            #endif
         }
     }
 
@@ -180,7 +214,19 @@ struct TriggerEditorSheet: View {
         case .revealItem: return .revealItem(stableKey: revealItemKey)
         case .expand: return .expand
         case .collapse: return .collapse
+        case .manualContext: return .selectManualContext(selectedContextID)
+        #if !TONIC_STORE
+        case .runScript: return .runReviewedScript(selectedScriptID ?? UUID())
+        #endif
         }
+    }
+
+    private var isScriptAction: Bool {
+        #if !TONIC_STORE
+        actionKind == .runScript
+        #else
+        false
+        #endif
     }
 
     private func save() {
@@ -198,5 +244,19 @@ struct TriggerEditorSheet: View {
             store.update(trigger)
         }
         dismiss()
+    }
+
+    private var canSave: Bool {
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if conditionKind == .wifi && ssid.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        if conditionKind == .appRunning && appBundleID.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+        switch actionKind {
+        case .applyPreset: return selectedPresetID != nil
+        case .revealItem: return !revealItemKey.trimmingCharacters(in: .whitespaces).isEmpty
+        #if !TONIC_STORE
+        case .runScript: return selectedScriptID != nil
+        #endif
+        case .expand, .collapse, .manualContext: return true
+        }
     }
 }

@@ -11,7 +11,8 @@ import SwiftUI
 
 /// Pure ranking so it can be unit-tested without AppKit.
 enum QuickSearchFilter {
-    /// Case-insensitive match on display name or stable key. Prefix matches
+    /// Case-insensitive match on localized app name, owner, bundle identifier,
+    /// or stable key. Prefix matches
     /// rank above substring matches; ties keep scan order.
     static func rank(names: [(index: Int, name: String, key: String)], query: String) -> [Int] {
         let trimmed = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -37,13 +38,21 @@ struct QuickSearchView: View {
     let onClose: () -> Void
 
     @State private var manager = MenuBarManager.shared
+    @State private var updateStore = MenuBarUpdateWatchStore.shared
     @State private var query = ""
     @State private var selection = 0
     @FocusState private var searchFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var systemReducesMotion
 
     private var results: [MenuBarItemInfo] {
         let items = manager.items.filter { !$0.isSystemControlled }
-        let named = items.enumerated().map { (index: $0.offset, name: $0.element.displayName, key: $0.element.stableKey) }
+        let named = items.enumerated().map {
+            let item = $0.element
+            let searchableName = [item.displayName, item.ownerName, item.bundleIdentifier]
+                .compactMap { $0 }
+                .joined(separator: " ")
+            return (index: $0.offset, name: searchableName, key: item.stableKey)
+        }
         let order = QuickSearchFilter.rank(names: named, query: query)
         return order.compactMap { idx in items.indices.contains(idx) ? items[idx] : nil }
     }
@@ -102,7 +111,8 @@ struct QuickSearchView: View {
                 }
             }
             .onChange(of: selection) { _, newValue in
-                withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(newValue, anchor: .center) }
+                let motion = TonicMotionPolicy(reduceMotion: systemReducesMotion)
+                withAnimation(motion.feedback) { proxy.scrollTo(newValue, anchor: .center) }
             }
         }
     }
@@ -132,11 +142,19 @@ struct QuickSearchView: View {
             if let section = item.section, section != .visible {
                 StatusChip(section.displayName, color: TonicDS.Colors.onDarkMuted)
             }
+            if updateStore.unseenKeys.contains(item.stableKey) {
+                StatusChip("Updated", color: TonicDS.Colors.statusWarning)
+            }
         }
         .padding(.horizontal, TonicDS.Space.md)
         .frame(height: TonicDS.Layout.MenuBar.rowHeight + 8)
         .background(isSelected ? TonicDS.Colors.onDark.opacity(0.10) : Color.clear)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(item.displayName)
+        .accessibilityHint(manager.canControlItems ? "Activates this menu bar item" : "Foreign-item activation requires the direct edition")
+        .accessibilityAddTraits(manager.canControlItems ? .isButton : [])
+        .accessibilityAction { if manager.canControlItems { onActivate(item) } }
     }
 
     private func moveSelection(_ delta: Int) {
