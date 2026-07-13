@@ -1,0 +1,60 @@
+{
+  "body": {
+    "schemaVersion": 1,
+    "kind": "tonic.marketplace.catalog",
+    "revision": 1,
+    "validity": {
+      "issuedAt": 0,
+      "expiresAt": 4102444800000
+    },
+    "payload": {
+      "entries": [
+        {
+          "id": "remote.tonic-release",
+          "providerName": "Tonic Release Channel",
+          "publisherName": "Tonic",
+          "localizedDescriptions": {
+            "en": "Shows the current stable Tonic release channel as a provider card.",
+            "es": "Muestra el canal estable actual de Tonic como tarjeta de proveedor.",
+            "de": "Zeigt den aktuellen stabilen Tonic-Kanal als Anbieterkarte.",
+            "fr": "Affiche le canal stable actuel de Tonic sous forme de carte fournisseur.",
+            "ja": "現在のTonic安定版チャンネルをプロバイダカードとして表示します。",
+            "zh-Hans": "将当前 Tonic 稳定版频道显示为提供方卡片。"
+          },
+          "manifest": {
+            "id": "remote.tonic-release",
+            "schemaVersion": 1,
+            "supportedSchemaRange": { "minimum": 1, "maximum": 2 },
+            "displayName": "Tonic Release Channel",
+            "providerVersion": "1.0.0",
+            "minimumRefreshSeconds": 3600,
+            "capabilities": ["accessibilityText", "freshness", "label", "semanticStatus", "symbol"]
+          },
+          "compatibility": {
+            "minimumOSMajor": 26,
+            "architectures": ["arm64", "x86_64"],
+            "editions": ["direct", "store"]
+          },
+          "releases": [
+            {
+              "version": "1.0.0",
+              "kind": "remoteJSON",
+              "artifactURL": "https://github.com/Saransh-Sharma/Tonic/releases/download/provider-remote.tonic-release-v1.0.0/remote.tonic-release-1.0.0.json",
+              "sha256": "f18e928d73dd019d837fb3e03e7849305a1a73b0229566a626f7c9f9d582d390",
+              "schemaRange": { "minimum": 1, "maximum": 2 },
+              "permissions": ["network"],
+              "endpoints": ["https://saransh-sharma.github.io/Tonic/providers/tonic-release/snapshot.json"],
+              "minimumRefreshSeconds": 3600,
+              "publishedAt": 1783900800000
+            }
+          ]
+        }
+      ],
+      "revokedReleaseIDs": []
+    }
+  },
+  "signature": {
+    "algorithm": "ed25519",
+    "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  }
+}
