@@ -1,0 +1,3475 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "—" : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ → %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@ disappears briefly and macOS relaunches it." : {
+
+    },
+    "%@ enabled" : {
+
+    },
+    "%@ files · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ files · %2$@"
+          }
+        }
+      }
+    },
+    "%@ is available in Tonic Direct." : {
+
+    },
+    "%@ is not responding normally." : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@ %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@ %3$@, %4$@"
+          }
+        }
+      }
+    },
+    "%@, %lld point spacer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld point spacer"
+          }
+        }
+      }
+    },
+    "%@, average %lld percent, %lld cores" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, average %2$lld percent, %3$lld cores"
+          }
+        }
+      }
+    },
+    "%d" : {
+
+    },
+    "%lld" : {
+
+    },
+    "%lld Apple Shortcuts" : {
+
+    },
+    "%lld connected" : {
+
+    },
+    "%lld item%@ · %lld recoverable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld item%2$@ · %3$lld recoverable"
+          }
+        }
+      }
+    },
+    "%lld min" : {
+
+    },
+    "%lld of 3" : {
+
+    },
+    "%lld percent" : {
+
+    },
+    "%lld providers ready" : {
+
+    },
+    "%lld pt" : {
+
+    },
+    "%lld recent Tonic files" : {
+
+    },
+    "%lld saved locally" : {
+
+    },
+    "%lld selected" : {
+
+    },
+    "%lld:00" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "%lld×%lld  x %lld  y %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld×%2$lld  x %3$lld  y %4$lld"
+          }
+        }
+      }
+    },
+    "%lld×%lld · %.0f×" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld×%2$lld · %3$.0f×"
+          }
+        }
+      }
+    },
+    "%llds" : {
+
+    },
+    "↑" : {
+
+    },
+    "↓" : {
+
+    },
+    "↵" : {
+
+    },
+    "+%@" : {
+
+    },
+    "+%lld" : {
+
+    },
+    "~%llds" : {
+
+    },
+    "2.4 GB" : {
+
+    },
+    "5 min Timer" : {
+
+    },
+    "7 days" : {
+
+    },
+    "9:41" : {
+
+    },
+    "30 days" : {
+
+    },
+    "90 days" : {
+
+    },
+    "About Tonic" : {
+
+    },
+    "Accent" : {
+
+    },
+    "Accent color" : {
+
+    },
+    "Accessibility access required" : {
+
+    },
+    "Across cleanups and maintenance runs." : {
+
+    },
+    "Action" : {
+
+    },
+    "Actions" : {
+
+    },
+    "Activates this menu bar item" : {
+
+    },
+    "Active display" : {
+
+    },
+    "Active network service" : {
+
+    },
+    "Add" : {
+
+    },
+    "Add a private local note" : {
+
+    },
+    "Add a reviewed Apple Shortcut action in the custom-item builder." : {
+
+    },
+    "Add Bundle…" : {
+
+    },
+    "Add one from expanded Top Shelf" : {
+
+    },
+    "Add Provider…" : {
+
+    },
+    "After reset, you'll go through the initial setup again." : {
+
+    },
+    "ago" : {
+
+    },
+    "All clear — nothing needs your attention." : {
+
+    },
+    "All clear." : {
+
+    },
+    "Allow" : {
+
+    },
+    "Allow private-network hosts" : {
+
+    },
+    "Allow…" : {
+
+    },
+    "Also run on a reviewed schedule" : {
+
+    },
+    "and" : {
+
+    },
+    "App" : {
+
+    },
+    "APP" : {
+
+    },
+    "App and OS" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App und System"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App y sistema"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App et système"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリとシステム"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 与系统"
+          }
+        }
+      }
+    },
+    "App Store Edition" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Apple Shortcut" : {
+
+    },
+    "Application associations and Open With data are rebuilt." : {
+
+    },
+    "Application registration" : {
+
+    },
+    "Applies Tonic-owned items; foreign placement remains staged" : {
+
+    },
+    "Apply" : {
+
+    },
+    "Apply staged layout" : {
+
+    },
+    "Approve and Install" : {
+
+    },
+    "Approve This Code Hash" : {
+
+    },
+    "Approve unsigned provider?" : {
+
+    },
+    "Apps with a built-in launch-at-login helper. Turn them off inside each app or in System Settings → General → Login Items." : {
+
+    },
+    "Arguments — one per line" : {
+
+    },
+    "Ask %@ to quit" : {
+
+    },
+    "At most 200 local log lines after deterministic redaction." : {
+
+    },
+    "audio service" : {
+
+    },
+    "Auto" : {
+
+    },
+    "Automatic Space context" : {
+      "comment" : "Private direct-build capability label; do not imply App Store availability.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatischer Space-Kontext"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contexto automático de Space"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contexte Space automatique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動Spaceコンテキスト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动空间情境"
+          }
+        }
+      }
+    },
+    "Automatic update failed closed; the current release was preserved." : {
+
+    },
+    "Available provider" : {
+
+    },
+    "Back" : {
+
+    },
+    "Basic processor and memory readings work before any additional access is granted." : {
+
+    },
+    "Bind Current Space" : {
+
+    },
+    "Bluetooth service" : {
+
+    },
+    "Body copy is quiet, native, and specific. One oversized voice per screen." : {
+
+    },
+    "Bounded recent logs" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begrenzte aktuelle Protokolle"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registros recientes limitados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Journaux récents limités"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制限付き最近のログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受限的近期日志"
+          }
+        }
+      }
+    },
+    "Build a safe item using Tonic’s existing data providers." : {
+
+    },
+    "bundle id" : {
+
+    },
+    "Bundle identifier is required. Role, title, display, context, and full-screen conditions remain optional in the saved model." : {
+
+    },
+    "Caches" : {
+
+    },
+    "Calendar access is off" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kalenderzugriff ist deaktiviert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El acceso al calendario está desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’accès au calendrier est désactivé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カレンダーへのアクセスはオフです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日历访问已关闭"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+
+    },
+    "Capability state" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funktionsstatus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado de capacidades"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État des capacités"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機能の状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功能状态"
+          }
+        }
+      }
+    },
+    "Capture groups" : {
+
+    },
+    "Capture layout" : {
+
+    },
+    "Card heading" : {
+
+    },
+    "Cards supplied by installed, reviewed data providers." : {
+
+    },
+    "Chart scaling mode" : {
+
+    },
+    "Check" : {
+
+    },
+    "Check Again" : {
+
+    },
+    "Check network recovery" : {
+
+    },
+    "Checking permissions..." : {
+
+    },
+    "Choose a location in Widgets" : {
+
+    },
+    "Choose a provider" : {
+
+    },
+    "Choose any goals. Tonic will configure Home and ask only for access those goals need." : {
+
+    },
+    "Choose image…" : {
+
+    },
+    "Choose script or executable…" : {
+
+    },
+    "Choose working directory…" : {
+
+    },
+    "Choose…" : {
+
+    },
+    "Cleaning…" : {
+
+    },
+    "Clear search" : {
+
+    },
+    "Clear shortcut" : {
+
+    },
+    "Clipboard" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪贴板"
+          }
+        }
+      }
+    },
+    "Close" : {
+
+    },
+    "com.example.app" : {
+
+    },
+    "com.example.App" : {
+
+    },
+    "Command Palette" : {
+
+    },
+    "Compatibility decisions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kompatibilitätsentscheidungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decisiones de compatibilidad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Décisions de compatibilité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "互換性の判定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兼容性判定"
+          }
+        }
+      }
+    },
+    "Compatibility-gated playback context; never claims unsupported control." : {
+
+    },
+    "Complete inline command" : {
+
+    },
+    "Condition" : {
+
+    },
+    "Contents" : {
+
+    },
+    "Continue with this step" : {
+
+    },
+    "Copy Appcast URL" : {
+
+    },
+    "Copy Bundle ID" : {
+
+    },
+    "Copy Path" : {
+
+    },
+    "Copy Path%@" : {
+
+    },
+    "CPU" : {
+
+    },
+    "CPU %lld%%" : {
+
+    },
+    "CPU %lld%% · Memory %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CPU %1$lld%% · Memory %2$lld%%"
+          }
+        }
+      }
+    },
+    "Create support bundle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supportpaket erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear paquete de soporte"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un dossier d’assistance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートバンドルを作成"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建支持包"
+          }
+        }
+      }
+    },
+    "Create Trigger…" : {
+
+    },
+    "Curated catalog" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kuratierter Katalog"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catálogo seleccionado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catalogue sélectionné"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "厳選カタログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精选目录"
+          }
+        }
+      }
+    },
+    "Custom Item" : {
+
+    },
+    "Custom Menu Bar Item" : {
+
+    },
+    "Data" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete %@" : {
+
+    },
+    "Delete rule for %@" : {
+
+    },
+    "Delete workspace %@" : {
+
+    },
+    "Destination" : {
+
+    },
+    "Diagnose first. Review every change. Preserve your Mac’s configuration." : {
+
+    },
+    "Diagnostic check failed" : {
+
+    },
+    "Diagnostic Reports" : {
+
+    },
+    "Direct Edition" : {
+
+    },
+    "Disable Menu Proxy" : {
+
+    },
+    "Discard" : {
+
+    },
+    "Disk map of %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Disk map of %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "Dismiss" : {
+
+    },
+    "Display" : {
+
+    },
+    "Display name" : {
+
+    },
+    "Display…" : {
+
+    },
+    "DNS resolution" : {
+
+    },
+    "DNS responder" : {
+
+    },
+    "Done" : {
+
+    },
+    "Drop a file onto Top Shelf" : {
+
+    },
+    "Duplicate" : {
+
+    },
+    "e.g. On the go" : {
+
+    },
+    "Each request is tied to a visible benefit. You can skip everything and change it later in Access." : {
+
+    },
+    "Earlier" : {
+
+    },
+    "Edit" : {
+
+    },
+    "Edit %@" : {
+
+    },
+    "Edit Custom Menu Bar Item" : {
+
+    },
+    "Edit Preset" : {
+
+    },
+    "Edit Quick Shelf Group" : {
+
+    },
+    "Edit…" : {
+
+    },
+    "Empties the Trash and reports how much space was freed." : {
+
+    },
+    "Empty Trash" : {
+
+    },
+    "Enable Live" : {
+
+    },
+    "Enable Live layout enforcement?" : {
+
+    },
+    "Enable Menu Proxy" : {
+
+    },
+    "Enable modules in Top Shelf settings." : {
+
+    },
+    "Enable recommended ambient modules?" : {
+
+    },
+    "Enable Recommended Set" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empfohlenes Set aktivieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activar conjunto recomendado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer l’ensemble recommandé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "おすすめセットを有効にする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用推荐组合"
+          }
+        }
+      }
+    },
+    "Enable scheduled care in Settings → Maintenance." : {
+
+    },
+    "Enable selected capabilities" : {
+
+    },
+    "Enable this module to request access" : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Endpoint: %@\nRefresh: %lld seconds\nPrivate network: %@\nMaximum response: 256 KiB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Endpoint: %1$@\nRefresh: %2$lld seconds\nPrivate network: %3$@\nMaximum response: 256 KiB"
+          }
+        }
+      }
+    },
+    "Environment — KEY=value, one per line" : {
+
+    },
+    "Every" : {
+
+    },
+    "Evidence-backed Recovery, monitoring, update, and permission suggestions." : {
+
+    },
+    "Example: {cpu} · {battery}" : {
+
+    },
+    "Executable providers are unavailable in the Mac App Store edition." : {
+
+    },
+    "Execution review" : {
+
+    },
+    "Existing connections stay open; new name lookups may pause briefly." : {
+
+    },
+    "Explicit shell or executable" : {
+
+    },
+    "Feature heading" : {
+
+    },
+    "Files" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateien"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        }
+      }
+    },
+    "Filter installed apps" : {
+
+    },
+    "First CPU, memory, disk, and network samples arrive within a few seconds." : {
+
+    },
+    "First run is coming up." : {
+
+    },
+    "Focus a standard app window, then choose a placement." : {
+
+    },
+    "Foreign-item activation requires the direct edition" : {
+
+    },
+    "Forwards this action to the original menu item" : {
+
+    },
+    "Free Space" : {
+
+    },
+    "Gap between windows" : {
+
+    },
+    "Get Free Disk Space" : {
+
+    },
+    "Global" : {
+
+    },
+    "Grant" : {
+
+    },
+    "Grant %@" : {
+
+    },
+    "Granted" : {
+
+    },
+    "Group" : {
+
+    },
+    "Groups" : {
+
+    },
+    "Healthy" : {
+
+    },
+    "Help" : {
+
+    },
+    "Helper status" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfsdienststatus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado del asistente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État du service privilégié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ヘルパーの状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辅助程序状态"
+          }
+        }
+      }
+    },
+    "Hidden" : {
+
+    },
+    "HIDDEN" : {
+
+    },
+    "Hidden from menu bar" : {
+
+    },
+    "Hide inactive" : {
+
+    },
+    "Hide sixths grid" : {
+
+    },
+    "Hide this spacer" : {
+
+    },
+    "History range" : {
+
+    },
+    "Hover" : {
+
+    },
+    "Hover to inspect folders; click a segment to map that folder." : {
+
+    },
+    "HTTPS endpoint" : {
+
+    },
+    "I reviewed this command and approve its listed conditions" : {
+
+    },
+    "I reviewed this complete command and approve it for this action" : {
+
+    },
+    "I reviewed this endpoint and approve resuming requests" : {
+
+    },
+    "I reviewed this endpoint and refresh policy" : {
+
+    },
+    "I reviewed this identity and approve resuming requests" : {
+
+    },
+    "Identity" : {
+
+    },
+    "Ignore Updates for This App" : {
+
+    },
+    "In Tonic, edits are staged as you move items between Visible, On Demand, and Quiet, then applied once after review." : {
+
+    },
+    "In use by another app" : {
+
+    },
+    "Include appearance" : {
+
+    },
+    "Include reveal behavior" : {
+
+    },
+    "Indexing is disabled or did not report a healthy state for the startup disk." : {
+
+    },
+    "Inline command" : {
+
+    },
+    "Inspect" : {
+
+    },
+    "Inspect system pressure" : {
+
+    },
+    "Install" : {
+
+    },
+    "Installed in your user account — Tonic can turn these off or remove them." : {
+
+    },
+    "Installed system-wide. Changing these requires administrator rights, so Tonic shows them read-only." : {
+
+    },
+    "Item control requires the direct download" : {
+
+    },
+    "Keep On-Demand" : {
+
+    },
+    "Label" : {
+
+    },
+    "Later" : {
+
+    },
+    "Launch agent" : {
+
+    },
+    "Launch daemon" : {
+
+    },
+    "Layout" : {
+
+    },
+    "Layout enforcement" : {
+
+    },
+    "Live mode reacts when apps add or remove menu bar items. Reapplying may briefly interrupt the pointer for a second or two." : {
+
+    },
+    "LIVE PREVIEW" : {
+
+    },
+    "Loading live metrics" : {
+
+    },
+    "Loading monitor metrics" : {
+
+    },
+    "Local allow/deny decisions without raw private identifiers." : {
+
+    },
+    "Local snapshots are deleted from the startup disk; backup history on the Time Machine destination is unchanged." : {
+
+    },
+    "Local timers stored with your Top Shelf layout." : {
+
+    },
+    "macOS reconstructs the database from installed applications and files." : {
+
+    },
+    "macOS relaunches or repopulates the service automatically." : {
+
+    },
+    "Map the first sanitized output line to the item label" : {
+
+    },
+    "Map where your space goes — every folder drawn to scale, three levels deep." : {
+
+    },
+    "Marketplace status" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marketplace-Status"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado del catálogo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État du catalogue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マーケットプレイスの状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "市场状态"
+          }
+        }
+      }
+    },
+    "Measuring baseline…" : {
+
+    },
+    "MEM" : {
+
+    },
+    "Members" : {
+
+    },
+    "Memory %lld%%" : {
+
+    },
+    "Memory %lld%% · %lld°C" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Memory %1$lld%% · %2$lld°C"
+          }
+        }
+      }
+    },
+    "Memory: %@ used, %@ compressed, %@ free" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Memory: %1$@ used, %2$@ compressed, %3$@ free"
+          }
+        }
+      }
+    },
+    "Menu Bar Widgets" : {
+
+    },
+    "Menu text and mappings are discarded when this panel closes." : {
+
+    },
+    "micro note" : {
+
+    },
+    "Monitor history range" : {
+
+    },
+    "Move Earlier" : {
+
+    },
+    "Move Later" : {
+
+    },
+    "Move to On Demand" : {
+
+    },
+    "Move to Quiet" : {
+
+    },
+    "Move to Trash" : {
+
+    },
+    "Move to Visible" : {
+
+    },
+    "Moves the focused window to %@. The previous frame can be restored." : {
+
+    },
+    "Name" : {
+
+    },
+    "NAME" : {
+
+    },
+    "Navigation" : {
+
+    },
+    "New Automation" : {
+
+    },
+    "New Quick Shelf Group" : {
+
+    },
+    "Next Event" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster Termin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Próximo evento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prochain événement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の予定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一个日程"
+          }
+        }
+      }
+    },
+    "Next track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster Titel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pista siguiente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piste suivante"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次のトラック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一曲"
+          }
+        }
+      }
+    },
+    "No actions match “%@”" : {
+
+    },
+    "No active timers" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine aktiven Timer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay temporizadores activos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun minuteur actif"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作動中のタイマーはありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有活动的计时器"
+          }
+        }
+      }
+    },
+    "No active widgets" : {
+
+    },
+    "No foreign menu bar items are currently discoverable." : {
+
+    },
+    "No hidden items" : {
+
+    },
+    "No items found" : {
+
+    },
+    "No matches for “%@”." : {
+
+    },
+    "No menu bar items found." : {
+
+    },
+    "No network activity right now." : {
+
+    },
+    "No providers installed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Anbieter installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay proveedores instalados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun fournisseur installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロバイダはインストールされていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安装提供方"
+          }
+        }
+      }
+    },
+    "No quick notes" : {
+
+    },
+    "No repair is recommended." : {
+
+    },
+    "No samples have arrived yet. Monitoring starts automatically — if this persists, check module settings." : {
+
+    },
+    "No Shortcut launchers" : {
+
+    },
+    "No supported playback session" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine unterstützte Wiedergabesitzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay una sesión de reproducción compatible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune session de lecture compatible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応する再生セッションはありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有受支持的播放会话"
+          }
+        }
+      }
+    },
+    "No text on the clipboard" : {
+
+    },
+    "No upcoming events" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine anstehenden Termine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay próximos eventos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun événement à venir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今後の予定はありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有即将开始的日程"
+          }
+        }
+      }
+    },
+    "No urgent action" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine dringende Aktion"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay acciones urgentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune action urgente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊急の操作はありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有紧急操作"
+          }
+        }
+      }
+    },
+    "None" : {
+
+    },
+    "Not inspected" : {
+
+    },
+    "Not now" : {
+
+    },
+    "Not Now" : {
+
+    },
+    "Nothing cleaned this week." : {
+
+    },
+    "Nothing is added to the real menu bar until Apply Layout." : {
+
+    },
+    "Nothing is playing" : {
+
+    },
+    "Nothing on Top Shelf" : {
+
+    },
+    "Nothing recorded for %@ yet. History accrues while Tonic is running." : {
+
+    },
+    "now %@" : {
+
+    },
+    "Now Playing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Wiedergabe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En reproducción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À l’écoute"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在播放"
+          }
+        }
+      }
+    },
+    "Off" : {
+
+    },
+    "Only approve a provider you trust. Editing its executable invalidates this approval.\n\nSHA-256: %@" : {
+
+    },
+    "Only old files inside the fixed %@ domain are removed." : {
+
+    },
+    "Only revision files older than the reviewed age are removed." : {
+
+    },
+    "Open" : {
+
+    },
+    "Open Accessible Proxy Menu" : {
+
+    },
+    "Open details" : {
+
+    },
+    "Open in Tonic" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Tonic öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir en Tonic"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir dans Tonic"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tonicで開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Tonic 中打开"
+          }
+        }
+      }
+    },
+    "Open link" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir enlace"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le lien"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクを開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开链接"
+          }
+        }
+      }
+    },
+    "Open Login Items Settings" : {
+
+    },
+    "Open Monitor" : {
+
+    },
+    "Open recent file" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Datei öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir archivo reciente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le fichier récent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近のファイルを開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开最近文件"
+          }
+        }
+      }
+    },
+    "Open Top Shelf" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Top Shelf"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir Top Shelf"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelfを開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Top Shelf"
+          }
+        }
+      }
+    },
+    "Open Top Shelf to preview" : {
+
+    },
+    "Open widget settings" : {
+
+    },
+    "Opens this menu bar item" : {
+
+    },
+    "Opens Tonic and starts a Smart Scan of junk files, performance items, and apps." : {
+
+    },
+    "Operation completed." : {
+
+    },
+    "Operation failed." : {
+
+    },
+    "Optional bearer secret" : {
+
+    },
+    "Overflow" : {
+
+    },
+    "Package Update Residue" : {
+
+    },
+    "Pause timer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer pausieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausar temporizador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre le minuteur en pause"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイマーを一時停止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停计时器"
+          }
+        }
+      }
+    },
+    "Per-app window rules" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fensterregeln pro App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reglas de ventana por app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Règles de fenêtre par app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ別ウインドルール"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按应用设置窗口规则"
+          }
+        }
+      }
+    },
+    "Permission Required" : {
+
+    },
+    "PID" : {
+
+    },
+    "Pin as a real Tonic status item after Apply" : {
+
+    },
+    "Pin navigation open" : {
+
+    },
+    "Pinned" : {
+
+    },
+    "Pinned group %@" : {
+
+    },
+    "Placement" : {
+
+    },
+    "Play or pause" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiedergabe oder Pause"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reproducir o pausar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lire ou mettre en pause"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生または一時停止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放或暂停"
+          }
+        }
+      }
+    },
+    "Playback controls appear only when the current macOS build passes Tonic's signed compatibility check." : {
+
+    },
+    "Please wait while we clean everything up." : {
+
+    },
+    "Points at an app that no longer exists" : {
+
+    },
+    "Popover width" : {
+
+    },
+    "Presentation" : {
+
+    },
+    "Preset" : {
+
+    },
+    "Preview" : {
+
+    },
+    "Previous track" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorheriger Titel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pista anterior"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piste précédente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前のトラック"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一曲"
+          }
+        }
+      }
+    },
+    "print service" : {
+
+    },
+    "Priority %lld" : {
+
+    },
+    "Progress" : {
+
+    },
+    "Provider Cards" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anbieterkarten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarjetas de proveedores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cartes de fournisseurs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロバイダカード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提供方卡片"
+          }
+        }
+      }
+    },
+    "Provider health" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anbieterstatus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado de proveedores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État des fournisseurs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロバイダの状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提供方状态"
+          }
+        }
+      }
+    },
+    "Provider identifier" : {
+
+    },
+    "Provider identity, release, and health without secrets or payloads." : {
+
+    },
+    "Provider: %@\nVersion: %@\nMinimum refresh: %lld seconds\nSHA-256: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider: %1$@\nVersion: %2$@\nMinimum refresh: %3$lld seconds\nSHA-256: %4$@"
+          }
+        }
+      }
+    },
+    "Quick Notes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurznotizen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notas rápidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes rapides"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックメモ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速备忘"
+          }
+        }
+      }
+    },
+    "Quit %@" : {
+
+    },
+    "Quit %@?" : {
+
+    },
+    "Quit Process" : {
+
+    },
+    "Read for this open session only" : {
+
+    },
+    "Reads text only after a deliberate open and never persists it." : {
+
+    },
+    "Reads the next event only after contextual EventKit permission." : {
+
+    },
+    "Rebuild application registration" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App-Registrierung neu erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconstruir el registro de aplicaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconstruire l’enregistrement des applications"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ登録を再構築"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重建应用注册信息"
+          }
+        }
+      }
+    },
+    "Rebuild the startup-disk Spotlight index" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotlight-Index des Startvolumes neu erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconstruir el índice de Spotlight del disco de arranque"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconstruire l’index Spotlight du disque de démarrage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ディスクのSpotlight索引を再構築"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重建启动磁盘的 Spotlight 索引"
+          }
+        }
+      }
+    },
+    "Recent Tonic file" : {
+
+    },
+    "Reclaim local Time Machine snapshots" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokale Time-Machine-Snapshots freigeben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recuperar instantáneas locales de Time Machine"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Récupérer les instantanés locaux Time Machine"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルTime Machineスナップショットを解放"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回收本地 Time Machine 快照"
+          }
+        }
+      }
+    },
+    "Recommended" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empfohlen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recomendado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recommandé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "おすすめ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐"
+          }
+        }
+      }
+    },
+    "Record shortcut" : {
+
+    },
+    "Recovery Center" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellungscenter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Centro de recuperación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Centre de récupération"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リカバリセンター"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复中心"
+          }
+        }
+      }
+    },
+    "Redacted action receipts" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereinigte Aktionsbelege"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recibos de acciones censurados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reçus d’actions expurgés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集済みアクション記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已脱敏的操作收据"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+
+    },
+    "Refresh DNS resolution" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNS-Auflösung aktualisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar la resolución DNS"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser la résolution DNS"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNS解決を更新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新 DNS 解析"
+          }
+        }
+      }
+    },
+    "Refresh interval" : {
+
+    },
+    "Refresh module" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modul aktualisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar módulo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser le module"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モジュールを更新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新模块"
+          }
+        }
+      }
+    },
+    "Registration and protocol status without privileged request payloads." : {
+
+    },
+    "Remove" : {
+
+    },
+    "Remove %@" : {
+
+    },
+    "Remove %@?" : {
+
+    },
+    "Remove note" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notiz entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar nota"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer la note"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除备忘"
+          }
+        }
+      }
+    },
+    "Remove stale %@" : {
+
+    },
+    "Remove stale document revisions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veraltete Dokumentversionen entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar revisiones de documentos obsoletas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer les révisions de documents obsolètes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古い書類履歴を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除过期的文稿修订"
+          }
+        }
+      }
+    },
+    "Renew the active network service" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiven Netzwerkdienst erneuern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renovar el servicio de red activo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renouveler le service réseau actif"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用中のネットワークサービスを更新"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "续订当前网络服务"
+          }
+        }
+      }
+    },
+    "Report an Issue" : {
+
+    },
+    "Request Approval" : {
+
+    },
+    "Required" : {
+
+    },
+    "Reset complete" : {
+
+    },
+    "Resetting Tonic…" : {
+
+    },
+    "Restart %@" : {
+
+    },
+    "Restore previous frame" : {
+
+    },
+    "Results and errors with paths, URLs, and sensitive arguments redacted." : {
+
+    },
+    "Retention" : {
+
+    },
+    "Returns the available space on the startup disk." : {
+
+    },
+    "Reveal behavior" : {
+
+    },
+    "Reveal in Finder" : {
+
+    },
+    "Review" : {
+
+    },
+    "Review & Resume…" : {
+
+    },
+    "Review Executable Provider" : {
+
+    },
+    "Review provider permissions" : {
+
+    },
+    "Review Reclaim" : {
+
+    },
+    "Review Remote Provider" : {
+
+    },
+    "Review Script Action" : {
+
+    },
+    "Review Script Execution" : {
+
+    },
+    "Review script…" : {
+
+    },
+    "Review the complete command and every unattended condition before resuming." : {
+
+    },
+    "Review the provider's changed permissions before installing." : {
+
+    },
+    "Review…" : {
+
+    },
+    "Reviewed Apple Shortcut launchers." : {
+
+    },
+    "Reviewed recovery plan" : {
+
+    },
+    "Rollback" : {
+
+    },
+    "Run a Smart Scan to start tracking." : {
+
+    },
+    "Run an action or open a tool…" : {
+
+    },
+    "Run an intelligent scan across Space, Performance, and Apps." : {
+
+    },
+    "Run Apple Shortcut" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple-Kurzbefehl ausführen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutar atajo de Apple"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécuter le raccourci Apple"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appleショートカットを実行"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行 Apple 快捷指令"
+          }
+        }
+      }
+    },
+    "Run Now" : {
+
+    },
+    "Run Smart Scan" : {
+
+    },
+    "Running…" : {
+
+    },
+    "Sampling hasn't produced data yet. Retry, or check module settings." : {
+
+    },
+    "Sampling…" : {
+
+    },
+    "Save the app inventory as CSV or JSON" : {
+
+    },
+    "Scan category cards use soft stone and compact proof rows." : {
+
+    },
+    "Scan complete" : {
+
+    },
+    "Scan Folder…" : {
+
+    },
+    "Scanning applications" : {
+
+    },
+    "Scanning storage" : {
+
+    },
+    "Scanning…" : {
+
+    },
+    "Scheduled" : {
+
+    },
+    "Script file" : {
+
+    },
+    "Scripts run as your user, never through Tonic’s privileged helper." : {
+
+    },
+    "Search menu bar items" : {
+
+    },
+    "Search menu bar items…" : {
+
+    },
+    "Search results may be incomplete while macOS rebuilds the index." : {
+
+    },
+    "Search Top Shelf" : {
+
+    },
+    "Search Top Shelf modules" : {
+
+    },
+    "Section" : {
+
+    },
+    "Select" : {
+
+    },
+    "Selected" : {
+
+    },
+    "Selected file" : {
+
+    },
+    "Sends a polite quit request (SIGTERM). Unsaved work in that process may be lost." : {
+
+    },
+    "Separator" : {
+
+    },
+    "Set %lld" : {
+
+    },
+    "Settings" : {
+
+    },
+    "SF Symbol" : {
+
+    },
+    "Sheets use canvas, hairlines, carved headings, and explicit footer actions." : {
+
+    },
+    "Shelf target" : {
+
+    },
+    "Short local notes; note content is excluded from support bundles." : {
+
+    },
+    "Shortcut: %@. Activate to change." : {
+
+    },
+    "Shortcuts" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurzbefehle"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atajos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raccourcis"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷指令"
+          }
+        }
+      }
+    },
+    "Show %@" : {
+
+    },
+    "Show sixths grid" : {
+
+    },
+    "Sixths grid" : {
+
+    },
+    "Skip for now" : {
+
+    },
+    "Skip this step" : {
+
+    },
+    "Skip Version %@" : {
+
+    },
+    "Smart Scan" : {
+
+    },
+    "Solid bands carry module identity. The data still carries the color." : {
+
+    },
+    "Source" : {
+
+    },
+    "Spacer" : {
+
+    },
+    "Spotlight index" : {
+
+    },
+    "SSID" : {
+
+    },
+    "Stale data is available for reviewed reclamation." : {
+
+    },
+    "Start playback in a media app." : {
+
+    },
+    "Start timer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer starten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iniciar temporizador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Démarrer le minuteur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイマーを開始"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动计时器"
+          }
+        }
+      }
+    },
+    "Starting fresh in %lld…" : {
+
+    },
+    "Status" : {
+
+    },
+    "Step %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Steps run in order and stop at the first failure." : {
+
+    },
+    "Stop" : {
+
+    },
+    "Stop Watching for Updates" : {
+
+    },
+    "Support" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soporte"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持"
+          }
+        }
+      }
+    },
+    "System Caches" : {
+
+    },
+    "System control" : {
+
+    },
+    "System Health" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Systemzustand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado del sistema"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "État du système"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム状態"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统健康"
+          }
+        }
+      }
+    },
+    "The %@ did not report a healthy state." : {
+
+    },
+    "The %@ is interrupted briefly; saved configuration is preserved." : {
+
+    },
+    "The active connection may disconnect for several seconds." : {
+
+    },
+    "The agent is unloaded and its configuration file moves to the Trash. The app that installed it may recreate it." : {
+
+    },
+    "The DNS resolver did not return a healthy lookup." : {
+
+    },
+    "The exact resulting frame is shown before placement." : {
+
+    },
+    "The LaunchServices registration tool is unavailable or unhealthy." : {
+
+    },
+    "The live monitor reports no active connection." : {
+
+    },
+    "The live version previews this exact frame and keeps the previous frame ready to restore." : {
+
+    },
+    "The local recovery operation timed out." : {
+
+    },
+    "The Mac App Store edition provides guided recovery for this operation." : {
+
+    },
+    "The MediaRemote adapter failed its runtime preflight." : {
+
+    },
+    "The primary network service could not complete a normal lookup." : {
+
+    },
+    "The provider artifact does not match the signed catalog digest." : {
+
+    },
+    "The provider artifact exceeds Tonic's size limit." : {
+
+    },
+    "The provider artifact must use an approved HTTPS address." : {
+
+    },
+    "The removed stale data is not restorable; the reviewed scope excludes user documents and saved configuration." : {
+
+    },
+    "The reviewed automatic update failed closed; the current release remains active." : {
+
+    },
+    "The signed provider catalog is unavailable or invalid." : {
+
+    },
+    "The user declined the focused confirmation." : {
+
+    },
+    "This action cannot be undone." : {
+
+    },
+    "This action requires the privileged helper." : {
+
+    },
+    "This display" : {
+
+    },
+    "This edition provides diagnosis and guided recovery without performing the system change." : {
+
+    },
+    "This process runs as your user and can only return display data to Tonic." : {
+
+    },
+    "This provider does not support a compatible data schema." : {
+
+    },
+    "This provider is not compatible with this Mac or Tonic edition." : {
+
+    },
+    "This provider release has been revoked and cannot run." : {
+
+    },
+    "This provider release is unavailable." : {
+
+    },
+    "This provider requests: %@. Installation remains bound to this signed identity, endpoint set, refresh policy, and permission set." : {
+
+    },
+    "This sample is fully interactive and changes nothing on your Mac." : {
+
+    },
+    "Time Machine" : {
+
+    },
+    "Time Machine service" : {
+
+    },
+    "Time Machine status could not be read normally." : {
+
+    },
+    "Timeout" : {
+
+    },
+    "Timers" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temporizadores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minuteurs"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイマー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "计时器"
+          }
+        }
+      }
+    },
+    "Today while open" : {
+
+    },
+    "Toggle notifications when app updates are found" : {
+
+    },
+    "Tonic" : {
+
+    },
+    "Tonic could not inspect this subsystem in the current edition or permission state." : {
+
+    },
+    "Tonic Documentation" : {
+
+    },
+    "Tonic is configured for you." : {
+
+    },
+    "Tonic menu-bar widgets" : {
+
+    },
+    "Tonic needs Accessibility permission to hide, show, and open other apps' menu bar items. Discovery works without it." : {
+
+    },
+    "Tonic stores only a security-scoped bookmark after your selection." : {
+
+    },
+    "Tonic will ask its signed privileged helper to perform this fixed operation." : {
+
+    },
+    "Tonic will keep scanning after setup." : {
+
+    },
+    "Tonic will surface evidence-backed actions here." : {
+
+    },
+    "Tools" : {
+
+    },
+    "Top Shelf" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top Shelf"
+          }
+        }
+      }
+    },
+    "Top Shelf may appear without taking focus for Now Playing, your next Calendar event, or an actionable health warning. Calendar still asks for access contextually. Clipboard and every other module remain excluded." : {
+
+    },
+    "Transient menu proxy" : {
+
+    },
+    "Trend appears after another scan." : {
+
+    },
+    "Try the interaction first" : {
+
+    },
+    "Undo" : {
+
+    },
+    "Uninstall %lld app%@?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Uninstall %1$lld app%2$@?"
+          }
+        }
+      }
+    },
+    "Uninstall…" : {
+
+    },
+    "Unload & Remove" : {
+
+    },
+    "Unpin navigation" : {
+
+    },
+    "Update available — show updates" : {
+
+    },
+    "Update…" : {
+
+    },
+    "URL: %@\nRefresh: %lld seconds\nPrivate network: %@\nMaximum response: 256 KiB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "URL: %1$@\nRefresh: %2$lld seconds\nPrivate network: %3$@\nMaximum response: 256 KiB"
+          }
+        }
+      }
+    },
+    "Use global preference" : {
+
+    },
+    "Use Template" : {
+
+    },
+    "Used by %@" : {
+
+    },
+    "User-selected file actions with no background file history." : {
+
+    },
+    "Uses existing live and long-term metric services without duplicate polling." : {
+
+    },
+    "Uses the existing Tonic weather provider and refresh policy." : {
+
+    },
+    "v%@" : {
+
+    },
+    "Value" : {
+
+    },
+    "Version %@" : {
+
+    },
+    "Version, edition, macOS version, and architecture." : {
+
+    },
+    "View in App Store" : {
+
+    },
+    "Visible" : {
+
+    },
+    "VISIBLE" : {
+
+    },
+    "Visible in menu bar" : {
+
+    },
+    "Waiting for live samples" : {
+
+    },
+    "Watch for Updates" : {
+
+    },
+    "Weather" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wetter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiempo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Météo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天気"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天气"
+          }
+        }
+      }
+    },
+    "Weather unavailable" : {
+
+    },
+    "What should Tonic help with?" : {
+
+    },
+    "Whether a feature is available; never feature-use analytics." : {
+
+    },
+    "Width" : {
+
+    },
+    "Window action failed. %@" : {
+
+    },
+    "Window gap preview, %lld points" : {
+
+    },
+    "Window shortcuts need Accessibility access to move windows. ⌘K is always reserved for All Tools." : {
+
+    },
+    "Work" : {
+
+    },
+    "Working directory" : {
+
+    },
+    "Workspace" : {
+
+    },
+    "Workspace name" : {
+
+    },
+    "Workspace…" : {
+
+    },
+    "You can also grant this permission later in System Settings > Privacy & Security > Full Disk Access." : {
+
+    },
+    "You can also manage authorized locations later in Settings > Permissions." : {
+
+    },
+    "Your previous frame remains available until the next window action." : {
+
+    },
+    "Your selected tools are ready in Daily Control and searchable from ⌘K. Permissions you skipped remain available in Access." : {
+
+    }
+  },
+  "version" : "1.0"
+}
